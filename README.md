@@ -78,22 +78,6 @@ This is OpenMotion's defining idea. Any animation — yours, ours, or remixed �
 OpenMotion is built to be driven by AI agents, not merely used by humans. The platform exposes motion as a first-class programmable surface — queryable, editable, and composable through natural language and structured calls alike.
 
 
-## How It Works
-
-```
-Select  →  Run  →  Refine  →  Ship  →  Export as Skill
-  │         │        │         │            │
-  │         │        │         │            └─ reusable by any AI agent
-  │         │        │         └─ to HTML / CSS / React / MP4 / GIF / SVG / WebM
-  │         │        └─ conversation + keyframe + per-component tuning
-  │         └─ alive in a real page/video instantly
-  └─ pick a top-tier template or describe intent
-```
-
-The loop closes: what you ship becomes what the next agent reuses.
-
----
-
 ## Who It's For
 
 - **Motion-curious developers** who want production animations without a timeline.
@@ -125,20 +109,6 @@ OpenMotion is in active development. Once the first release ships, you'll be abl
 git clone https://github.com/Yuan-ManX/open-motion.git
 cd open-motion
 ```
-
-
-## Roadmap
-
-- [ ] **Template Library v1** — founding set of top-tier motion templates
-- [ ] **Motion Agent** — conversational editing across curves, timing, and layers
-- [ ] **Live Runtime** — animations alive in real web pages and video frames
-- [ ] **Per-component tuning** — independent component editing without side effects
-- [ ] **Code-native export** — CSS / JSON / React output from any timeline
-- [ ] **Multi-format render** — MP4 / GIF / SVG / WebM export
-- [ ] **MCP server** — agent-consumable motion context
-- [ ] **Skill Pipeline** — package any motion as a reusable AI skill
-- [ ] **Motion systems & tokens** — reusable components and variables across assets
-- [ ] **Spatial motion** — 3D transforms combined with motion
 
 
 ## Contributing
