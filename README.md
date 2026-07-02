@@ -3,7 +3,8 @@
 # OpenMotion
 
 ### The AI-Native Motion Design Platform. 🕹️
-### The Open-Source Figma Motion Alternative, Redefining AI-Native Animation.
+
+**The Open-Source Figma Motion Alternative, Redefining AI-Native Animation.**
 
 **Animations that live in real web pages and videos — conversational, composable, and reusable by any AI agent.**
 
