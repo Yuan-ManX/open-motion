@@ -37,13 +37,13 @@ Traditional motion tools optimize for the timeline. OpenMotion optimizes for the
 
 ## Features
 
-#### Polished motion in a prompt
+### Polished motion in a prompt
 Create pro-level animations through conversation with OpenMotion's motion agent. Use it for a single repeated move or a full multi-scene story — describe the feeling, the agent shapes the frames.
 
-#### Full command of every keyframe
+### Full command of every keyframe
 When you want precision, the timeline is yours. Set every frame and property exactly, then bring in teammates to shape the final animation together. Conversational editing and keyframe control coexist — switch between them at any moment.
 
-#### Expansive creativity, precise control
+### Expansive creativity, precise control
 Bring clarity and expression to your work. Animate loading states, hover interactions, logo reveals, transitions, scroll-driven sequences — the timeline is the limit.
 
 - **Pre-made style primitives.** A curated style library — Fade, Rotate, Scale, Resize, Spring, Bounce, Squash & Stretch — ready to stack into your vision.
@@ -51,30 +51,30 @@ Bring clarity and expression to your work. Animate loading states, hover interac
 - **Spatial motion.** 2D transforms plus depth — combine motion with 3D transforms so objects move like they do in the real world.
 - **Screen-to-screen choreography.** Every transition carries its own full timeline, with per-element timing you can shape independently.
 
-#### Build motion systems once, apply them everywhere
+### Build motion systems once, apply them everywhere
 Motion systems let your whole team quickly add on-brand motion assets anywhere.
 
 - **Reusable components across assets.** Systematize common moves — no need to build from scratch every time. Create modes and components that work wherever they're applied.
 - **Motion tokens & variables.** Move between motion values quickly with variables and design tokens. Change a value once; every dependent motion updates.
 
-#### Per-component fine-tuning
+### Per-component fine-tuning
 Every animation is composed of independent components. Tune one without disturbing the rest — adjust a single element's easing, delay, or transform while the surrounding choreography stays intact.
 
-#### One-click reuse to HTML & video
+### One-click reuse to HTML & video
 A selected motion exports directly to production-ready HTML or a rendered video clip. The same artifact that runs in your browser is the artifact you ship.
 
 - **Multi-format export.** Turn any animated frame into MP4, GIF, SVG, WebM, or clean HTML/CSS — whatever the destination demands.
 
-#### Ship animation straight to code
+### Ship animation straight to code
 All animations are backed by real, production-ready code.
 
 - **Code-native output.** Inspect the entire motion timeline and copy animation code directly into CSS, JSON, or React.
 - **MCP-native agent context.** Send animation code to your agentic coding tools via the MCP server. All values — ease, timing, transforms — are preserved end to end.
 
-#### Export any motion as a skill *(signature primitive)*
+### Export any motion as a skill
 This is OpenMotion's defining idea. Any animation — yours, ours, or remixed — can be packaged as a **skill**: a self-contained, AI-callable motion unit. Drop it into your agent's toolkit and it becomes a reusable capability across projects, teams, and workflows.
 
-#### Agent-native by design
+### Agent-native by design
 OpenMotion is built to be driven by AI agents, not merely used by humans. The platform exposes motion as a first-class programmable surface — queryable, editable, and composable through natural language and structured calls alike.
 
 
