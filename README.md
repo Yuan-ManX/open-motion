@@ -1,10 +1,22 @@
+<div align="center">
+
 # OpenMotion
 
-**The AI-native motion design platform.**
+### The AI-native Motion Design Platform.
+### The Open-Source Figma Motion Alternative, Redefining AI-Native Animation.🕹️
+
 **Animations that live in real web pages and videos — conversational, composable, and reusable by any AI agent.**
 
-
 > Motion design, where your agent designs. Whether you're motion-curious or an easing expert, OpenMotion lets you stretch, bounce, and squash your ideas — then ship them as living artifacts and reusable skills.
+
+
+![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Stars](https://img.shields.io/github/stars/Yuan-ManX/open-motion?style=social)
+
+#### [English](./README.md) | [中文文档](./README_CN.md)
+
+</div>
 
 
 ## Overview
