@@ -3,13 +3,9 @@
 **The AI-native motion design platform.**
 **Animations that live in real web pages and videos — conversational, composable, and reusable by any AI agent.**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
-[![Status](https://img.shields.io/badge/status-active%20development-orange)](#status)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contributing)
 
 > Motion design, where your agent designs. Whether you're motion-curious or an easing expert, OpenMotion lets you stretch, bounce, and squash your ideas — then ship them as living artifacts and reusable skills.
 
----
 
 ## Overview
 
@@ -17,7 +13,6 @@ OpenMotion rethinks motion design from first principles. Instead of a timeline y
 
 It is motion design as a living artifact, not a static file.
 
----
 
 ## Why OpenMotion
 
@@ -27,7 +22,6 @@ Traditional motion tools optimize for the timeline. OpenMotion optimizes for the
 - **Conversation as the cursor.** You describe intent; the agent edits the curve, the timing, the layer.
 - **Skills as the currency.** A great animation becomes a reusable primitive any AI agent can call.
 
----
 
 ## Features
 
@@ -71,7 +65,6 @@ This is OpenMotion's defining idea. Any animation — yours, ours, or remixed �
 ### Agent-native by design
 OpenMotion is built to be driven by AI agents, not merely used by humans. The platform exposes motion as a first-class programmable surface — queryable, editable, and composable through natural language and structured calls alike.
 
----
 
 ## How It Works
 
@@ -96,7 +89,6 @@ The loop closes: what you ship becomes what the next agent reuses.
 - **AI agent builders** who need a reliable source of motion skills for their pipelines.
 - **Teams** shipping animated UI, marketing pages, and video content at cadence.
 
----
 
 ## Architecture
 
@@ -111,7 +103,6 @@ OpenMotion is organized around four founding pillars:
 
 Together they form a closed loop: *select → run → refine → ship → reuse*.
 
----
 
 ## Getting Started
 
@@ -128,7 +119,6 @@ cd open-motion
 
 Until then, watch this repository for the inaugural release.
 
----
 
 ## Roadmap
 
@@ -143,7 +133,6 @@ Until then, watch this repository for the inaugural release.
 - [ ] **Motion systems & tokens** — reusable components and variables across assets
 - [ ] **Spatial motion** — 3D transforms combined with motion
 
----
 
 ## Contributing
 
