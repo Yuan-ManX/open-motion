@@ -1,15 +1,21 @@
+<div align="center">
+  
 # OpenMotion
 
 **AI 原生的动效设计平台。**
 **动效活在真实的网页与视频里 —— 可对话修改、可组合、可被任意 AI Agent 复用。**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
-[![Status](https://img.shields.io/badge/status-积极开发中-orange)](#状态)
-[![PRs Welcome](https://img.shields.io/badge/PRs-欢迎-brightgreen.svg)](#贡献)
-
 > 动效设计，由你的 Agent 来设计。无论你是对动效好奇，还是缓动专家，OpenMotion 都让你尽情拉伸、弹跳、挤压你的想法——然后把它们交付为活的产物与可复用的 skill。
 
----
+
+![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Stars](https://img.shields.io/github/stars/Yuan-ManX/open-motion?style=social)
+
+#### [English](./README.md) | [中文文档](./README_CN.md)
+
+</div>
+
 
 ## 概览
 
@@ -17,7 +23,6 @@ OpenMotion 从第一性原理出发，重新定义动效设计。你不再面对
 
 动效在这里是活的产物，而非静态文件。
 
----
 
 ## 为什么是 OpenMotion
 
@@ -27,7 +32,6 @@ OpenMotion 从第一性原理出发，重新定义动效设计。你不再面对
 - **对话即光标。** 你描述意图，Agent 编辑曲线、节奏与图层。
 - **Skill 是通货。** 一段优秀的动效成为任意 AI Agent 可调用的复用原语。
 
----
 
 ## 功能
 
@@ -71,32 +75,16 @@ OpenMotion 从第一性原理出发，重新定义动效设计。你不再面对
 ### 天生为 Agent 设计
 OpenMotion 从一开始就为被 AI Agent 驱动而构建，而非仅供人类操作。平台把动效暴露为头等可编程表面——既可经自然语言、也可经结构化调用进行查询、编辑与组合。
 
----
 
-## 工作原理
+## 快速开始
 
+OpenMotion 正在积极开发中。首个版本发布后，你将可以：
+
+```bash
+# Clone the repository
+git clone https://github.com/Yuan-ManX/open-motion.git
+cd open-motion
 ```
-选中  →  运行  →  精修  →  交付  →  导出为 Skill
-  │       │       │       │          │
-  │       │       │       │          └─ 可被任意 AI Agent 复用
-  │       │       │       └─ 输出为 HTML / CSS / React / MP4 / GIF / SVG / WebM
-  │       │       └─ 对话 + 关键帧 + 组件级调优
-  │       └─ 即刻在真实页面/视频中存活
-  └─ 选取顶尖模板或描述意图
-```
-
-闭环就此合上：你交付的，正是下一个 Agent 复用的。
-
----
-
-## 面向谁
-
-- **对动效好奇的开发者**：无需时间轴即可获得生产级动效。
-- **设计师**：以意图思考，让 Agent 执行细节。
-- **AI Agent 构建者**：为流水线寻找可靠的动效 skill 来源。
-- **团队**：按节奏交付动画化 UI、营销页与视频内容。
-
----
 
 ## 架构
 
@@ -111,53 +99,21 @@ OpenMotion 围绕四大奠基支柱组织：
 
 四者合为闭环：*选中 → 运行 → 精修 → 交付 → 复用*。
 
----
-
-## 快速开始
-
-OpenMotion 正在积极开发中。首个版本发布后，你将可以：
-
-```bash
-# 克隆仓库
-git clone https://github.com/Yuan-Man/open-motion.git
-cd open-motion
-
-# 安装依赖（具体指令将随首个版本给出）
-# 启动 OpenMotion 工作台
-```
-
-在此之前，请关注本仓库以等候首发。
-
----
-
-## 路线图
-
-- [ ] **模板库 v1** —— 奠基级顶尖动效模板集合
-- [ ] **动效 Agent** —— 跨曲线、时序与图层的对话式编辑
-- [ ] **实时运行时** —— 动效在真实网页与视频帧中存活
-- [ ] **组件级调优** —— 无副作用的独立组件编辑
-- [ ] **代码原生导出** —— 任意时间轴输出 CSS / JSON / React
-- [ ] **多格式渲染** —— MP4 / GIF / SVG / WebM 导出
-- [ ] **MCP 服务器** —— Agent 可消费的动效上下文
-- [ ] **Skill 管线** —— 把任意动效打包为可复用的 AI skill
-- [ ] **动效系统与令牌** —— 跨资产复用组件与变量
-- [ ] **空间动效** —— 3D 变换与动效结合
-
----
 
 ## 贡献
 
-OpenMotion 是开源项目，欢迎贡献——模板、Agent 能力、运行时改进与 skill 创作都受益于社区输入。
-
-1. Fork 本仓库
-2. 创建你的功能分支（`git checkout -b feature/your-feature`）
-3. 提交你的改动
-4. 发起 Pull Request
-
-许可条款见 [LICENSE](./LICENSE)。保持友善，保持原创，交付活的动效。
-
----
+欢迎贡献！请在提交Pull Request之前阅读贡献指南。
 
 ## 许可证
 
-[MIT](./LICENSE) © 2026 Yuan-Man
+OpenMotion 采用MIT许可证。详见 [LICENSE](./LICENSE)。
+
+## Star历史
+
+如果你喜欢这个项目，请⭐给仓库加星。你的支持帮助我们成长！
+
+<p align="center">
+  <a href="https://star-history.com/#Yuan-ManX/open-motion&Date">
+    <img src="https://api.star-history.com/svg?repos=Yuan-ManX/open-motion&type=Date" />
+  </a>
+</p>
