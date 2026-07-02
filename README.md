@@ -2,7 +2,7 @@
 
 # OpenMotion
 
-### The AI-native Motion Design Platform.
+### The AI-Native Motion Design Platform.
 ### The Open-Source Figma Motion Alternative, Redefining AI-Native Animation.🕹️
 
 **Animations that live in real web pages and videos — conversational, composable, and reusable by any AI agent.**
@@ -122,14 +122,9 @@ OpenMotion is in active development. Once the first release ships, you'll be abl
 
 ```bash
 # Clone the repository
-git clone https://github.com/Yuan-Man/open-motion.git
+git clone https://github.com/Yuan-ManX/open-motion.git
 cd open-motion
-
-# Install dependencies (instructions to follow with the first release)
-# Launch the OpenMotion studio
 ```
-
-Until then, watch this repository for the inaugural release.
 
 
 ## Roadmap
@@ -148,17 +143,18 @@ Until then, watch this repository for the inaugural release.
 
 ## Contributing
 
-OpenMotion is open source and welcomes contributions — templates, agent capabilities, runtime improvements, and skill authoring all benefit from community input.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/your-feature`)
-3. Commit your changes
-4. Open a pull request
-
-See [LICENSE](./LICENSE) for licensing terms. Be kind, be original, ship motion that lives.
-
----
+Contributions are welcome! Please read our contributing guidelines before submitting pull requests.
 
 ## License
 
-[MIT](./LICENSE) © 2026 Yuan-Man
+OpenMotion is licensed under the MIT License. See [LICENSE](./LICENSE) for details.
+
+## ⭐ Star History
+
+If you like this project, please ⭐ star the repo. Your support helps us grow!
+
+<p align="center">
+  <a href="https://star-history.com/#Yuan-ManX/open-motion&Date">
+    <img src="https://api.star-history.com/svg?repos=Yuan-ManX/open-motion&type=Date" />
+  </a>
+</p>
