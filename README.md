@@ -2,8 +2,8 @@
 
 # OpenMotion
 
-### The AI-Native Motion Design Platform.
-### The Open-Source Figma Motion Alternative, Redefining AI-Native Animation.🕹️
+### The AI-Native Motion Design Platform. 🕹️
+### The Open-Source Figma Motion Alternative, Redefining AI-Native Animation.
 
 **Animations that live in real web pages and videos — conversational, composable, and reusable by any AI agent.**
 
@@ -78,13 +78,15 @@ This is OpenMotion's defining idea. Any animation — yours, ours, or remixed �
 OpenMotion is built to be driven by AI agents, not merely used by humans. The platform exposes motion as a first-class programmable surface — queryable, editable, and composable through natural language and structured calls alike.
 
 
-## Who It's For
+## Getting Started
 
-- **Motion-curious developers** who want production animations without a timeline.
-- **Designers** who think in intent and want an agent to execute the details.
-- **AI agent builders** who need a reliable source of motion skills for their pipelines.
-- **Teams** shipping animated UI, marketing pages, and video content at cadence.
+OpenMotion is in active development. Once the first release ships, you'll be able to:
 
+```bash
+# Clone the repository
+git clone https://github.com/Yuan-ManX/open-motion.git
+cd open-motion
+```
 
 ## Architecture
 
@@ -98,17 +100,6 @@ OpenMotion is organized around four founding pillars:
 | **Skill Pipeline** | Packages any motion into a self-contained, AI-callable, reusable unit. |
 
 Together they form a closed loop: *select → run → refine → ship → reuse*.
-
-
-## Getting Started
-
-OpenMotion is in active development. Once the first release ships, you'll be able to:
-
-```bash
-# Clone the repository
-git clone https://github.com/Yuan-ManX/open-motion.git
-cd open-motion
-```
 
 
 ## Contributing
