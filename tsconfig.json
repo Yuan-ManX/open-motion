@@ -1,0 +1,7 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./open-motion" },
+    { "path": "./web" }
+  ]
+}
