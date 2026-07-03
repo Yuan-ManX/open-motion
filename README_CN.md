@@ -1,5 +1,7 @@
 <div align="center">
-  
+
+<img src="./assets/OpenMotion-Logo.png" alt="OpenMotion Logo">
+
 # OpenMotion
 
 **AI 原生的动效设计平台。**
