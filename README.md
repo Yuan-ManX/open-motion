@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="./assets/OpenMotion-Logo.png" alt="OpenMotion Logo">
+
 # OpenMotion
 
 ### The AI-Native Motion Design Platform. 🕹️
