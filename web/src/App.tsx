@@ -1,13 +1,11 @@
 import { useEffect } from "react";
 import { useUiStore } from "./store/uiStore.js";
 import * as api from "./api/endpoints.js";
-import { Gallery } from "./routes/Gallery.js";
 import { Editor } from "./routes/Editor.js";
-import { Skills } from "./routes/Skills.js";
+import { TemplatesModal } from "./components/modals/TemplatesModal.js";
+import { SkillsModal } from "./components/modals/SkillsModal.js";
 
 export default function App() {
-  const view = useUiStore((s) => s.view);
-  const setView = useUiStore((s) => s.setView);
   const health = useUiStore((s) => s.health);
   const setHealth = useUiStore((s) => s.setHealth);
 
@@ -19,33 +17,13 @@ export default function App() {
   }, [setHealth]);
 
   const ok = !!health;
-  const tabs: Array<{ key: typeof view; label: string }> = [
-    { key: "gallery", label: "Gallery" },
-    { key: "editor", label: "Editor" },
-    { key: "skills", label: "Skills" },
-  ];
 
   return (
     <div className="h-screen flex flex-col bg-ink text-gray-100">
-      {/* Top nav */}
-      <nav className="flex items-center justify-between px-4 py-2 border-b border-edge bg-panel">
+      <nav className="flex items-center justify-between px-4 py-1.5 border-b border-edge bg-panel flex-shrink-0">
         <div className="flex items-center gap-2">
-          <span className="text-base font-semibold tracking-tight">OpenMotion</span>
-        </div>
-        <div className="flex gap-1">
-          {tabs.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setView(t.key)}
-              className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                view === t.key
-                  ? "bg-accent text-white"
-                  : "text-gray-400 hover:text-gray-200 hover:bg-panel2"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
+          <span className="text-sm font-semibold tracking-tight">OpenMotion</span>
+          <span className="text-[10px] text-gray-600">AI-native motion design</span>
         </div>
         <div className="flex items-center gap-2 text-[11px]">
           <span
@@ -66,10 +44,11 @@ export default function App() {
       )}
 
       <div className="flex-1 min-h-0">
-        {view === "gallery" && <Gallery />}
-        {view === "editor" && <Editor />}
-        {view === "skills" && <Skills />}
+        <Editor />
       </div>
+
+      <TemplatesModal />
+      <SkillsModal />
     </div>
   );
 }
