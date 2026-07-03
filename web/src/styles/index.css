@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: radial-gradient(120% 120% at 50% 0%, #1b2230 0%, #0b0e14 60%);
+  color: #f4f6fb;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #222a3a; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #2d3850; }
