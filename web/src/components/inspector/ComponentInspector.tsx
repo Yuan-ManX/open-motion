@@ -201,34 +201,15 @@ export function ComponentInspector() {
             </>
           )}
           {easingType === "spring" && (
-            <div className="grid grid-cols-3 gap-1 mt-2">
-              <input
-                type="number"
-                className={inputCls}
-                placeholder="stiffness"
-                value={spring.stiffness}
-                onChange={(e) =>
-                  setSpring({ ...spring, stiffness: Number(e.target.value) })
-                }
-                onBlur={() => void persist({ easing: buildEasing() })}
-              />
-              <input
-                type="number"
-                className={inputCls}
-                placeholder="damping"
-                value={spring.damping}
-                onChange={(e) => setSpring({ ...spring, damping: Number(e.target.value) })}
-                onBlur={() => void persist({ easing: buildEasing() })}
-              />
-              <input
-                type="number"
-                className={inputCls}
-                placeholder="mass"
-                value={spring.mass}
-                onChange={(e) => setSpring({ ...spring, mass: Number(e.target.value) })}
-                onBlur={() => void persist({ easing: buildEasing() })}
-              />
-            </div>
+            <SpringEditor
+              spring={spring}
+              onChange={(next) => {
+                setSpring(next);
+                void persist({
+                  easing: { type: "spring", stiffness: next.stiffness, damping: next.damping, mass: next.mass },
+                });
+              }}
+            />
           )}
         </div>
 
@@ -385,6 +366,64 @@ export function ComponentInspector() {
           </div>
         </div>
 
+        {/* Appearance: blur, borderRadius, boxShadow */}
+        <div>
+          <div className={labelCls}>Appearance</div>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-gray-500 w-14">blur</span>
+              <input
+                type="range"
+                min={0}
+                max={20}
+                step={0.5}
+                value={Number(String(component.style?.filter ?? "").match(/blur\(([\d.]+)px\)/)?.[1] ?? 0)}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  persistStyle({ filter: `blur(${v}px)` });
+                }}
+                className="flex-1 accent-accent"
+              />
+              <span className="text-[10px] text-gray-400 font-mono w-8 text-right">
+                {String(component.style?.filter ?? "").match(/blur\(([\d.]+)px\)/)?.[1] ?? 0}px
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-gray-500 w-14">radius</span>
+              <input
+                type="range"
+                min={0}
+                max={50}
+                step={1}
+                value={Number(component.style?.borderRadius ?? 8)}
+                onChange={(e) => persistStyle({ borderRadius: `${e.target.value}px` })}
+                className="flex-1 accent-accent"
+              />
+              <span className="text-[10px] text-gray-400 font-mono w-8 text-right">
+                {component.style?.borderRadius ?? 8}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-gray-500 w-14">shadow</span>
+              <input
+                type="range"
+                min={0}
+                max={30}
+                step={1}
+                value={Number(String(component.style?.boxShadow ?? "").match(/^(\d+)/)?.[1] ?? 0)}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  persistStyle({ boxShadow: v > 0 ? `0 ${v / 2}px ${v}px rgba(0,0,0,0.3)` : "none" });
+                }}
+                className="flex-1 accent-accent"
+              />
+              <span className="text-[10px] text-gray-400 font-mono w-8 text-right">
+                {String(component.style?.boxShadow ?? "").match(/^(\d+)/)?.[1] ?? 0}
+              </span>
+            </div>
+          </div>
+        </div>
+
         {/* Keyframes */}
         <div className="border-t border-edge pt-3">
           <button
@@ -440,6 +479,86 @@ const ALL_PROPERTIES: readonly TransformProperty[] = [
   ...TRANSFORM_PROPERTIES,
   ...NON_TRANSFORM_PROPERTIES,
 ];
+
+function SpringEditor({
+  spring,
+  onChange,
+}: {
+  spring: { stiffness: number; damping: number; mass: number };
+  onChange: (next: { stiffness: number; damping: number; mass: number }) => void;
+}) {
+  const r = spring.damping / (2 * Math.sqrt(spring.stiffness * spring.mass));
+  const behavior = r >= 1 ? "over-damped" : r >= 0.7 ? "critically damped" : r >= 0.4 ? "under-damped" : "bouncy";
+  const behaviorColor =
+    r >= 1 ? "text-gray-400" : r >= 0.7 ? "text-green-400" : r >= 0.4 ? "text-yellow-400" : "text-orange-400";
+
+  const sliderCls = "flex-1 accent-accent";
+
+  return (
+    <div className="mt-2 space-y-2 rounded-lg border border-edge bg-panel2 p-2">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] text-gray-500">damping ratio</span>
+        <span className={`text-[10px] font-mono ${behaviorColor}`}>
+          ζ={r.toFixed(2)} · {behavior}
+        </span>
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] text-gray-500 w-16">stiffness</span>
+        <input
+          type="range"
+          min={1}
+          max={300}
+          step={1}
+          value={spring.stiffness}
+          onChange={(e) => onChange({ ...spring, stiffness: Number(e.target.value) })}
+          className={sliderCls}
+        />
+        <input
+          type="number"
+          className="w-14 bg-panel border border-edge rounded px-1 py-0.5 text-[10px] text-gray-100 text-right"
+          value={spring.stiffness}
+          onChange={(e) => onChange({ ...spring, stiffness: Number(e.target.value) })}
+        />
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] text-gray-500 w-16">damping</span>
+        <input
+          type="range"
+          min={0}
+          max={40}
+          step={0.5}
+          value={spring.damping}
+          onChange={(e) => onChange({ ...spring, damping: Number(e.target.value) })}
+          className={sliderCls}
+        />
+        <input
+          type="number"
+          className="w-14 bg-panel border border-edge rounded px-1 py-0.5 text-[10px] text-gray-100 text-right"
+          value={spring.damping}
+          onChange={(e) => onChange({ ...spring, damping: Number(e.target.value) })}
+        />
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] text-gray-500 w-16">mass</span>
+        <input
+          type="range"
+          min={0.1}
+          max={10}
+          step={0.1}
+          value={spring.mass}
+          onChange={(e) => onChange({ ...spring, mass: Number(e.target.value) })}
+          className={sliderCls}
+        />
+        <input
+          type="number"
+          className="w-14 bg-panel border border-edge rounded px-1 py-0.5 text-[10px] text-gray-100 text-right"
+          value={spring.mass}
+          onChange={(e) => onChange({ ...spring, mass: Number(e.target.value) })}
+        />
+      </div>
+    </div>
+  );
+}
 
 function KeyframeRow({
   keyframe,
