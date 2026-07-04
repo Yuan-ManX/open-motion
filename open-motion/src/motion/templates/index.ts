@@ -9,6 +9,8 @@ import { scaleTemplate } from "./scale.js";
 import { rotateTemplate } from "./rotate.js";
 import { squashStretchTemplate } from "./squashStretch.js";
 import { logoRevealTemplate } from "./logoReveal.js";
+import { resizeTemplate } from "./resize.js";
+import { springTemplate } from "./spring.js";
 import type { ComponentDraft, TemplateDef } from "./helper.js";
 
 export const TEMPLATES: TemplateDef[] = [
@@ -21,6 +23,8 @@ export const TEMPLATES: TemplateDef[] = [
   pulseTemplate,
   squashStretchTemplate,
   spinTemplate,
+  resizeTemplate,
+  springTemplate,
 ];
 
 export function getTemplate(id: string): TemplateDef | undefined {
