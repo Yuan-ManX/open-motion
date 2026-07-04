@@ -8,6 +8,7 @@ import { ChatPanel } from "../components/chat/ChatPanel.js";
 import { ComponentInspector } from "../components/inspector/ComponentInspector.js";
 import { LayersPanel } from "../components/inspector/LayersPanel.js";
 import { ExportDialog } from "../components/export/ExportDialog.js";
+import { ApiKeyButton } from "../components/settings/ApiKeyButton.js";
 import { useKeyboard } from "../hooks/useKeyboard.js";
 import * as api from "../api/endpoints.js";
 
@@ -53,6 +54,7 @@ export function Editor() {
           <span className="text-sm font-medium text-gray-200 truncate">{project?.name ?? "Untitled"}</span>
           <span className="text-[10px] text-gray-600 font-mono">{projectId}</span>
           <div className="ml-auto flex items-center gap-2">
+            <ApiKeyButton />
             <button
               onClick={() => setTemplatesOpen(true)}
               className="px-3 py-1 rounded-md text-xs text-gray-300 bg-panel2 border border-edge hover:border-accent transition-colors"

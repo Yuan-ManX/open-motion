@@ -1,10 +1,7 @@
 import { create } from "zustand";
 import type { HealthResponse } from "@openmotion/shared";
 
-export type View = "editor" | "gallery" | "skills";
-
 interface UiState {
-  view: View;
   selectedComponentId: string | null;
   exportOpen: boolean;
   templatesOpen: boolean;
@@ -12,7 +9,6 @@ interface UiState {
   health: HealthResponse | null;
   replayTrigger: number;
 
-  setView: (v: View) => void;
   selectComponent: (id: string | null) => void;
   setExportOpen: (open: boolean) => void;
   setTemplatesOpen: (open: boolean) => void;
@@ -22,7 +18,6 @@ interface UiState {
 }
 
 export const useUiStore = create<UiState>((set) => ({
-  view: "editor",
   selectedComponentId: null,
   exportOpen: false,
   templatesOpen: false,
@@ -30,7 +25,6 @@ export const useUiStore = create<UiState>((set) => ({
   health: null,
   replayTrigger: 0,
 
-  setView: (v) => set({ view: v }),
   selectComponent: (id) => set({ selectedComponentId: id }),
   setExportOpen: (open) => set({ exportOpen: open }),
   setTemplatesOpen: (open) => set({ templatesOpen: open }),

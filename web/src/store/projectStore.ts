@@ -9,7 +9,7 @@ interface ProjectState {
   loading: boolean;
 
   loadProject: (id: string) => Promise<void>;
-  applySpecUpdate: (components: MotionComponent[]) => void;
+  applySpecUpdate: (components: MotionComponent[], project?: MotionProject) => void;
   patchComponentLocal: (componentId: string, patch: Partial<MotionComponent>) => void;
   removeComponentLocal: (componentId: string) => void;
   reset: () => void;
@@ -37,8 +37,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }
   },
 
-  applySpecUpdate: (components) => {
-    set({ components });
+  applySpecUpdate: (components, project) => {
+    set(project ? { components, project } : { components });
   },
 
   patchComponentLocal: (componentId, patch) => {
