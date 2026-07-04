@@ -5,6 +5,7 @@ import * as api from "../../api/endpoints.js";
 
 type VideoStatus = "idle" | "pending" | "running" | "done" | "failed";
 type Format = "mp4" | "gif" | "webm";
+type CodeFormat = "css" | "json" | "react";
 
 export function ExportDialog() {
   const open = useUiStore((s) => s.exportOpen);
@@ -26,6 +27,12 @@ export function ExportDialog() {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const [codeFormat, setCodeFormat] = useState<CodeFormat>("css");
+  const [codeResult, setCodeResult] = useState<api.CodeExport | null>(null);
+  const [codeBusy, setCodeBusy] = useState(false);
+  const [codeError, setCodeError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
   const videoAvailable = !!(health?.puppeteer && health?.ffmpeg);
 
   useEffect(() => {
@@ -37,6 +44,10 @@ export function ExportDialog() {
       setVideoJobId(null);
       setVideoError(null);
       setVideoUrl(null);
+      setCodeResult(null);
+      setCodeError(null);
+      setCodeBusy(false);
+      setCopied(false);
       if (pollRef.current) {
         clearInterval(pollRef.current);
         pollRef.current = null;
@@ -108,10 +119,67 @@ export function ExportDialog() {
     }
   };
 
+  const exportCode = async () => {
+    if (!projectId) return;
+    setCodeBusy(true);
+    setCodeError(null);
+    setCodeResult(null);
+    setCopied(false);
+    try {
+      const result =
+        codeFormat === "css"
+          ? await api.exportCss(projectId)
+          : codeFormat === "json"
+            ? await api.exportJson(projectId)
+            : await api.exportReact(projectId);
+      setCodeResult(result);
+    } catch (e) {
+      setCodeError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCodeBusy(false);
+    }
+  };
+
+  const copyCode = async () => {
+    if (!codeResult) return;
+    try {
+      await navigator.clipboard.writeText(codeResult.code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      setCodeError("clipboard unavailable");
+    }
+  };
+
+  const downloadCode = () => {
+    if (!codeResult) return;
+    const blob = new Blob([codeResult.code], {
+      type:
+        codeResult.language === "json"
+          ? "application/json"
+          : codeResult.language === "css"
+            ? "text/css"
+            : "text/plain",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = codeResult.filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   if (!open) return null;
 
   const inputCls =
     "w-full bg-panel2 border border-edge rounded px-2 py-1 text-sm text-gray-100 focus:outline-none focus:border-accent";
+
+  const tabCls = (active: boolean) =>
+    `px-3 py-1 text-xs rounded transition-colors ${
+      active
+        ? "bg-accent text-white"
+        : "bg-panel2 border border-edge text-gray-400 hover:text-gray-200"
+    }`;
 
   return (
     <div
@@ -119,7 +187,7 @@ export function ExportDialog() {
       onClick={() => setOpen(false)}
     >
       <div
-        className="bg-panel border border-edge rounded-xl w-full max-w-lg mx-4 shadow-2xl"
+        className="bg-panel border border-edge rounded-xl w-full max-w-lg mx-4 shadow-2xl max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-edge">
@@ -132,7 +200,7 @@ export function ExportDialog() {
           </button>
         </div>
 
-        <div className="px-4 py-4 space-y-5">
+        <div className="px-4 py-4 space-y-5 overflow-y-auto">
           {/* HTML export */}
           <section>
             <div className="text-xs uppercase tracking-wide text-gray-500 mb-2">Standalone HTML</div>
@@ -143,9 +211,7 @@ export function ExportDialog() {
             >
               {htmlBusy ? "Exporting…" : "Export HTML"}
             </button>
-            {htmlError && (
-              <p className="text-xs text-red-400 mt-2">{htmlError}</p>
-            )}
+            {htmlError && <p className="text-xs text-red-400 mt-2">{htmlError}</p>}
             {htmlResult && (
               <div className="mt-2 text-xs text-gray-400">
                 Generated{" "}
@@ -163,14 +229,65 @@ export function ExportDialog() {
 
           <div className="border-t border-edge" />
 
+          {/* Code export */}
+          <section>
+            <div className="text-xs uppercase tracking-wide text-gray-500 mb-2">Code</div>
+            <div className="flex gap-1 mb-2">
+              <button className={tabCls(codeFormat === "css")} onClick={() => setCodeFormat("css")}>
+                CSS
+              </button>
+              <button className={tabCls(codeFormat === "json")} onClick={() => setCodeFormat("json")}>
+                JSON
+              </button>
+              <button
+                className={tabCls(codeFormat === "react")}
+                onClick={() => setCodeFormat("react")}
+              >
+                React
+              </button>
+            </div>
+            <button
+              onClick={exportCode}
+              disabled={!projectId || codeBusy}
+              className="w-full px-3 py-2 rounded-lg bg-panel2 border border-edge hover:border-accent disabled:opacity-40 text-gray-200 text-sm font-medium transition-colors"
+            >
+              {codeBusy ? "Generating…" : `Export ${codeFormat.toUpperCase()}`}
+            </button>
+            {codeError && <p className="text-xs text-red-400 mt-2">{codeError}</p>}
+            {codeResult && (
+              <div className="mt-2">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] text-gray-500 font-mono">{codeResult.filename}</span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={copyCode}
+                      className="text-[10px] px-2 py-0.5 rounded bg-panel2 border border-edge text-gray-300 hover:border-accent"
+                    >
+                      {copied ? "Copied ✓" : "Copy"}
+                    </button>
+                    <button
+                      onClick={downloadCode}
+                      className="text-[10px] px-2 py-0.5 rounded bg-panel2 border border-edge text-gray-300 hover:border-accent"
+                    >
+                      Download
+                    </button>
+                  </div>
+                </div>
+                <pre className="bg-black/40 border border-edge rounded p-2 text-[10px] leading-relaxed text-gray-300 font-mono max-h-56 overflow-auto whitespace-pre">
+                  {codeResult.code}
+                </pre>
+              </div>
+            )}
+          </section>
+
+          <div className="border-t border-edge" />
+
           {/* Video export */}
           <section>
             <div className="flex items-center justify-between mb-2">
               <div className="text-xs uppercase tracking-wide text-gray-500">Video</div>
               {!videoAvailable && (
-                <span className="text-[10px] text-amber-400">
-                  requires puppeteer + ffmpeg
-                </span>
+                <span className="text-[10px] text-amber-400">requires puppeteer + ffmpeg</span>
               )}
             </div>
 
@@ -228,7 +345,12 @@ export function ExportDialog() {
 
             <button
               onClick={exportVideo}
-              disabled={!projectId || !videoAvailable || videoStatus === "pending" || videoStatus === "running"}
+              disabled={
+                !projectId ||
+                !videoAvailable ||
+                videoStatus === "pending" ||
+                videoStatus === "running"
+              }
               className="w-full px-3 py-2 rounded-lg bg-panel2 border border-edge hover:border-accent disabled:opacity-40 text-gray-200 text-sm font-medium transition-colors"
             >
               {videoStatus === "pending" || videoStatus === "running"
@@ -239,17 +361,11 @@ export function ExportDialog() {
             {videoJobId && (
               <div className="mt-2 text-[10px] text-gray-600 font-mono">job: {videoJobId}</div>
             )}
-            {videoError && (
-              <p className="text-xs text-red-400 mt-2">{videoError}</p>
-            )}
+            {videoError && <p className="text-xs text-red-400 mt-2">{videoError}</p>}
             {videoStatus === "done" && videoUrl && (
               <div className="mt-2 text-xs text-gray-400">
                 Ready:{" "}
-                <a
-                  href={videoUrl}
-                  download
-                  className="text-accent2 underline"
-                >
+                <a href={videoUrl} download className="text-accent2 underline">
                   download
                 </a>
               </div>
