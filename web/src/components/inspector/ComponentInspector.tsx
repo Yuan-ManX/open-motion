@@ -26,6 +26,48 @@ function easingPresetName(e: Easing | undefined): string {
   return e.type === "preset" ? e.name : e.type;
 }
 
+interface FilterValues {
+  blur: number;
+  brightness: number;
+  contrast: number;
+  saturate: number;
+  hueRotate: number;
+}
+
+const DEFAULT_FILTERS: FilterValues = {
+  blur: 0,
+  brightness: 100,
+  contrast: 100,
+  saturate: 100,
+  hueRotate: 0,
+};
+
+function parseFilter(raw: string | number | undefined): FilterValues {
+  const s = String(raw ?? "");
+  const out = { ...DEFAULT_FILTERS };
+  const m = s.match(/blur\(([\d.]+)px\)/);
+  if (m) out.blur = Number(m[1]);
+  const b = s.match(/brightness\(([\d.]+)%?\)/);
+  if (b) out.brightness = Number(b[1]);
+  const c = s.match(/contrast\(([\d.]+)%?\)/);
+  if (c) out.contrast = Number(c[1]);
+  const sa = s.match(/saturate\(([\d.]+)%?\)/);
+  if (sa) out.saturate = Number(sa[1]);
+  const h = s.match(/hue-rotate\(([\d.]+)deg\)/);
+  if (h) out.hueRotate = Number(h[1]);
+  return out;
+}
+
+function buildFilter(v: FilterValues): string {
+  const parts: string[] = [];
+  if (v.blur > 0) parts.push(`blur(${v.blur}px)`);
+  if (v.brightness !== 100) parts.push(`brightness(${v.brightness}%)`);
+  if (v.contrast !== 100) parts.push(`contrast(${v.contrast}%)`);
+  if (v.saturate !== 100) parts.push(`saturate(${v.saturate}%)`);
+  if (v.hueRotate !== 0) parts.push(`hue-rotate(${v.hueRotate}deg)`);
+  return parts.length ? parts.join(" ") : "none";
+}
+
 export function ComponentInspector() {
   const selectedId = useUiStore((s) => s.selectedComponentId);
   const components = useProjectStore((s) => s.components);
@@ -366,28 +408,52 @@ export function ComponentInspector() {
           </div>
         </div>
 
-        {/* Appearance: blur, borderRadius, boxShadow */}
+        {/* Appearance: filters, borderRadius, boxShadow */}
         <div>
           <div className={labelCls}>Appearance</div>
           <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] text-gray-500 w-14">blur</span>
-              <input
-                type="range"
-                min={0}
-                max={20}
-                step={0.5}
-                value={Number(String(component.style?.filter ?? "").match(/blur\(([\d.]+)px\)/)?.[1] ?? 0)}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  persistStyle({ filter: `blur(${v}px)` });
-                }}
-                className="flex-1 accent-accent"
-              />
-              <span className="text-[10px] text-gray-400 font-mono w-8 text-right">
-                {String(component.style?.filter ?? "").match(/blur\(([\d.]+)px\)/)?.[1] ?? 0}px
-              </span>
-            </div>
+            {(() => {
+              const fv = parseFilter(component.style?.filter);
+              const updateFilter = (patch: Partial<FilterValues>) => {
+                const next = { ...fv, ...patch };
+                persistStyle({ filter: buildFilter(next) });
+              };
+              const sliders: {
+                key: keyof FilterValues;
+                label: string;
+                min: number;
+                max: number;
+                step: number;
+                unit: string;
+              }[] = [
+                { key: "blur", label: "blur", min: 0, max: 20, step: 0.5, unit: "px" },
+                { key: "brightness", label: "bright", min: 0, max: 200, step: 5, unit: "%" },
+                { key: "contrast", label: "contrast", min: 0, max: 200, step: 5, unit: "%" },
+                { key: "saturate", label: "saturate", min: 0, max: 200, step: 5, unit: "%" },
+                { key: "hueRotate", label: "hue", min: 0, max: 360, step: 5, unit: "°" },
+              ];
+              return (
+                <>
+                  {sliders.map((s) => (
+                    <div key={s.key} className="flex items-center gap-2">
+                      <span className="text-[10px] text-gray-500 w-14">{s.label}</span>
+                      <input
+                        type="range"
+                        min={s.min}
+                        max={s.max}
+                        step={s.step}
+                        value={fv[s.key]}
+                        onChange={(e) => updateFilter({ [s.key]: Number(e.target.value) } as Partial<FilterValues>)}
+                        className="flex-1 accent-accent"
+                      />
+                      <span className="text-[10px] text-gray-400 font-mono w-10 text-right">
+                        {fv[s.key]}{s.unit}
+                      </span>
+                    </div>
+                  ))}
+                </>
+              );
+            })()}
             <div className="flex items-center gap-2">
               <span className="text-[10px] text-gray-500 w-14">radius</span>
               <input
@@ -399,7 +465,7 @@ export function ComponentInspector() {
                 onChange={(e) => persistStyle({ borderRadius: `${e.target.value}px` })}
                 className="flex-1 accent-accent"
               />
-              <span className="text-[10px] text-gray-400 font-mono w-8 text-right">
+              <span className="text-[10px] text-gray-400 font-mono w-10 text-right">
                 {component.style?.borderRadius ?? 8}
               </span>
             </div>
@@ -417,7 +483,7 @@ export function ComponentInspector() {
                 }}
                 className="flex-1 accent-accent"
               />
-              <span className="text-[10px] text-gray-400 font-mono w-8 text-right">
+              <span className="text-[10px] text-gray-400 font-mono w-10 text-right">
                 {String(component.style?.boxShadow ?? "").match(/^(\d+)/)?.[1] ?? 0}
               </span>
             </div>
