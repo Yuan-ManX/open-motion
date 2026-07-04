@@ -12,10 +12,26 @@ function percent(offset: number): string {
   return `${(offset * 100).toFixed(2).replace(/\.?0+$/, "")}%`;
 }
 
+const UNITLESS_NUMERIC = new Set([
+  "fontWeight",
+  "opacity",
+  "zIndex",
+  "flexGrow",
+  "flexShrink",
+  "order",
+  "lineHeight",
+]);
+
 function styleToCss(style: Record<string, string | number>): string {
   return Object.entries(style)
     .filter(([k]) => !k.startsWith("_"))
-    .map(([k, v]) => `${camelToKebab(k)}: ${typeof v === "number" ? `${v}px` : v};`)
+    .map(([k, v]) => {
+      const kebab = camelToKebab(k);
+      if (typeof v === "number") {
+        return `${kebab}: ${UNITLESS_NUMERIC.has(k) ? v : `${v}px`};`;
+      }
+      return `${kebab}: ${v};`;
+    })
     .join(" ");
 }
 
