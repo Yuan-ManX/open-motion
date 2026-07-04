@@ -33,6 +33,13 @@ export function ExportDialog() {
   const [codeError, setCodeError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  const [skillName, setSkillName] = useState("");
+  const [skillDesc, setSkillDesc] = useState("");
+  const [skillTags, setSkillTags] = useState("");
+  const [skillBusy, setSkillBusy] = useState(false);
+  const [skillError, setSkillError] = useState<string | null>(null);
+  const [skillResult, setSkillResult] = useState<{ id: string; name: string } | null>(null);
+
   const videoAvailable = !!(health?.puppeteer && health?.ffmpeg);
 
   useEffect(() => {
@@ -48,6 +55,12 @@ export function ExportDialog() {
       setCodeError(null);
       setCodeBusy(false);
       setCopied(false);
+      setSkillName("");
+      setSkillDesc("");
+      setSkillTags("");
+      setSkillBusy(false);
+      setSkillError(null);
+      setSkillResult(null);
       if (pollRef.current) {
         clearInterval(pollRef.current);
         pollRef.current = null;
@@ -167,6 +180,34 @@ export function ExportDialog() {
     a.download = codeResult.filename;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const packageSkill = async () => {
+    if (!projectId) return;
+    const name = skillName.trim();
+    const description = skillDesc.trim();
+    if (!name || !description) {
+      setSkillError("name and description are required");
+      return;
+    }
+    setSkillBusy(true);
+    setSkillError(null);
+    setSkillResult(null);
+    try {
+      const tags = skillTags
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean);
+      const skill = await api.createSkill({ projectId, name, description, tags });
+      setSkillResult({ id: skill.id, name: skill.name });
+      setSkillName("");
+      setSkillDesc("");
+      setSkillTags("");
+    } catch (e) {
+      setSkillError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSkillBusy(false);
+    }
   };
 
   if (!open) return null;
@@ -368,6 +409,56 @@ export function ExportDialog() {
                 <a href={videoUrl} download className="text-accent2 underline">
                   download
                 </a>
+              </div>
+            )}
+          </section>
+
+          <div className="border-t border-edge" />
+
+          {/* Skill packaging */}
+          <section>
+            <div className="text-xs uppercase tracking-wide text-gray-500 mb-2">Skill</div>
+            <p className="text-[10px] text-gray-600 mb-2">
+              Package the current project as a reusable Skill unit.
+            </p>
+            <div className="space-y-2">
+              <input
+                type="text"
+                placeholder="Skill name"
+                className={inputCls}
+                value={skillName}
+                onChange={(e) => setSkillName(e.target.value)}
+                disabled={!projectId || skillBusy}
+              />
+              <textarea
+                placeholder="Description"
+                className={inputCls}
+                rows={2}
+                value={skillDesc}
+                onChange={(e) => setSkillDesc(e.target.value)}
+                disabled={!projectId || skillBusy}
+              />
+              <input
+                type="text"
+                placeholder="tags (comma-separated)"
+                className={inputCls}
+                value={skillTags}
+                onChange={(e) => setSkillTags(e.target.value)}
+                disabled={!projectId || skillBusy}
+              />
+            </div>
+            <button
+              onClick={packageSkill}
+              disabled={!projectId || skillBusy}
+              className="w-full mt-2 px-3 py-2 rounded-lg bg-panel2 border border-edge hover:border-accent disabled:opacity-40 text-gray-200 text-sm font-medium transition-colors"
+            >
+              {skillBusy ? "Packaging…" : "Package Skill"}
+            </button>
+            {skillError && <p className="text-xs text-red-400 mt-2">{skillError}</p>}
+            {skillResult && (
+              <div className="mt-2 text-xs text-gray-400">
+                Packaged{" "}
+                <span className="text-accent2 font-mono">{skillResult.name}</span> (id: {skillResult.id}). Find it in the Skills panel.
               </div>
             )}
           </section>
