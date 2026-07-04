@@ -1,3 +1,5 @@
+import { authHeaders } from "./auth.js";
+
 const BASE = "/api";
 
 export class ApiError extends Error {
@@ -12,7 +14,9 @@ export class ApiError extends Error {
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method,
-    headers: body ? { "Content-Type": "application/json" } : undefined,
+    headers: body
+      ? { "Content-Type": "application/json", ...authHeaders() }
+      : { ...authHeaders() },
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) {
@@ -22,6 +26,9 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
       msg = j.error || msg;
     } catch {
       /* ignore */
+    }
+    if (res.status === 401) {
+      msg = "unauthorized — set your API key via the 🔑 button in the toolbar";
     }
     throw new ApiError(res.status, msg);
   }

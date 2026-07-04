@@ -1,4 +1,5 @@
 import type { ChatEvent } from "@openmotion/shared";
+import { authHeaders } from "./auth.js";
 
 /**
  * Stream a chat request over SSE. Parses the text/event-stream frames and
@@ -16,11 +17,14 @@ export function streamChat(
     try {
       const res = await fetch(`/api/projects/${projectId}/chat`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ message }),
         signal: controller.signal,
       });
       if (!res.ok || !res.body) {
+        if (res.status === 401) {
+          throw new Error("unauthorized — set your API key via the 🔑 button in the toolbar");
+        }
         throw new Error(`chat request failed: ${res.status}`);
       }
       const reader = res.body.getReader();

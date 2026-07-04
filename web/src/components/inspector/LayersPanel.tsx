@@ -84,10 +84,14 @@ export function LayersPanel() {
             className="w-full bg-panel2 border border-edge rounded px-2 py-1 text-xs text-gray-100 focus:outline-none focus:border-accent"
           >
             <option value="">— pick template —</option>
-            {EASING_PRESETS.map((t) => (
-              <option key={t} value={`tpl-${t.replace(/_/g, "-")}`}>
-                {t}
-              </option>
+            {Object.entries(grouped).map(([cat, list]) => (
+              <optgroup key={cat} label={cat}>
+                {list.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
           <button
