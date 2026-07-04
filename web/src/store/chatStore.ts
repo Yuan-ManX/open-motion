@@ -20,9 +20,11 @@ interface ChatState {
   streamingTokens: string;
   toolActivity: ToolActivity[];
   error: string | null;
+  abortController: AbortController | null;
 
   loadMessages: (projectId: string) => Promise<void>;
   send: (projectId: string, text: string) => void;
+  abort: () => void;
   clear: (projectId: string) => Promise<void>;
 }
 
@@ -32,6 +34,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   streamingTokens: "",
   toolActivity: [],
   error: null,
+  abortController: null,
 
   loadMessages: async (projectId) => {
     try {
@@ -60,7 +63,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       error: null,
     });
 
-    streamChat(
+    const controller = streamChat(
       projectId,
       text,
       (event: ChatEvent) => {
@@ -86,7 +89,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             break;
           }
           case "spec_update":
-            useProjectStore.getState().applySpecUpdate(event.components);
+            useProjectStore.getState().applySpecUpdate(event.components, event.project);
             break;
           case "done": {
             const assistantMsg: Message = {
@@ -101,22 +104,41 @@ export const useChatStore = create<ChatState>((set, get) => ({
               messages: [...get().messages, assistantMsg],
               isStreaming: false,
               streamingTokens: "",
+              abortController: null,
             });
             break;
           }
           case "error":
-            set({ isStreaming: false, error: event.message });
+            set({ isStreaming: false, error: event.message, abortController: null });
             break;
           case "meta":
             break;
         }
       },
-      (err) => set({ isStreaming: false, error: err.message }),
+      (err) => set({ isStreaming: false, error: err.message, abortController: null }),
     );
+    set({ abortController: controller });
+  },
+
+  abort: () => {
+    const { abortController } = get();
+    if (abortController) {
+      abortController.abort();
+      set({ isStreaming: false, streamingTokens: "", abortController: null });
+    }
   },
 
   clear: async (projectId) => {
+    const { abortController } = get();
+    if (abortController) abortController.abort();
     await clearMessages(projectId);
-    set({ messages: [], toolActivity: [], streamingTokens: "", error: null });
+    set({
+      messages: [],
+      toolActivity: [],
+      streamingTokens: "",
+      error: null,
+      abortController: null,
+      isStreaming: false,
+    });
   },
 }));
