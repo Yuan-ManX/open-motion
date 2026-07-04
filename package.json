@@ -1,0 +1,25 @@
+{
+  "name": "open-motion",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OpenMotion — the AI-native motion design platform.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "workspaces": [
+    "open-motion",
+    "web"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,web -c blue,magenta \"npm:dev:server\" \"npm:dev:web\"",
+    "dev:server": "npm -w @openmotion/server run dev",
+    "dev:web": "npm -w @openmotion/web run dev",
+    "build": "npm -w @openmotion/server run build && npm -w @openmotion/web run build",
+    "typecheck": "npm -w @openmotion/server run typecheck && npm -w @openmotion/web run typecheck",
+    "start": "npm -w @openmotion/server run start"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}
