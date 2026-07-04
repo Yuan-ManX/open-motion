@@ -1,0 +1,49 @@
+import type { MotionComponent } from "@openmotion/shared";
+import { createId, now } from "../../utils/id.js";
+import { fadeTemplate } from "./fade.js";
+import { slideTemplate } from "./slide.js";
+import { bounceTemplate } from "./bounce.js";
+import { spinTemplate } from "./spin.js";
+import { pulseTemplate } from "./pulse.js";
+import { scaleTemplate } from "./scale.js";
+import { rotateTemplate } from "./rotate.js";
+import { squashStretchTemplate } from "./squashStretch.js";
+import { logoRevealTemplate } from "./logoReveal.js";
+import type { ComponentDraft, TemplateDef } from "./helper.js";
+
+export const TEMPLATES: TemplateDef[] = [
+  fadeTemplate,
+  slideTemplate,
+  bounceTemplate,
+  scaleTemplate,
+  rotateTemplate,
+  logoRevealTemplate,
+  pulseTemplate,
+  squashStretchTemplate,
+  spinTemplate,
+];
+
+export function getTemplate(id: string): TemplateDef | undefined {
+  return TEMPLATES.find((t) => t.id === id);
+}
+
+/** Materialize a template's drafts into full components bound to a project. */
+export function instantiateTemplate(
+  templateId: string,
+  projectId: string,
+): MotionComponent[] {
+  const tpl = getTemplate(templateId);
+  if (!tpl) return [];
+  const drafts = tpl.build();
+  const ts = now();
+  return drafts.map((d) => ({
+    ...d,
+    id: createId("c_"),
+    projectId,
+    templateId,
+    createdAt: ts,
+    updatedAt: ts,
+  }));
+}
+
+export type { ComponentDraft, TemplateDef };
