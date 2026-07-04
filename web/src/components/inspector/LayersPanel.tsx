@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { EASING_PRESETS } from "@openmotion/shared";
+import { useState, useEffect } from "react";
+import type { Template } from "@openmotion/shared";
 import { useProjectStore } from "../../store/projectStore.js";
 import { useUiStore } from "../../store/uiStore.js";
 import * as api from "../../api/endpoints.js";
@@ -15,8 +15,21 @@ export function LayersPanel() {
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [newTemplate, setNewTemplate] = useState("");
+  const [templates, setTemplates] = useState<Template[]>([]);
+
+  useEffect(() => {
+    let alive = true;
+    api.listTemplates().then((t) => {
+      if (alive) setTemplates(t);
+    }).catch(() => { /* keep empty */ });
+    return () => { alive = false; };
+  }, []);
 
   const sorted = [...components].sort((a, b) => a.orderIndex - b.orderIndex);
+  const grouped = templates.reduce<Record<string, Template[]>>((acc, t) => {
+    (acc[t.category] ??= []).push(t);
+    return acc;
+  }, {});
 
   const toggleVisible = (id: string) => {
     const next = new Set(hidden);
