@@ -1,30 +1,23 @@
 import { Router } from "express";
 import { z } from "zod";
 import { CreateProjectInputSchema } from "@openmotion/shared";
-import { HttpError } from "../middleware/error.js";
 import { validate, validated } from "../middleware/validate.js";
 import { runAsync } from "../../utils/async.js";
 import {
-  listProjects,
-  getProject,
-  getProjectSpec,
-  createProject,
-  updateProject,
-  deleteProject,
-  duplicateProject,
-} from "../../db/repositories/projects.js";
+  listProjectsWithSpec,
+  getProjectWithSpec,
+  createProjectWithSpec,
+  updateProjectOrThrow,
+  deleteProjectOrThrow,
+  duplicateProjectWithSpec,
+} from "../services/projectService.js";
 
 export const projectsRouter = Router();
 
 projectsRouter.get(
   "/projects",
   runAsync(async (_req, res) => {
-    const projects = listProjects();
-    const withSpec = projects.map((p) => {
-      const spec = getProjectSpec(p.id);
-      return { ...p, spec };
-    });
-    res.json(withSpec);
+    res.json(listProjectsWithSpec());
   }),
 );
 
@@ -33,19 +26,14 @@ projectsRouter.post(
   validate(CreateProjectInputSchema),
   runAsync(async (req, res) => {
     const input = validated<z.infer<typeof CreateProjectInputSchema>>(req);
-    const project = createProject(input);
-    const spec = getProjectSpec(project.id);
-    res.status(201).json({ ...project, spec });
+    res.status(201).json(createProjectWithSpec(input));
   }),
 );
 
 projectsRouter.get(
   "/projects/:id",
   runAsync(async (req, res) => {
-    const project = getProject(req.params.id);
-    if (!project) throw new HttpError(404, "project not found");
-    const spec = getProjectSpec(project.id);
-    res.json({ ...project, spec });
+    res.json(getProjectWithSpec(req.params.id));
   }),
 );
 
@@ -53,17 +41,14 @@ projectsRouter.put(
   "/projects/:id",
   runAsync(async (req, res) => {
     const patch = req.body ?? {};
-    const updated = updateProject(req.params.id, patch);
-    if (!updated) throw new HttpError(404, "project not found");
-    res.json(updated);
+    res.json(updateProjectOrThrow(req.params.id, patch));
   }),
 );
 
 projectsRouter.delete(
   "/projects/:id",
   runAsync(async (req, res) => {
-    const ok = deleteProject(req.params.id);
-    if (!ok) throw new HttpError(404, "project not found");
+    deleteProjectOrThrow(req.params.id);
     res.status(204).end();
   }),
 );
@@ -71,9 +56,6 @@ projectsRouter.delete(
 projectsRouter.post(
   "/projects/:id/duplicate",
   runAsync(async (req, res) => {
-    const copy = duplicateProject(req.params.id);
-    if (!copy) throw new HttpError(404, "project not found");
-    const spec = getProjectSpec(copy.id);
-    res.status(201).json({ ...copy, spec });
+    res.status(201).json(duplicateProjectWithSpec(req.params.id));
   }),
 );
