@@ -12,7 +12,7 @@ export function TemplateGallery({ compact = false }: Props) {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
   const loadProject = useProjectStore((s) => s.loadProject);
-  const setView = useUiStore((s) => s.setView);
+  const setTemplatesOpen = useUiStore((s) => s.setTemplatesOpen);
 
   useEffect(() => {
     api.listTemplates().then((t) => {
@@ -24,7 +24,7 @@ export function TemplateGallery({ compact = false }: Props) {
   const handlePick = async (tpl: Template) => {
     const project = await api.createProject({ name: tpl.name, templateId: tpl.id });
     await loadProject(project.id);
-    setView("editor");
+    setTemplatesOpen(false);
   };
 
   if (loading) return <div className="p-4 text-sm text-gray-500">Loading templates…</div>;
