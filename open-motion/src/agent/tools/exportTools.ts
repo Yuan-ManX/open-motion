@@ -1,6 +1,7 @@
 import type { ToolName } from "@openmotion/shared";
 import { exportProjectHtml } from "../../export/html.js";
 import { exportProjectVideo, type VideoFormat } from "../../export/video.js";
+import { exportProjectCss, exportProjectJson, exportProjectReact } from "../../export/code.js";
 import { packageSkill } from "../../skills/packager.js";
 import { hasPuppeteer, hasFfmpeg } from "../../utils/env.js";
 import type { ToolContext, ToolResult } from "./registry.js";
@@ -54,6 +55,24 @@ export const exportExecutors: Partial<Record<ToolName, Executor>> = {
       summary: `packaged skill "${name}" (${skill.id})`,
       specChanged: false,
       data: { skillId: skill.id, name: skill.name },
+    };
+  },
+
+  export_code: (args, ctx) => {
+    const format = String(args.format ?? "css") as "css" | "json" | "react";
+    let result;
+    if (format === "css") result = exportProjectCss(ctx.projectId);
+    else if (format === "json") result = exportProjectJson(ctx.projectId);
+    else result = exportProjectReact(ctx.projectId);
+    if (!result) {
+      return { ok: false, summary: `project ${ctx.projectId} not found`, specChanged: false };
+    }
+    const preview = result.code.slice(0, 200);
+    return {
+      ok: true,
+      summary: `exported ${format} code (${result.code.length} chars, file: ${result.filename}) — preview: ${preview}…`,
+      specChanged: false,
+      data: { format, filename: result.filename, code: result.code },
     };
   },
 };

@@ -143,7 +143,7 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
 
     if (anySpecChanged) {
       const fresh = getProjectSpec(projectId);
-      if (fresh) onEvent({ type: "spec_update", components: fresh.components });
+      if (fresh) onEvent({ type: "spec_update", components: fresh.components, project: fresh.project });
     }
     // Loop back: re-assemble context (system prompt now reflects the new spec).
   }
