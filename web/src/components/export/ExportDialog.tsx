@@ -79,11 +79,13 @@ export function ExportDialog() {
     setHtmlBusy(true);
     setHtmlError(null);
     setHtmlResult(null);
+    const popup = window.open("", "_blank");
     try {
       const result = await api.exportHtml(projectId);
       setHtmlResult({ url: result.url, filename: result.filename });
-      window.open(result.url, "_blank");
+      if (popup) popup.location.href = result.url;
     } catch (e) {
+      if (popup) popup.close();
       setHtmlError(e instanceof Error ? e.message : String(e));
     } finally {
       setHtmlBusy(false);
@@ -236,6 +238,7 @@ export function ExportDialog() {
           <button
             onClick={() => setOpen(false)}
             className="text-gray-500 hover:text-gray-300 text-lg leading-none"
+            aria-label="Close export dialog"
           >
             ×
           </button>
