@@ -148,12 +148,36 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     }
   }
 
-  // --- Static style: border radius ---
-  if (/\b(round|radius|corner)\b|圆角/i.test(userText) && state.firstComponentId) {
-    const rM = userText.match(/(\d+)\s*(?:px)?\s*(?:radius|corner|round)/i);
-    const r = rM ? Number(rM[1]) : 16;
-    push("set_static_style", { componentId: state.firstComponentId, style: { borderRadius: `${r}px` } },
-      `Rounded corners to ${r}px.`);
+  // --- Static styles (borderRadius, width, height, fontSize, padding, margin) ---
+  if (state.firstComponentId && !/\b(from|animate|keyframe|transform)\b/i.test(userText)) {
+    const styles: Record<string, string> = {};
+
+    if (/\b(round|radius|corner)\b|圆角/i.test(userText)) {
+      const rM = userText.match(/(\d+)\s*(?:px)?\s*(?:radius|corner|round)/i) || userText.match(/圆角\s*(\d+)/i);
+      const r = rM ? Number(rM[1]) : 16;
+      styles.borderRadius = `${r}px`;
+    }
+
+    const wM = userText.match(/\b(?:width|宽)\s*(?::|to|=)?\s*(\d+(?:\.\d+)?)\s*(px)?/i);
+    if (wM) styles.width = `${wM[1]}px`;
+
+    const hM = userText.match(/\b(?:height|高)\s*(?::|to|=)?\s*(\d+(?:\.\d+)?)\s*(px)?/i);
+    if (hM) styles.height = `${hM[1]}px`;
+
+    const fsM = userText.match(/\b(?:font[\s-]?size|字号)\s*(?::|to|=)?\s*(\d+(?:\.\d+)?)\s*(px)?/i);
+    if (fsM) styles.fontSize = `${fsM[1]}px`;
+
+    const pM = userText.match(/\b(?:padding|内边距)\s*(?::|to|=)?\s*(\d+(?:\.\d+)?)\s*(px)?/i);
+    if (pM) styles.padding = `${pM[1]}px`;
+
+    const mM = userText.match(/\b(?:margin|外边距)\s*(?::|to|=)?\s*(\d+(?:\.\d+)?)\s*(px)?/i);
+    if (mM) styles.margin = `${mM[1]}px`;
+
+    const keys = Object.keys(styles);
+    if (keys.length > 0) {
+      push("set_static_style", { componentId: state.firstComponentId, style: styles },
+        `Updated ${keys.join(", ")}.`);
+    }
   }
 
   // --- Set transform track (animate a property from → to) ---
@@ -212,10 +236,10 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
   }
 
   // --- Template ---
-  const tplM = userText.match(/\b(?:use|apply|switch to)\s+(?:the\s+)?(\w+)\s+template\b|使用\s*(\w+)\s*模板/i);
+  const tplM = userText.match(/\b(?:use|apply|switch to)\s+(?:the\s+)?([\w\s-]+?)\s+template\b|使用\s*([\w\s-]+?)\s*模板/i);
   if (tplM) {
-    const name = (tplM[1] || tplM[2] || "").toLowerCase();
-    push("set_template", { templateId: `tpl-${name}` }, `Switched to the ${name} template.`);
+    const raw = (tplM[1] || tplM[2] || "").trim().toLowerCase().replace(/\s+/g, "-");
+    push("set_template", { templateId: `tpl-${raw}` }, `Switched to the ${raw} template.`);
   }
 
   // --- Export HTML ---

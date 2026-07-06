@@ -21,10 +21,15 @@ export function listMemory(projectId: string): MemoryEntry[] {
 export function addMemory(projectId: string, entry: Omit<MemoryEntry, "createdAt">): void {
   const list = store.get(projectId) ?? [];
   list.push({ ...entry, createdAt: now() });
-  // Rolling window: keep the most recent entries, always preserving a leading
-  // user turn if it lands at the boundary.
   if (list.length > MAX_MESSAGES) {
-    list.splice(0, list.length - MAX_MESSAGES);
+    // Preserve the first user turn so the agent never loses the original intent.
+    const firstUserIdx = list.findIndex((m) => m.role === "user");
+    const keep = list.slice(list.length - MAX_MESSAGES);
+    if (firstUserIdx >= 0 && firstUserIdx < list.length - MAX_MESSAGES) {
+      keep.unshift(list[firstUserIdx]);
+    }
+    store.set(projectId, keep);
+    return;
   }
   store.set(projectId, list);
 }
