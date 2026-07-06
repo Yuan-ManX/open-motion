@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
 import { CreateSkillInputSchema, EasingSchema } from "@openmotion/shared";
-import { HttpError } from "../middleware/error.js";
 import { validate, validated } from "../middleware/validate.js";
 import { runAsync } from "../../utils/async.js";
 import {
@@ -53,10 +52,10 @@ skillsRouter.get(
 
 skillsRouter.post(
   "/skills/:id/invoke",
+  validate(InvokeInputSchema),
   runAsync(async (req, res) => {
-    const parsed = InvokeInputSchema.safeParse(req.body ?? {});
-    if (!parsed.success) throw new HttpError(400, "invalid invoke args");
-    res.json(invokeSkillOrThrow(req.params.id, parsed.data));
+    const input = validated<z.infer<typeof InvokeInputSchema>>(req);
+    res.json(invokeSkillOrThrow(req.params.id, input));
   }),
 );
 
