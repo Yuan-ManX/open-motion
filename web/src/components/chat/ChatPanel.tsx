@@ -12,6 +12,7 @@ export function ChatPanel() {
   const send = useChatStore((s) => s.send);
   const loadMessages = useChatStore((s) => s.loadMessages);
   const clear = useChatStore((s) => s.clear);
+  const abort = useChatStore((s) => s.abort);
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -81,6 +82,12 @@ export function ChatPanel() {
           </div>
         )}
 
+        {isStreaming && !streamingTokens && toolActivity.length === 0 && (
+          <div className="text-sm rounded-lg px-3 py-2 max-w-[90%] bg-panel2 text-gray-500 animate-pulse">
+            thinking…
+          </div>
+        )}
+
         {error && (
           <div className="text-xs text-red-400 bg-red-950/40 border border-red-900 rounded-lg px-3 py-2">
             {error}
@@ -116,13 +123,23 @@ export function ChatPanel() {
               disabled={isStreaming}
               className="flex-1 bg-panel2 border border-edge rounded-lg px-3 py-2 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-accent"
             />
-            <button
-              type="submit"
-              disabled={isStreaming || !input.trim()}
-              className="px-4 py-2 rounded-lg bg-accent hover:bg-accent2 disabled:opacity-40 text-white text-sm font-medium transition-colors"
-            >
-              Send
-            </button>
+            {isStreaming ? (
+              <button
+                type="button"
+                onClick={abort}
+                className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-sm font-medium transition-colors"
+              >
+                Stop
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={!input.trim()}
+                className="px-4 py-2 rounded-lg bg-accent hover:bg-accent2 disabled:opacity-40 text-white text-sm font-medium transition-colors"
+              >
+                Send
+              </button>
+            )}
           </div>
         </form>
       )}
