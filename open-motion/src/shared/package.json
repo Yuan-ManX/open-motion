@@ -3,13 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "main": "./index.ts",
+  "main": "./index.js",
   "types": "./index.ts",
   "exports": {
-    ".": "./index.ts",
-    "./motion": "./motion/index.ts",
-    "./tools": "./tools.ts",
-    "./skill": "./skill.ts",
-    "./api": "./api.ts"
+    ".": "./index.js",
+    "./motion": "./motion/index.js",
+    "./tools": "./tools.js",
+    "./skill": "./skill.js",
+    "./api": "./api.js"
   }
 }
