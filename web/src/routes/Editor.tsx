@@ -107,6 +107,7 @@ export function Editor() {
 function WelcomeScreen() {
   const loadProject = useProjectStore((s) => s.loadProject);
   const setTemplatesOpen = useUiStore((s) => s.setTemplatesOpen);
+  const setSkillsOpen = useUiStore((s) => s.setSkillsOpen);
   const [projects, setProjects] = useState<ProjectResponse[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -176,6 +177,12 @@ function WelcomeScreen() {
             className="px-5 py-2 rounded-lg bg-panel2 border border-edge hover:border-accent text-gray-300 text-sm transition-colors"
           >
             Browse Templates
+          </button>
+          <button
+            onClick={() => setSkillsOpen(true)}
+            className="px-5 py-2 rounded-lg bg-panel2 border border-edge hover:border-accent text-gray-300 text-sm transition-colors"
+          >
+            Skills
           </button>
         </div>
 
