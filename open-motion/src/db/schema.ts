@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS skills (
   description TEXT NOT NULL,
   version TEXT NOT NULL DEFAULT '1.0.0',
   source_project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
-  source_component_id TEXT,
+  source_component_id TEXT REFERENCES motion_components(id) ON DELETE SET NULL,
   manifest_json TEXT NOT NULL,
   motion_spec_json TEXT NOT NULL,
   code_html TEXT,
