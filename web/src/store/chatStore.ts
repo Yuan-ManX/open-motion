@@ -14,6 +14,8 @@ export interface ToolActivity {
   done: boolean;
 }
 
+let activeStreamId = 0;
+
 interface ChatState {
   messages: Message[];
   isStreaming: boolean;
@@ -37,6 +39,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   abortController: null,
 
   loadMessages: async (projectId) => {
+    set({ messages: [] });
     try {
       const msgs = await listMessages(projectId);
       set({ messages: msgs });
@@ -47,6 +50,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   send: (projectId, text) => {
     if (get().isStreaming) return;
+    const myStreamId = ++activeStreamId;
     const userMsg: Message = {
       id: `local-${Date.now()}`,
       projectId,
@@ -67,6 +71,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       projectId,
       text,
       (event: ChatEvent) => {
+        if (activeStreamId !== myStreamId) return;
         switch (event.type) {
           case "token":
             set({ streamingTokens: get().streamingTokens + event.delta });
@@ -109,26 +114,29 @@ export const useChatStore = create<ChatState>((set, get) => ({
             break;
           }
           case "error":
-            set({ isStreaming: false, error: event.message, abortController: null });
+            set({ isStreaming: false, streamingTokens: "", error: event.message, abortController: null });
             break;
           case "meta":
             break;
         }
       },
-      (err) => set({ isStreaming: false, error: err.message, abortController: null }),
+      (err) => {
+        if (activeStreamId !== myStreamId) return;
+        set({ isStreaming: false, error: err.message, abortController: null });
+      },
     );
     set({ abortController: controller });
   },
 
   abort: () => {
+    activeStreamId++;
     const { abortController } = get();
-    if (abortController) {
-      abortController.abort();
-      set({ isStreaming: false, streamingTokens: "", abortController: null });
-    }
+    if (abortController) abortController.abort();
+    set({ isStreaming: false, streamingTokens: "", abortController: null });
   },
 
   clear: async (projectId) => {
+    activeStreamId++;
     const { abortController } = get();
     if (abortController) abortController.abort();
     await clearMessages(projectId);

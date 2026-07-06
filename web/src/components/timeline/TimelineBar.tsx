@@ -133,6 +133,7 @@ export function TimelineBar({ onReplay }: Props) {
           onClick={isPlaying ? pause : play}
           className="w-7 h-7 flex items-center justify-center rounded-md bg-accent hover:bg-accent2 text-white text-xs transition-colors"
           title={isPlaying ? "Pause" : "Play"}
+          aria-label={isPlaying ? "Pause animation" : "Play animation"}
         >
           {isPlaying ? "⏸" : "▶"}
         </button>
@@ -142,6 +143,8 @@ export function TimelineBar({ onReplay }: Props) {
             loop ? "bg-accent2/30 text-accent2" : "bg-panel2 text-gray-500 hover:text-gray-300"
           }`}
           title="Loop"
+          aria-label="Toggle loop"
+          aria-pressed={loop}
         >
           ⟲
         </button>
