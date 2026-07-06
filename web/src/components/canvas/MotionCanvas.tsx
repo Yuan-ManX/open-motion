@@ -3,15 +3,23 @@ import { useProjectStore } from "../../store/projectStore.js";
 import { useUiStore } from "../../store/uiStore.js";
 import { renderSpec } from "../../motion/cssRenderer.js";
 
-const CANVAS_W = 640;
-const CANVAS_H = 360;
+const MIN_DIM = 64;
+const MAX_DIM = 4096;
 
 export function MotionCanvas() {
   const components = useProjectStore((s) => s.components);
+  const loading = useProjectStore((s) => s.loading);
   const selectedId = useUiStore((s) => s.selectedComponentId);
   const selectComponent = useUiStore((s) => s.selectComponent);
   const triggerReplay = useUiStore((s) => s.triggerReplay);
   const replayTrigger = useUiStore((s) => s.replayTrigger);
+  const hiddenIds = useUiStore((s) => s.hiddenIds);
+  const canvasSize = useUiStore((s) => s.canvasSize);
+  const setCanvasSize = useUiStore((s) => s.setCanvasSize);
+  const CANVAS_W = canvasSize.width;
+  const CANVAS_H = canvasSize.height;
+
+  const visibleComponents = components.filter((c) => !hiddenIds.has(c.id));
   const [replayKey, setReplayKey] = useState(0);
   const [zoom, setZoom] = useState(1);
   const [showGrid, setShowGrid] = useState(true);
@@ -20,9 +28,9 @@ export function MotionCanvas() {
     setReplayKey((k) => k + 1);
   }, [replayTrigger]);
 
-  const { css, nodes } = useMemo(() => renderSpec(components), [components, replayKey]);
+  const { css, nodes } = useMemo(() => renderSpec(visibleComponents), [visibleComponents, replayKey]);
 
-  const totalDuration = components.reduce(
+  const totalDuration = visibleComponents.reduce(
     (max, c) =>
       Math.max(
         max,
@@ -41,9 +49,35 @@ export function MotionCanvas() {
       {/* Canvas toolbar */}
       <div className="px-3 py-1.5 border-b border-edge flex items-center gap-2 bg-panel flex-shrink-0">
         <span className="text-[10px] uppercase tracking-wide text-gray-500">Canvas</span>
-        <span className="text-[10px] text-gray-600 font-mono">
-          {CANVAS_W}×{CANVAS_H}
-        </span>
+        <div className="flex items-center gap-1">
+          <input
+            type="number"
+            min={MIN_DIM}
+            max={MAX_DIM}
+            step={16}
+            value={CANVAS_W}
+            onChange={(e) => {
+              const w = Math.min(MAX_DIM, Math.max(MIN_DIM, Number(e.target.value) || MIN_DIM));
+              setCanvasSize({ width: w, height: CANVAS_H });
+            }}
+            className="w-14 bg-panel2 border border-edge rounded px-1 py-0.5 text-[10px] text-gray-100 font-mono focus:outline-none focus:border-accent"
+            aria-label="Canvas width in pixels"
+          />
+          <span className="text-[10px] text-gray-600">×</span>
+          <input
+            type="number"
+            min={MIN_DIM}
+            max={MAX_DIM}
+            step={16}
+            value={CANVAS_H}
+            onChange={(e) => {
+              const h = Math.min(MAX_DIM, Math.max(MIN_DIM, Number(e.target.value) || MIN_DIM));
+              setCanvasSize({ width: CANVAS_W, height: h });
+            }}
+            className="w-14 bg-panel2 border border-edge rounded px-1 py-0.5 text-[10px] text-gray-100 font-mono focus:outline-none focus:border-accent"
+            aria-label="Canvas height in pixels"
+          />
+        </div>
         <div className="ml-auto flex items-center gap-1">
           <button
             onClick={() => setShowGrid((v) => !v)}
@@ -51,6 +85,8 @@ export function MotionCanvas() {
               showGrid ? "bg-accent/20 text-accent" : "text-gray-500 hover:text-gray-300"
             }`}
             title="Toggle grid"
+            aria-label="Toggle grid"
+            aria-pressed={showGrid}
           >
             ⊞
           </button>
@@ -58,6 +94,7 @@ export function MotionCanvas() {
             onClick={zoomOut}
             className="w-6 h-6 flex items-center justify-center text-xs text-gray-400 hover:text-accent bg-panel2 rounded"
             title="Zoom out"
+            aria-label="Zoom out"
           >
             −
           </button>
@@ -68,6 +105,7 @@ export function MotionCanvas() {
             onClick={zoomIn}
             className="w-6 h-6 flex items-center justify-center text-xs text-gray-400 hover:text-accent bg-panel2 rounded"
             title="Zoom in"
+            aria-label="Zoom in"
           >
             +
           </button>
@@ -75,6 +113,7 @@ export function MotionCanvas() {
             onClick={zoomFit}
             className="px-2 py-0.5 text-[10px] text-gray-400 hover:text-accent bg-panel2 rounded"
             title="Fit"
+            aria-label="Fit to screen"
           >
             Fit
           </button>
@@ -82,6 +121,7 @@ export function MotionCanvas() {
             onClick={triggerReplay}
             className="ml-1 px-2 py-0.5 text-[10px] rounded bg-accent hover:bg-accent2 text-white transition-colors"
             title="Replay (Shift+R)"
+            aria-label="Replay animation"
           >
             ▶ Replay
           </button>
@@ -91,7 +131,12 @@ export function MotionCanvas() {
       {/* Canvas area */}
       <div className="flex-1 overflow-auto flex items-center justify-center p-8 relative">
         <style>{css}</style>
-        {nodes.length === 0 && (
+        {loading && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-gray-500 text-sm animate-pulse">Loading project…</div>
+          </div>
+        )}
+        {!loading && nodes.length === 0 && (
           <p className="text-gray-500 text-sm">No components yet — pick a template or ask the agent.</p>
         )}
         <div
@@ -166,7 +211,7 @@ export function MotionCanvas() {
         <span>·</span>
         <span>{totalDuration > 0 ? `${totalDuration}ms total` : "empty"}</span>
         <span>·</span>
-        <span>{nodes.length} rendered</span>
+        <span>{visibleComponents.length} rendered</span>
         {selectedId && (
           <>
             <span>·</span>
