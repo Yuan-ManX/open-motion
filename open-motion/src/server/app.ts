@@ -1,4 +1,7 @@
 import express, { type Express } from "express";
+import path from "node:path";
+import fs from "node:fs";
+import { fileURLToPath } from "node:url";
 import { corsMiddleware } from "./middleware/cors.js";
 import { errorMiddleware, notFound } from "./middleware/error.js";
 import { authMiddleware } from "./middleware/auth.js";
@@ -14,6 +17,13 @@ import { skillsRouter } from "./routes/skills.js";
 import { previewRouter } from "./routes/preview.js";
 import { exportRouter } from "./routes/export.js";
 import { mountMcpHttp } from "../mcp/transport-http.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// Dev: src/server/ → ../../../web/dist ; Prod: dist/src/server/ → ../../../../web/dist
+const webDistPath =
+  [path.resolve(__dirname, "../../../web/dist"), path.resolve(__dirname, "../../../../web/dist")].find((p) =>
+    fs.existsSync(p),
+  ) ?? path.resolve(__dirname, "../../../web/dist");
 
 /**
  * Assemble the Express application. Kept in one place so the HTTP server and the
@@ -39,6 +49,13 @@ export function createApp(): Express {
   app.use("/api", exportRouter);
 
   mountMcpHttp(app);
+
+  if (fs.existsSync(webDistPath)) {
+    app.use(express.static(webDistPath));
+    app.get(/^(?!\/api|\/mcp).*/, (_req, res) => {
+      res.sendFile(path.join(webDistPath, "index.html"));
+    });
+  }
 
   app.use(notFound());
   app.use(errorMiddleware);
