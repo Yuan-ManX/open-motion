@@ -96,6 +96,25 @@ export function ComponentInspector() {
   const [saving, setSaving] = useState(false);
   const [keyframesOpen, setKeyframesOpen] = useState(true);
 
+  // Signature of the fields synced from the store — when the agent mutates the
+  // component via chat (spec_update), this signature changes and triggers a resync
+  // of local form state. Using a signature instead of the whole object avoids
+  // feedback loops: user typing updates local state without changing the signature.
+  const syncSignature = component
+    ? JSON.stringify({
+        id: component.id,
+        easing: component.easing,
+        durationMs: component.durationMs,
+        delayMs: component.delayMs,
+        iterationCount: component.iterationCount,
+        direction: component.direction,
+        fillMode: component.fillMode,
+        playState: component.playState,
+        bg: component.style?.backgroundColor,
+        color: component.style?.color,
+      })
+    : "";
+
   useEffect(() => {
     if (!component) return;
     setEasingType(component.easing?.type ?? "preset");
@@ -121,7 +140,7 @@ export function ComponentInspector() {
     setPlayState(component.playState);
     setBgColor(String(component.style?.backgroundColor ?? "#6366f1"));
     setTextColor(String(component.style?.color ?? "#ffffff"));
-  }, [component?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [syncSignature]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const buildEasing = useCallback((): Easing => {
     if (easingType === "bezier") {
@@ -188,8 +207,17 @@ export function ComponentInspector() {
             className={selectCls}
             value={easingType}
             onChange={(e) => {
-              setEasingType(e.target.value);
-              void persist({ easing: buildEasing() });
+              const newType = e.target.value;
+              setEasingType(newType);
+              let nextEasing: Easing;
+              if (newType === "bezier") {
+                nextEasing = { type: "bezier", p1: [bezier[0], bezier[1]], p2: [bezier[2], bezier[3]] };
+              } else if (newType === "spring") {
+                nextEasing = { type: "spring", stiffness: spring.stiffness, damping: spring.damping, mass: spring.mass };
+              } else {
+                nextEasing = { type: "preset", name: easingName as (typeof EASING_PRESETS)[number] };
+              }
+              void persist({ easing: nextEasing });
             }}
           >
             <option value="preset">preset</option>
@@ -707,6 +735,7 @@ function KeyframeRow({
           onClick={onRemove}
           className="self-end px-2 py-1 rounded border border-edge bg-panel hover:border-red-400 text-[10px] text-gray-400"
           title="Remove keyframe"
+          aria-label="Remove keyframe"
         >
           ✕
         </button>
@@ -735,6 +764,7 @@ function KeyframeRow({
             onClick={() => removeProp(key)}
             className="px-1.5 py-1 rounded border border-edge bg-panel hover:border-red-400 text-[10px] text-gray-400"
             title="Remove property"
+            aria-label={`Remove property ${key}`}
           >
             ✕
           </button>
