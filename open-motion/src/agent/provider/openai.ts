@@ -78,6 +78,9 @@ export class OpenAIProvider implements LlmProvider {
       messages: toOpenAiMessages(options.messages),
       stream,
     };
+    if (stream) {
+      body.stream_options = { include_usage: true };
+    }
     if (options.tools.length > 0) {
       body.tools = toOpenAiTools(options.tools);
       body.tool_choice = "auto";
