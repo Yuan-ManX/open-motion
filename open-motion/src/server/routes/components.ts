@@ -1,4 +1,15 @@
 import { Router } from "express";
+import { z } from "zod";
+import {
+  EasingSchema,
+  KeyframeSchema,
+  CssStyleSchema,
+  IterationCountSchema,
+  DirectionSchema,
+  FillModeSchema,
+  PlayStateSchema,
+} from "@openmotion/shared";
+import { validate, validated } from "../middleware/validate.js";
 import { runAsync } from "../../utils/async.js";
 import {
   listProjectComponents,
@@ -6,9 +17,24 @@ import {
   getProjectComponent,
   patchProjectComponent,
   deleteProjectComponent,
-  type CreateComponentInput,
 } from "../services/componentService.js";
-import type { ComponentPatch } from "../../db/repositories/components.js";
+
+const ComponentInputSchema = z.object({
+  name: z.string().optional(),
+  templateId: z.string().optional(),
+  sceneId: z.string().optional(),
+  selector: z.string().optional(),
+  durationMs: z.number().optional(),
+  delayMs: z.number().optional(),
+  iterationCount: IterationCountSchema.optional(),
+  direction: DirectionSchema.optional(),
+  fillMode: FillModeSchema.optional(),
+  playState: PlayStateSchema.optional(),
+  easing: EasingSchema.optional(),
+  keyframes: z.array(KeyframeSchema).optional(),
+  style: CssStyleSchema.optional(),
+  orderIndex: z.number().optional(),
+});
 
 export const componentsRouter = Router({ mergeParams: true });
 
@@ -21,8 +47,9 @@ componentsRouter.get(
 
 componentsRouter.post(
   "/",
+  validate(ComponentInputSchema),
   runAsync(async (req, res) => {
-    const input = (req.body ?? {}) as CreateComponentInput;
+    const input = validated<z.infer<typeof ComponentInputSchema>>(req);
     res.status(201).json(createProjectComponent(req.params.id, input));
   }),
 );
@@ -36,8 +63,9 @@ componentsRouter.get(
 
 componentsRouter.patch(
   "/:cid",
+  validate(ComponentInputSchema),
   runAsync(async (req, res) => {
-    const patch = (req.body ?? {}) as ComponentPatch;
+    const patch = validated<z.infer<typeof ComponentInputSchema>>(req);
     res.json(patchProjectComponent(req.params.id, req.params.cid, patch));
   }),
 );
