@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { CreateProjectInputSchema } from "@openmotion/shared";
+import { CreateProjectInputSchema, SceneSchema } from "@openmotion/shared";
 import { validate, validated } from "../middleware/validate.js";
 import { runAsync } from "../../utils/async.js";
 import {
@@ -11,6 +11,13 @@ import {
   deleteProjectOrThrow,
   duplicateProjectWithSpec,
 } from "../services/projectService.js";
+
+const UpdateProjectSchema = z.object({
+  name: z.string().optional(),
+  totalDurationMs: z.number().optional(),
+  scenes: z.array(SceneSchema).optional(),
+  tokens: z.record(z.union([z.string(), z.number()])).optional(),
+});
 
 export const projectsRouter = Router();
 
@@ -39,8 +46,9 @@ projectsRouter.get(
 
 projectsRouter.put(
   "/projects/:id",
+  validate(UpdateProjectSchema),
   runAsync(async (req, res) => {
-    const patch = req.body ?? {};
+    const patch = validated<z.infer<typeof UpdateProjectSchema>>(req);
     res.json(updateProjectOrThrow(req.params.id, patch));
   }),
 );
