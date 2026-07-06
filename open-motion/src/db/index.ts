@@ -2,11 +2,13 @@ import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { config } from "../config.js";
 import { logger } from "../utils/logger.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = join(__dirname, "..", "..", "data");
-const DB_PATH = join(DATA_DIR, "openmotion.db");
+const DEFAULT_DATA_DIR = join(__dirname, "..", "..", "data");
+const DB_PATH = config.DB_PATH ?? join(DEFAULT_DATA_DIR, "openmotion.db");
+const DATA_DIR = dirname(DB_PATH);
 
 let _db: DatabaseSync | null = null;
 
