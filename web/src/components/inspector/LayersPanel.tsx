@@ -7,15 +7,18 @@ import * as api from "../../api/endpoints.js";
 export function LayersPanel() {
   const components = useProjectStore((s) => s.components);
   const projectId = useProjectStore((s) => s.projectId);
-  const patchComponentLocal = useProjectStore((s) => s.patchComponentLocal);
+  const addComponentLocal = useProjectStore((s) => s.addComponentLocal);
+  const removeComponentLocal = useProjectStore((s) => s.removeComponentLocal);
   const selectedId = useUiStore((s) => s.selectedComponentId);
   const selectComponent = useUiStore((s) => s.selectComponent);
   const triggerReplay = useUiStore((s) => s.triggerReplay);
-  const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const hiddenIds = useUiStore((s) => s.hiddenIds);
+  const toggleHidden = useUiStore((s) => s.toggleHidden);
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [newTemplate, setNewTemplate] = useState("");
   const [templates, setTemplates] = useState<Template[]>([]);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -31,13 +34,6 @@ export function LayersPanel() {
     return acc;
   }, {});
 
-  const toggleVisible = (id: string) => {
-    const next = new Set(hidden);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    setHidden(next);
-  };
-
   const handleAdd = async () => {
     if (!projectId || !newName.trim()) return;
     try {
@@ -45,13 +41,26 @@ export function LayersPanel() {
         name: newName.trim(),
         templateId: newTemplate || undefined,
       });
-      patchComponentLocal(comp.id, comp);
+      addComponentLocal(comp);
       setNewName("");
       setNewTemplate("");
       setAdding(false);
       triggerReplay();
     } catch {
       /* ignore */
+    }
+  };
+
+  const handleDelete = async (componentId: string) => {
+    if (!projectId) return;
+    try {
+      await api.removeComponent(projectId, componentId);
+      removeComponentLocal(componentId);
+      if (selectedId === componentId) selectComponent(null);
+    } catch {
+      /* ignore */
+    } finally {
+      setConfirmDeleteId(null);
     }
   };
 
@@ -63,6 +72,7 @@ export function LayersPanel() {
           onClick={() => setAdding((v) => !v)}
           className="text-xs text-gray-500 hover:text-accent w-5 h-5 flex items-center justify-center rounded hover:bg-panel2"
           title="Add layer"
+          aria-label="Add layer"
         >
           +
         </button>
@@ -110,22 +120,24 @@ export function LayersPanel() {
         )}
         {sorted.map((c) => {
           const isSelected = c.id === selectedId;
-          const isHidden = hidden.has(c.id);
+          const isHidden = hiddenIds.has(c.id);
+          const isConfirming = confirmDeleteId === c.id;
           return (
             <div
               key={c.id}
               onClick={() => selectComponent(isSelected ? null : c.id)}
-              className={`flex items-center gap-1.5 px-2 py-1.5 border-b border-edge/50 cursor-pointer transition-colors ${
+              className={`group flex items-center gap-1.5 px-2 py-1.5 border-b border-edge/50 cursor-pointer transition-colors ${
                 isSelected ? "bg-accent/20" : "hover:bg-panel2"
               }`}
             >
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  toggleVisible(c.id);
+                  toggleHidden(c.id);
                 }}
                 className="text-[10px] text-gray-500 hover:text-gray-300 w-4 flex-shrink-0"
                 title={isHidden ? "Show" : "Hide"}
+                aria-label={isHidden ? `Show layer ${c.name}` : `Hide layer ${c.name}`}
               >
                 {isHidden ? "○" : "●"}
               </button>
@@ -137,6 +149,42 @@ export function LayersPanel() {
                   {c.durationMs}ms · {c.easing?.type === "preset" ? c.easing.name : c.easing?.type}
                 </div>
               </div>
+              {isConfirming ? (
+                <div className="flex items-center gap-0.5 flex-shrink-0">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void handleDelete(c.id);
+                    }}
+                    className="text-[9px] px-1 py-0.5 rounded bg-red-600 hover:bg-red-500 text-white"
+                    aria-label={`Confirm delete ${c.name}`}
+                  >
+                    ✓
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setConfirmDeleteId(null);
+                    }}
+                    className="text-[9px] px-1 py-0.5 rounded bg-panel2 border border-edge text-gray-400 hover:text-gray-200"
+                    aria-label={`Cancel delete ${c.name}`}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setConfirmDeleteId(c.id);
+                  }}
+                  className="text-[10px] text-gray-600 hover:text-red-400 w-4 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                  title="Delete layer"
+                  aria-label={`Delete layer ${c.name}`}
+                >
+                  ×
+                </button>
+              )}
             </div>
           );
         })}
