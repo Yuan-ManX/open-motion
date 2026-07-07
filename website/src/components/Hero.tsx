@@ -1,0 +1,388 @@
+import { useEffect, useState, useRef } from "react";
+import { ArrowRight, Github, Zap } from "lucide-react";
+import { MagneticButton } from "./shared/MagneticButton";
+import { Seal } from "./shared/Seal";
+import { InkBrush } from "./shared/InkBrush";
+import { InkWaves } from "./shared/InkWaves";
+import { StaggerReveal } from "./shared/Reveal";
+
+const TITLE_TEXT = "OpenMotion";
+
+function useTypewriter(text: string, speed = 80, startDelay = 300) {
+  const [displayed, setDisplayed] = useState("");
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    let i = 0;
+    const startTimer = setTimeout(() => {
+      const timer = setInterval(() => {
+        if (i < text.length) {
+          setDisplayed(text.slice(0, i + 1));
+          i++;
+        } else {
+          setDone(true);
+          clearInterval(timer);
+        }
+      }, speed);
+      return () => clearInterval(timer);
+    }, startDelay);
+    return () => clearTimeout(startTimer);
+  }, [text, speed, startDelay]);
+
+  return { displayed, done };
+}
+
+function useMousePosition() {
+  const [pos, setPos] = useState({ x: 0.5, y: 0.5 });
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const onMove = (e: MouseEvent) => {
+      const rect = el.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width;
+      const y = (e.clientY - rect.top) / rect.height;
+      setPos({ x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) });
+    };
+
+    el.addEventListener("mousemove", onMove);
+    return () => el.removeEventListener("mousemove", onMove);
+  }, []);
+
+  return { ref, pos };
+}
+
+function useScrollParallax() {
+  const [scrollY, setScrollY] = useState(0);
+  useEffect(() => {
+    const onScroll = () => setScrollY(window.scrollY);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+  return scrollY;
+}
+
+function FloatingInk({ pos, scrollY }: { pos: { x: number; y: number }; scrollY: number }) {
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      {/* 墨环 - ink rings with parallax */}
+      <div
+        className="absolute top-[15%] right-[10%] w-64 h-64 rounded-full border border-paper/[0.08]"
+        style={{
+          transform: `translate(${(pos.x - 0.5) * -30}px, ${(pos.y - 0.5) * -20 + scrollY * 0.15}px)`,
+          transition: "transform 0.4s ease-out",
+        }}
+      >
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-cinnabar/40 shadow-lg shadow-cinnabar/50" />
+      </div>
+
+      <div
+        className="absolute bottom-[20%] left-[5%] w-48 h-48 rounded-full border border-paper/[0.06]"
+        style={{
+          transform: `translate(${(pos.x - 0.5) * -50}px, ${(pos.y - 0.5) * -35 + scrollY * 0.25}px)`,
+          transition: "transform 0.3s ease-out",
+        }}
+      >
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 rounded-full bg-paper/30" />
+      </div>
+
+      <div
+        className="absolute top-[60%] right-[30%] w-32 h-32 rounded-full border border-paper/[0.05]"
+        style={{
+          transform: `translate(${(pos.x - 0.5) * -70}px, ${(pos.y - 0.5) * -50 + scrollY * 0.4}px)`,
+          transition: "transform 0.2s ease-out",
+        }}
+      >
+        <div className="absolute top-1/2 right-0 translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-cinnabar/30" />
+      </div>
+
+      {/* 墨点 - ink dots with parallax */}
+      <div
+        className="absolute top-[25%] left-[20%] w-2 h-2 rounded-full bg-paper/60 shadow-lg shadow-paper/40"
+        style={{
+          transform: `translate(${(pos.x - 0.5) * -40}px, ${(pos.y - 0.5) * -30 + scrollY * 0.35}px)`,
+          transition: "transform 0.25s ease-out",
+        }}
+      />
+      <div
+        className="absolute bottom-[30%] right-[20%] w-1.5 h-1.5 rounded-full bg-cinnabar/50 shadow-lg shadow-cinnabar/40"
+        style={{
+          transform: `translate(${(pos.x - 0.5) * -60}px, ${(pos.y - 0.5) * -45 + scrollY * 0.2}px)`,
+          transition: "transform 0.15s ease-out",
+        }}
+      />
+
+      {/* 漂浮墨晕 - floating ink wash */}
+      <div
+        className="absolute top-[40%] left-[60%] w-96 h-96 rounded-full opacity-[0.025] blur-3xl"
+        style={{
+          background: "radial-gradient(circle, #f2efe6, transparent 70%)",
+          transform: `translate(${(pos.x - 0.5) * 40}px, ${(pos.y - 0.5) * 30 + scrollY * 0.1}px)`,
+          transition: "transform 0.6s ease-out",
+        }}
+      />
+    </div>
+  );
+}
+
+function ScrollShowcase({ visible, pos }: { visible: boolean; pos: { x: number; y: number } }) {
+  const tiltX = (pos.y - 0.5) * 10;
+  const tiltY = (pos.x - 0.5) * -10;
+
+  return (
+    <div
+      className="relative transition-all duration-1000"
+      style={{
+        opacity: visible ? 1 : 0,
+        transform: visible ? "translateY(0) rotate(0deg)" : "translateY(40px) rotate(-3deg)",
+        perspective: "1000px",
+      }}
+    >
+      {/* 墨晕外发光 */}
+      <div className="absolute -inset-8 bg-gradient-to-br from-paper/10 via-mist/5 to-cinnabar/10 rounded-[2.5rem] blur-3xl opacity-50" />
+
+      {/* 卷轴卡片 */}
+      <div
+        className="relative rounded-2xl overflow-hidden border border-paper/10 bg-ink3/80 backdrop-blur-2xl depth-shadow"
+        style={{
+          transform: `rotateX(${tiltX}deg) rotateY(${tiltY}deg)`,
+          transformStyle: "preserve-3d",
+          transition: "transform 0.15s ease-out",
+        }}
+      >
+        {/* 光泽 */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: `radial-gradient(600px circle at ${pos.x * 100}% ${pos.y * 100}%, rgba(242,255,255,0.04), transparent 40%)`,
+          }}
+        />
+
+        {/* 标题栏 */}
+        <div className="flex items-center justify-between px-5 py-3 border-b border-paper/10 bg-ink2/90" style={{ transform: "translateZ(20px)" }}>
+          <div className="flex gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-cinnabar/60" />
+            <div className="w-2.5 h-2.5 rounded-full bg-paper/30" />
+            <div className="w-2.5 h-2.5 rounded-full bg-paper/20" />
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-paper/60 animate-pulse" />
+            <span className="font-mono text-[10px] text-mist">motion-editor</span>
+          </div>
+        </div>
+
+        {/* 画布区 */}
+        <div className="relative h-56 bg-ink/70 overflow-hidden" style={{ transform: "translateZ(30px)" }}>
+          <div className="absolute inset-0 bg-grid opacity-20" />
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-ink/50" />
+          <div className="absolute inset-0 bg-feibai opacity-30" />
+
+          {/* 主体动画 */}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="relative" style={{ animation: "heroDemo 3s ease-in-out infinite" }}>
+              <div className="px-6 py-3 rounded-2xl bg-gradient-to-r from-paper via-mist to-paper bg-[length:200%_100%] animate-gradient-shift font-display font-bold text-ink text-lg shadow-2xl shadow-paper/20">
+                Motion
+              </div>
+
+              <div className="absolute -inset-8 flex items-center justify-center">
+                <div
+                  className="w-2.5 h-2.5 rounded-full bg-cinnabar shadow-lg shadow-cinnabar/50"
+                  style={{ animation: "orbit 4s linear infinite" }}
+                />
+              </div>
+
+              <div className="absolute -inset-12 flex items-center justify-center">
+                <div
+                  className="w-1.5 h-1.5 rounded-full bg-paper shadow-lg shadow-paper/40"
+                  style={{ animation: "orbit 7s linear infinite reverse" }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* 角标 */}
+          <div className="absolute top-3 left-3 font-mono text-[9px] text-mist">
+            <span className="text-cinnabar2">●</span> hero-spring
+          </div>
+          <div className="absolute top-3 right-3 font-mono text-[9px] text-mist">
+            1200ms · spring
+          </div>
+
+          {/* 时间轴 */}
+          <div className="absolute bottom-0 inset-x-0 px-4 py-2.5 bg-ink2/80 backdrop-blur border-t border-paper/10">
+            <div className="flex items-center gap-2">
+              <div className="w-0 h-0 border-l-[6px] border-l-cinnabar2 border-y-[4px] border-y-transparent" />
+              <div className="flex-1 h-1.5 rounded-full bg-paper/10 overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-paper via-mist to-cinnabar2 rounded-full"
+                  style={{ animation: "progressBar 3s ease-in-out infinite" }}
+                />
+              </div>
+              <span className="font-mono text-[9px] text-mist w-10 text-right">00:03</span>
+            </div>
+          </div>
+        </div>
+
+        {/* 底部信息 */}
+        <div className="flex items-center justify-between px-5 py-3 border-t border-paper/10 bg-ink2/90" style={{ transform: "translateZ(20px)" }}>
+          <div className="flex items-center gap-1.5">
+            <span className="font-mono text-[9px] px-2 py-0.5 rounded-full bg-cinnabar/10 text-cinnabar2 border border-cinnabar/20">
+              spring
+            </span>
+            <span className="font-mono text-[9px] px-2 py-0.5 rounded-full bg-paper/5 text-mist border border-paper/10">
+              1200ms
+            </span>
+            <span className="font-mono text-[9px] px-2 py-0.5 rounded-full bg-paper/5 text-mist border border-paper/10">
+              squash
+            </span>
+          </div>
+          <div className="flex items-center gap-1 text-mist">
+            <span className="font-mono text-[9px]">AI-crafted</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 印章落款 */}
+      <div className="absolute -bottom-4 -right-4 z-20">
+        <Seal char="动" size="md" animated={visible} />
+      </div>
+
+      <style>{`
+        @keyframes heroDemo {
+          0%, 100% { transform: scale(1, 1) rotate(0deg); }
+          30% { transform: scale(1.18, 0.82) rotate(3deg); }
+          60% { transform: scale(0.88, 1.12) rotate(-2deg); }
+        }
+        @keyframes progressBar {
+          0% { width: 0%; }
+          100% { width: 100%; }
+        }
+        @keyframes orbit {
+          0% { transform: rotate(0deg) translateX(60px) rotate(0deg); }
+          100% { transform: rotate(360deg) translateX(60px) rotate(-360deg); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+export function Hero() {
+  const { displayed, done } = useTypewriter(TITLE_TEXT);
+  const { ref, pos } = useMousePosition();
+  const scrollY = useScrollParallax();
+
+  const stats = [
+    { num: "22", label: "Tools" },
+    { num: "11", label: "Templates" },
+    { num: "7", label: "Formats" },
+    { num: "∞", label: "Skills" },
+  ];
+
+  return (
+    <section ref={ref} className="relative min-h-screen flex items-center justify-center section-padding overflow-hidden pt-20">
+      {/* 水墨波形粒子背景 */}
+      <div className="absolute inset-0 z-0">
+        <InkWaves />
+      </div>
+      <FloatingInk pos={pos} scrollY={scrollY} />
+
+      <div className="relative z-10 max-w-6xl mx-auto w-full" style={{ transform: `translateY(${scrollY * -0.05}px)` }}>
+        <div className="grid lg:grid-cols-5 gap-12 items-center">
+          {/* 左侧文字 */}
+          <div className="lg:col-span-3 text-center lg:text-left">
+            {/* 主标题 */}
+            <h1 className="font-display text-5xl md:text-7xl lg:text-[5.5rem] font-bold tracking-tight mb-3 leading-[0.95]">
+              <span className="gradient-text-animated text-glow">
+                {displayed}
+              </span>
+              <span
+                className={`inline-block w-1.5 h-[0.75em] ml-1.5 bg-cinnabar2 ${done ? "animate-blink" : ""}`}
+                style={{ verticalAlign: "text-bottom" }}
+              />
+            </h1>
+
+            {/* 副标题 - ink-spread 墨晕扩散 */}
+            <div className="overflow-hidden">
+              <p
+                className="font-display text-xl md:text-2xl lg:text-3xl text-paper/90 mb-4"
+                style={{
+                  opacity: done ? 1 : 0,
+                  transform: done ? "scale(1)" : "scale(0.9)",
+                  filter: done ? "blur(0px)" : "blur(8px)",
+                  transition: "all 1s cubic-bezier(0.22, 1, 0.36, 1) 0.3s",
+                }}
+              >
+                The AI-Native <span className="text-paper">Motion Design Platform</span>
+              </p>
+            </div>
+
+            {/* 描述 */}
+            <p
+              className="font-mono text-sm text-mist max-w-xl mx-auto lg:mx-0 mb-8 leading-relaxed"
+              style={{
+                opacity: done ? 1 : 0,
+                transform: done ? "translateY(0)" : "translateY(20px)",
+                transition: "all 0.8s ease-out 0.5s",
+              }}
+            >
+              The Open-Source Figma Motion Alternative, Redefining AI-Native Motion Design. Animations that live in real web pages and videos — conversational, composable, and reusable by any AI agent.
+            </p>
+
+            {/* CTA */}
+            <div
+              className="flex flex-col sm:flex-row items-center lg:items-start justify-center lg:justify-start gap-3"
+              style={{
+                opacity: done ? 1 : 0,
+                transform: done ? "translateY(0)" : "translateY(20px)",
+                transition: "all 0.8s ease-out 0.7s",
+              }}
+            >
+              <MagneticButton href="#lab" variant="primary" strength={0.25}>
+                <Zap className="w-4 h-4" />
+                Launch Editor
+                <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+              </MagneticButton>
+              <MagneticButton href="https://github.com/Yuan-ManX/open-motion" variant="secondary" strength={0.2}>
+                <Github className="w-4 h-4" />
+                View Source
+              </MagneticButton>
+            </div>
+
+            {/* 笔触分割 */}
+            <div
+              className="mt-12 mb-8"
+              style={{
+                opacity: done ? 1 : 0,
+                transition: "all 0.8s ease-out 0.8s",
+              }}
+            >
+              <InkBrush className="max-w-xs mx-auto lg:mx-0" />
+            </div>
+
+            {/* 数据 - 交错出现 */}
+            <StaggerReveal
+              className="flex items-center justify-center lg:justify-start gap-8 md:gap-12"
+              stagger={120}
+              variant="ink-spread"
+              duration={0.9}
+            >
+              {stats.map((s) => (
+                <div key={s.label} className="text-center lg:text-left">
+                  <div className="font-display text-2xl md:text-4xl font-bold gradient-text tabular-nums">{s.num}</div>
+                  <div className="font-mono text-[10px] text-stone uppercase tracking-widest mt-1">{s.label}</div>
+                </div>
+              ))}
+            </StaggerReveal>
+          </div>
+
+          {/* 右侧卷轴展示 */}
+          <div className="lg:col-span-2 hidden lg:block">
+            <ScrollShowcase visible={done} pos={pos} />
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}

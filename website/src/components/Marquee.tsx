@@ -1,14 +1,16 @@
-import { Code2, Palette, Film, Layers, GitBranch, Sparkles, Zap, Waves } from "lucide-react";
+import { Code2, Palette, Film, Layers, GitBranch, Sparkles, Zap, Waves, Cpu, Boxes } from "lucide-react";
 
 const TECH_ITEMS = [
-  { icon: Code2, name: "React", label: "React" },
-  { icon: Zap, name: "Framer Motion", label: "Motion" },
-  { icon: Palette, name: "Tailwind", label: "Tailwind" },
-  { icon: Film, name: "MP4 Export", label: "MP4" },
-  { icon: Layers, name: "SVG Animation", label: "SVG" },
-  { icon: GitBranch, name: "Git Native", label: "Git" },
-  { icon: Sparkles, name: "AI Agent", label: "AI" },
-  { icon: Waves, name: "Spring Physics", label: "Spring" },
+  { icon: Code2, name: "React" },
+  { icon: Zap, name: "Framer Motion" },
+  { icon: Palette, name: "Tailwind" },
+  { icon: Film, name: "MP4 Export" },
+  { icon: Layers, name: "SVG Animation" },
+  { icon: GitBranch, name: "Git Native" },
+  { icon: Sparkles, name: "AI Agent" },
+  { icon: Waves, name: "Spring Physics" },
+  { icon: Cpu, name: "MCP Server" },
+  { icon: Boxes, name: "Skill Pipeline" },
 ];
 
 export function Marquee() {
@@ -19,17 +21,28 @@ export function Marquee() {
       <div className="absolute inset-0 bg-gradient-to-r from-ink via-transparent to-ink pointer-events-none z-10" />
       <div className="absolute inset-0 bg-gradient-to-b from-ink/50 via-transparent to-ink/50 pointer-events-none" />
 
-      <div className="relative flex overflow-hidden">
-        <div className="flex gap-4 animate-marquee whitespace-nowrap">
+      {/* 标题徽章 */}
+      <div className="relative text-center mb-10">
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full glass-premium cinnabar-border">
+          <span className="w-1.5 h-1.5 rounded-full bg-cinnabar" />
+          <span className="font-mono text-xs text-mist tracking-[0.2em] uppercase">
+            Powered by modern motion stack
+          </span>
+        </div>
+      </div>
+
+      {/* 跑马灯 */}
+      <div className="relative flex overflow-hidden mask-fade-edges">
+        <div className="flex gap-3 animate-marquee whitespace-nowrap">
           {items.map((item, idx) => {
             const Icon = item.icon;
             return (
               <div
                 key={idx}
-                className="flex items-center gap-3 px-5 py-2.5 rounded-full glass border border-edge/70 group hover:border-accent/40 hover:bg-accent/5 transition-all duration-300 flex-shrink-0"
+                className="group flex items-center gap-3 px-5 py-2.5 rounded-full glass-premium border border-paper/[0.08] hover:border-cinnabar/40 hover:bg-paper/[0.04] transition-all duration-300 flex-shrink-0"
               >
-                <Icon className="w-4 h-4 text-accent/70 group-hover:text-accent transition-colors" />
-                <span className="font-mono text-xs text-gray-300 group-hover:text-white transition-colors tracking-wide">
+                <Icon className="w-4 h-4 text-mist group-hover:text-paper group-hover:scale-110 transition-all" />
+                <span className="font-mono text-xs text-mist group-hover:text-paper transition-colors tracking-wide">
                   {item.name}
                 </span>
               </div>
@@ -37,16 +50,6 @@ export function Marquee() {
           })}
         </div>
       </div>
-
-      <style>{`
-        @keyframes marquee {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
-        }
-        .animate-marquee {
-          animation: marquee 30s linear infinite;
-        }
-      `}</style>
     </section>
   );
 }
