@@ -17,7 +17,7 @@
     "dev:web": "npm -w @openmotion/web run dev",
     "build": "npm -w @openmotion/server run build && npm -w @openmotion/web run build",
     "typecheck": "npm -w @openmotion/server run typecheck && npm -w @openmotion/web run typecheck",
-    "start": "npm -w @openmotion/server run start"
+    "start": "npm run build && npm -w @openmotion/server run start"
   },
   "devDependencies": {
     "concurrently": "^9.1.0"
