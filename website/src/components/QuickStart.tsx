@@ -74,7 +74,7 @@ export function QuickStart() {
         </Reveal>
 
         <Reveal delay={150}>
-          <div className="relative rounded-2xl overflow-hidden border border-edge bg-ink/80 shadow-2xl shadow-accent/10">
+          <div className="relative rounded-2xl overflow-hidden border border-edge bg-ink/80 shadow-2xl shadow-cinnabar/10">
             {/* Terminal header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-edge bg-panel">
               <div className="flex items-center gap-2">
@@ -83,14 +83,14 @@ export function QuickStart() {
                   <div className="w-3 h-3 rounded-full bg-yellow-500/60" />
                   <div className="w-3 h-3 rounded-full bg-green-500/60" />
                 </div>
-                <div className="flex items-center gap-2 ml-2 text-gray-500">
+                <div className="flex items-center gap-2 ml-2 text-stone">
                   <Terminal className="w-3.5 h-3.5" />
                   <span className="font-mono text-xs">bash — open-motion</span>
                 </div>
               </div>
               <button
                 onClick={copy}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg glass text-xs text-gray-400 hover:text-accent hover:border-accent/40 transition-all"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg glass text-xs text-mist hover:text-paper hover:border-paper/40 transition-all"
                 aria-label="Copy commands"
               >
                 {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
@@ -108,13 +108,13 @@ export function QuickStart() {
 
                 return (
                   <div key={i} className="flex items-start gap-3 mb-3">
-                    <span className={cmd.success ? "text-green-400" : "text-accent2"}>
+                    <span className={cmd.success ? "text-green-400" : "text-mist"}>
                       {cmd.prompt}
                     </span>
-                    <span className={cmd.success ? "text-green-400/80" : "text-gray-300"}>
+                    <span className={cmd.success ? "text-green-400/80" : "text-mist"}>
                       {displayText}
                       {isCurrentLine && !done && (
-                        <span className="inline-block w-2 h-4 bg-accent2 ml-0.5 animate-pulse" />
+                        <span className="inline-block w-2 h-4 bg-mist ml-0.5 animate-pulse" />
                       )}
                     </span>
                   </div>
@@ -123,10 +123,10 @@ export function QuickStart() {
               {done && (
                 <div className="mt-6 pt-6 border-t border-edge">
                   <div className="flex items-center gap-3 text-xs">
-                    <span className="text-gray-500">Ports:</span>
-                    <span className="px-2 py-0.5 rounded-md bg-accent/10 text-accent border border-accent/20">4000 · Editor</span>
-                    <span className="px-2 py-0.5 rounded-md bg-accent2/10 text-accent2 border border-accent2/20">7000 · API</span>
-                    <span className="px-2 py-0.5 rounded-md bg-magenta/10 text-magenta border border-magenta/20">5000 · Website</span>
+                    <span className="text-stone">Ports:</span>
+                    <span className="px-2 py-0.5 rounded-md bg-cinnabar/10 text-cinnabar border border-cinnabar/20">4000 · Editor</span>
+                    <span className="px-2 py-0.5 rounded-md bg-mist/10 text-mist border border-mist/20">7000 · API</span>
+                    <span className="px-2 py-0.5 rounded-md bg-cinnabar2/10 text-cinnabar2 border border-cinnabar2/20">5000 · Website</span>
                   </div>
                 </div>
               )}
@@ -143,8 +143,8 @@ export function QuickStart() {
               { label: "Provider", value: "Mock / OpenAI" },
             ].map((item) => (
               <div key={item.label} className="flex items-center justify-between p-4 rounded-xl glass">
-                <span className="font-mono text-xs text-gray-500">{item.label}</span>
-                <span className="font-mono text-sm text-gray-200">{item.value}</span>
+                <span className="font-mono text-xs text-stone">{item.label}</span>
+                <span className="font-mono text-sm text-paper">{item.value}</span>
               </div>
             ))}
           </div>
