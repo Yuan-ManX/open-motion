@@ -3,10 +3,10 @@ import { Wrench, LayoutTemplate, FileCode2, Layers } from "lucide-react";
 import { Reveal } from "./shared/Reveal";
 
 const STATS = [
-  { icon: Wrench, value: 22, label: "Agent Tools", suffix: "", color: "#6366F1" },
-  { icon: LayoutTemplate, value: 11, label: "Motion Templates", suffix: "", color: "#22D3EE" },
-  { icon: FileCode2, value: 7, label: "Export Formats", suffix: "", color: "#EC4899" },
-  { icon: Layers, value: 3, label: "Architecture Layers", suffix: "", color: "#8B5CF6" },
+  { icon: Wrench, value: 22, label: "Agent Tools", suffix: "", color: "#f2efe6" },
+  { icon: LayoutTemplate, value: 11, label: "Motion Templates", suffix: "", color: "#9a9a9a" },
+  { icon: FileCode2, value: 7, label: "Export Formats", suffix: "", color: "#a83232" },
+  { icon: Layers, value: 3, label: "Architecture Layers", suffix: "", color: "#c0392b" },
 ];
 
 function useCountUp(target: number, duration = 1500, start = false) {
@@ -61,7 +61,7 @@ function StatCard({ stat, visible }: { stat: typeof STATS[0]; visible: boolean }
         </div>
 
         {/* Label */}
-        <div className="font-mono text-xs text-gray-500 uppercase tracking-wider">
+        <div className="font-mono text-xs text-stone uppercase tracking-wider">
           {stat.label}
         </div>
       </div>
