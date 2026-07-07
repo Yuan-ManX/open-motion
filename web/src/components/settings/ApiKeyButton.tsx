@@ -24,6 +24,8 @@ export function ApiKeyButton() {
         onClick={() => setOpen((v) => !v)}
         className="px-2 py-1 rounded-md text-xs text-gray-400 bg-panel2 border border-edge hover:border-accent transition-colors"
         title="API Key settings"
+        aria-label="API Key settings"
+        aria-expanded={open}
       >
         {hasKey ? "🔑" : "🔑·"}
       </button>
