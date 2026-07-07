@@ -9,8 +9,8 @@ const STEPS = [
     subtitle: "Say it in a sentence",
     description:
       "Tell the agent what you want — a feeling, a reference, a vibe. No timeline, no keyframes, no setup. Just intent in plain language.",
-    color: "#6366F1",
-    gradient: "from-accent/20 to-transparent",
+    color: "#f2efe6",
+    gradient: "from-paper/20 to-transparent",
   },
   {
     num: "02",
@@ -19,8 +19,8 @@ const STEPS = [
     subtitle: "Agent shapes the frames",
     description:
       "The motion agent picks the right template, tunes the easing curve, sets the timing. Tools fire in sequence — you watch the motion come alive.",
-    color: "#22D3EE",
-    gradient: "from-accent2/20 to-transparent",
+    color: "#9a9a9a",
+    gradient: "from-cinnabar/20 to-transparent",
   },
   {
     num: "03",
@@ -29,8 +29,8 @@ const STEPS = [
     subtitle: "Fine-tune every frame",
     description:
       "Want it snappier? Softer? Longer? Switch to the timeline and adjust any keyframe, any property, any curve — or just keep talking.",
-    color: "#EC4899",
-    gradient: "from-magenta/20 to-transparent",
+    color: "#a83232",
+    gradient: "from-cinnabar2/20 to-transparent",
   },
   {
     num: "04",
@@ -39,8 +39,8 @@ const STEPS = [
     subtitle: "Export and reuse",
     description:
       "One click to HTML, CSS, React, or video. Package it as a skill and any AI agent can replay it across projects, teams, and workflows.",
-    color: "#8B5CF6",
-    gradient: "from-violet/20 to-transparent",
+    color: "#c0392b",
+    gradient: "from-cinnabar2/20 to-transparent",
   },
 ];
 
@@ -63,8 +63,8 @@ export function Workflow() {
         <div className="relative">
           {/* Connecting line */}
           <div className="hidden lg:block absolute top-24 left-[12.5%] right-[12.5%] h-px">
-            <div className="w-full h-full bg-gradient-to-r from-accent/30 via-accent2/30 to-violet/30" />
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-accent2/60 to-transparent animate-marquee" style={{ animationDuration: "4s" }} />
+            <div className="w-full h-full bg-gradient-to-r from-paper/30 via-cinnabar/30 to-cinnabar2/30" />
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cinnabar/60 to-transparent animate-marquee" style={{ animationDuration: "4s" }} />
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -101,13 +101,13 @@ export function Workflow() {
                       <step.icon className="w-5 h-5" style={{ color: step.color }} />
                     </div>
 
-                    <h3 className="font-display text-lg font-bold text-white mb-1">
+                    <h3 className="font-display text-lg font-bold text-paper mb-1">
                       {step.title}
                     </h3>
-                    <p className="font-mono text-[10px] text-gray-500 mb-3 uppercase tracking-wider">
+                    <p className="font-mono text-[10px] text-mist mb-3 uppercase tracking-wider">
                       {step.subtitle}
                     </p>
-                    <p className="text-xs text-gray-400 leading-relaxed">
+                    <p className="text-xs text-stone leading-relaxed">
                       {step.description}
                     </p>
 
@@ -126,8 +126,8 @@ export function Workflow() {
         {/* Bottom note */}
         <Reveal delay={400}>
           <div className="mt-16 text-center">
-            <p className="font-mono text-xs text-gray-600">
-              <span className="text-accent2">↺</span> The loop never ends — every shipped motion becomes a skill for the next project
+            <p className="font-mono text-xs text-stone">
+              <span className="text-cinnabar">↺</span> The loop never ends — every shipped motion becomes a skill for the next project
             </p>
           </div>
         </Reveal>
