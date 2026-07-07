@@ -12,6 +12,7 @@ const EnvSchema = z.object({
   RATE_LIMIT_WINDOW_MS: z.coerce.number().default(60000),
   RATE_LIMIT_MAX: z.coerce.number().default(60),
   CHAT_RATE_LIMIT_MAX: z.coerce.number().default(10),
+  DB_PATH: z.string().optional(),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
@@ -32,6 +33,7 @@ function loadEnv(): Env {
       RATE_LIMIT_WINDOW_MS: Number(process.env.RATE_LIMIT_WINDOW_MS) || 60000,
       RATE_LIMIT_MAX: Number(process.env.RATE_LIMIT_MAX) || 60,
       CHAT_RATE_LIMIT_MAX: Number(process.env.CHAT_RATE_LIMIT_MAX) || 10,
+      DB_PATH: process.env.DB_PATH,
     };
     return env;
   }
