@@ -3,12 +3,12 @@ import { Terminal, Package, Layers, Palette, Film, Sparkles, Zap, Wand2, Move3d 
 import { Reveal } from "./shared/Reveal";
 
 const SKILL_CATEGORIES = [
-  { icon: Move3d, name: "Spring Physics", tag: "physics", color: "from-accent to-accent2" },
-  { icon: Palette, name: "Gradient Morph", tag: "gradient", color: "from-magenta to-accent" },
-  { icon: Film, name: "MP4 Export", tag: "export", color: "from-accent2 to-teal-400" },
-  { icon: Layers, name: "SVG Animation", tag: "svg", color: "from-accent to-magenta" },
-  { icon: Wand2, name: "AI Generated", tag: "ai", color: "from-magenta to-purple-500" },
-  { icon: Sparkles, name: "Particle FX", tag: "particles", color: "from-accent2 to-accent" },
+  { icon: Move3d, name: "Spring Physics", tag: "physics", color: "from-cinnabar to-cinnabar2" },
+  { icon: Palette, name: "Gradient Morph", tag: "gradient", color: "from-paper to-cinnabar" },
+  { icon: Film, name: "MP4 Export", tag: "export", color: "from-cinnabar2 to-mist" },
+  { icon: Layers, name: "SVG Animation", tag: "svg", color: "from-cinnabar to-paper" },
+  { icon: Wand2, name: "AI Generated", tag: "ai", color: "from-paper to-stone" },
+  { icon: Sparkles, name: "Particle FX", tag: "particles", color: "from-cinnabar2 to-cinnabar" },
 ];
 
 const SAMPLE_CODES = [
@@ -85,12 +85,12 @@ export function Skills() {
 
   const highlightCode = (line: string) => {
     return line
-      .replace(/(\/\/.*$)/g, '<span class="text-gray-600">$1</span>')
-      .replace(/(const|await|export|default|return|if|else|for|while)/g, '<span class="text-accent2">$1</span>')
-      .replace(/(\".*?\"|\'.*?\')/g, '<span class="text-magenta">$1</span>')
-      .replace(/(\b\d+\b)/g, '<span class="text-accent">$1</span>')
-      .replace(/(name|description|type|keyframes|easing|duration|background|animation|count|colors|physics)/g, '<span class="text-yellow-400/80">$1</span>')
-      .replace(/(opacity|scale|y|x|rotate|backgroundSize|iterationCount|gravity|friction)/g, '<span class="text-teal-400/80">$1</span>');
+      .replace(/(\/\/.*$)/g, '<span class="text-stone">$1</span>')
+      .replace(/(const|await|export|default|return|if|else|for|while)/g, '<span class="text-cinnabar2">$1</span>')
+      .replace(/(\".*?\"|\'.*?\')/g, '<span class="text-paper">$1</span>')
+      .replace(/(\b\d+\b)/g, '<span class="text-cinnabar">$1</span>')
+      .replace(/(name|description|type|keyframes|easing|duration|background|animation|count|colors|physics)/g, '<span class="text-cinnabar2/80">$1</span>')
+      .replace(/(opacity|scale|y|x|rotate|backgroundSize|iterationCount|gravity|friction)/g, '<span class="text-mist/80">$1</span>');
   };
 
   return (
@@ -116,18 +116,18 @@ export function Skills() {
               return (
                 <div
                   key={cat.name}
-                  className="group relative p-4 rounded-xl glass border border-edge hover:border-accent/30 transition-all duration-300 cursor-pointer hover:-translate-y-1"
+                  className="group relative p-4 rounded-xl glass border border-edge hover:border-cinnabar/30 transition-all duration-300 cursor-pointer hover:-translate-y-1"
                   style={{ transitionDelay: `${idx * 50}ms` }}
                 >
                   <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${cat.color} p-0.5 mb-3`}>
                     <div className="w-full h-full rounded-[7px] bg-panel flex items-center justify-center">
-                      <Icon className="w-5 h-5 text-white/90" />
+                      <Icon className="w-5 h-5 text-paper/90" />
                     </div>
                   </div>
-                  <div className="font-display text-sm font-bold text-white group-hover:gradient-text transition-all">
+                  <div className="font-display text-sm font-bold text-paper group-hover:gradient-text transition-all">
                     {cat.name}
                   </div>
-                  <div className="font-mono text-[10px] text-gray-600 mt-0.5">
+                  <div className="font-mono text-[10px] text-stone mt-0.5">
                     #{cat.tag}
                   </div>
                 </div>
@@ -155,8 +155,8 @@ export function Skills() {
                         onClick={() => setActiveTab(i)}
                         className={`px-3 py-1 rounded-md font-mono text-[11px] transition-all ${
                           activeTab === i
-                            ? "bg-accent/10 text-accent border border-accent/20"
-                            : "text-gray-500 hover:text-gray-300 hover:bg-white/5"
+                            ? "bg-cinnabar/10 text-cinnabar border border-cinnabar/20"
+                            : "text-mist hover:text-paper hover:bg-paper/5"
                         }`}
                       >
                         {sample.title}.ts
@@ -166,7 +166,7 @@ export function Skills() {
                 </div>
 
                 {/* Code content */}
-                <pre className="p-5 font-mono text-xs leading-relaxed text-gray-300 overflow-x-auto max-h-[420px]">
+                <pre className="p-5 font-mono text-xs leading-relaxed text-mist overflow-x-auto max-h-[420px]">
                   <code>
                     {SAMPLE_CODES[activeTab].code.split("\n").map((line, i) => {
                       const visibleUpTo = typingIndex;
@@ -175,9 +175,9 @@ export function Skills() {
                       const isVisible = lineStart < visibleUpTo;
                       return (
                         <div key={i} className="flex">
-                          <span className="text-gray-700 select-none w-8 flex-shrink-0">{i + 1}</span>
+                          <span className="text-stone select-none w-8 flex-shrink-0">{i + 1}</span>
                           <span
-                            className="text-gray-300"
+                            className="text-mist"
                             style={{ opacity: isVisible ? 1 : 0 }}
                             dangerouslySetInnerHTML={{ __html: highlightCode(line) }}
                           />
@@ -190,14 +190,14 @@ export function Skills() {
                 {/* Status bar */}
                 <div className="flex items-center justify-between px-4 py-2 border-t border-edge bg-panel/50">
                   <div className="flex items-center gap-2">
-                    <Zap className="w-3 h-3 text-accent2" />
-                    <span className="font-mono text-[10px] text-gray-500">
+                    <Zap className="w-3 h-3 text-cinnabar2" />
+                    <span className="font-mono text-[10px] text-mist">
                       {Math.min(typingIndex, SAMPLE_CODES[activeTab].code.length)} chars
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                    <span className="font-mono text-[10px] text-gray-500">TypeScript</span>
+                    <span className="font-mono text-[10px] text-mist">TypeScript</span>
                   </div>
                 </div>
               </div>
@@ -217,7 +217,7 @@ export function Skills() {
                   const Icon = step.icon;
                   return (
                     <div key={step.label} className="relative">
-                      <div className="group flex items-center gap-4 p-4 rounded-xl glass-hover border border-edge/50 hover:border-accent/20 transition-all">
+                      <div className="group flex items-center gap-4 p-4 rounded-xl glass-hover border border-edge/50 hover:border-cinnabar/20 transition-all">
                         <div
                           className="w-11 h-11 rounded-xl flex items-center justify-center font-mono text-sm font-bold flex-shrink-0 transition-transform group-hover:scale-110"
                           style={{ background: `${step.color}15`, color: step.color, border: `1px solid ${step.color}30` }}
@@ -225,11 +225,11 @@ export function Skills() {
                           {step.num}
                         </div>
                         <div className="flex-1">
-                          <h3 className="font-display text-base font-bold text-white flex items-center gap-2">
+                          <h3 className="font-display text-base font-bold text-paper flex items-center gap-2">
                             {step.label}
-                            <Icon className="w-4 h-4 text-gray-500 group-hover:text-accent transition-colors" />
+                            <Icon className="w-4 h-4 text-mist group-hover:text-cinnabar transition-colors" />
                           </h3>
-                          <p className="text-xs text-gray-400 mt-0.5">{step.desc}</p>
+                          <p className="text-xs text-stone mt-0.5">{step.desc}</p>
                         </div>
                       </div>
                       {i < 3 && (
@@ -242,10 +242,10 @@ export function Skills() {
                 })}
 
                 {/* Loop badge */}
-                <div className="mt-4 p-4 rounded-xl border border-dashed border-accent/20 bg-accent/5">
+                <div className="mt-4 p-4 rounded-xl border border-dashed border-cinnabar/20 bg-cinnabar/5">
                   <div className="flex items-center justify-between">
-                    <span className="font-mono text-xs text-gray-400">Continuous iteration loop</span>
-                    <span className="text-accent text-xl animate-spin-slow">↻</span>
+                    <span className="font-mono text-xs text-mist">Continuous iteration loop</span>
+                    <span className="text-cinnabar text-xl animate-spin-slow">↻</span>
                   </div>
                 </div>
               </div>
