@@ -9,7 +9,6 @@ import { Hero } from "@/components/Hero";
 import { SectionDivider } from "@/components/SectionDivider";
 import { Philosophy } from "@/components/Philosophy";
 import { Features } from "@/components/Features";
-import { AgentDemo } from "@/components/AgentDemo";
 import { MotionLab } from "@/components/MotionLab";
 import { CTA } from "@/components/CTA";
 import { Footer } from "@/components/Footer";
@@ -36,7 +35,6 @@ export default function App() {
           <InkLandscape variant="cloud" />
         </div>
         <Features />
-        <AgentDemo />
         {/* 水墨水面过渡 */}
         <div className="relative -mb-10 opacity-50 pointer-events-none">
           <InkLandscape variant="water" />
