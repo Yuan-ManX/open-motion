@@ -64,7 +64,7 @@ export function CTA() {
 
               {/* CTA 磁吸按钮 */}
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-10">
-                <MagneticButton href="http://localhost:4000" variant="primary" strength={0.25}>
+                <MagneticButton href="#top" variant="primary" strength={0.25}>
                   Launch Editor
                   <ArrowRight className="w-4 h-4" />
                 </MagneticButton>
@@ -72,13 +72,6 @@ export function CTA() {
                   <Github className="w-4 h-4" />
                   Star on GitHub
                 </MagneticButton>
-              </div>
-
-              {/* 命令行 */}
-              <div className="inline-flex items-center gap-3 px-4 py-2.5 rounded-lg glass-premium font-mono text-xs">
-                <span className="text-cinnabar2">$</span>
-                <span className="text-mist">git clone open-motion && npm install && npm run dev</span>
-                <div className="w-1.5 h-1.5 rounded-full bg-paper/60 animate-pulse" />
               </div>
             </div>
           </div>
