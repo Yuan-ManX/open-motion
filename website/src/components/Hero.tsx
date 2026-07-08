@@ -363,18 +363,18 @@ export function Hero() {
 
             {/* 数据 - 交错出现 */}
             <StaggerReveal
-              className="flex items-center justify-center lg:justify-start gap-6 md:gap-8"
+              className="flex items-stretch justify-center lg:justify-start"
               stagger={120}
               variant="ink-spread"
               duration={0.9}
             >
               {stats.map((s, i) => (
-                <div key={s.label} className="flex items-center gap-6 md:gap-8">
-                  <div className="text-center lg:text-left">
+                <div key={s.label} className="flex items-stretch">
+                  {i > 0 && <div className="w-px bg-edge mx-5 md:mx-7 self-stretch" />}
+                  <div className="text-center lg:text-left min-w-[64px] flex flex-col justify-center">
                     <div className="font-display text-3xl md:text-4xl font-bold gradient-text tabular-nums leading-none">{s.num}</div>
                     <div className="font-mono text-[10px] text-stone uppercase tracking-widest mt-2">{s.label}</div>
                   </div>
-                  {i < stats.length - 1 && <div className="w-px h-8 bg-edge" />}
                 </div>
               ))}
             </StaggerReveal>
