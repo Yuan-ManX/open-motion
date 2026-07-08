@@ -4,7 +4,6 @@ import { Github, Menu, X, ArrowUpRight } from "lucide-react";
 const NAV_LINKS = [
   { href: "#philosophy", label: "Philosophy" },
   { href: "#features", label: "Features" },
-  { href: "#demo", label: "Live Agent" },
   { href: "#lab", label: "Motion Lab" },
 ];
 
@@ -63,7 +62,7 @@ export function Navbar() {
             Star
           </a>
           <a
-            href="#lab"
+            href="#top"
             className="hidden sm:inline-flex items-center gap-1 px-4 py-1.5 rounded-full text-xs font-mono text-ink bg-paper hover:bg-paper/90 transition-all duration-300 group/launch"
           >
             Launch
