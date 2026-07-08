@@ -339,7 +339,7 @@ export function Hero() {
                 transition: "all 0.8s ease-out 0.7s",
               }}
             >
-              <MagneticButton href="#lab" variant="primary" strength={0.25}>
+              <MagneticButton href="#top" variant="primary" strength={0.25}>
                 <Zap className="w-4 h-4" />
                 Launch Editor
                 <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
@@ -363,15 +363,18 @@ export function Hero() {
 
             {/* 数据 - 交错出现 */}
             <StaggerReveal
-              className="flex items-center justify-center lg:justify-start gap-8 md:gap-12"
+              className="flex items-center justify-center lg:justify-start gap-6 md:gap-8"
               stagger={120}
               variant="ink-spread"
               duration={0.9}
             >
-              {stats.map((s) => (
-                <div key={s.label} className="text-center lg:text-left">
-                  <div className="font-display text-2xl md:text-4xl font-bold gradient-text tabular-nums">{s.num}</div>
-                  <div className="font-mono text-[10px] text-stone uppercase tracking-widest mt-1">{s.label}</div>
+              {stats.map((s, i) => (
+                <div key={s.label} className="flex items-center gap-6 md:gap-8">
+                  <div className="text-center lg:text-left">
+                    <div className="font-display text-3xl md:text-4xl font-bold gradient-text tabular-nums leading-none">{s.num}</div>
+                    <div className="font-mono text-[10px] text-stone uppercase tracking-widest mt-2">{s.label}</div>
+                  </div>
+                  {i < stats.length - 1 && <div className="w-px h-8 bg-edge" />}
                 </div>
               ))}
             </StaggerReveal>
