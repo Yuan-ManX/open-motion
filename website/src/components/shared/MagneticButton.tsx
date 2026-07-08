@@ -45,8 +45,13 @@ export function MagneticButton({
   };
 
   if (href) {
+    const isInternal = href.startsWith("#");
     return (
-      <a href={href} target="_blank" rel="noreferrer" {...sharedProps}>
+      <a
+        href={href}
+        {...(isInternal ? {} : { target: "_blank", rel: "noreferrer" })}
+        {...sharedProps}
+      >
         {children}
       </a>
     );
