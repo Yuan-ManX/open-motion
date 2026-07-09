@@ -6,6 +6,7 @@ interface UiState {
   exportOpen: boolean;
   templatesOpen: boolean;
   skillsOpen: boolean;
+  shortcutsOpen: boolean;
   health: HealthResponse | null;
   replayTrigger: number;
   hiddenIds: Set<string>;
@@ -15,6 +16,7 @@ interface UiState {
   setExportOpen: (open: boolean) => void;
   setTemplatesOpen: (open: boolean) => void;
   setSkillsOpen: (open: boolean) => void;
+  setShortcutsOpen: (open: boolean) => void;
   setHealth: (h: HealthResponse | null) => void;
   triggerReplay: () => void;
   toggleHidden: (id: string) => void;
@@ -26,6 +28,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   exportOpen: false,
   templatesOpen: false,
   skillsOpen: false,
+  shortcutsOpen: false,
   health: null,
   replayTrigger: 0,
   hiddenIds: new Set<string>(),
@@ -35,6 +38,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   setExportOpen: (open) => set({ exportOpen: open }),
   setTemplatesOpen: (open) => set({ templatesOpen: open }),
   setSkillsOpen: (open) => set({ skillsOpen: open }),
+  setShortcutsOpen: (open) => set({ shortcutsOpen: open }),
   setHealth: (h) => set({ health: h }),
   triggerReplay: () => set((s) => ({ replayTrigger: s.replayTrigger + 1 })),
   toggleHidden: (id) => {
