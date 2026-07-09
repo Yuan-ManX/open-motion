@@ -1,5 +1,6 @@
 import type { ChatOptions, ChatResult, LlmProvider, LlmToolCall } from "./types.js";
 import { createId } from "../../utils/id.js";
+import { resolveTemplateId, resolvePresetName } from "../intents.js";
 
 interface ParsedState {
   componentIds: string[];
@@ -238,8 +239,58 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
   // --- Template ---
   const tplM = userText.match(/\b(?:use|apply|switch to)\s+(?:the\s+)?([\w\s-]+?)\s+template\b|使用\s*([\w\s-]+?)\s*模板/i);
   if (tplM) {
-    const raw = (tplM[1] || tplM[2] || "").trim().toLowerCase().replace(/\s+/g, "-");
-    push("set_template", { templateId: `tpl-${raw}` }, `Switched to the ${raw} template.`);
+    const raw = (tplM[1] || tplM[2] || "").trim();
+    const resolved = resolveTemplateId(raw);
+    if (resolved) {
+      push("set_template", { templateId: resolved }, `Switched to the ${resolved} template.`);
+    } else {
+      push("set_template", { templateId: `tpl-${raw.toLowerCase().replace(/\s+/g, "-")}` }, `Switched to the ${raw} template.`);
+    }
+  }
+
+  // --- Apply preset (shake, wiggle, float, glow, heartbeat, typewriter) ---
+  const presetM = userText.match(/\b(?:apply|use)\s+(?:the\s+)?(shake|wiggle|float|glow|heartbeat|type[\s-]?writer)\s+(?:preset|effect|animation)?\b/i);
+  if (presetM && state.firstComponentId) {
+    const name = resolvePresetName(presetM[1]);
+    if (name) {
+      push("apply_preset", { componentId: state.firstComponentId, preset: name },
+        `Applied the ${name} preset.`);
+    }
+  }
+
+  // --- Batch update (all components / everything) ---
+  if (/\b(all components|every component|everything|all layers|each layer)\b/i.test(userText) && state.componentIds.length > 1) {
+    // Detect what to apply to all: easing, duration, color, etc.
+    const patches: Record<string, unknown> = {};
+    if (/\bbouncy\b/i.test(userText)) patches.easing = { type: "preset", name: "bounce" };
+    else if (/\bsmooth\b/i.test(userText)) patches.easing = { type: "preset", name: "smooth" };
+    else if (/\bsnappy\b/i.test(userText)) patches.easing = { type: "preset", name: "snappy" };
+    if (Object.keys(patches).length > 0) {
+      push("batch_update", { componentIds: state.componentIds, ...patches },
+        `Applied ${Object.keys(patches).join(", ")} to all ${state.componentIds.length} components.`);
+    }
+  }
+
+  // --- Duplicate component ---
+  if (/\b(duplicate|copy|clone)\b/i.test(userText) && state.firstComponentId) {
+    push("duplicate_component", { componentId: state.firstComponentId },
+      "Duplicated the selected component.");
+  }
+
+  // --- Reorder components ---
+  if (/\b(reorder|reorder|move to front|move to back|bring to front|send to back)\b/i.test(userText) && state.componentIds.length > 1) {
+    const reversed = /\b(back|end|last)\b/i.test(userText) ? [...state.componentIds].reverse() : state.componentIds;
+    push("reorder_components", { componentIds: reversed },
+      "Reordered the component layers.");
+  }
+
+  // --- Set play state (pause / play / stop) ---
+  if (/\bpause\b|暂停/i.test(userText) && state.firstComponentId) {
+    push("set_play_state", { componentId: state.firstComponentId, playState: "paused" },
+      "Paused the animation.");
+  } else if (/\b(play|resume)\b|播放|继续/i.test(userText) && state.firstComponentId) {
+    push("set_play_state", { componentId: state.firstComponentId, playState: "running" },
+      "Resumed playback.");
   }
 
   // --- Export HTML ---
@@ -273,6 +324,22 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     push("preview_url", {}, "Here's the preview URL — open it in a new tab.");
   }
 
+  // --- Describe motion (Motion DNA) ---
+  if (/\b(describe|what.*look|explain|dna|characterize)\b|描述|什么样/i.test(userText)) {
+    push("describe_motion", {}, "Here's the Motion DNA and description for your current animation.");
+  }
+
+  // --- List scenes ---
+  if (/\b(list|show|what)\b.*\bscenes?\b|列出.*场景|有哪些场景/i.test(userText)) {
+    push("list_scenes", {}, "Here are the scenes in this project.");
+  }
+
+  // --- Remove scene ---
+  const rmSceneM = userText.match(/\b(?:remove|delete|drop)\s+(?:the\s+)?scene\s+(\w+)|删除.*场景\s*(\w+)/i);
+  if (rmSceneM) {
+    push("remove_scene", { sceneId: rmSceneM[1] || rmSceneM[2] }, `Removed scene ${rmSceneM[1] || rmSceneM[2]}.`);
+  }
+
   // --- Get spec ---
   if (/\b(spec|state|current|what.*status)\b|当前状态|规格/i.test(userText)) {
     push("get_motion_spec", {}, "Here's the current MotionSpec.");
@@ -285,7 +352,10 @@ const FALLBACK_REPLY =
   "I can adjust easing (bouncy, smooth, snappy, elastic, back, linear), spring physics (stiffness/damping/mass), " +
   "duration (slower, faster, specific ms), global timing, delay, loop (forever, N times), fill mode, colors (text + background), " +
   "border radius, transform tracks (translateX/scale/rotate/opacity from→to), keyframes, add/remove layers, add scenes, " +
-  "list/switch templates, export (HTML, CSS, JSON, React, video, skill), or show a preview. " +
+  "list/remove scenes, describe motion (Motion DNA), apply presets (shake, wiggle, float, glow, heartbeat, typewriter), " +
+  "batch updates, duplicate, reorder, pause/play, " +
+  "list/switch templates (fade, bounce, slide, scale, flip, spin, pulse, spring, resize, logo-reveal, squash-stretch, " +
+  "flip-card, typewriter, shimmer, morph, notification, progress, ripple, marquee), export (HTML, CSS, JSON, React, video, skill), or show a preview. " +
   "Tell me what you'd like to do.";
 
 export class MockProvider implements LlmProvider {
