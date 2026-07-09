@@ -90,3 +90,56 @@ export function deleteProjectComponent(projectId: string, componentId: string): 
   const ok = deleteComponent(projectId, componentId);
   if (!ok) throw new HttpError(404, "component not found");
 }
+
+/** Apply a patch to multiple components in one operation. */
+export function batchUpdateComponents(
+  projectId: string,
+  updates: { componentId: string; patch: ComponentPatch }[],
+): MotionComponent[] {
+  ensureProjectExists(projectId);
+  const results: MotionComponent[] = [];
+  for (const { componentId, patch } of updates) {
+    const updated = patchComponent(projectId, componentId, patch);
+    if (!updated) throw new HttpError(404, `component ${componentId} not found`);
+    results.push(updated);
+  }
+  return results;
+}
+
+/** Clone a component with a fresh id and incremented order index. */
+export function duplicateProjectComponent(
+  projectId: string,
+  componentId: string,
+): MotionComponent {
+  ensureProjectExists(projectId);
+  const source = getComponent(projectId, componentId);
+  if (!source) throw new HttpError(404, "component not found");
+  const existing = listComponents(projectId);
+  const maxOrder = existing.reduce((max, c) => Math.max(max, c.orderIndex), -1);
+  const ts = now();
+  const clone: MotionComponent = {
+    ...source,
+    id: createId("c_"),
+    name: `${source.name} Copy`,
+    orderIndex: maxOrder + 1,
+    createdAt: ts,
+    updatedAt: ts,
+  };
+  createComponent(clone);
+  return clone;
+}
+
+/** Set order indices for all components by position in the ordered id list. */
+export function reorderProjectComponents(
+  projectId: string,
+  orderedIds: string[],
+): MotionComponent[] {
+  ensureProjectExists(projectId);
+  const results: MotionComponent[] = [];
+  orderedIds.forEach((id, index) => {
+    const updated = patchComponent(projectId, id, { orderIndex: index });
+    if (!updated) throw new HttpError(404, `component ${id} not found`);
+    results.push(updated);
+  });
+  return results;
+}
