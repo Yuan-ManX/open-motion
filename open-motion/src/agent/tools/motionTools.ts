@@ -6,10 +6,12 @@ import {
   patchComponent,
   createComponent,
   deleteComponent,
+  listComponents,
   type ComponentPatch,
 } from "../../db/repositories/components.js";
 import { getProject, updateProject } from "../../db/repositories/projects.js";
 import { draft } from "../../motion/templates/helper.js";
+import { getPreset } from "./presets.js";
 import type { ToolContext, ToolResult } from "./registry.js";
 
 /** Human-readable easing label for summaries. */
@@ -194,5 +196,76 @@ export const motionExecutors: Partial<Record<ToolName, Executor>> = {
     const scene = { id: createId("s_"), name, durationMs };
     updateProject(ctx.projectId, { scenes: [...project.scenes, scene] });
     return ok(`added scene "${name}" (${scene.id})`, true, { sceneId: scene.id });
+  },
+
+  batch_update: (args, ctx) => {
+    const componentIds = args.componentIds as string[];
+    const patch: ComponentPatch = {};
+    if (args.easing) patch.easing = args.easing as Easing;
+    if (args.durationMs != null) patch.durationMs = Number(args.durationMs);
+    if (args.delayMs != null) patch.delayMs = Number(args.delayMs);
+    if (args.iterationCount != null) patch.iterationCount = args.iterationCount as ComponentPatch["iterationCount"];
+    if (args.direction) patch.direction = args.direction as ComponentPatch["direction"];
+    if (args.fillMode) patch.fillMode = args.fillMode as ComponentPatch["fillMode"];
+    let updated = 0;
+    for (const id of componentIds) {
+      const result = patchComponent(ctx.projectId, id, patch);
+      if (result) updated++;
+    }
+    return ok(`updated ${updated}/${componentIds.length} components`);
+  },
+
+  apply_preset: (args, ctx) => {
+    const componentId = String(args.componentId);
+    const presetName = String(args.preset);
+    const preset = getPreset(presetName);
+    if (!preset) return fail(`unknown preset: ${presetName}`);
+    const current = getComponent(ctx.projectId, componentId);
+    if (!current) return fail(`component ${componentId} not found`);
+    patchComponent(ctx.projectId, componentId, {
+      keyframes: preset.keyframes,
+      easing: preset.easing,
+      durationMs: preset.durationMs,
+      iterationCount: preset.iterationCount,
+      direction: preset.direction,
+    });
+    return ok(`applied ${presetName} preset to "${current.name}"`);
+  },
+
+  duplicate_component: (args, ctx) => {
+    const componentId = String(args.componentId);
+    const source = getComponent(ctx.projectId, componentId);
+    if (!source) return fail(`component ${componentId} not found`);
+    const name = args.name ? String(args.name) : `${source.name} (copy)`;
+    const all = listComponents(ctx.projectId);
+    const maxOrder = all.reduce((max, c) => Math.max(max, c.orderIndex), -1);
+    const ts = now();
+    const clone: MotionComponent = {
+      ...source,
+      id: createId("c_"),
+      name,
+      orderIndex: maxOrder + 1,
+      createdAt: ts,
+      updatedAt: ts,
+    };
+    createComponent(clone);
+    return ok(`duplicated "${source.name}" as "${name}" (${clone.id})`, true, { componentId: clone.id });
+  },
+
+  reorder_components: (args, ctx) => {
+    const componentIds = args.componentIds as string[];
+    componentIds.forEach((id, index) => {
+      patchComponent(ctx.projectId, id, { orderIndex: index });
+    });
+    return ok(`reordered ${componentIds.length} components`);
+  },
+
+  set_play_state: (args, ctx) => {
+    const componentId = String(args.componentId);
+    const playState = args.playState as "running" | "paused";
+    const current = getComponent(ctx.projectId, componentId);
+    if (!current) return fail(`component ${componentId} not found`);
+    patchComponent(ctx.projectId, componentId, { playState });
+    return ok(`set "${current.name}" to ${playState}`, false);
   },
 };
