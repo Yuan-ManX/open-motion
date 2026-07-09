@@ -8,6 +8,7 @@ import {
   TRANSFORM_PROPERTIES,
   NON_TRANSFORM_PROPERTIES,
 } from "@openmotion/shared";
+import { buildMotionDna } from "../../motion/dna.js";
 import { useProjectStore } from "../../store/projectStore.js";
 import { useUiStore } from "../../store/uiStore.js";
 import * as api from "../../api/endpoints.js";
@@ -111,34 +112,6 @@ const QUICK_PRESETS: Record<string, {
 function easingPresetName(e: Easing | undefined): string {
   if (!e) return "ease-out";
   return e.type === "preset" ? e.name : e.type;
-}
-
-/** Compute a compact Motion DNA signature for a component (mirrors backend logic). */
-function buildMotionDna(comp: MotionComponent): string {
-  const e = comp.easing;
-  let easingTok: string;
-  if (!e) easingTok = "LINEAR";
-  else if (e.type === "preset") {
-    const n = e.name;
-    if (/bounce|back|elastic|spring/.test(n)) easingTok = "BOUNCE";
-    else if (/smooth|ease-in-out|ease-out/.test(n)) easingTok = "SMOOTH";
-    else if (/snappy|ease-in/.test(n)) easingTok = "SNAPPY";
-    else easingTok = n.toUpperCase();
-  } else if (e.type === "spring") easingTok = "SPRING";
-  else if (e.type === "bezier") easingTok = "BEZIER";
-  else easingTok = "LINEAR";
-
-  const dur = comp.durationMs < 500 ? "FAST" : comp.durationMs <= 1500 ? "NORMAL" : "SLOW";
-  const loop = comp.iterationCount === "infinite" ? "LOOP∞" : comp.iterationCount === 1 ? "ONCE" : `LOOP×${comp.iterationCount}`;
-  const dir = comp.direction === "alternate" || comp.direction === "alternate-reverse" ? "ALT" : comp.direction === "reverse" ? "REV" : "FWD";
-
-  const props = new Set<string>();
-  for (const kf of comp.keyframes) {
-    for (const key of Object.keys(kf.properties)) props.add(key.toUpperCase());
-  }
-  const propStr = Array.from(props).join("+") || "STATIC";
-
-  return [easingTok, dur, loop, propStr, dir].join("|");
 }
 
 interface FilterValues {
