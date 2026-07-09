@@ -17,6 +17,9 @@ import {
   getProjectComponent,
   patchProjectComponent,
   deleteProjectComponent,
+  batchUpdateComponents,
+  duplicateProjectComponent,
+  reorderProjectComponents,
 } from "../services/componentService.js";
 
 const ComponentInputSchema = z.object({
@@ -34,6 +37,19 @@ const ComponentInputSchema = z.object({
   keyframes: z.array(KeyframeSchema).optional(),
   style: CssStyleSchema.optional(),
   orderIndex: z.number().optional(),
+});
+
+const BatchUpdateSchema = z.object({
+  updates: z.array(
+    z.object({
+      componentId: z.string(),
+      patch: ComponentInputSchema,
+    }),
+  ),
+});
+
+const ReorderSchema = z.object({
+  orderedIds: z.array(z.string()),
 });
 
 export const componentsRouter = Router({ mergeParams: true });
@@ -54,6 +70,24 @@ componentsRouter.post(
   }),
 );
 
+componentsRouter.post(
+  "/reorder",
+  validate(ReorderSchema),
+  runAsync(async (req, res) => {
+    const { orderedIds } = validated<z.infer<typeof ReorderSchema>>(req);
+    res.json(reorderProjectComponents(req.params.id, orderedIds));
+  }),
+);
+
+componentsRouter.patch(
+  "/batch",
+  validate(BatchUpdateSchema),
+  runAsync(async (req, res) => {
+    const { updates } = validated<z.infer<typeof BatchUpdateSchema>>(req);
+    res.json(batchUpdateComponents(req.params.id, updates));
+  }),
+);
+
 componentsRouter.get(
   "/:cid",
   runAsync(async (req, res) => {
@@ -67,6 +101,13 @@ componentsRouter.patch(
   runAsync(async (req, res) => {
     const patch = validated<z.infer<typeof ComponentInputSchema>>(req);
     res.json(patchProjectComponent(req.params.id, req.params.cid, patch));
+  }),
+);
+
+componentsRouter.post(
+  "/:cid/duplicate",
+  runAsync(async (req, res) => {
+    res.status(201).json(duplicateProjectComponent(req.params.id, req.params.cid));
   }),
 );
 
