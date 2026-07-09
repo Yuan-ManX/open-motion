@@ -2,6 +2,18 @@ import { config } from "../../config.js";
 import { createId } from "../../utils/id.js";
 import type { ChatOptions, ChatResult, LlmProvider, LlmToolCall, LlmMessage } from "./types.js";
 
+/** Errors from the OpenAI API with status code context for targeted handling. */
+export class OpenAIProviderError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly retryAfter?: number,
+  ) {
+    super(message);
+    this.name = "OpenAIProviderError";
+  }
+}
+
 interface OpenAiToolCallDelta {
   index: number;
   id?: string;
@@ -100,7 +112,24 @@ export class OpenAIProvider implements LlmProvider {
 
     if (!res.ok) {
       const errText = await res.text().catch(() => res.statusText);
-      throw new Error(`OpenAI API error ${res.status}: ${errText}`);
+      const retryAfter = res.headers.get("retry-after");
+      const retryAfterSec = retryAfter ? Number(retryAfter) : undefined;
+
+      let message: string;
+      if (res.status === 401) {
+        message = "Invalid API key — check your OPENAI_API_KEY configuration.";
+      } else if (res.status === 403) {
+        message = "API key lacks permission for this model or endpoint.";
+      } else if (res.status === 429) {
+        message = retryAfterSec
+          ? `Rate limited — retry after ${retryAfterSec}s.`
+          : "Rate limited — too many requests. Please slow down.";
+      } else if (res.status >= 500) {
+        message = `OpenAI server error (${res.status}): ${errText}`;
+      } else {
+        message = `OpenAI API error ${res.status}: ${errText}`;
+      }
+      throw new OpenAIProviderError(message, res.status, retryAfterSec);
     }
 
     if (stream && res.body) {
