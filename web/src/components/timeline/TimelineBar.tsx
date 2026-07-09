@@ -1,10 +1,25 @@
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { useProjectStore } from "../../store/projectStore.js";
 import { useUiStore } from "../../store/uiStore.js";
+import { buildMotionDna } from "../../motion/dna.js";
 
 function componentSpan(durationMs: number, delayMs: number, iterationCount: number | "infinite"): number {
   const iters = iterationCount === "infinite" ? 1 : Number(iterationCount) || 1;
   return delayMs + durationMs * iters;
+}
+
+/** Map a Motion DNA easing token to a Tailwind color class for the timeline bar. */
+function dnaEasingColor(dna: string): string {
+  const easing = dna.split("|")[0];
+  const colorMap: Record<string, string> = {
+    BOUNCE: "bg-orange-500/40 border-orange-500/50",
+    SMOOTH: "bg-blue-500/40 border-blue-500/50",
+    SNAPPY: "bg-yellow-500/40 border-yellow-500/50",
+    SPRING: "bg-green-500/40 border-green-500/50",
+    BEZIER: "bg-purple-500/40 border-purple-500/50",
+    LINEAR: "bg-gray-500/40 border-gray-500/50",
+  };
+  return colorMap[easing] ?? "bg-accent2/30 border-edge";
 }
 
 const SPEEDS = [0.5, 1, 2] as const;
@@ -41,7 +56,9 @@ export function TimelineBar({ onReplay }: Props) {
           offset: kf.offset,
           leftPct: ((c.delayMs + kf.offset * c.durationMs) / max) * 100,
         }));
-        return { component: c, leftPct, widthPct, keyframes };
+        const dna = buildMotionDna(c);
+        const isLoop = c.iterationCount === "infinite" || (typeof c.iterationCount === "number" && c.iterationCount > 1);
+        return { component: c, leftPct, widthPct, keyframes, dna, isLoop };
       }),
     };
   }, [components]);
@@ -162,6 +179,9 @@ export function TimelineBar({ onReplay }: Props) {
           ))}
         </div>
         <span className="text-[10px] uppercase tracking-wide text-gray-500 ml-1">Timeline</span>
+        <span className="text-[10px] text-gray-600 bg-panel2 px-1.5 py-0.5 rounded">
+          {rows.length} {rows.length === 1 ? "layer" : "layers"}
+        </span>
         <span className="text-[10px] text-gray-600 font-mono ml-auto">
           {Math.round(currentTime)}ms / {maxSpan}ms
         </span>
@@ -175,8 +195,9 @@ export function TimelineBar({ onReplay }: Props) {
           <div className="absolute -top-0 -left-1.5 w-3 h-3 bg-yellow-300 rotate-45" style={{ marginTop: 2 }} />
         </div>
 
-        {rows.map(({ component, leftPct, widthPct, keyframes }) => {
+        {rows.map(({ component, leftPct, widthPct, keyframes, dna, isLoop }) => {
           const isSelected = component.id === selectedId;
+          const barColor = isSelected ? "bg-accent/50 border-accent/60" : dnaEasingColor(dna);
           return (
             <div
               key={component.id}
@@ -186,12 +207,15 @@ export function TimelineBar({ onReplay }: Props) {
                 selectComponent(isSelected ? null : component.id);
               }}
             >
-              <div className="w-16 text-[10px] text-gray-400 truncate font-mono">{component.name}</div>
+              <div className="w-16 text-[10px] text-gray-400 truncate font-mono flex items-center gap-0.5">
+                {isLoop && <span className="text-yellow-400/70" title="loops">↻</span>}
+                <span className="truncate">{component.name}</span>
+              </div>
               <div className="flex-1 h-6 bg-panel2 rounded relative overflow-hidden border border-edge">
                 <div
-                  className={`absolute top-0 bottom-0 rounded ${isSelected ? "bg-accent/40" : "bg-accent2/30"}`}
+                  className={`absolute top-0 bottom-0 rounded border ${barColor}`}
                   style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
-                  title={`${component.durationMs}ms × ${component.iterationCount}`}
+                  title={`${component.durationMs}ms × ${component.iterationCount} — DNA: ${dna}`}
                 />
                 {keyframes.map((kf, i) => (
                   <div
