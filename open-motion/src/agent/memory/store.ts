@@ -12,6 +12,8 @@ export interface MemoryEntry {
 }
 
 const MAX_MESSAGES = 24;
+const COMPRESS_THRESHOLD = 30;
+const COMPRESS_KEEP = 20;
 const store = new Map<string, MemoryEntry[]>();
 
 export function listMemory(projectId: string): MemoryEntry[] {
@@ -57,4 +59,21 @@ export function restoreMemory(projectId: string): void {
 
 export function clearMemory(projectId: string): void {
   store.delete(projectId);
+}
+
+/**
+ * Window-based context compression. When the transcript exceeds the threshold,
+ * keep only the most recent entries so the provider context stays bounded.
+ * Simple windowing avoids requiring an LLM for summarization, keeping mock
+ * mode fully functional without an API key.
+ */
+export function compressMemory(projectId: string): void {
+  const list = store.get(projectId);
+  if (!list || list.length <= COMPRESS_THRESHOLD) return;
+  const firstUserIdx = list.findIndex((m) => m.role === "user");
+  const keep = list.slice(list.length - COMPRESS_KEEP);
+  if (firstUserIdx >= 0 && firstUserIdx < list.length - COMPRESS_KEEP) {
+    keep.unshift(list[firstUserIdx]);
+  }
+  store.set(projectId, keep);
 }
