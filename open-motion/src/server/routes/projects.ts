@@ -10,6 +10,7 @@ import {
   updateProjectOrThrow,
   deleteProjectOrThrow,
   duplicateProjectWithSpec,
+  getProjectStats,
 } from "../services/projectService.js";
 
 const UpdateProjectSchema = z.object({
@@ -65,5 +66,12 @@ projectsRouter.post(
   "/projects/:id/duplicate",
   runAsync(async (req, res) => {
     res.status(201).json(duplicateProjectWithSpec(req.params.id));
+  }),
+);
+
+projectsRouter.get(
+  "/projects/:id/stats",
+  runAsync(async (req, res) => {
+    res.json(getProjectStats(req.params.id));
   }),
 );
