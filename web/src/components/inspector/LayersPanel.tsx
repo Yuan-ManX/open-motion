@@ -9,6 +9,7 @@ export function LayersPanel() {
   const projectId = useProjectStore((s) => s.projectId);
   const addComponentLocal = useProjectStore((s) => s.addComponentLocal);
   const removeComponentLocal = useProjectStore((s) => s.removeComponentLocal);
+  const applySpecUpdate = useProjectStore((s) => s.applySpecUpdate);
   const selectedId = useUiStore((s) => s.selectedComponentId);
   const selectComponent = useUiStore((s) => s.selectComponent);
   const triggerReplay = useUiStore((s) => s.triggerReplay);
@@ -61,6 +62,34 @@ export function LayersPanel() {
       /* ignore */
     } finally {
       setConfirmDeleteId(null);
+    }
+  };
+
+  const handleDuplicate = async (componentId: string) => {
+    if (!projectId) return;
+    try {
+      const clone = await api.duplicateComponent(projectId, componentId);
+      addComponentLocal(clone);
+      triggerReplay();
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const handleReorder = async (componentId: string, direction: "up" | "down") => {
+    if (!projectId) return;
+    const orderedIds = sorted.map((c) => c.id);
+    const index = orderedIds.indexOf(componentId);
+    if (index === -1) return;
+    if (direction === "up" && index === 0) return;
+    if (direction === "down" && index === orderedIds.length - 1) return;
+    const swapIndex = direction === "up" ? index - 1 : index + 1;
+    [orderedIds[index], orderedIds[swapIndex]] = [orderedIds[swapIndex], orderedIds[index]];
+    try {
+      const updated = await api.reorderComponents(projectId, orderedIds);
+      applySpecUpdate(updated);
+    } catch {
+      /* ignore */
     }
   };
 
@@ -173,17 +202,52 @@ export function LayersPanel() {
                   </button>
                 </div>
               ) : (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setConfirmDeleteId(c.id);
-                  }}
-                  className="text-[10px] text-gray-600 hover:text-red-400 w-4 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                  title="Delete layer"
-                  aria-label={`Delete layer ${c.name}`}
-                >
-                  ×
-                </button>
+                <div className="flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void handleReorder(c.id, "up");
+                    }}
+                    className="text-[9px] text-gray-600 hover:text-accent w-3.5"
+                    title="Move up"
+                    aria-label={`Move layer ${c.name} up`}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void handleReorder(c.id, "down");
+                    }}
+                    className="text-[9px] text-gray-600 hover:text-accent w-3.5"
+                    title="Move down"
+                    aria-label={`Move layer ${c.name} down`}
+                  >
+                    ↓
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void handleDuplicate(c.id);
+                    }}
+                    className="text-[9px] text-gray-600 hover:text-accent w-3.5"
+                    title="Duplicate layer"
+                    aria-label={`Duplicate layer ${c.name}`}
+                  >
+                    ⧉
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setConfirmDeleteId(c.id);
+                    }}
+                    className="text-[10px] text-gray-600 hover:text-red-400 w-3.5"
+                    title="Delete layer"
+                    aria-label={`Delete layer ${c.name}`}
+                  >
+                    ×
+                  </button>
+                </div>
               )}
             </div>
           );
