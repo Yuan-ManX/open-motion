@@ -1,5 +1,5 @@
-import type { ToolName } from "@openmotion/shared";
-import { getProjectSpec } from "../../db/repositories/projects.js";
+import type { MotionComponent, Scene, Easing, ToolName } from "@openmotion/shared";
+import { getProject, getProjectSpec, updateProject } from "../../db/repositories/projects.js";
 import { listComponents, deleteComponent, createComponent } from "../../db/repositories/components.js";
 import { listTemplates } from "../../db/repositories/templates.js";
 import { instantiateTemplate } from "../../motion/templates/index.js";
@@ -7,6 +7,104 @@ import { publicBaseUrl } from "../../config.js";
 import type { ToolContext, ToolResult } from "./registry.js";
 
 type Executor = (args: Record<string, unknown>, ctx: ToolContext) => ToolResult | Promise<ToolResult>;
+
+/** Classify an easing into a short DNA token. */
+function easingDnaToken(easing: Easing | undefined): string {
+  if (!easing) return "LINEAR";
+  if (easing.type === "preset") {
+    const n = easing.name;
+    if (/bounce|back|elastic|spring/.test(n)) return "BOUNCE";
+    if (/smooth|ease-in-out|ease-out/.test(n)) return "SMOOTH";
+    if (/snappy|ease-in/.test(n)) return "SNAPPY";
+    return n.toUpperCase();
+  }
+  if (easing.type === "spring") return "SPRING";
+  if (easing.type === "bezier") return "BEZIER";
+  return "LINEAR";
+}
+
+/** Classify a duration into a short DNA token. */
+function durationDnaToken(ms: number): string {
+  if (ms < 500) return "FAST";
+  if (ms <= 1500) return "NORMAL";
+  return "SLOW";
+}
+
+/** Classify iteration count into a short DNA token. */
+function loopDnaToken(count: number | "infinite"): string {
+  if (count === "infinite") return "LOOP∞";
+  if (count === 1) return "ONCE";
+  return `LOOP×${count}`;
+}
+
+/** Classify direction into a short DNA token. */
+function directionDnaToken(dir: string): string {
+  if (dir === "alternate" || dir === "alternate-reverse") return "ALT";
+  if (dir === "reverse") return "REV";
+  return "FWD";
+}
+
+/** Extract the set of animated properties from a component's keyframes. */
+function animatedProps(comp: MotionComponent): string[] {
+  const props = new Set<string>();
+  for (const kf of comp.keyframes) {
+    for (const key of Object.keys(kf.properties)) {
+      props.add(key);
+    }
+  }
+  return Array.from(props);
+}
+
+/**
+ * Build a Motion DNA signature: a compact pipe-delimited string capturing the
+ * essence of a motion. Example: BOUNCE|NORMAL|LOOP∞|SCALE+OPACITY|FWD
+ */
+function buildMotionDna(comp: MotionComponent): string {
+  const easing = easingDnaToken(comp.easing);
+  const duration = durationDnaToken(comp.durationMs);
+  const loop = loopDnaToken(comp.iterationCount);
+  const props = animatedProps(comp).map((p) => p.toUpperCase()).join("+") || "STATIC";
+  const dir = directionDnaToken(comp.direction);
+  return [easing, duration, loop, props, dir].join("|");
+}
+
+/** Generate a natural-language description of what a single component's motion looks like. */
+function describeComponentMotion(comp: MotionComponent): string {
+  const parts: string[] = [];
+  const easingName = comp.easing?.type === "preset" ? comp.easing.name : comp.easing?.type ?? "linear";
+  const props = animatedProps(comp);
+  const durSec = (comp.durationMs / 1000).toFixed(comp.durationMs % 1000 === 0 ? 0 : 1);
+
+  parts.push(`"${comp.name}"`);
+
+  if (props.length === 0) {
+    parts.push(`is currently static with no keyframe animation`);
+  } else {
+    parts.push(`animates ${props.join(" and ")}`);
+  }
+
+  parts.push(`over ${durSec}s with ${easingName} easing`);
+
+  if (comp.iterationCount === "infinite") {
+    parts.push(`looping forever`);
+  } else if (typeof comp.iterationCount === "number" && comp.iterationCount > 1) {
+    parts.push(`repeating ${comp.iterationCount} times`);
+  } else {
+    parts.push(`playing once`);
+  }
+
+  if (comp.direction === "alternate" || comp.direction === "alternate-reverse") {
+    parts.push(`in alternating direction`);
+  } else if (comp.direction === "reverse") {
+    parts.push(`in reverse`);
+  }
+
+  if (comp.delayMs > 0) {
+    parts.push(`with a ${comp.delayMs}ms delay`);
+  }
+
+  return parts.join(" ") + ".";
+}
 
 export const queryExecutors: Partial<Record<ToolName, Executor>> = {
   get_motion_spec: (_args, ctx) => {
@@ -17,6 +115,95 @@ export const queryExecutors: Partial<Record<ToolName, Executor>> = {
       summary: `current spec has ${spec.components.length} component(s): ${spec.components.map((c) => c.name).join(", ") || "none"}`,
       specChanged: false,
       data: spec,
+    };
+  },
+
+  describe_motion: (args, ctx) => {
+    const spec = getProjectSpec(ctx.projectId);
+    if (!spec) return { ok: false, summary: `project ${ctx.projectId} not found`, specChanged: false };
+
+    const targetId = args.componentId ? String(args.componentId) : undefined;
+    const components = targetId
+      ? spec.components.filter((c) => c.id === targetId)
+      : spec.components;
+
+    if (components.length === 0) {
+      return {
+        ok: true,
+        summary: "No components to describe yet — the canvas is empty.",
+        specChanged: false,
+        data: { description: "The project has no animated layers yet.", dna: "", componentCount: 0 },
+      };
+    }
+
+    const descriptions = components.map(describeComponentMotion);
+    const dnaSignatures = components.map((c) => ({ name: c.name, dna: buildMotionDna(c) }));
+
+    let description: string;
+    if (components.length === 1) {
+      description = descriptions[0];
+    } else {
+      description = `This project has ${components.length} layers. ${descriptions.join(" ")}`;
+    }
+
+    const primaryDna = dnaSignatures[0].dna;
+    const summary = `Motion DNA: ${primaryDna} — ${components.length} layer(s)`;
+
+    return {
+      ok: true,
+      summary,
+      specChanged: false,
+      data: {
+        description,
+        dna: primaryDna,
+        perComponent: dnaSignatures,
+        componentCount: components.length,
+      },
+    };
+  },
+
+  list_scenes: (_args, ctx) => {
+    const project = getProject(ctx.projectId);
+    if (!project) return { ok: false, summary: `project ${ctx.projectId} not found`, specChanged: false };
+    const spec = getProjectSpec(ctx.projectId);
+    const components = spec?.components ?? [];
+    const scenes: Array<Scene & { componentCount: number }> = project.scenes.map((s) => ({
+      ...s,
+      componentCount: components.filter((c) => c.sceneId === s.id).length,
+    }));
+    const unassigned = components.filter((c) => !c.sceneId).length;
+    return {
+      ok: true,
+      summary: `${scenes.length} scene(s), ${unassigned} unassigned component(s)`,
+      specChanged: false,
+      data: { scenes, unassignedCount: unassigned },
+    };
+  },
+
+  remove_scene: (args, ctx) => {
+    const sceneId = String(args.sceneId);
+    const project = getProject(ctx.projectId);
+    if (!project) return { ok: false, summary: `project ${ctx.projectId} not found`, specChanged: false };
+    const scene = project.scenes.find((s) => s.id === sceneId);
+    if (!scene) return { ok: false, summary: `scene ${sceneId} not found`, specChanged: false };
+
+    // Unassign components from this scene (set sceneId to null) rather than deleting them.
+    const spec = getProjectSpec(ctx.projectId);
+    if (spec) {
+      for (const comp of spec.components) {
+        if (comp.sceneId === sceneId) {
+          deleteComponent(ctx.projectId, comp.id);
+          createComponent({ ...comp, sceneId: null, updatedAt: new Date().toISOString() });
+        }
+      }
+    }
+
+    const remainingScenes = project.scenes.filter((s) => s.id !== sceneId);
+    updateProject(ctx.projectId, { scenes: remainingScenes });
+    return {
+      ok: true,
+      summary: `removed scene "${scene.name}" and unassigned its components`,
+      specChanged: true,
     };
   },
 
