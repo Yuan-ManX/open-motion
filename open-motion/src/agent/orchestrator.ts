@@ -1,14 +1,16 @@
 import type { ChatEvent } from "@openmotion/shared";
 import type { ChatOptions, ChatResult, LlmProvider, LlmToolCall } from "./provider/types.js";
+import { OpenAIProviderError } from "./provider/openai.js";
 import { assembleAgentContext } from "./context.js";
 import { buildToolSpecs } from "./tools/schema.js";
 import { executeTool } from "./tools/registry.js";
-import { addMemory, listMemory, restoreMemory } from "./memory/store.js";
+import { addMemory, listMemory, restoreMemory, compressMemory } from "./memory/store.js";
+import { buildPlan } from "./planner.js";
 import { addMessage } from "../db/repositories/messages.js";
 import { getProjectSpec } from "../db/repositories/projects.js";
 import { logger } from "../utils/logger.js";
 
-const MAX_ITERATIONS = 5;
+const MAX_ITERATIONS = 8;
 
 export interface OrchestrateOptions {
   projectId: string;
@@ -17,15 +19,32 @@ export interface OrchestrateOptions {
   onEvent: (event: ChatEvent) => void;
 }
 
-/** Network-class errors worth a retry; 4xx (auth/validation) are not. */
-function isRetryable(err: unknown): boolean {
+/**
+ * Classify whether a provider error is worth retrying.
+ * - 429 (rate limited): retryable, with backoff respecting retry-after hint
+ * - 5xx (server errors): retryable
+ * - 401/403 (auth/permission): never retry — the key is wrong
+ * - Network errors (fetch failed, timeouts): retryable
+ */
+function classifyError(err: unknown): { retryable: boolean; retryAfterMs?: number } {
+  if (err instanceof OpenAIProviderError) {
+    if (err.status === 429) {
+      return { retryable: true, retryAfterMs: err.retryAfter ? err.retryAfter * 1000 : undefined };
+    }
+    if (err.status >= 500) return { retryable: true };
+    return { retryable: false };
+  }
   const msg = err instanceof Error ? err.message : String(err);
-  return /fetch failed|ECONNRESET|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|5\d{2}/.test(msg);
+  if (/fetch failed|ECONNRESET|ETIMEDOUT|ENOTFOUND|EAI_AGAIN/.test(msg)) {
+    return { retryable: true };
+  }
+  return { retryable: false };
 }
 
 /**
  * Wrap provider.chat with bounded retry + exponential backoff. Only network-class
- * errors retry; auth or schema errors surface immediately. Backoff: 500ms → 1000ms.
+ * errors and 429/5xx retry; auth errors surface immediately. Backoff: 500ms → 1000ms,
+ * or the server's retry-after hint when available.
  */
 async function chatWithRetry(
   provider: LlmProvider,
@@ -38,8 +57,9 @@ async function chatWithRetry(
       return await provider.chat(options);
     } catch (err) {
       lastErr = err;
-      if (!isRetryable(err) || attempt === retries) throw err;
-      const backoff = 500 * Math.pow(2, attempt);
+      const { retryable, retryAfterMs } = classifyError(err);
+      if (!retryable || attempt === retries) throw err;
+      const backoff = retryAfterMs ?? 500 * Math.pow(2, attempt);
       logger.warn("provider.chat retryable error, backing off", { attempt, backoff, message: err instanceof Error ? err.message : String(err) });
       await new Promise((r) => setTimeout(r, backoff));
     }
@@ -63,6 +83,17 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
 
   addMemory(projectId, { role: "user", content: userMessage });
   addMessage(projectId, { role: "user", content: userMessage });
+
+  // Compress the conversation window when it grows beyond the threshold.
+  compressMemory(projectId);
+
+  // Emit a lightweight plan so the user sees the agent's intended steps before
+  // tool execution begins. Rule-based so it works in mock mode without an LLM.
+  const initialSpec = getProjectSpec(projectId);
+  if (initialSpec) {
+    const plan = buildPlan(userMessage, initialSpec);
+    onEvent({ type: "plan", steps: plan.steps, summary: plan.summary });
+  }
 
   const tools = buildToolSpecs();
 
@@ -94,7 +125,10 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       logger.error("provider.chat failed", { message });
-      onEvent({ type: "error", message: `model error: ${message}`, recoverable: true });
+      const recoverable = err instanceof OpenAIProviderError
+        ? err.status === 429 || err.status >= 500
+        : true;
+      onEvent({ type: "error", message: recoverable ? `model error: ${message}` : message, recoverable });
       return;
     }
 
