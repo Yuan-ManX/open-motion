@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { EasingSchema } from "./motion/easing.js";
 import { KeyValueSchema, TransformPropertySchema } from "./motion/transform.js";
+import { IterationCountSchema, DirectionSchema, FillModeSchema, PlayStateSchema } from "./motion/spec.js";
 
 const zIdField = z.string().min(1);
 
@@ -125,6 +126,57 @@ export const SetGlobalTimingInput = z.object({
   totalDurationMs: z.number().int().positive().optional(),
 });
 
+/* ----------------------------- Multi-component tools ----------------------------- */
+export const BatchUpdateInput = z.object({
+  projectId: zIdField,
+  componentIds: z.array(zIdField).min(1),
+  easing: EasingSchema.optional(),
+  durationMs: z.number().int().positive().optional(),
+  delayMs: z.number().int().nonnegative().optional(),
+  iterationCount: IterationCountSchema.optional(),
+  direction: DirectionSchema.optional(),
+  fillMode: FillModeSchema.optional(),
+});
+
+export const ApplyPresetInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  preset: z.enum(["shake", "wiggle", "float", "glow", "heartbeat", "typewriter"]),
+});
+
+export const DuplicateComponentInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  name: z.string().optional(),
+});
+
+export const ReorderComponentsInput = z.object({
+  projectId: zIdField,
+  componentIds: z.array(zIdField).min(1),
+});
+
+export const SetPlayStateInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  playState: PlayStateSchema,
+});
+
+/* ----------------------------- Analysis tools ----------------------------- */
+export const DescribeMotionInput = z.object({
+  projectId: zIdField,
+  componentId: z.string().optional(),
+});
+
+/* ----------------------------- Scene tools ----------------------------- */
+export const ListScenesInput = z.object({
+  projectId: zIdField,
+});
+
+export const RemoveSceneInput = z.object({
+  projectId: zIdField,
+  sceneId: zIdField,
+});
+
 /* ----------------------------- Export tools ----------------------------- */
 export const ExportHtmlInput = z.object({
   projectId: zIdField,
@@ -168,6 +220,14 @@ export const TOOL_INPUT_SCHEMAS = {
   set_color: SetColorInput,
   set_static_style: SetStaticStyleInput,
   set_global_timing: SetGlobalTimingInput,
+  batch_update: BatchUpdateInput,
+  apply_preset: ApplyPresetInput,
+  duplicate_component: DuplicateComponentInput,
+  reorder_components: ReorderComponentsInput,
+  set_play_state: SetPlayStateInput,
+  describe_motion: DescribeMotionInput,
+  list_scenes: ListScenesInput,
+  remove_scene: RemoveSceneInput,
   export_html: ExportHtmlInput,
   export_video: ExportVideoInput,
   export_skill: ExportSkillInput,
@@ -199,6 +259,14 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   set_color: "Set a static color on a component (text or background).",
   set_static_style: "Set arbitrary static CSS style on a component (size, position, radius, background...).",
   set_global_timing: "Set project-level total duration.",
+  batch_update: "Apply the same patch (easing, duration, delay, loop, direction, fill mode) to multiple components at once.",
+  apply_preset: "Apply a named animation preset (shake, wiggle, float, glow, heartbeat, typewriter) to a component.",
+  duplicate_component: "Duplicate an existing component with a new ID. Optionally set a custom name.",
+  reorder_components: "Set the z-order of components by providing their IDs in the desired order.",
+  set_play_state: "Set the play state of a component (running or paused).",
+  describe_motion: "Analyze the current motion and produce a natural-language description plus a compact Motion DNA signature (e.g. BOUNCE|NORMAL|LOOP∞|SCALE+OPACITY|FWD). Use when the user asks 'what does this look like' or 'describe this motion'.",
+  list_scenes: "List all scenes in a multi-scene project with their component counts.",
+  remove_scene: "Remove a scene and all components assigned to it.",
   export_html: "Export the project as a standalone, runnable HTML file. Returns a URL.",
   export_video: "Export the project as a video (mp4 | gif | webm). Returns a jobId to poll.",
   export_skill: "Package the project (or a single component) as a reusable AI-callable skill. Returns a skillId.",
