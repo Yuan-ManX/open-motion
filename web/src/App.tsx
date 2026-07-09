@@ -4,6 +4,7 @@ import * as api from "./api/endpoints.js";
 import { Editor } from "./routes/Editor.js";
 import { TemplatesModal } from "./components/modals/TemplatesModal.js";
 import { SkillsModal } from "./components/modals/SkillsModal.js";
+import { ShortcutsModal } from "./components/modals/ShortcutsModal.js";
 import { ErrorBoundary } from "./components/ErrorBoundary.js";
 
 export default function App() {
@@ -51,6 +52,7 @@ export default function App() {
 
         <TemplatesModal />
         <SkillsModal />
+        <ShortcutsModal />
       </div>
     </ErrorBoundary>
   );
