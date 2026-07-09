@@ -48,6 +48,11 @@ export const ChatEventSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("meta"), provider: z.enum(["mock", "openai"]) }),
   z.object({ type: z.literal("token"), delta: z.string() }),
   z.object({
+    type: z.literal("plan"),
+    steps: z.array(z.object({ tool: z.string(), description: z.string() })),
+    summary: z.string(),
+  }),
+  z.object({
     type: z.literal("tool_call"),
     tool: z.string(),
     args: z.unknown(),
