@@ -21,9 +21,124 @@ const DIRECTIONS: Direction[] = ["normal", "reverse", "alternate", "alternate-re
 const FILL_MODES: FillMode[] = ["none", "forwards", "backwards", "both"];
 const PLAY_STATES: PlayState[] = ["running", "paused"];
 
+/** Animation presets that can be applied with one click from the inspector. */
+const QUICK_PRESETS: Record<string, {
+  label: string;
+  keyframes: Keyframe[];
+  easing: Easing;
+  durationMs: number;
+  iterationCount: number | "infinite";
+  direction: Direction;
+}> = {
+  shake: {
+    label: "Shake",
+    keyframes: [
+      { offset: 0, properties: { translateX: 0 }, easing: { type: "preset", name: "linear" } },
+      { offset: 0.25, properties: { translateX: -10 } },
+      { offset: 0.5, properties: { translateX: 10 } },
+      { offset: 0.75, properties: { translateX: -8 } },
+      { offset: 1, properties: { translateX: 0 } },
+    ],
+    easing: { type: "preset", name: "linear" },
+    durationMs: 500,
+    iterationCount: "infinite",
+    direction: "normal",
+  },
+  wiggle: {
+    label: "Wiggle",
+    keyframes: [
+      { offset: 0, properties: { rotate: 0 }, easing: { type: "preset", name: "ease-in-out" } },
+      { offset: 0.5, properties: { rotate: 8 } },
+      { offset: 1, properties: { rotate: 0 } },
+    ],
+    easing: { type: "preset", name: "ease-in-out" },
+    durationMs: 1000,
+    iterationCount: "infinite",
+    direction: "alternate",
+  },
+  float: {
+    label: "Float",
+    keyframes: [
+      { offset: 0, properties: { translateY: 0 }, easing: { type: "preset", name: "ease-in-out" } },
+      { offset: 0.5, properties: { translateY: -16 } },
+      { offset: 1, properties: { translateY: 0 } },
+    ],
+    easing: { type: "preset", name: "ease-in-out" },
+    durationMs: 2000,
+    iterationCount: "infinite",
+    direction: "alternate",
+  },
+  glow: {
+    label: "Glow",
+    keyframes: [
+      { offset: 0, properties: { opacity: 0.6 }, easing: { type: "preset", name: "ease-in-out" } },
+      { offset: 0.5, properties: { opacity: 1 } },
+      { offset: 1, properties: { opacity: 0.6 } },
+    ],
+    easing: { type: "preset", name: "ease-in-out" },
+    durationMs: 1500,
+    iterationCount: "infinite",
+    direction: "alternate",
+  },
+  heartbeat: {
+    label: "Heartbeat",
+    keyframes: [
+      { offset: 0, properties: { scale: 1 }, easing: { type: "preset", name: "ease-in-out" } },
+      { offset: 0.15, properties: { scale: 1.15 } },
+      { offset: 0.3, properties: { scale: 1 } },
+      { offset: 0.45, properties: { scale: 1.15 } },
+      { offset: 0.6, properties: { scale: 1 } },
+      { offset: 1, properties: { scale: 1 } },
+    ],
+    easing: { type: "preset", name: "ease-in-out" },
+    durationMs: 1300,
+    iterationCount: "infinite",
+    direction: "normal",
+  },
+  typewriter: {
+    label: "Typewriter",
+    keyframes: [
+      { offset: 0, properties: { width: "0%" }, easing: { type: "preset", name: "linear" } },
+      { offset: 1, properties: { width: "100%" } },
+    ],
+    easing: { type: "preset", name: "linear" },
+    durationMs: 1500,
+    iterationCount: 1,
+    direction: "normal",
+  },
+};
+
 function easingPresetName(e: Easing | undefined): string {
   if (!e) return "ease-out";
   return e.type === "preset" ? e.name : e.type;
+}
+
+/** Compute a compact Motion DNA signature for a component (mirrors backend logic). */
+function buildMotionDna(comp: MotionComponent): string {
+  const e = comp.easing;
+  let easingTok: string;
+  if (!e) easingTok = "LINEAR";
+  else if (e.type === "preset") {
+    const n = e.name;
+    if (/bounce|back|elastic|spring/.test(n)) easingTok = "BOUNCE";
+    else if (/smooth|ease-in-out|ease-out/.test(n)) easingTok = "SMOOTH";
+    else if (/snappy|ease-in/.test(n)) easingTok = "SNAPPY";
+    else easingTok = n.toUpperCase();
+  } else if (e.type === "spring") easingTok = "SPRING";
+  else if (e.type === "bezier") easingTok = "BEZIER";
+  else easingTok = "LINEAR";
+
+  const dur = comp.durationMs < 500 ? "FAST" : comp.durationMs <= 1500 ? "NORMAL" : "SLOW";
+  const loop = comp.iterationCount === "infinite" ? "LOOP∞" : comp.iterationCount === 1 ? "ONCE" : `LOOP×${comp.iterationCount}`;
+  const dir = comp.direction === "alternate" || comp.direction === "alternate-reverse" ? "ALT" : comp.direction === "reverse" ? "REV" : "FWD";
+
+  const props = new Set<string>();
+  for (const kf of comp.keyframes) {
+    for (const key of Object.keys(kf.properties)) props.add(key.toUpperCase());
+  }
+  const propStr = Array.from(props).join("+") || "STATIC";
+
+  return [easingTok, dur, loop, propStr, dir].join("|");
 }
 
 interface FilterValues {
@@ -177,6 +292,21 @@ export function ComponentInspector() {
     [component, persist],
   );
 
+  const applyPreset = useCallback(
+    (presetKey: string) => {
+      const preset = QUICK_PRESETS[presetKey];
+      if (!preset || !component) return;
+      void persist({
+        keyframes: preset.keyframes,
+        easing: preset.easing,
+        durationMs: preset.durationMs,
+        iterationCount: preset.iterationCount,
+        direction: preset.direction,
+      });
+    },
+    [component, persist],
+  );
+
   if (!component) {
     return (
       <div className="bg-panel border-t border-edge px-4 py-6 text-center text-xs text-gray-500">
@@ -196,11 +326,29 @@ export function ComponentInspector() {
         <div className="min-w-0">
           <div className="text-sm font-semibold text-gray-200 truncate">{component.name}</div>
           <div className="text-[10px] text-gray-600 font-mono">{component.id}</div>
+          <div className="text-[9px] text-accent2/70 font-mono mt-0.5" title="Motion DNA signature">
+            {buildMotionDna(component)}
+          </div>
         </div>
         {saving && <span className="text-[10px] text-accent2">saving…</span>}
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+        <div>
+          <div className={labelCls}>Quick Presets</div>
+          <div className="flex flex-wrap gap-1">
+            {Object.entries(QUICK_PRESETS).map(([key, p]) => (
+              <button
+                key={key}
+                onClick={() => applyPreset(key)}
+                className="text-[10px] px-2 py-1 rounded bg-panel2 border border-edge text-gray-400 hover:text-accent hover:border-accent transition-colors"
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div>
           <div className={labelCls}>Easing</div>
           <select
