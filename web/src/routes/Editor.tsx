@@ -17,9 +17,14 @@ export function Editor() {
   const project = useProjectStore((s) => s.project);
   const loadProject = useProjectStore((s) => s.loadProject);
   const reset = useProjectStore((s) => s.reset);
+  const undo = useProjectStore((s) => s.undo);
+  const redo = useProjectStore((s) => s.redo);
+  const canUndo = useProjectStore((s) => s.past.length > 0);
+  const canRedo = useProjectStore((s) => s.future.length > 0);
   const setExportOpen = useUiStore((s) => s.setExportOpen);
   const setTemplatesOpen = useUiStore((s) => s.setTemplatesOpen);
   const setSkillsOpen = useUiStore((s) => s.setSkillsOpen);
+  const setShortcutsOpen = useUiStore((s) => s.setShortcutsOpen);
   const triggerReplay = useUiStore((s) => s.triggerReplay);
 
   useKeyboard();
@@ -55,6 +60,26 @@ export function Editor() {
           <span className="text-[10px] text-gray-600 font-mono">{projectId}</span>
           <div className="ml-auto flex items-center gap-2">
             <ApiKeyButton />
+            <div className="flex items-center border border-edge rounded-md overflow-hidden">
+              <button
+                onClick={undo}
+                disabled={!canUndo}
+                className="px-2 py-1 text-xs text-gray-300 bg-panel2 hover:bg-panel disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                title="Undo (Cmd+Z)"
+                aria-label="Undo"
+              >
+                ↶
+              </button>
+              <button
+                onClick={redo}
+                disabled={!canRedo}
+                className="px-2 py-1 text-xs text-gray-300 bg-panel2 hover:bg-panel disabled:opacity-30 disabled:cursor-not-allowed transition-colors border-l border-edge"
+                title="Redo (Cmd+Shift+Z)"
+                aria-label="Redo"
+              >
+                ↷
+              </button>
+            </div>
             <button
               onClick={() => setTemplatesOpen(true)}
               className="px-3 py-1 rounded-md text-xs text-gray-300 bg-panel2 border border-edge hover:border-accent transition-colors"
@@ -79,6 +104,14 @@ export function Editor() {
               className="px-3 py-1 rounded-md bg-accent hover:bg-accent2 text-white text-xs font-medium transition-colors"
             >
               Export
+            </button>
+            <button
+              onClick={() => setShortcutsOpen(true)}
+              className="px-2 py-1 rounded-md text-xs text-gray-400 bg-panel2 border border-edge hover:border-accent transition-colors"
+              title="Keyboard shortcuts (Cmd+/)"
+              aria-label="Keyboard shortcuts"
+            >
+              ?
             </button>
           </div>
         </div>
