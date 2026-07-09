@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useChatStore } from "../../store/chatStore.js";
 import { useProjectStore } from "../../store/projectStore.js";
 import type { MotionComponent } from "@openmotion/shared";
+import { buildMotionDna, diffDna } from "../../motion/dna.js";
 
 /**
  * Generate context-aware suggestion chips based on the live project state.
@@ -84,9 +85,22 @@ export function ChatPanel() {
   const [input, setInput] = useState("");
   const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [dnaDiff, setDnaDiff] = useState<string | null>(null);
+  const dnaBeforeRef = useRef<string | null>(null);
+  const wasStreamingRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const suggestions = useMemo(() => buildSuggestions(components), [components]);
+
+  // Compute Motion DNA diff when streaming completes.
+  useEffect(() => {
+    if (wasStreamingRef.current && !isStreaming) {
+      const after = components.length > 0 ? buildMotionDna(components[0]) : "";
+      const diff = dnaBeforeRef.current && after ? diffDna(dnaBeforeRef.current, after) : null;
+      setDnaDiff(diff);
+    }
+    wasStreamingRef.current = isStreaming;
+  }, [isStreaming, components]);
 
   const handleCopy = useCallback((id: string, text: string) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -124,6 +138,8 @@ export function ChatPanel() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!projectId || !input.trim() || isStreaming) return;
+    dnaBeforeRef.current = components.length > 0 ? buildMotionDna(components[0]) : null;
+    setDnaDiff(null);
     send(projectId, input.trim());
     setInput("");
   };
@@ -201,7 +217,11 @@ export function ChatPanel() {
                   </button>
                   {isLastAssistant && !isStreaming && projectId && (
                     <button
-                      onClick={() => regenerate(projectId)}
+                      onClick={() => {
+                        dnaBeforeRef.current = components.length > 0 ? buildMotionDna(components[0]) : null;
+                        setDnaDiff(null);
+                        regenerate(projectId);
+                      }}
                       className="text-[10px] text-gray-500 hover:text-accent px-1 py-0.5"
                       title="Regenerate response"
                       aria-label="Regenerate"
@@ -286,6 +306,13 @@ export function ChatPanel() {
       {!projectId && (
         <div className="px-4 py-3 text-xs text-gray-500 border-t border-edge">
           Pick a template to start a project.
+        </div>
+      )}
+
+      {dnaDiff && (
+        <div className="px-4 py-1.5 border-t border-edge bg-panel2/50">
+          <span className="text-[10px] text-gray-500 mr-1">DNA change:</span>
+          <span className="text-[10px] font-mono text-accent2">{dnaDiff}</span>
         </div>
       )}
 
