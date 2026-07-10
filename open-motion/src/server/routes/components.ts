@@ -8,6 +8,7 @@ import {
   DirectionSchema,
   FillModeSchema,
   PlayStateSchema,
+  TriggerSchema,
 } from "@openmotion/shared";
 import { validate, validated } from "../middleware/validate.js";
 import { runAsync } from "../../utils/async.js";
@@ -33,6 +34,7 @@ const ComponentInputSchema = z.object({
   direction: DirectionSchema.optional(),
   fillMode: FillModeSchema.optional(),
   playState: PlayStateSchema.optional(),
+  trigger: TriggerSchema.optional(),
   easing: EasingSchema.optional(),
   keyframes: z.array(KeyframeSchema).optional(),
   style: CssStyleSchema.optional(),
