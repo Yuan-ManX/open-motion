@@ -33,6 +33,7 @@ interface ComponentRow {
   direction: string;
   fill_mode: string;
   play_state: string;
+  trigger: string;
   easing_json: string;
   keyframes_json: string;
   style_json: string;
@@ -74,6 +75,7 @@ export function rowToComponent(r: ComponentRow): MotionComponent {
     direction: r.direction as MotionComponent["direction"],
     fillMode: r.fill_mode as MotionComponent["fillMode"],
     playState: r.play_state as MotionComponent["playState"],
+    trigger: (r.trigger as MotionComponent["trigger"]) ?? "onLoad",
     easing,
     keyframes: parseJson(r.keyframes_json, []),
     style: parseJson(r.style_json, {}),
