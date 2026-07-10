@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { MotionComponent, MotionProject, MotionSpec, ProjectResponse } from "@openmotion/shared";
 import * as api from "../api/endpoints.js";
+import { useUiStore } from "./uiStore.js";
 
 let loadRequestId = 0;
 
@@ -20,9 +21,11 @@ interface ProjectState {
   future: Snapshot[];
 
   loadProject: (id: string) => Promise<void>;
+  setArtboard: (size: { width: number; height: number }, background?: string) => Promise<void>;
   applySpecUpdate: (components: MotionComponent[], project?: MotionProject) => void;
   addComponentLocal: (component: MotionComponent) => void;
   patchComponentLocal: (componentId: string, patch: Partial<MotionComponent>) => void;
+  updateComponentLive: (componentId: string, stylePatch: Record<string, string | number>) => void;
   removeComponentLocal: (componentId: string) => void;
   undo: () => void;
   redo: () => void;
@@ -48,9 +51,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       const resp = await api.getProject(id);
       if (myRequestId !== loadRequestId) return;
       const spec = resp.spec as MotionSpec;
+      const project = spec.project ?? (resp as unknown as MotionProject);
+      const tokens = project.tokens ?? {};
+      const w = Number(tokens.artboardWidth) || 640;
+      const h = Number(tokens.artboardHeight) || 360;
+      useUiStore.getState().setCanvasSize({ width: w, height: h });
       set({
         projectId: id,
-        project: spec.project ?? (resp as unknown as MotionProject),
+        project,
         components: spec.components ?? [],
         loading: false,
         past: [],
@@ -60,6 +68,19 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       if (myRequestId !== loadRequestId) return;
       set({ loading: false });
     }
+  },
+
+  setArtboard: async (size, background) => {
+    const state = get();
+    if (!state.projectId || !state.project) return;
+    const tokens = { ...state.project.tokens };
+    tokens.artboardWidth = size.width;
+    tokens.artboardHeight = size.height;
+    if (background) tokens.artboardBackground = background;
+    useUiStore.getState().setCanvasSize(size);
+    const past = [...state.past, snapshot(state)].slice(-HISTORY_LIMIT);
+    set({ project: { ...state.project, tokens }, past, future: [] });
+    await api.updateProject(state.projectId, { tokens });
   },
 
   applySpecUpdate: (components, project) => {
@@ -81,6 +102,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       c.id === componentId ? { ...c, ...patch } : c,
     );
     set({ components, past, future: [] });
+  },
+
+  updateComponentLive: (componentId, stylePatch) => {
+    const state = get();
+    const components = state.components.map((c) =>
+      c.id === componentId ? { ...c, style: { ...c.style, ...stylePatch } } : c,
+    );
+    set({ components });
   },
 
   removeComponentLocal: (componentId) => {
