@@ -56,6 +56,7 @@ export function createProjectComponent(
     direction: tpl?.direction ?? input.direction ?? "normal",
     fillMode: tpl?.fillMode ?? input.fillMode ?? "forwards",
     playState: "running",
+    trigger: "onLoad",
     easing: tpl?.easing ?? input.easing ?? { type: "preset", name: "ease-out" },
     keyframes: tpl?.keyframes ?? input.keyframes ?? [],
     style: tpl?.style ?? input.style ?? {},
