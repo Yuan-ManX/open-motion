@@ -19,6 +19,19 @@ import { notificationTemplate } from "./notification.js";
 import { progressBarTemplate } from "./progressBar.js";
 import { rippleTemplate } from "./ripple.js";
 import { marqueeTemplate } from "./marquee.js";
+import { orbitTemplate } from "./orbit.js";
+import { waveTemplate } from "./wave.js";
+import { confettiTemplate } from "./confetti.js";
+import { parallaxTemplate } from "./parallax.js";
+import { kineticTextTemplate } from "./kineticText.js";
+import { particleBurstTemplate } from "./particleBurst.js";
+import { liquidMorphTemplate } from "./liquidMorph.js";
+import { elasticCollapseTemplate } from "./elasticCollapse.js";
+import { glitchTemplate } from "./glitch.js";
+import { reveal3dTemplate } from "./reveal3d.js";
+import { gradientShiftTemplate } from "./gradientShift.js";
+import { elasticScaleTemplate } from "./elasticScale.js";
+import { textScrambleTemplate } from "./textScramble.js";
 import type { ComponentDraft, TemplateDef } from "./helper.js";
 
 export const TEMPLATES: TemplateDef[] = [
@@ -41,6 +54,19 @@ export const TEMPLATES: TemplateDef[] = [
   progressBarTemplate,
   rippleTemplate,
   marqueeTemplate,
+  orbitTemplate,
+  waveTemplate,
+  confettiTemplate,
+  parallaxTemplate,
+  kineticTextTemplate,
+  particleBurstTemplate,
+  liquidMorphTemplate,
+  elasticCollapseTemplate,
+  glitchTemplate,
+  reveal3dTemplate,
+  gradientShiftTemplate,
+  elasticScaleTemplate,
+  textScrambleTemplate,
 ];
 
 export function getTemplate(id: string): TemplateDef | undefined {
@@ -67,3 +93,29 @@ export function instantiateTemplate(
 }
 
 export type { ComponentDraft, TemplateDef };
+
+export interface CategorySummary {
+  category: string;
+  count: number;
+  templates: Array<{ id: string; name: string; description: string }>;
+}
+
+/** Return all templates grouped by category with counts. */
+export function getCategories(): CategorySummary[] {
+  const map = new Map<string, CategorySummary>();
+  for (const tpl of TEMPLATES) {
+    let entry = map.get(tpl.category);
+    if (!entry) {
+      entry = { category: tpl.category, count: 0, templates: [] };
+      map.set(tpl.category, entry);
+    }
+    entry.count++;
+    entry.templates.push({ id: tpl.id, name: tpl.name, description: tpl.description });
+  }
+  return Array.from(map.values()).sort((a, b) => a.category.localeCompare(b.category));
+}
+
+/** Return templates filtered by category. */
+export function listTemplatesByCategory(category: string): TemplateDef[] {
+  return TEMPLATES.filter((t) => t.category === category);
+}
