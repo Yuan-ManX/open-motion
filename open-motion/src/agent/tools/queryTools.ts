@@ -3,6 +3,7 @@ import { getProject, getProjectSpec, updateProject } from "../../db/repositories
 import { listComponents, deleteComponent, createComponent } from "../../db/repositories/components.js";
 import { listTemplates } from "../../db/repositories/templates.js";
 import { instantiateTemplate } from "../../motion/templates/index.js";
+import { TEMPLATES } from "../../motion/templates/index.js";
 import { publicBaseUrl } from "../../config.js";
 import type { ToolContext, ToolResult } from "./registry.js";
 
@@ -158,6 +159,102 @@ export const queryExecutors: Partial<Record<ToolName, Executor>> = {
         dna: primaryDna,
         perComponent: dnaSignatures,
         componentCount: components.length,
+      },
+    };
+  },
+
+  match_template: (args, ctx) => {
+    const spec = getProjectSpec(ctx.projectId);
+    const currentComponents = spec?.components ?? [];
+    const hint = args.hint ? String(args.hint) : "";
+
+    // Build a profile of the current motion (or use the hint).
+    const currentProps = new Set<string>();
+    let currentEasingToken = "";
+    if (currentComponents.length > 0) {
+      const first = currentComponents[0];
+      currentEasingToken = easingDnaToken(first.easing);
+      for (const kf of first.keyframes) {
+        for (const key of Object.keys(kf.properties)) currentProps.add(key.toUpperCase());
+      }
+    }
+
+    // Score each template by similarity.
+    const scored = TEMPLATES.map((tpl) => {
+      const drafts = tpl.build();
+      const first = drafts[0];
+      if (!first) return { template: tpl, score: 0, reasons: [] };
+
+      let score = 0;
+      const reasons: string[] = [];
+
+      // Easing match.
+      const tplEasingToken = easingDnaToken(first.easing);
+      if (currentEasingToken && tplEasingToken === currentEasingToken) {
+        score += 30;
+        reasons.push(`matching easing (${tplEasingToken})`);
+      }
+
+      // Property overlap.
+      const tplProps = new Set<string>();
+      for (const kf of first.keyframes ?? []) {
+        for (const key of Object.keys(kf.properties)) tplProps.add(key.toUpperCase());
+      }
+      const overlap = [...tplProps].filter((p) => currentProps.has(p));
+      if (overlap.length > 0) {
+        score += 20 * overlap.length;
+        reasons.push(`shared properties (${overlap.join(", ")})`);
+      }
+
+      // Hint keyword matching.
+      if (hint) {
+        const hintLower = hint.toLowerCase();
+        const tplText = `${tpl.name} ${tpl.description} ${tpl.tags.join(" ")}`.toLowerCase();
+        const hintWords = hintLower.split(/\s+/).filter((w) => w.length > 2);
+        for (const word of hintWords) {
+          if (tplText.includes(word)) {
+            score += 15;
+            reasons.push(`keyword "${word}"`);
+          }
+        }
+      }
+
+      // Category bonus — entrance templates are generally useful.
+      if (tpl.category === "entrance") score += 5;
+
+      return {
+        template: {
+          id: tpl.id,
+          name: tpl.name,
+          category: tpl.category,
+          description: tpl.description,
+          tags: tpl.tags,
+        },
+        score: Math.min(score, 100),
+        reasons,
+      };
+    });
+
+    scored.sort((a, b) => b.score - a.score);
+    const top = scored.slice(0, 5).filter((s) => s.score > 0);
+
+    if (top.length === 0) {
+      return {
+        ok: true,
+        summary: "no close template matches found — try describing what you want",
+        specChanged: false,
+        data: { matches: [], currentDna: currentComponents[0] ? buildMotionDna(currentComponents[0]) : "" },
+      };
+    }
+
+    const best = top[0];
+    return {
+      ok: true,
+      summary: `best match: ${best.template.name} (${best.score}% match)`,
+      specChanged: false,
+      data: {
+        matches: top.map((s) => ({ ...s.template, score: s.score, reasons: s.reasons })),
+        currentDna: currentComponents[0] ? buildMotionDna(currentComponents[0]) : "",
       },
     };
   },
