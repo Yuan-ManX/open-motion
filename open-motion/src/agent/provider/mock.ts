@@ -70,9 +70,44 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     return true;
   };
 
-  // --- Easing presets (skip when user is referencing a template by name) ---
+  // --- Create animation / layer by name (runs first so names like "bounce"
+  // resolve to a template instead of no-op'ing the easing intent below) ---
+  let createdFromName = false;
+  // Try "create/make/build/add a [name] animation/effect/motion/layer" first.
+  let createRaw: string | null = null;
+  const createWithNounM = userText.match(
+    /\b(?:create|make|build|generate|design|add)\s+(?:a\s+|an\s+|the\s+)?([\w][\w\s-]*?)\s+(?:animation|effect|motion|transition|layer|element|component)\b/i,
+  );
+  if (createWithNounM) {
+    createRaw = createWithNounM[1].trim();
+  } else {
+    // Fall back to "create/make/build a [name]" with no trailing noun — only
+    // fires when [name] resolves to a known template alias so we don't hijack
+    // phrases like "make a decision".
+    const createBareM = userText.match(
+      /\b(?:create|make|build|generate|design)\s+(?:a\s+|an\s+|the\s+)?([\w][\w\s-]+)\s*$/i,
+    );
+    if (createBareM) {
+      const raw = createBareM[1].trim();
+      if (resolveTemplateId(raw)) createRaw = raw;
+    }
+  }
+  if (createRaw) {
+    const resolved = resolveTemplateId(createRaw);
+    if (resolved) {
+      push("set_template", { templateId: resolved },
+        `Created a ${createRaw} animation using the ${resolved} template.`);
+      createdFromName = true;
+    } else {
+      push("add_layer", { name: createRaw.charAt(0).toUpperCase() + createRaw.slice(1) },
+        `Added a new layer called "${createRaw}".`);
+      createdFromName = true;
+    }
+  }
+
+  // --- Easing presets (skip when referencing a template or already created from name) ---
   const wantsTemplate = /\btemplate\b|模板/i.test(userText);
-  if (!wantsTemplate) {
+  if (!wantsTemplate && !createdFromName) {
     for (const e of EASING_INTENTS) {
       if (e.match.test(userText)) {
         push("set_easing", state.firstComponentId
@@ -319,14 +354,40 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
       "Packaged the motion as a reusable AI skill.");
   }
 
-  // --- Preview ---
-  if (/\bpreview\b|预览/i.test(userText)) {
+  // --- Preview (skip if fullscreen preview is requested — handled separately) ---
+  if (/\bpreview\b|预览/i.test(userText) && !/\bfullscreen|full screen|present mode\b/i.test(userText)) {
     push("preview_url", {}, "Here's the preview URL — open it in a new tab.");
   }
 
   // --- Describe motion (Motion DNA) ---
   if (/\b(describe|what.*look|explain|dna|characterize)\b|描述|什么样/i.test(userText)) {
     push("describe_motion", {}, "Here's the Motion DNA and description for your current animation.");
+  }
+
+  // --- Analyze motion (quality, timing, accessibility) ---
+  if (/\b(analyze|review|critique|quality|is this good|score|insight)\b/i.test(userText)) {
+    push("analyze_motion", {}, "Here's my analysis of your motion design — timing, easing, accessibility, and composition.");
+  }
+
+  // --- Suggest next steps ---
+  if (/\b(suggest|ideas?|what next|what should i|what now)\b/i.test(userText)) {
+    push("suggest_next", {}, "Here are some context-aware suggestions for what to do next.");
+  }
+
+  // --- Set motion path (orbit, circle, ellipse, line, bezier) ---
+  if (/\b(orbit|circle|ellipse|along.*path|trajectory|fly across|move in a)\b/i.test(userText) && state.firstComponentId) {
+    const pathType = /\bellipse\b/i.test(userText) ? "ellipse"
+      : /\bcircle\b|orbit/i.test(userText) ? "circle"
+      : /\bbezier|curve\b/i.test(userText) ? "bezier"
+      : "line";
+    const args: Record<string, unknown> = { componentId: state.firstComponentId, pathType };
+    if (pathType === "circle" || pathType === "ellipse") {
+      args.centerX = 0;
+      args.centerY = 0;
+      args.radiusX = pathType === "ellipse" ? 150 : 100;
+      if (pathType === "ellipse") args.radiusY = 80;
+    }
+    push("set_motion_path", args, `Set the component on a ${pathType} path.`);
   }
 
   // --- List scenes ---
@@ -338,6 +399,282 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
   const rmSceneM = userText.match(/\b(?:remove|delete|drop)\s+(?:the\s+)?scene\s+(\w+)|删除.*场景\s*(\w+)/i);
   if (rmSceneM) {
     push("remove_scene", { sceneId: rmSceneM[1] || rmSceneM[2] }, `Removed scene ${rmSceneM[1] || rmSceneM[2]}.`);
+  }
+
+  // --- Stagger components ---
+  if (/\b(stagger|cascade|sequence|one by one|sequential)\b|错开|依次|逐个/i.test(userText)) {
+    const stepM = userText.match(/(\d+(?:\.\d+)?)\s*(ms|s)?/);
+    let stepMs = 100;
+    if (stepM) {
+      stepMs = stepM[2] === "s" ? Math.round(Number(stepM[1]) * 1000) : Number(stepM[1]);
+    }
+    const dir = /reverse|backward|反向/.test(userText) ? "reverse" : /center|middle|中间/.test(userText) ? "center" : "forward";
+    push("stagger_components", { stepMs, direction: dir }, `Staggered all components with ${stepMs}ms steps (${dir}).`);
+  }
+
+  // --- Match template ---
+  if (/\b(find|match|suggest|recommend|which)\b.*\btemplate\b|find.*template|什么模板|匹配模板/i.test(userText)) {
+    push("match_template", { hint: userText }, "Here are the closest matching templates based on your current motion.");
+  }
+
+  // --- Create variant ---
+  if (/\b(variant|variation|alternative|try.*different|what.*look.*with)\b|变体|变奏|试试/i.test(userText)) {
+    if (state.firstComponentId) {
+      const variantEasing = /smooth|平滑/.test(userText) ? { type: "preset", name: "ease-in-out" } : /snappy|干脆/.test(userText) ? { type: "preset", name: "ease-in" } : undefined;
+      const variantDur = parseDuration(userText, 0) || undefined;
+      push("create_variant", { componentId: state.firstComponentId, easing: variantEasing, durationMs: variantDur }, "Created a variation so you can compare side by side.");
+    }
+  }
+
+  // --- Style presets: apply coordinated aesthetic across all components ---
+  const styleM = userText.match(/\b(playful|energetic|calm|professional|dramatic|minimal)\b/i);
+  if (styleM && state.firstComponentId) {
+    push("apply_style", { styleId: styleM[1].toLowerCase() },
+      `Applied the ${styleM[1].toLowerCase()} style across all components for a coherent feel.`);
+  }
+
+  // --- Pattern recognition: identify design patterns ---
+  if (/\b(patterns?|composition balanced|what.s missing|monoton\w*|balance|coherent)\b/i.test(userText) && state.firstComponentId) {
+    push("recognize_pattern", {}, "Here are the motion design patterns I detected in your project.");
+  }
+
+  // --- Color harmony: apply color theory ---
+  if (/\b(harmoniz\w*|color scheme|colors work together|palette|color theory)\b/i.test(userText) && state.firstComponentId) {
+    const schemeM = userText.match(/\b(complementary|analogous|triadic|monochrome)\b/i);
+    const scheme = schemeM ? schemeM[1].toLowerCase() : "analogous";
+    push("harmonize_colors", { scheme },
+      `Harmonized all component colors using a ${scheme} color scheme.`);
+  }
+
+  // --- Choreography: multi-component sequencing ---
+  if (/\b(choreograph|orchestrat|wave pattern|ripple effect|cascade|canon|converge)\b/i.test(userText) && state.firstComponentId) {
+    const patternM = userText.match(/\b(cascade|wave|ripple|canon|converge)\b/i);
+    const pattern = patternM ? patternM[1].toLowerCase() : "cascade";
+    const stepM = userText.match(/(\d+)\s*ms/);
+    const stepMs = stepM ? Number(stepM[1]) : 150;
+    push("choreograph", { pattern, stepMs },
+      `Choreographed all components with a ${pattern} pattern.`);
+  }
+
+  // --- Motion refinement: qualitative descriptors ---
+  const refineM = userText.match(/\b(snappier|smoother|more dramatic|calmer|subtler|more energetic|bouncier|softer)\b/i);
+  if (refineM && state.firstComponentId) {
+    const refinement = refineM[1].toLowerCase().replace(/\s+/g, "-");
+    push("refine_motion", { refinement },
+      `Refined the motion to be ${refinement}.`);
+  }
+
+  // --- Custom bezier easing ---
+  const bezierM = userText.match(/\b(?:custom.*easing|bezier|cubic.bezier)\b/i);
+  if (bezierM && state.firstComponentId) {
+    const nums = userText.match(/-?\d+\.?\d*/g);
+    const x1 = nums && nums.length >= 4 ? Number(nums[0]) : 0.4;
+    const y1 = nums && nums.length >= 4 ? Number(nums[1]) : 0;
+    const x2 = nums && nums.length >= 4 ? Number(nums[2]) : 0.2;
+    const y2 = nums && nums.length >= 4 ? Number(nums[3]) : 1;
+    push("set_custom_bezier", { componentId: state.firstComponentId, x1, y1, x2, y2 },
+      `Set custom bezier easing (${x1}, ${y1}, ${x2}, ${y2}).`);
+  }
+
+  // --- Keyframe interpolation ---
+  if (/\b(hold|linear interpolation|step.*keyframe)\b/i.test(userText) && state.firstComponentId) {
+    const interp = /hold/i.test(userText) ? "hold" : "linear";
+    push("set_interpolation", { componentId: state.firstComponentId, keyframeIndex: 0, interpolation: interp },
+      `Set keyframe 0 interpolation to ${interp}.`);
+  }
+
+  // --- Add property keyframe ---
+  const addKfM = userText.match(/\b(?:add|keyframe)\s+(?:a\s+)?keyframe\s+(?:for\s+)?(\w+)/i);
+  if (addKfM && state.firstComponentId) {
+    const property = addKfM[1].toLowerCase();
+    const offsetM = userText.match(/(\d+)%/) ?? userText.match(/offset\s+(\d+\.?\d*)/);
+    const offset = offsetM ? Number(offsetM[1]) / 100 : 0.5;
+    push("add_property_keyframe",
+      { componentId: state.firstComponentId, property, offset, value: 0 },
+      `Added ${property} keyframe at offset ${offset}.`);
+  }
+
+  // --- Remove keyframe ---
+  if (/\b(remove|delete)\s+keyframe\b/i.test(userText) && state.firstComponentId) {
+    const idxM = userText.match(/keyframe\s+(\d+)/i);
+    const keyframeIndex = idxM ? Number(idxM[1]) : 0;
+    push("remove_keyframe", { componentId: state.firstComponentId, keyframeIndex },
+      `Removed keyframe ${keyframeIndex}.`);
+  }
+
+  // --- Trigger settings ---
+  const triggerM = userText.match(/\b(on click|on hover|on scroll|on load|after delay)\b/i);
+  if (triggerM && state.firstComponentId) {
+    const triggerMap: Record<string, string> = {
+      "on click": "onClick",
+      "on hover": "onHover",
+      "on scroll": "onScroll",
+      "on load": "onLoad",
+      "after delay": "afterDelay",
+    };
+    const trigger = triggerMap[triggerM[1].toLowerCase()];
+    if (trigger) {
+      push("set_trigger", { componentId: state.firstComponentId, trigger },
+        `Set the animation to trigger ${triggerM[1].toLowerCase()}.`);
+    }
+  }
+
+  // --- Onion skinning ---
+  if (/\b(onion.*skins?|ghost frame|motion trail|show.*trail)/i.test(userText)) {
+    const enabled = !/\b(off|disable|turn off|hide)\b/i.test(userText);
+    push("set_onion_skin", { enabled, frames: 3, opacity: 0.25 },
+      enabled ? "Enabled onion skinning — ghost frames are now visible on the canvas." : "Disabled onion skinning.");
+  }
+
+  // --- Fullscreen preview ---
+  if (/\b(fullscreen|full screen|present|present mode|big preview)\b/i.test(userText)) {
+    push("preview_fullscreen", {},
+      "Opening fullscreen preview — press Esc or click outside to exit.");
+  }
+
+  // --- Canvas view control ---
+  if (/\b(zoom\s*(in|out)|fit.*screen|frame.*select|reset.*view|pan\s*canvas)\b/i.test(userText)) {
+    const args: Record<string, unknown> = {};
+    if (/\bfit.*screen|reset.*view\b/i.test(userText)) args.fit = true;
+    const zoomM = userText.match(/zoom\s*(?:to)?\s*(\d+(?:\.\d+)?)\s*%?/i);
+    if (zoomM) args.zoom = Number(zoomM[1]) / 100;
+    if (/\bzoom\s*in\b/i.test(userText) && !zoomM) args.zoom = 1.5;
+    if (/\bzoom\s*out\b/i.test(userText) && !zoomM) args.zoom = 0.5;
+    push("set_canvas_view", args,
+      args.fit ? "Reset the canvas to fit the screen." : `Adjusted canvas zoom to ${Math.round((args.zoom as number ?? 1) * 100)}%.`);
+  }
+
+  // --- Layer lock ---
+  if (/\block\b/i.test(userText) && state.firstComponentId) {
+    const locked = !/\bunlock\b/i.test(userText);
+    push("lock_layer", { componentId: state.firstComponentId, locked },
+      locked ? "Locked the selected layer — it can't be selected or edited." : "Unlocked the layer.");
+  }
+
+  // --- Z-order ---
+  if (/\b(bring.*front|send.*back|move.*forward|move.*backward|to.?front|to.?back)\b/i.test(userText) && state.firstComponentId) {
+    let action = "forward";
+    if (/\bbring.*front|to.?front\b/i.test(userText)) action = "to-front";
+    else if (/\bsend.*back|to.?back\b/i.test(userText)) action = "to-back";
+    else if (/\bforward\b/i.test(userText)) action = "forward";
+    else if (/\bbackward\b/i.test(userText)) action = "backward";
+    push("set_z_order", { componentId: state.firstComponentId, action },
+      `Moved the layer ${action.replace("-", " ")}.`);
+  }
+
+  // --- Transform props ---
+  if (/\b(set.*position|set.*x\b|set.*y\b|set.*width|set.*height|rotate.*\d+|resize.*to)\b/i.test(userText) && state.firstComponentId) {
+    const args: Record<string, unknown> = { componentId: state.firstComponentId };
+    const xM = userText.match(/\bx\s*(?::|to|=)?\s*(-?\d+(?:\.\d+)?)/i);
+    if (xM) args.x = Number(xM[1]);
+    const yM = userText.match(/\by\s*(?::|to|=)?\s*(-?\d+(?:\.\d+)?)/i);
+    if (yM) args.y = Number(yM[1]);
+    const wM = userText.match(/\b(?:width|w)\s*(?::|to|=)?\s*(\d+(?:\.\d+)?)/i);
+    if (wM) args.width = Number(wM[1]);
+    const hM = userText.match(/\b(?:height|h)\s*(?::|to|=)?\s*(\d+(?:\.\d+)?)/i);
+    if (hM) args.height = Number(hM[1]);
+    const rotM = userText.match(/(?:rotate|rotation)\s*(?::|to|=)?\s*(-?\d+(?:\.\d+)?)\s*deg/i);
+    if (rotM) args.rotation = Number(rotM[1]);
+    push("set_transform_props", args,
+      `Updated transform properties (${Object.keys(args).filter((k) => k !== "componentId").join(", ")}).`);
+  }
+
+  // --- Align components ---
+  if (/\b(align|distribute)\b/i.test(userText) && state.componentIds.length >= 2) {
+    let align = "left";
+    if (/\bright\b/i.test(userText)) align = "right";
+    else if (/\bcenter\b/i.test(userText)) align = "center";
+    else if (/\btop\b/i.test(userText)) align = "top";
+    else if (/\bmiddle\b/i.test(userText)) align = "middle";
+    else if (/\bbottom\b/i.test(userText)) align = "bottom";
+    else if (/\bdistribute.*h|distribute.*horizontal/i.test(userText)) align = "distribute-h";
+    else if (/\bdistribute.*v|distribute.*vertical/i.test(userText)) align = "distribute-v";
+    push("align_components", { componentIds: state.componentIds, align },
+      `Aligned ${state.componentIds.length} components ${align}.`);
+  }
+
+  // --- Playback range ---
+  if (/\b(playback.*range|set.*range|trim|loop.*range|clear.*range)\b/i.test(userText)) {
+    if (/\bclear.*range\b/i.test(userText)) {
+      push("set_playback_range", { clear: true }, "Cleared the playback range.");
+    } else {
+      const msMatches = userText.match(/(\d+)\s*ms/g);
+      const startMs = msMatches && msMatches.length >= 1 ? Number(msMatches[0].replace(/\s*ms/, "")) : 0;
+      const endMs = msMatches && msMatches.length >= 2 ? Number(msMatches[1].replace(/\s*ms/, "")) : 2000;
+      push("set_playback_range", { startMs, endMs },
+        `Set playback range from ${startMs}ms to ${endMs}ms.`);
+    }
+  }
+
+  // --- Select components ---
+  if (/\b(select.*all|select.*everything|multi.?select)\b/i.test(userText) && state.componentIds.length > 0) {
+    push("select_components", { componentIds: state.componentIds, clear: true },
+      `Selected all ${state.componentIds.length} components.`);
+  }
+
+  // --- Toggle snap ---
+  if (/\b(snap.*grid|toggle.*snap|magnet)\b/i.test(userText)) {
+    const enabled = !/\b(off|disable|turn off)\b/i.test(userText);
+    const sizeM = userText.match(/(?:size|grid)\s*(\d+)/i);
+    push("toggle_snap", { enabled, ...(sizeM ? { size: Number(sizeM[1]) } : {}) },
+      enabled ? "Enabled snap-to-grid." : "Disabled snap-to-grid.");
+  }
+
+  // --- Add shape ---
+  const shapeM = userText.match(/\b(?:add|create)\s+(?:a\s+)?(rectangle|circle|text|triangle|star|pentagon|polygon|line|arrow)\b/i);
+  if (shapeM) {
+    const shape = shapeM[1].toLowerCase() === "pentagon" ? "polygon" : shapeM[1].toLowerCase();
+    push("add_shape", { shape },
+      `Added a ${shape} shape to the canvas.`);
+  }
+
+  // --- Set blend mode ---
+  const blendM = userText.match(/\b(?:set\s+)?(?:blend\s+mode|mix.*blend|blend\s+with)\s+(?:to\s+)?(normal|multiply|screen|overlay|darken|lighten|color.?dodge|color.?burn|hard.?light|soft.?light|difference|exclusion|hue|saturation|color|luminosity)\b/i);
+  if (blendM && state.firstComponentId) {
+    const mode = blendM[1].toLowerCase().replace(/\s/g, "-");
+    push("set_blend_mode", { componentId: state.firstComponentId, blendMode: mode },
+      `Set blend mode to ${mode}.`);
+  } else if (/\b(blend.*mode|mix.*blend)\b/i.test(userText) && state.firstComponentId) {
+    const modeM = userText.match(/\b(normal|multiply|screen|overlay|darken|lighten|difference|exclusion|hue|saturation|color|luminosity)\b/i);
+    if (modeM) {
+      push("set_blend_mode", { componentId: state.firstComponentId, blendMode: modeM[1].toLowerCase() },
+        `Set blend mode to ${modeM[1].toLowerCase()}.`);
+    }
+  }
+
+  // --- Set artboard ---
+  if (/\b(canvas|artboard)\b/i.test(userText)) {
+    const sizeM = userText.match(/(\d{3,4})\s*[x×by]\s*(\d{3,4})/i);
+    const wM = userText.match(/(?:width|wide|wider)\s*(\d{3,4})/i);
+    const hM = userText.match(/(?:height|tall|taller)\s*(\d{3,4})/i);
+    const bgM = userText.match(/(?:background|bg)\s*(?:to\s+)?(#[0-9a-f]{3,8}|black|white|red|green|blue|gray|grey|transparent)/i);
+    const patch: Record<string, number | string> = {};
+    if (sizeM) { patch.width = Number(sizeM[1]); patch.height = Number(sizeM[2]); }
+    if (wM) patch.width = Number(wM[1]);
+    if (hM) patch.height = Number(hM[1]);
+    if (bgM) {
+      const bg = bgM[1].toLowerCase();
+      patch.background = bg === "black" ? "#0a0a0a" : bg === "white" ? "#ffffff" : bg === "transparent" ? "transparent" : bg;
+    }
+    if (Object.keys(patch).length > 0) {
+      push("set_artboard", patch, `Updated artboard: ${Object.entries(patch).map(([k,v]) => `${k}=${v}`).join(", ")}.`);
+    }
+  }
+
+  // --- Layer opacity ---
+  if (/\b(set.*opacity|layer.*opacity|opacity.*to|make.*transparent|make.*opaque)\b/i.test(userText) && state.firstComponentId) {
+    const pctM = userText.match(/(\d+(?:\.\d+)?)\s*%/);
+    const decM = userText.match(/opacity\s*(?::|to|=)?\s*(0?\.\d+|1\.0|0|1)/i);
+    const opacity = pctM ? Number(pctM[1]) / 100 : decM ? Number(decM[1]) : 0.5;
+    push("set_layer_opacity", { componentId: state.firstComponentId, opacity },
+      `Set layer opacity to ${Math.round(opacity * 100)}%.`);
+  }
+
+  // --- Rulers ---
+  if (/\b(ruler|toggle.*ruler|show.*ruler|hide.*ruler)\b/i.test(userText)) {
+    const show = !/\b(hide|off|disable)\b/i.test(userText);
+    push("set_rulers", { show },
+      show ? "Showing canvas rulers." : "Hiding canvas rulers.");
   }
 
   // --- Get spec ---
@@ -352,10 +689,23 @@ const FALLBACK_REPLY =
   "I can adjust easing (bouncy, smooth, snappy, elastic, back, linear), spring physics (stiffness/damping/mass), " +
   "duration (slower, faster, specific ms), global timing, delay, loop (forever, N times), fill mode, colors (text + background), " +
   "border radius, transform tracks (translateX/scale/rotate/opacity from→to), keyframes, add/remove layers, add scenes, " +
-  "list/remove scenes, describe motion (Motion DNA), apply presets (shake, wiggle, float, glow, heartbeat, typewriter), " +
+  "list/remove scenes, describe motion (Motion DNA), analyze motion (quality, timing, accessibility), suggest next steps, " +
+  "set motion paths (orbit, circle, ellipse, line, bezier), " +
+  "stagger components (cascade, sequence, one by one), " +
+  "match template (find closest fit), create variant (try different easing/duration), " +
+  "apply presets (shake, wiggle, float, glow, heartbeat, typewriter), " +
+  "apply style presets (playful, energetic, calm, professional, dramatic, minimal) across all components, " +
+  "recognize patterns (easing monotony, timing uniformity, incomplete lifecycle, motion overload), " +
+  "harmonize colors (complementary, analogous, triadic, monochrome), " +
+  "choreograph components (cascade, wave, ripple, canon, converge), " +
+  "refine motion (snappier, smoother, more dramatic, calmer, subtler, more energetic, bouncier, softer), " +
+  "set custom bezier easing curves, set keyframe interpolation (linear, ease, hold), " +
+  "add/remove per-property keyframes, " +
+  "set triggers (onLoad, onClick, onHover, onScroll, afterDelay), toggle onion skinning, open fullscreen preview, " +
   "batch updates, duplicate, reorder, pause/play, " +
   "list/switch templates (fade, bounce, slide, scale, flip, spin, pulse, spring, resize, logo-reveal, squash-stretch, " +
-  "flip-card, typewriter, shimmer, morph, notification, progress, ripple, marquee), export (HTML, CSS, JSON, React, video, skill), or show a preview. " +
+  "flip-card, typewriter, shimmer, morph, notification, progress, ripple, marquee, orbit, wave, confetti, " +
+  "parallax, kinetic-text, particle-burst, liquid-morph, elastic-collapse), export (HTML, CSS, JSON, React, video, skill), or show a preview. " +
   "Tell me what you'd like to do.";
 
 export class MockProvider implements LlmProvider {
@@ -375,7 +725,13 @@ export class MockProvider implements LlmProvider {
       const { calls, replies } = matchIntents(state, userText);
 
       if (calls.length > 0) {
-        return { text: "", toolCalls: calls, tokensIn: 0, tokensOut: 0 };
+        // Emit a reasoning trace so the user sees the agent's plan before tools run.
+        // The replies describe each planned action; join them into a single trace.
+        const reasoning = replies.length > 0
+          ? replies.join(" ")
+          : `I'll use ${calls.map((c) => c.tool).join(", ")} to handle that.`;
+        await streamText(options, reasoning);
+        return { text: reasoning, toolCalls: calls, tokensIn: 0, tokensOut: 0 };
       }
 
       await streamText(options, FALLBACK_REPLY);
