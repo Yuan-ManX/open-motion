@@ -79,7 +79,8 @@ export interface RenderedSpec {
 }
 
 /** Render a MotionSpec into a CSS string + DOM node descriptors, aligned with the backend generator. */
-export function renderSpec(components: MotionComponent[]): RenderedSpec {
+export function renderSpec(components: MotionComponent[], speed = 1): RenderedSpec {
+  const speedFactor = speed > 0 ? 1 / speed : 1;
   const sorted = [...components].sort((a, b) => a.orderIndex - b.orderIndex);
   const cssBlocks: string[] = [];
   const nodes: RenderedNode[] = [];
@@ -121,9 +122,9 @@ export function renderSpec(components: MotionComponent[]): RenderedSpec {
     const ruleDecls = [
       styleToCss(cssStyle),
       `animation-name: ${frames.length ? animationName : "none"};`,
-      `animation-duration: ${component.durationMs}ms;`,
+      `animation-duration: ${Math.round(component.durationMs * speedFactor)}ms;`,
       `animation-timing-function: ${easingToCss(component.easing)};`,
-      `animation-delay: ${component.delayMs}ms;`,
+      `animation-delay: ${Math.round(component.delayMs * speedFactor)}ms;`,
       `animation-iteration-count: ${iteration};`,
       `animation-direction: ${component.direction};`,
       `animation-fill-mode: ${component.fillMode};`,
