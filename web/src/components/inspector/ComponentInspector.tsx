@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   EASING_PRESETS,
   type MotionComponent,
@@ -13,14 +13,20 @@ import { useProjectStore } from "../../store/projectStore.js";
 import { useUiStore } from "../../store/uiStore.js";
 import * as api from "../../api/endpoints.js";
 import { EasingCurveEditor } from "./EasingCurveEditor.js";
+import { EasingPresetPicker } from "./EasingPresetPicker.js";
+import { PropertyKeyframes } from "./PropertyKeyframes.js";
+import { ColorPicker } from "./ColorPicker.js";
+import { ListenerPanel } from "./ListenerPanel.js";
 
 type Direction = MotionComponent["direction"];
 type FillMode = MotionComponent["fillMode"];
 type PlayState = MotionComponent["playState"];
+type Trigger = MotionComponent["trigger"];
 
 const DIRECTIONS: Direction[] = ["normal", "reverse", "alternate", "alternate-reverse"];
 const FILL_MODES: FillMode[] = ["none", "forwards", "backwards", "both"];
 const PLAY_STATES: PlayState[] = ["running", "paused"];
+const TRIGGERS: Trigger[] = ["onLoad", "onClick", "onHover", "onScroll", "afterDelay"];
 
 /** Animation presets that can be applied with one click from the inspector. */
 const QUICK_PRESETS: Record<string, {
@@ -179,8 +185,9 @@ export function ComponentInspector() {
   const [direction, setDirection] = useState<Direction>("normal");
   const [fillMode, setFillMode] = useState<FillMode>("forwards");
   const [playState, setPlayState] = useState<PlayState>("running");
-  const [bgColor, setBgColor] = useState<string>("#6366f1");
-  const [textColor, setTextColor] = useState<string>("#ffffff");
+  const [trigger, setTrigger] = useState<Trigger>("onLoad");
+  const [bgColor, setBgColor] = useState<string>("#e5e5e5");
+  const [textColor, setTextColor] = useState<string>("#0a0a0a");
   const [saving, setSaving] = useState(false);
   const [keyframesOpen, setKeyframesOpen] = useState(true);
 
@@ -198,6 +205,7 @@ export function ComponentInspector() {
         direction: component.direction,
         fillMode: component.fillMode,
         playState: component.playState,
+        trigger: component.trigger,
         bg: component.style?.backgroundColor,
         color: component.style?.color,
       })
@@ -226,8 +234,9 @@ export function ComponentInspector() {
     setDirection(component.direction);
     setFillMode(component.fillMode);
     setPlayState(component.playState);
-    setBgColor(String(component.style?.backgroundColor ?? "#6366f1"));
-    setTextColor(String(component.style?.color ?? "#ffffff"));
+    setTrigger(component.trigger ?? "onLoad");
+    setBgColor(String(component.style?.backgroundColor ?? "#e5e5e5"));
+    setTextColor(String(component.style?.color ?? "#0a0a0a"));
   }, [syncSignature]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const buildEasing = useCallback((): Easing => {
@@ -259,8 +268,35 @@ export function ComponentInspector() {
   const persistStyle = useCallback(
     (next: Record<string, string | number>) => {
       if (!component) return;
-      const merged = { ...component.style, ...next };
-      void persist({ style: merged });
+      const autoKf = useUiStore.getState().autoKeyframe;
+      const animatableProps = new Set<string>([...TRANSFORM_PROPERTIES, ...NON_TRANSFORM_PROPERTIES]);
+      const kfProps: Record<string, string | number> = {};
+      const staticProps: Record<string, string | number> = {};
+      for (const [k, v] of Object.entries(next)) {
+        if (autoKf && animatableProps.has(k)) kfProps[k] = v;
+        else staticProps[k] = v;
+      }
+      const merged = { ...component.style, ...staticProps };
+      if (!autoKf || Object.keys(kfProps).length === 0) {
+        void persist({ style: merged });
+        return;
+      }
+      const playheadMs = useUiStore.getState().playheadMs;
+      const offset = component.durationMs > 0
+        ? Math.max(0, Math.min(1, (playheadMs - component.delayMs) / component.durationMs))
+        : 0;
+      const existing = component.keyframes ?? [];
+      const atOffset = existing.find((kf) => Math.abs(kf.offset - offset) < 0.001);
+      let updatedKeyframes: Keyframe[];
+      if (atOffset) {
+        updatedKeyframes = existing.map((kf) =>
+          kf === atOffset ? { ...kf, properties: { ...kf.properties, ...kfProps } } : kf,
+        );
+      } else {
+        const newKf: Keyframe = { offset, properties: kfProps as Record<TransformProperty, string | number> };
+        updatedKeyframes = [...existing, newKf].sort((a, b) => a.offset - b.offset);
+      }
+      void persist({ style: merged, keyframes: updatedKeyframes });
     },
     [component, persist],
   );
@@ -281,11 +317,7 @@ export function ComponentInspector() {
   );
 
   if (!component) {
-    return (
-      <div className="bg-panel border-t border-edge px-4 py-6 text-center text-xs text-gray-500">
-        Select a component on the canvas to tune its motion.
-      </div>
-    );
+    return <ArtboardPanel />;
   }
 
   const labelCls = "text-[11px] uppercase tracking-wide text-gray-500 mb-1";
@@ -294,8 +326,8 @@ export function ComponentInspector() {
   const selectCls = inputCls;
 
   return (
-    <div className="bg-panel border-t border-edge flex flex-col" style={{ minHeight: 280 }}>
-      <div className="flex items-center justify-between px-4 py-2 border-b border-edge">
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-edge flex-shrink-0">
         <div className="min-w-0">
           <div className="text-sm font-semibold text-gray-200 truncate">{component.name}</div>
           <div className="text-[10px] text-gray-600 font-mono">{component.id}</div>
@@ -307,6 +339,168 @@ export function ComponentInspector() {
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+        {/* Transform: X/Y/W/H/Rotation */}
+        <div>
+          <div className={labelCls}>Transform</div>
+          <div className="grid grid-cols-2 gap-1.5">
+            {(() => {
+              const parsePx = (val: unknown) => {
+                const s = String(val ?? "0").replace(/px$/, "").replace(/%$/, "");
+                const n = Number(s);
+                return isNaN(n) ? 0 : n;
+              };
+              const xVal = parsePx(component.style?.left);
+              const yVal = parsePx(component.style?.top);
+              const wVal = parsePx(component.style?.width) || 100;
+              const hVal = parsePx(component.style?.height) || 100;
+              const rotMatch = String(component.style?.transform ?? "").match(/rotate\((-?[\d.]+)deg\)/);
+              const rotVal = rotMatch ? Number(rotMatch[1]) : 0;
+              return (
+                <>
+                  <div>
+                    <span className="text-[9px] text-gray-600">X</span>
+                    <input
+                      type="number"
+                      className={inputCls}
+                      defaultValue={xVal}
+                      key={`x-${xVal}`}
+                      onBlur={(e) => persistStyle({ position: "absolute", left: `${Number(e.target.value) || 0}px` })}
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-gray-600">Y</span>
+                    <input
+                      type="number"
+                      className={inputCls}
+                      defaultValue={yVal}
+                      key={`y-${yVal}`}
+                      onBlur={(e) => persistStyle({ position: "absolute", top: `${Number(e.target.value) || 0}px` })}
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-gray-600">W</span>
+                    <input
+                      type="number"
+                      min={1}
+                      className={inputCls}
+                      defaultValue={wVal}
+                      key={`w-${wVal}`}
+                      onBlur={(e) => persistStyle({ width: Number(e.target.value) || 100 })}
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-gray-600">H</span>
+                    <input
+                      type="number"
+                      min={1}
+                      className={inputCls}
+                      defaultValue={hVal}
+                      key={`h-${hVal}`}
+                      onBlur={(e) => persistStyle({ height: Number(e.target.value) || 100 })}
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-[9px] text-gray-600">Rotation (°)</span>
+                    <input
+                      type="number"
+                      step={15}
+                      className={inputCls}
+                      defaultValue={rotVal}
+                      key={`rot-${rotVal}`}
+                      onBlur={(e) => {
+                        const existing = String(component.style?.transform ?? "");
+                        const withoutRotate = existing.replace(/rotate\([^)]*\)\s*/g, "");
+                        const rot = `rotate(${Number(e.target.value) || 0}deg)`;
+                        persistStyle({ transform: `${withoutRotate} ${rot}`.trim() });
+                      }}
+                    />
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+
+        {/* 3D Transform: perspective, rotateX/Y/Z, translateZ */}
+        <div>
+          <div className={labelCls}>3D Transform</div>
+          <div className="space-y-1.5">
+            {(() => {
+              const parseDeg = (val: unknown) => {
+                const s = String(val ?? "0").replace(/deg$/, "");
+                const n = Number(s);
+                return isNaN(n) ? 0 : n;
+              };
+              const parsePx = (val: unknown) => {
+                const s = String(val ?? "0").replace(/px$/, "");
+                const n = Number(s);
+                return isNaN(n) ? 0 : n;
+              };
+              const perspectiveVal = parsePx(component.style?.perspective) || 0;
+              const rotXVal = parseDeg(component.style?.rotateX);
+              const rotYVal = parseDeg(component.style?.rotateY);
+              const rotZVal = parseDeg(component.style?.rotateZ);
+              const transZVal = parsePx(component.style?.translateZ);
+              const sliders: {
+                key: string;
+                label: string;
+                val: number;
+                min: number;
+                max: number;
+                step: number;
+                unit: string;
+              }[] = [
+                { key: "perspective", label: "persp", val: perspectiveVal, min: 0, max: 2000, step: 50, unit: "px" },
+                { key: "rotateX", label: "rot X", val: rotXVal, min: -180, max: 180, step: 5, unit: "°" },
+                { key: "rotateY", label: "rot Y", val: rotYVal, min: -180, max: 180, step: 5, unit: "°" },
+                { key: "rotateZ", label: "rot Z", val: rotZVal, min: -180, max: 180, step: 5, unit: "°" },
+                { key: "translateZ", label: "trans Z", val: transZVal, min: -500, max: 500, step: 10, unit: "px" },
+              ];
+              return (
+                <>
+                  {sliders.map((s) => (
+                    <div key={s.key} className="flex items-center gap-2">
+                      <span className="text-[10px] text-gray-500 w-14">{s.label}</span>
+                      <input
+                        type="range"
+                        min={s.min}
+                        max={s.max}
+                        step={s.step}
+                        value={s.val}
+                        onChange={(e) => {
+                          const v = Number(e.target.value);
+                          const valStr = s.unit === "°" ? `${v}deg` : `${v}px`;
+                          persistStyle({ [s.key]: valStr });
+                        }}
+                        className="flex-1 accent-accent"
+                      />
+                      <span className="text-[10px] text-gray-400 font-mono w-12 text-right">
+                        {s.val}{s.unit}
+                      </span>
+                    </div>
+                  ))}
+                  {(perspectiveVal > 0 || rotXVal !== 0 || rotYVal !== 0 || rotZVal !== 0 || transZVal !== 0) && (
+                    <button
+                      onClick={() => {
+                        const next = { ...component.style };
+                        delete next.perspective;
+                        delete next.rotateX;
+                        delete next.rotateY;
+                        delete next.rotateZ;
+                        delete next.translateZ;
+                        void persist({ style: next });
+                      }}
+                      className="w-full text-[10px] text-gray-500 hover:text-red-400 border border-edge rounded py-0.5 transition-colors"
+                    >
+                      Reset 3D
+                    </button>
+                  )}
+                </>
+              );
+            })()}
+          </div>
+        </div>
+
         <div>
           <div className={labelCls}>Quick Presets</div>
           <div className="flex flex-wrap gap-1">
@@ -346,22 +540,15 @@ export function ComponentInspector() {
             <option value="spring">spring</option>
           </select>
           {easingType === "preset" && (
-            <select
-              className={`${selectCls} mt-2`}
+            <EasingPresetPicker
               value={easingName}
-              onChange={(e) => {
-                setEasingName(e.target.value);
+              onChange={(name) => {
+                setEasingName(name);
                 void persist({
-                  easing: { type: "preset", name: e.target.value as (typeof EASING_PRESETS)[number] },
+                  easing: { type: "preset", name: name as (typeof EASING_PRESETS)[number] },
                 });
               }}
-            >
-              {EASING_PRESETS.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
+            />
           )}
           {easingType === "bezier" && (
             <>
@@ -516,16 +703,32 @@ export function ComponentInspector() {
           </div>
         </div>
 
+        <div>
+          <div className={labelCls}>Trigger</div>
+          <select
+            className={selectCls}
+            value={trigger}
+            onChange={(e) => {
+              setTrigger(e.target.value as Trigger);
+              void persist({ trigger: e.target.value as Trigger });
+            }}
+          >
+            {TRIGGERS.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </div>
+
         <div className="grid grid-cols-2 gap-2">
           <div>
             <div className={labelCls}>Background</div>
             <div className="flex gap-1">
-              <input
-                type="color"
-                className="h-8 w-8 rounded border border-edge bg-panel2 p-0"
+              <ColorPicker
                 value={bgColor}
-                onChange={(e) => setBgColor(e.target.value)}
-                onBlur={() => persistStyle({ backgroundColor: bgColor })}
+                onChange={(hex) => { setBgColor(hex); persistStyle({ backgroundColor: hex }); }}
+                label="Background"
               />
               <input
                 type="text"
@@ -539,12 +742,10 @@ export function ComponentInspector() {
           <div>
             <div className={labelCls}>Text color</div>
             <div className="flex gap-1">
-              <input
-                type="color"
-                className="h-8 w-8 rounded border border-edge bg-panel2 p-0"
+              <ColorPicker
                 value={textColor}
-                onChange={(e) => setTextColor(e.target.value)}
-                onBlur={() => persistStyle({ color: textColor })}
+                onChange={(hex) => { setTextColor(hex); persistStyle({ color: hex }); }}
+                label="Text color"
               />
               <input
                 type="text"
@@ -636,8 +837,47 @@ export function ComponentInspector() {
                 {String(component.style?.boxShadow ?? "").match(/^(\d+)/)?.[1] ?? 0}
               </span>
             </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-gray-500 w-14">opacity</span>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={(() => { const n = Number(component.style?.opacity); return isNaN(n) ? 1 : n; })()}
+                onChange={(e) => persistStyle({ opacity: Number(e.target.value) })}
+                className="flex-1 accent-accent"
+              />
+              <span className="text-[10px] text-gray-400 font-mono w-10 text-right">
+                {Math.round(((() => { const n = Number(component.style?.opacity); return isNaN(n) ? 1 : n; })()) * 100)}%
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-gray-500 w-14">blend</span>
+              <select
+                className="flex-1 bg-panel2 border border-edge rounded px-1 py-0.5 text-[10px] text-gray-100 focus:outline-none focus:border-accent"
+                value={String(component.style?.mixBlendMode ?? "normal")}
+                onChange={(e) => persistStyle({ mixBlendMode: e.target.value })}
+              >
+                {["normal", "multiply", "screen", "overlay", "darken", "lighten", "color-dodge", "color-burn", "hard-light", "soft-light", "difference", "exclusion", "hue", "saturation", "color", "luminosity"].map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
+
+        {/* Per-property keyframe tracks */}
+        <div className="border-t border-edge pt-3">
+          <div className={labelCls} style={{ marginBottom: 6 }}>Property Tracks</div>
+          <PropertyKeyframes
+            component={component}
+            onChange={(kfs) => void persist({ keyframes: kfs })}
+          />
+        </div>
+
+        {/* Event Listeners (Rive-style) */}
+        <ListenerPanel component={component} />
 
         {/* Keyframes */}
         <div className="border-t border-edge pt-3">
@@ -682,6 +922,42 @@ export function ComponentInspector() {
               >
                 + Add keyframe
               </button>
+              {component.keyframes.length >= 2 && (
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => {
+                      const reversed = component.keyframes
+                        .map((kf) => ({ ...kf, offset: 1 - kf.offset }))
+                        .sort((a, b) => a.offset - b.offset);
+                      void persist({ keyframes: reversed });
+                    }}
+                    className="flex-1 px-2 py-1 rounded border border-edge bg-panel2 hover:border-accent text-[10px] text-gray-400 transition-colors"
+                    title="Reverse keyframe order (swap offsets)"
+                    aria-label="Reverse keyframes"
+                  >
+                    ⇄ Reverse
+                  </button>
+                  <button
+                    onClick={() => {
+                      const mirrored = component.keyframes.map((kf) => {
+                        const props = { ...kf.properties } as Record<string, string | number>;
+                        for (const [k, v] of Object.entries(props)) {
+                          if (typeof v === "number" && ["translateX", "translateY", "scale", "scaleX", "scaleY", "rotate", "skewX", "skewY"].includes(k)) {
+                            props[k] = -v;
+                          }
+                        }
+                        return { ...kf, properties: props };
+                      });
+                      void persist({ keyframes: mirrored });
+                    }}
+                    className="flex-1 px-2 py-1 rounded border border-edge bg-panel2 hover:border-accent text-[10px] text-gray-400 transition-colors"
+                    title="Mirror keyframe values (negate transform numbers)"
+                    aria-label="Mirror keyframes"
+                  >
+                    ⊟ Mirror
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -705,7 +981,7 @@ function SpringEditor({
   const r = spring.damping / (2 * Math.sqrt(spring.stiffness * spring.mass));
   const behavior = r >= 1 ? "over-damped" : r >= 0.7 ? "critically damped" : r >= 0.4 ? "under-damped" : "bouncy";
   const behaviorColor =
-    r >= 1 ? "text-gray-400" : r >= 0.7 ? "text-green-400" : r >= 0.4 ? "text-yellow-400" : "text-orange-400";
+    r >= 1 ? "text-gray-500" : r >= 0.7 ? "text-white" : r >= 0.4 ? "text-gray-300" : "text-accent";
 
   const sliderCls = "flex-1 accent-accent";
 
@@ -897,6 +1173,200 @@ function KeyframeRow({
       >
         + property
       </button>
+    </div>
+  );
+}
+
+/** Artboard properties panel shown when no component is selected. */
+function ArtboardPanel() {
+  const project = useProjectStore((s) => s.project);
+  const projectId = useProjectStore((s) => s.projectId);
+  const components = useProjectStore((s) => s.components);
+  const setArtboard = useProjectStore((s) => s.setArtboard);
+  const canvasSize = useUiStore((s) => s.canvasSize);
+  const setCanvasSize = useUiStore((s) => s.setCanvasSize);
+  const [bgColor, setBgColor] = useState("");
+
+  const tokens = project?.tokens ?? {};
+  const storedBg = String(tokens.artboardBackground ?? "");
+
+  useEffect(() => {
+    if (storedBg) setBgColor(storedBg);
+  }, [storedBg]);
+
+  const labelCls = "text-[11px] uppercase tracking-wide text-gray-500 mb-1";
+  const inputCls = "w-full bg-panel2 border border-edge rounded px-2 py-1 text-sm text-gray-100 focus:outline-none focus:border-accent";
+
+  const handleWidthBlur = () => {
+    void setArtboard({ width: canvasSize.width, height: canvasSize.height });
+  };
+  const handleHeightBlur = () => {
+    void setArtboard({ width: canvasSize.width, height: canvasSize.height });
+  };
+  const handleBgBlur = () => {
+    void setArtboard({ width: canvasSize.width, height: canvasSize.height }, bgColor || undefined);
+  };
+
+  // Parse constraints from tokens
+  const constraints = useMemo(() => {
+    const raw = tokens.constraints;
+    if (typeof raw !== "string") return [];
+    try {
+      return JSON.parse(raw) as Array<{ id: string; type: string; componentId: string; targetId?: string }>;
+    } catch {
+      return [];
+    }
+  }, [tokens.constraints]);
+
+  // Parse clips from tokens
+  const clips = useMemo(() => {
+    const raw = tokens.clips;
+    if (typeof raw !== "string") return [];
+    try {
+      return JSON.parse(raw) as Array<{ id: string; name: string; startMs: number; endMs: number; color?: string }>;
+    } catch {
+      return [];
+    }
+  }, [tokens.clips]);
+
+  const handleRemoveConstraint = useCallback(async (constraintId: string) => {
+    if (!projectId || !project) return;
+    const remaining = constraints.filter((c) => c.id !== constraintId);
+    const newTokens = { ...project.tokens, constraints: JSON.stringify(remaining) };
+    useProjectStore.setState((s) => ({ project: s.project ? { ...s.project, tokens: newTokens } : s.project }));
+    try {
+      await api.updateProject(projectId, { tokens: newTokens });
+    } catch { /* ignore */ }
+  }, [projectId, project, constraints]);
+
+  const handleRemoveClip = useCallback(async (clipId: string) => {
+    if (!projectId || !project) return;
+    const remaining = clips.filter((c) => c.id !== clipId);
+    const newTokens = { ...project.tokens, clips: JSON.stringify(remaining) };
+    useProjectStore.setState((s) => ({ project: s.project ? { ...s.project, tokens: newTokens } : s.project }));
+    try {
+      await api.updateProject(projectId, { tokens: newTokens });
+    } catch { /* ignore */ }
+  }, [projectId, project, clips]);
+
+  const compName = (id: string) => components.find((c) => c.id === id)?.name ?? id.slice(0, 8);
+
+  return (
+    <div className="flex flex-col h-full overflow-y-auto">
+      <div className="px-4 py-2 border-b border-edge flex-shrink-0">
+        <div className="text-sm font-semibold text-gray-200">Artboard</div>
+        <div className="text-[10px] text-gray-600">Canvas properties</div>
+      </div>
+
+      <div className="flex-1 px-4 py-3 space-y-4">
+        <div>
+          <div className={labelCls}>Dimensions</div>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min={64}
+              max={4096}
+              step={16}
+              className={inputCls}
+              value={canvasSize.width}
+              onChange={(e) => setCanvasSize({ width: Number(e.target.value) || 64, height: canvasSize.height })}
+              onBlur={handleWidthBlur}
+              aria-label="Canvas width"
+            />
+            <span className="text-gray-600 text-xs">×</span>
+            <input
+              type="number"
+              min={64}
+              max={4096}
+              step={16}
+              className={inputCls}
+              value={canvasSize.height}
+              onChange={(e) => setCanvasSize({ width: canvasSize.width, height: Number(e.target.value) || 64 })}
+              onBlur={handleHeightBlur}
+              aria-label="Canvas height"
+            />
+          </div>
+        </div>
+
+        <div>
+          <div className={labelCls}>Background</div>
+          <div className="flex gap-1">
+            <ColorPicker
+              value={bgColor || "#0a0a0a"}
+              onChange={(hex) => { setBgColor(hex); void setArtboard({ width: canvasSize.width, height: canvasSize.height }, hex); }}
+              label="Background"
+            />
+            <input
+              type="text"
+              className={inputCls}
+              value={bgColor}
+              placeholder="transparent"
+              onChange={(e) => setBgColor(e.target.value)}
+              onBlur={handleBgBlur}
+            />
+          </div>
+        </div>
+
+        {/* Clips management */}
+        <div className="pt-2 border-t border-edge">
+          <div className={labelCls}>Timeline Clips</div>
+          {clips.length === 0 ? (
+            <p className="text-[11px] text-gray-600">No clips. Ask the agent to create animation segments.</p>
+          ) : (
+            <div className="space-y-1">
+              {clips.map((clip) => (
+                <div key={clip.id} className="flex items-center gap-2 bg-panel2 border border-edge rounded px-2 py-1">
+                  <div className="w-1.5 h-1.5 rounded-full bg-white/60 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[11px] text-gray-300 truncate">{clip.name}</div>
+                    <div className="text-[9px] text-gray-600 font-mono">{clip.startMs}ms–{clip.endMs}ms</div>
+                  </div>
+                  <button
+                    onClick={() => void handleRemoveClip(clip.id)}
+                    className="text-[10px] text-gray-600 hover:text-red-400 px-1"
+                    aria-label={`Remove clip ${clip.name}`}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Constraints management */}
+        <div className="pt-2 border-t border-edge">
+          <div className={labelCls}>Constraints</div>
+          {constraints.length === 0 ? (
+            <p className="text-[11px] text-gray-600">No constraints. Ask the agent to link components.</p>
+          ) : (
+            <div className="space-y-1">
+              {constraints.map((con) => (
+                <div key={con.id} className="flex items-center gap-2 bg-panel2 border border-edge rounded px-2 py-1">
+                  <span className="text-[9px] text-accent2 font-mono flex-shrink-0">{con.type}</span>
+                  <div className="flex-1 min-w-0 text-[10px] text-gray-400 truncate">
+                    {compName(con.componentId)}
+                    {con.targetId && <span className="text-gray-600"> → {compName(con.targetId)}</span>}
+                  </div>
+                  <button
+                    onClick={() => void handleRemoveConstraint(con.id)}
+                    className="text-[10px] text-gray-600 hover:text-red-400 px-1"
+                    aria-label="Remove constraint"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="pt-2 border-t border-edge">
+          <div className="text-[10px] text-gray-600">
+            No component selected. Pick one on the canvas to tune its motion.
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
