@@ -6,6 +6,8 @@ import * as api from "../../api/endpoints.js";
 import type { Keyframe } from "@openmotion/shared";
 import { AlignmentToolbar } from "./AlignmentToolbar.js";
 import { SelectionOverlay } from "./SelectionOverlay.js";
+import { QuickActionBar } from "./QuickActionBar.js";
+import { CanvasMinimap } from "./CanvasMinimap.js";
 
 const MIN_DIM = 64;
 const MAX_DIM = 4096;
@@ -43,6 +45,7 @@ export function MotionCanvas() {
   const triggerReplay = useUiStore((s) => s.triggerReplay);
   const replayTrigger = useUiStore((s) => s.replayTrigger);
   const hiddenIds = useUiStore((s) => s.hiddenIds);
+  const soloedId = useUiStore((s) => s.soloedId);
   const lockedIds = useUiStore((s) => s.lockedIds);
   const canvasSize = useUiStore((s) => s.canvasSize);
   const setCanvasSize = useUiStore((s) => s.setCanvasSize);
@@ -65,11 +68,13 @@ export function MotionCanvas() {
   const setMarqueeRect = useUiStore((s) => s.setMarqueeRect);
   const marqueeRect = useUiStore((s) => s.marqueeRect);
   const smartGuides = useUiStore((s) => s.smartGuides);
+  const showMotionPaths = useUiStore((s) => s.showMotionPaths);
+  const setShowMotionPaths = useUiStore((s) => s.setShowMotionPaths);
   const marqueeRef = useRef<{ startX: number; startY: number } | null>(null);
   const CANVAS_W = canvasSize.width;
   const CANVAS_H = canvasSize.height;
 
-  const visibleComponents = components.filter((c) => !hiddenIds.has(c.id));
+  const visibleComponents = components.filter((c) => !hiddenIds.has(c.id) && (soloedId === null || c.id === soloedId));
   const [replayKey, setReplayKey] = useState(0);
   const [showGrid, setShowGrid] = useState(true);
   const [isPanning, setIsPanning] = useState(false);
@@ -83,6 +88,64 @@ export function MotionCanvas() {
   const { css, nodes } = useMemo(
     () => renderSpec(visibleComponents, playbackSpeed),
     [visibleComponents, replayKey, playbackSpeed],
+  );
+
+  // Parse listeners from project tokens
+  const listeners = useMemo(() => {
+    const raw = project?.tokens?.listeners;
+    if (typeof raw !== "string") return [];
+    try {
+      const parsed = JSON.parse(raw) as { listeners: Array<Record<string, unknown>> };
+      return parsed.listeners ?? [];
+    } catch {
+      return [];
+    }
+  }, [project?.tokens?.listeners]);
+
+  const listenersByComponent = useMemo(() => {
+    const map = new Map<string, typeof listeners>();
+    for (const l of listeners) {
+      const cid = String(l.componentId);
+      if (!map.has(cid)) map.set(cid, []);
+      map.get(cid)!.push(l);
+    }
+    return map;
+  }, [listeners]);
+
+  const executeListenerAction = useCallback(
+    (action: Record<string, unknown>) => {
+      const type = String(action.type);
+      const target = String(action.target);
+      if (type === "playAnimation") {
+        triggerReplay();
+      } else if (type === "setProperty") {
+        const prop = String(action.property ?? "opacity");
+        const val = action.value as string | number;
+        const comp = useProjectStore.getState().components.find((c) => c.id === target);
+        if (comp && projectId) {
+          const newStyle = { ...comp.style, [prop]: val };
+          void api.patchComponent(projectId, target, { style: newStyle }).then(() => {
+            if (projectId) void loadProject(projectId);
+          });
+        }
+      } else if (type === "applyState") {
+        const tokens = project?.tokens;
+        const smRaw = tokens?.stateMachine;
+        if (typeof smRaw === "string") {
+          try {
+            const sm = JSON.parse(smRaw) as { states: Array<{ id: string; components: Record<string, { style: Record<string, string | number> }> }> };
+            const state = sm.states.find((s) => s.id === target);
+            if (state) {
+              for (const [compId, data] of Object.entries(state.components)) {
+                useProjectStore.getState().updateComponentLive(compId, data.style);
+                if (projectId) void api.patchComponent(projectId, compId, { style: data.style }).catch(() => {});
+              }
+            }
+          } catch { /* ignore */ }
+        }
+      }
+    },
+    [triggerReplay, projectId, project?.tokens, loadProject],
   );
 
   const totalDuration = visibleComponents.reduce(
@@ -355,6 +418,7 @@ export function MotionCanvas() {
           <button onClick={() => setSnapToGrid(!snapToGrid)} className={`px-2 py-0.5 text-[10px] rounded ${snapToGrid ? "bg-accent/20 text-accent" : "text-gray-500 hover:text-gray-300"}`} title="Snap to grid" aria-label="Toggle snap to grid" aria-pressed={snapToGrid}>🧲</button>
           <button onClick={() => setShowRulers(!showRulers)} className={`px-2 py-0.5 text-[10px] rounded ${showRulers ? "bg-accent/20 text-accent" : "text-gray-500 hover:text-gray-300"}`} title="Toggle rulers" aria-label="Toggle rulers" aria-pressed={showRulers}>📊</button>
           <button onClick={() => setOnionSkin({ enabled: !onionSkin.enabled })} className={`px-2 py-0.5 text-[10px] rounded ${onionSkin.enabled ? "bg-accent/20 text-accent" : "text-gray-500 hover:text-gray-300"}`} title="Toggle onion skin" aria-label="Toggle onion skin" aria-pressed={onionSkin.enabled}>◊</button>
+          <button onClick={() => setShowMotionPaths(!showMotionPaths)} className={`px-2 py-0.5 text-[10px] rounded ${showMotionPaths ? "bg-accent/20 text-accent" : "text-gray-500 hover:text-gray-300"}`} title="Toggle motion paths" aria-label="Toggle motion paths" aria-pressed={showMotionPaths}>∿</button>
           <button onClick={() => setPreviewOpen(true)} className="px-2 py-0.5 text-[10px] text-gray-500 hover:text-accent bg-panel2 border border-edge rounded" title="Fullscreen preview" aria-label="Open fullscreen preview">⤢</button>
           <div className="flex items-center border border-edge rounded overflow-hidden">
             <button onClick={zoomOut} className="w-6 h-6 flex items-center justify-center text-xs text-gray-400 hover:text-accent bg-panel2" title="Zoom out" aria-label="Zoom out">−</button>
@@ -427,6 +491,8 @@ export function MotionCanvas() {
               const Tag = node.tag as keyof JSX.IntrinsicElements;
               const isSelected = selectedIds.has(node.componentId);
               const isLocked = lockedIds.has(node.componentId);
+              const compListeners = listenersByComponent.get(node.componentId) ?? [];
+              const findListener = (evt: string) => compListeners.find((l) => l.eventType === evt);
               return (
                 <Tag
                   key={node.componentId}
@@ -436,11 +502,31 @@ export function MotionCanvas() {
                   onClick={(e) => {
                     e.stopPropagation();
                     if (isLocked) return;
+                    const cl = findListener("click");
+                    if (cl && cl.action) executeListenerAction(cl.action as Record<string, unknown>);
                     if (e.shiftKey) {
                       toggleSelection(node.componentId);
                     } else {
                       selectComponent(isSelected && selectedIds.size === 1 ? null : node.componentId);
                     }
+                  }}
+                  onMouseEnter={(e) => {
+                    e.stopPropagation();
+                    const cl = findListener("pointerEnter");
+                    if (cl && cl.action) executeListenerAction(cl.action as Record<string, unknown>);
+                  }}
+                  onMouseLeave={(e) => {
+                    e.stopPropagation();
+                    const cl = findListener("pointerLeave");
+                    if (cl && cl.action) executeListenerAction(cl.action as Record<string, unknown>);
+                  }}
+                  onMouseDown={(e) => {
+                    const cl = findListener("pointerDown");
+                    if (cl && cl.action) executeListenerAction(cl.action as Record<string, unknown>);
+                  }}
+                  onMouseUp={(e) => {
+                    const cl = findListener("pointerUp");
+                    if (cl && cl.action) executeListenerAction(cl.action as Record<string, unknown>);
                   }}
                 >
                   {node.content}
@@ -462,6 +548,44 @@ export function MotionCanvas() {
               )}
             </svg>
           )}
+
+          {/* Motion path visualization */}
+          {showMotionPaths && selectedId && (() => {
+            const comp = components.find((c) => c.id === selectedId);
+            if (!comp || comp.keyframes.length < 2) return null;
+            const hasPath = comp.keyframes.some((kf) => {
+              const p = kf.properties as Record<string, string | number>;
+              return p.translateX != null || p.translateY != null;
+            });
+            if (!hasPath) return null;
+            const s = comp.style as Record<string, string | number>;
+            const baseLeft = typeof s.left === "number" ? s.left : parseFloat(String(s.left ?? "0")) || 0;
+            const baseTop = typeof s.top === "number" ? s.top : parseFloat(String(s.top ?? "0")) || 0;
+            const baseW = typeof s.width === "number" ? s.width : parseFloat(String(s.width ?? "50")) || 50;
+            const baseH = typeof s.height === "number" ? s.height : parseFloat(String(s.height ?? "50")) || 50;
+            const cx0 = baseLeft + baseW / 2;
+            const cy0 = baseTop + baseH / 2;
+            const points = comp.keyframes.map((kf) => {
+              const p = kf.properties as Record<string, string | number>;
+              const tx = typeof p.translateX === "number" ? p.translateX : 0;
+              const ty = typeof p.translateY === "number" ? p.translateY : 0;
+              return { x: cx0 + tx, y: cy0 + ty, offset: kf.offset };
+            });
+            const pathD = points.map((pt, i) => `${i === 0 ? "M" : "L"} ${pt.x} ${pt.y}`).join(" ");
+            return (
+              <svg className="absolute inset-0 pointer-events-none" width={CANVAS_W} height={CANVAS_H} style={{ overflow: "visible", zIndex: 5 }}>
+                <path d={pathD} fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" strokeDasharray="4 4" />
+                {points.map((pt, i) => (
+                  <g key={i}>
+                    <circle cx={pt.x} cy={pt.y} r="4" fill="rgba(255,255,255,0.8)" stroke="rgba(0,0,0,0.5)" strokeWidth="1" />
+                    <text x={pt.x + 8} y={pt.y + 3} fill="rgba(255,255,255,0.6)" style={{ fontSize: 8, fontFamily: "monospace" }}>
+                      {Math.round(pt.offset * 100)}%
+                    </text>
+                  </g>
+                ))}
+              </svg>
+            );
+          })()}
 
           {/* Selection overlay with resize/rotate handles */}
           {selectedId && <SelectionOverlay />}
@@ -490,8 +614,14 @@ export function MotionCanvas() {
               {selectedIds.size > 1 ? `${selectedIds.size} selected` : (components.find((c) => c.id === selectedId)?.name ?? "selected")}
             </div>
           )}
+
+          {/* Quick action floating toolbar */}
+          {selectedId && <QuickActionBar />}
         </div>
       </div>
+
+      {/* Canvas minimap for navigation */}
+      <CanvasMinimap />
 
       {/* Status bar */}
       <div className="px-3 py-1 border-t border-edge flex items-center gap-2 text-[10px] text-gray-600 bg-panel flex-shrink-0">
