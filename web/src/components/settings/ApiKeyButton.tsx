@@ -50,7 +50,7 @@ export function ApiKeyButton() {
           <div className="flex gap-2 mt-2">
             <button
               onClick={save}
-              className="flex-1 px-2 py-1 rounded text-xs bg-accent hover:bg-accent2 text-white transition-colors"
+              className="flex-1 px-2 py-1 rounded text-xs bg-accent hover:bg-accent2 text-black transition-colors"
             >
               Save
             </button>
