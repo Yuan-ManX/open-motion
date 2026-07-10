@@ -33,11 +33,11 @@ export function streamChat(
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        buffer += decoder.decode(value, { stream: true });
+        const text = decoder.decode(value, { stream: true });
+        buffer += text;
         const frames = buffer.split("\n\n");
         buffer = frames.pop() ?? "";
         for (const frame of frames) {
-          const eventLine = frame.match(/^event:\s*(.*)$/m)?.[1];
           const dataLine = frame.match(/^data:\s*(.*)$/m)?.[1];
           if (!dataLine) continue;
           try {
