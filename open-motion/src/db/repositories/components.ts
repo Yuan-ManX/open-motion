@@ -4,8 +4,8 @@ import { getDb } from "../index.js";
 import { rowToComponent } from "../mappers.js";
 
 const INSERT_SQL = `INSERT INTO motion_components
-  (id, project_id, scene_id, name, selector, template_id, duration_ms, delay_ms, iteration_count, direction, fill_mode, play_state, easing_json, keyframes_json, style_json, order_index, created_at, updated_at)
-  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`;
+  (id, project_id, scene_id, name, selector, template_id, duration_ms, delay_ms, iteration_count, direction, fill_mode, play_state, trigger, easing_json, keyframes_json, style_json, order_index, created_at, updated_at)
+  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`;
 
 export function createComponent(c: MotionComponent): void {
   const db = getDb();
@@ -22,6 +22,7 @@ export function createComponent(c: MotionComponent): void {
     c.direction,
     c.fillMode,
     c.playState,
+    c.trigger ?? "onLoad",
     JSON.stringify(c.easing),
     JSON.stringify(c.keyframes),
     JSON.stringify(c.style),
@@ -58,6 +59,7 @@ export type ComponentPatch = Partial<
     | "direction"
     | "fillMode"
     | "playState"
+    | "trigger"
     | "easing"
     | "keyframes"
     | "style"
@@ -77,7 +79,7 @@ export function patchComponent(
   const db = getDb();
   db.prepare(
     `UPDATE motion_components SET
-      name=?, selector=?, duration_ms=?, delay_ms=?, iteration_count=?, direction=?, fill_mode=?, play_state=?, easing_json=?, keyframes_json=?, style_json=?, order_index=?, scene_id=?, updated_at=?
+      name=?, selector=?, duration_ms=?, delay_ms=?, iteration_count=?, direction=?, fill_mode=?, play_state=?, trigger=?, easing_json=?, keyframes_json=?, style_json=?, order_index=?, scene_id=?, updated_at=?
      WHERE id=? AND project_id=?`,
   ).run(
     next.name,
@@ -88,6 +90,7 @@ export function patchComponent(
     next.direction,
     next.fillMode,
     next.playState,
+    next.trigger ?? "onLoad",
     JSON.stringify(next.easing),
     JSON.stringify(next.keyframes),
     JSON.stringify(next.style),
