@@ -21,6 +21,31 @@ export function buildPlan(userMessage: string, spec: MotionSpec): Plan {
   const steps: PlanStep[] = [];
   const firstId = spec.components[0]?.id;
 
+  // Create animation / layer by name — resolves to a template or a named layer.
+  let createRaw: string | null = null;
+  const createWithNounM = userMessage.match(
+    /\b(?:create|make|build|generate|design|add)\s+(?:a\s+|an\s+|the\s+)?([\w][\w\s-]*?)\s+(?:animation|effect|motion|transition|layer|element|component)\b/i,
+  );
+  if (createWithNounM) {
+    createRaw = createWithNounM[1].trim();
+  } else {
+    const createBareM = userMessage.match(
+      /\b(?:create|make|build|generate|design)\s+(?:a\s+|an\s+|the\s+)?([\w][\w\s-]+)\s*$/i,
+    );
+    if (createBareM && resolveTemplateId(createBareM[1].trim())) {
+      createRaw = createBareM[1].trim();
+    }
+  }
+  if (createRaw) {
+    const resolved = resolveTemplateId(createRaw);
+    steps.push({
+      tool: resolved ? "set_template" : "add_layer",
+      description: resolved
+        ? `Create a ${createRaw} animation from the ${resolved} template`
+        : `Add a new layer called "${createRaw}"`,
+    });
+  }
+
   // Template application.
   const tplM = userMessage.match(/\b(?:use|apply|switch to)\s+(?:the\s+)?([\w\s-]+?)\s+template\b|使用\s*([\w\s-]+?)\s*模板/i);
   if (tplM) {
@@ -179,6 +204,143 @@ export function buildPlan(userMessage: string, spec: MotionSpec): Plan {
   }
   if (/\b(remove|delete|drop)\s+scene\b/i.test(text)) {
     steps.push({ tool: "remove_scene", description: "Remove a scene and unassign its components" });
+  }
+
+  // Composition: stagger, match, variant.
+  if (/\b(stagger|cascade|sequence|one by one)\b/i.test(text)) {
+    steps.push({ tool: "stagger_components", description: "Apply cascading delays to all components" });
+  }
+  if (/\b(find|match|suggest)\b.*\btemplate\b/i.test(text)) {
+    steps.push({ tool: "match_template", description: "Find the closest matching template" });
+  }
+  if (/\b(variant|variation|alternative)\b/i.test(text)) {
+    steps.push({ tool: "create_variant", description: "Create a variation of the current motion" });
+  }
+
+  // Motion intelligence: analysis, suggestions, and path animation.
+  if (/\b(analyze|review|critique|quality|is this good)\b/i.test(text)) {
+    steps.push({ tool: "analyze_motion", description: "Analyze motion quality, timing, and composition" });
+  }
+  if (/\b(suggest|ideas?|what next|what should i)\b/i.test(text)) {
+    steps.push({ tool: "suggest_next", description: "Generate context-aware next-step suggestions" });
+  }
+  if (/\b(orbit|circle|ellipse|along.*path|trajectory|fly across|move in a)\b/i.test(text)) {
+    if (firstId) {
+      steps.push({ tool: "set_motion_path", description: "Animate the component along a custom path" });
+    }
+  }
+
+  // Style presets: apply coordinated aesthetic across all components.
+  if (/\b(playful|energetic|calm|professional|dramatic|minimal|style)\b/i.test(text)) {
+    steps.push({ tool: "apply_style", description: "Apply a coordinated motion style across all components" });
+  }
+
+  // Pattern recognition: identify design patterns and anti-patterns.
+  if (/\b(patterns?|composition balanced|what.s missing|monoton\w*)/i.test(text)) {
+    steps.push({ tool: "recognize_pattern", description: "Identify motion design patterns and anti-patterns" });
+  }
+
+  // Color harmony: apply color theory.
+  if (/\b(harmoniz\w*|color scheme|colors work together|palette)\b/i.test(text)) {
+    steps.push({ tool: "harmonize_colors", description: "Apply color theory for visual harmony" });
+  }
+
+  // Choreography: multi-component sequencing.
+  if (/\b(choreograph|orchestrat|wave pattern|ripple effect|cascade|canon|converge)\b/i.test(text)) {
+    steps.push({ tool: "choreograph", description: "Apply a choreographic pattern across all components" });
+  }
+
+  // Motion refinement: qualitative descriptors.
+  if (/\b(snappier|smoother|more dramatic|calmer|subtler|more energetic|bouncier|softer)\b/i.test(text)) {
+    steps.push({ tool: "refine_motion", description: "Refine motion with a qualitative descriptor" });
+  }
+
+  // Custom bezier easing.
+  if (/\b(custom.*easing|bezier|cubic.bezier|easing curve|control point)\b/i.test(text)) {
+    steps.push({ tool: "set_custom_bezier", description: "Set a custom cubic-bezier easing curve" });
+  }
+
+  // Keyframe interpolation.
+  if (/\b(interpolation|linear.*keyframe|hold.*keyframe|step.*keyframe)\b/i.test(text)) {
+    steps.push({ tool: "set_interpolation", description: "Set keyframe interpolation type" });
+  }
+
+  // Per-property keyframe editing.
+  if (/\b(add.*keyframe|keyframe.*opacity|keyframe.*scale|keyframe.*position|keyframe.*offset)\b/i.test(text)) {
+    steps.push({ tool: "add_property_keyframe", description: "Add a keyframe for a specific property" });
+  }
+  if (/\b(remove.*keyframe|delete.*keyframe)\b/i.test(text)) {
+    steps.push({ tool: "remove_keyframe", description: "Remove a keyframe at a specific index" });
+  }
+
+  // Trigger settings.
+  if (/\b(trigger|on click|on hover|on scroll|on load|after delay|play on|animate on)\b/i.test(text)) {
+    if (firstId) {
+      steps.push({ tool: "set_trigger", description: "Set the animation trigger type" });
+    }
+  }
+
+  // Onion skinning.
+  if (/\b(onion.*skin|ghost frame|motion trail|onion skinning|show.*trail)\b/i.test(text)) {
+    steps.push({ tool: "set_onion_skin", description: "Toggle onion skinning on the canvas" });
+  }
+
+  // Fullscreen preview.
+  if (/\b(fullscreen|full screen|present|present mode|preview.*full|big preview)\b/i.test(text)) {
+    steps.push({ tool: "preview_fullscreen", description: "Open fullscreen preview mode" });
+  }
+
+  // Canvas view control.
+  if (/\b(zoom\s*(in|out)|fit.*screen|frame.*select|reset.*view|pan\s*canvas)\b/i.test(text)) {
+    steps.push({ tool: "set_canvas_view", description: "Adjust the canvas view (zoom, pan, or fit)" });
+  }
+  // Layer lock.
+  if (/\b(lock|unlock)\b/i.test(text)) {
+    if (firstId) steps.push({ tool: "lock_layer", description: "Toggle layer lock state" });
+  }
+  // Z-order.
+  if (/\b(bring.*front|send.*back|move.*forward|move.*backward|to.?front|to.?back)\b/i.test(text)) {
+    if (firstId) steps.push({ tool: "set_z_order", description: "Reorder layer z-position" });
+  }
+  // Transform props.
+  if (/\b(set.*position|set.*x\b|set.*y\b|set.*width|set.*height|set.*rotation|rotate.*deg|resize.*to)\b/i.test(text)) {
+    if (firstId) steps.push({ tool: "set_transform_props", description: "Set transform properties (X/Y/W/H/rotation)" });
+  }
+  // Align.
+  if (/\b(align|distribute)\b/i.test(text)) {
+    steps.push({ tool: "align_components", description: "Align or distribute selected components" });
+  }
+  // Playback range.
+  if (/\b(playback.*range|set.*range|trim|loop.*range|clear.*range)\b/i.test(text)) {
+    steps.push({ tool: "set_playback_range", description: "Set playback in/out range" });
+  }
+  // Select.
+  if (/\b(select.*all|select.*everything|multi.?select)\b/i.test(text)) {
+    steps.push({ tool: "select_components", description: "Select multiple components" });
+  }
+  // Snap.
+  if (/\b(snap.*grid|toggle.*snap|magnet)\b/i.test(text)) {
+    steps.push({ tool: "toggle_snap", description: "Toggle snap-to-grid" });
+  }
+  // Shape.
+  if (/\b(add.*rectangle|add.*circle|add.*text|add.*triangle|add.*star|add.*pentagon|add.*polygon|add.*line|add.*arrow|create.*shape|create.*rectangle|create.*circle|create.*triangle|create.*star)\b/i.test(text)) {
+    steps.push({ tool: "add_shape", description: "Add a shape to the canvas" });
+  }
+  // Blend mode.
+  if (/\b(blend.*mode|mix.*blend|set.*blend|blend.*with)\b/i.test(text)) {
+    steps.push({ tool: "set_blend_mode", description: "Set component blend mode" });
+  }
+  // Artboard.
+  if (/\b(canvas|artboard|stage.*size|canvas.*size|canvas.*background|artboard.*size)\b/i.test(text)) {
+    steps.push({ tool: "set_artboard", description: "Set artboard properties" });
+  }
+  // Layer opacity.
+  if (/\b(set.*opacity|layer.*opacity|make.*transparent|opacity.*to)\b/i.test(text)) {
+    if (firstId) steps.push({ tool: "set_layer_opacity", description: "Set layer opacity" });
+  }
+  // Rulers.
+  if (/\b(ruler|toggle.*ruler|show.*ruler|hide.*ruler)\b/i.test(text)) {
+    steps.push({ tool: "set_rulers", description: "Toggle canvas rulers" });
   }
 
   // Get spec.
