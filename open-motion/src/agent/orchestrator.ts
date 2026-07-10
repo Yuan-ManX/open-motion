@@ -3,11 +3,13 @@ import type { ChatOptions, ChatResult, LlmProvider, LlmToolCall } from "./provid
 import { OpenAIProviderError } from "./provider/openai.js";
 import { assembleAgentContext } from "./context.js";
 import { buildToolSpecs } from "./tools/schema.js";
-import { executeTool } from "./tools/registry.js";
+import { executeTool, type ToolResult } from "./tools/registry.js";
 import { addMemory, listMemory, restoreMemory, compressMemory } from "./memory/store.js";
 import { buildPlan } from "./planner.js";
 import { addMessage } from "../db/repositories/messages.js";
 import { getProjectSpec } from "../db/repositories/projects.js";
+import { remember } from "./memory/persistentMemory.js";
+import { extractSkill } from "./memory/skillGenerator.js";
 import { logger } from "../utils/logger.js";
 
 const MAX_ITERATIONS = 8;
@@ -87,6 +89,9 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
   // Compress the conversation window when it grows beyond the threshold.
   compressMemory(projectId);
 
+  // Auto-extract persistent facts from the user message (preference detection)
+  autoExtractMemory(projectId, userMessage);
+
   // Emit a lightweight plan so the user sees the agent's intended steps before
   // tool execution begins. Rule-based so it works in mock mode without an LLM.
   const initialSpec = getProjectSpec(projectId);
@@ -96,9 +101,12 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
   }
 
   const tools = buildToolSpecs();
+  const allToolCalls: LlmToolCall[] = [];
+  const allToolResults: ToolResult[] = [];
 
   for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
-    const ctx = assembleAgentContext(projectId);
+    // Pass userMessage on first iteration so persistent memory can be retrieved
+    const ctx = assembleAgentContext(projectId, iter === 0 ? userMessage : undefined);
     if (!ctx) {
       onEvent({ type: "error", message: "project not found", recoverable: false });
       return;
@@ -135,6 +143,13 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
     if (toolCalls.length === 0) {
       addMemory(projectId, { role: "assistant", content: assistantText });
       addMessage(projectId, { role: "assistant", content: assistantText, tokensIn, tokensOut });
+      // Self-learning: generate a skill from the completed multi-step sequence
+      if (allToolCalls.length >= 2) {
+        const skill = extractSkill(userMessage, allToolCalls, allToolResults, projectId);
+        if (skill) {
+          logger.info("generated skill from task", { skillId: skill.id, skillName: skill.name });
+        }
+      }
       onEvent({ type: "done", message: assistantText, tokensIn, tokensOut });
       return;
     }
@@ -154,9 +169,12 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
     });
 
     let anySpecChanged = false;
+    const failedTools: string[] = [];
     for (const call of toolCalls) {
       onEvent({ type: "tool_call", tool: call.tool, args: call.args, callId: call.callId });
       const result = await executeTool(call.tool, call.args, { projectId });
+      allToolCalls.push(call);
+      allToolResults.push(result);
       onEvent({
         type: "tool_result",
         callId: call.callId,
@@ -177,6 +195,24 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
         toolName: call.tool,
       });
       if (result.specChanged) anySpecChanged = true;
+      if (!result.ok) failedTools.push(call.tool);
+    }
+
+    // Self-reflection: if any tools failed, analyze and suggest a correction
+    // before the next iteration so the agent can adjust its approach.
+    if (failedTools.length > 0) {
+      const reflection = reflectOnFailures(failedTools, allToolCalls, allToolResults);
+      onEvent({
+        type: "reflection",
+        text: reflection.text,
+        failedTools,
+        suggestion: reflection.suggestion,
+      });
+      // Inject the reflection into conversation memory so the provider sees it
+      addMemory(projectId, {
+        role: "system",
+        content: `Self-reflection: ${reflection.text} Suggested action: ${reflection.suggestion}`,
+      });
     }
 
     if (anySpecChanged) {
@@ -191,4 +227,92 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
     message: "agent exceeded its tool-call budget without a final reply",
     recoverable: true,
   });
+}
+
+/**
+ * Self-reflection engine — analyzes failed tool calls and produces a
+ * correction suggestion. Rule-based so it works in mock mode.
+ */
+function reflectOnFailures(
+  failedTools: string[],
+  _allCalls: LlmToolCall[],
+  allResults: ToolResult[],
+): { text: string; suggestion: string } {
+  const lastFailed = allResults.filter((r) => !r.ok).slice(-1)[0];
+  const summary = lastFailed?.summary ?? "unknown error";
+
+  // Common failure patterns and corrections
+  const patterns: Array<{ test: RegExp; text: string; suggestion: string }> = [
+    {
+      test: /not found|does not exist/i,
+      text: `Tool failed: "${summary}". The referenced entity was not found.`,
+      suggestion: "Call get_motion_spec to list valid component IDs, then retry with a valid ID.",
+    },
+    {
+      test: /validation|invalid|must be|expected/i,
+      text: `Tool failed: "${summary}". The arguments did not pass validation.`,
+      suggestion: "Check the argument types and ranges, then retry with corrected values.",
+    },
+    {
+      test: /already exists|duplicate/i,
+      text: `Tool failed: "${summary}". A conflicting entity already exists.`,
+      suggestion: "Use get_motion_spec to inspect the current state, then modify the existing entity instead of creating a new one.",
+    },
+    {
+      test: /parse error|grammar/i,
+      text: `Tool failed: "${summary}". The input could not be parsed.`,
+      suggestion: "Try a simpler expression or check the grammar syntax (e.g., fade.in(600ms) then slide.up(400ms)).",
+    },
+  ];
+
+  for (const p of patterns) {
+    if (p.test.test(summary)) {
+      return { text: p.text, suggestion: p.suggestion };
+    }
+  }
+
+  return {
+    text: `${failedTools.length} tool(s) failed: ${failedTools.join(", ")}. Last error: "${summary}".`,
+    suggestion: "Call get_motion_spec to inspect the current state and adjust the approach.",
+  };
+}
+
+/**
+ * Lightweight preference extraction — detects user style preferences from
+ * natural language and persists them as project memory for future sessions.
+ * Rule-based so it works in mock mode without an LLM.
+ */
+function autoExtractMemory(projectId: string, message: string): void {
+  const lower = message.toLowerCase();
+
+  // Detect style preferences
+  const stylePrefs: Record<string, string> = {
+    "professional": "prefers professional tone",
+    "playful": "prefers playful tone",
+    "minimal": "prefers minimal aesthetic",
+    "dramatic": "prefers dramatic motion",
+    "calm": "prefers calm/soft motion",
+    "energetic": "prefers energetic motion",
+    "bouncy": "prefers bouncy/spring physics",
+    "smooth": "prefers smooth easing",
+    "snappy": "prefers snappy/crisp timing",
+  };
+  for (const [keyword, pref] of Object.entries(stylePrefs)) {
+    if (lower.includes(keyword)) {
+      remember(projectId, "style-preference", pref, ["preference", "style"], 0.8);
+    }
+  }
+
+  // Detect duration preferences
+  if (lower.includes("slow") || lower.includes("longer")) {
+    remember(projectId, "duration-preference", "prefers longer durations", ["preference", "timing"], 0.6);
+  }
+  if (lower.includes("fast") || lower.includes("quick") || lower.includes("short")) {
+    remember(projectId, "duration-preference", "prefers shorter durations", ["preference", "timing"], 0.6);
+  }
+
+  // Detect loop preferences
+  if (lower.includes("loop") || lower.includes("repeat") || lower.includes("infinite")) {
+    remember(projectId, "loop-preference", "comfortable with looping animations", ["preference", "loop"], 0.5);
+  }
 }
