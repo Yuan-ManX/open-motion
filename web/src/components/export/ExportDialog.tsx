@@ -220,7 +220,7 @@ export function ExportDialog() {
   const tabCls = (active: boolean) =>
     `px-3 py-1 text-xs rounded transition-colors ${
       active
-        ? "bg-accent text-white"
+        ? "bg-accent text-black"
         : "bg-panel2 border border-edge text-gray-400 hover:text-gray-200"
     }`;
 
@@ -251,7 +251,7 @@ export function ExportDialog() {
             <button
               onClick={exportHtml}
               disabled={!projectId || htmlBusy}
-              className="w-full px-3 py-2 rounded-lg bg-accent hover:bg-accent2 disabled:opacity-40 text-white text-sm font-medium transition-colors"
+              className="w-full px-3 py-2 rounded-lg bg-accent hover:bg-accent2 disabled:opacity-40 text-black text-sm font-medium transition-colors"
             >
               {htmlBusy ? "Exporting…" : "Export HTML"}
             </button>
@@ -331,7 +331,7 @@ export function ExportDialog() {
             <div className="flex items-center justify-between mb-2">
               <div className="text-xs uppercase tracking-wide text-gray-500">Video</div>
               {!videoAvailable && (
-                <span className="text-[10px] text-amber-400">requires puppeteer + ffmpeg</span>
+                <span className="text-[10px] text-gray-500">requires puppeteer + ffmpeg</span>
               )}
             </div>
 
