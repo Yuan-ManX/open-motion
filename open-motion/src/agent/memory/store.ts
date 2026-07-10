@@ -62,18 +62,50 @@ export function clearMemory(projectId: string): void {
 }
 
 /**
- * Window-based context compression. When the transcript exceeds the threshold,
- * keep only the most recent entries so the provider context stays bounded.
- * Simple windowing avoids requiring an LLM for summarization, keeping mock
- * mode fully functional without an API key.
+ * Structured context compression. When the transcript exceeds the threshold,
+ * produce a summary entry capturing the goal, progress, decisions, and next
+ * step — then keep only the most recent entries. This preserves semantic
+ * continuity without requiring an LLM for summarization, so mock mode stays
+ * fully functional.
  */
 export function compressMemory(projectId: string): void {
   const list = store.get(projectId);
   if (!list || list.length <= COMPRESS_THRESHOLD) return;
-  const firstUserIdx = list.findIndex((m) => m.role === "user");
-  const keep = list.slice(list.length - COMPRESS_KEEP);
-  if (firstUserIdx >= 0 && firstUserIdx < list.length - COMPRESS_KEEP) {
-    keep.unshift(list[firstUserIdx]);
+
+  // Extract the original goal (first user message).
+  const firstUser = list.find((m) => m.role === "user");
+  const goal = firstUser ? firstUser.content.slice(0, 200) : "(unknown)";
+
+  // Count progress: tool calls and component-related actions.
+  let toolCallCount = 0;
+  const decisions: string[] = [];
+  for (const m of list) {
+    if (m.toolCalls) toolCallCount += m.toolCalls.length;
+    if (m.role === "assistant" && m.content) {
+      // Capture decision snippets from assistant replies.
+      const snips = m.content.match(/\b(?:set|applied|created|added|removed|updated|switched|duplicated|staggered)\b[^.]*\./gi);
+      if (snips) decisions.push(...snips.slice(0, 2));
+    }
   }
+
+  // The most recent user message is the current intent.
+  const recentUsers = list.filter((m) => m.role === "user");
+  const next = recentUsers.length > 0 ? recentUsers[recentUsers.length - 1].content.slice(0, 200) : "(none)";
+
+  const summary =
+    `[Conversation summary]\n` +
+    `Goal: ${goal}\n` +
+    `Progress: ${toolCallCount} tool call(s), ${decisions.length} decision(s)\n` +
+    `Decisions: ${decisions.slice(-5).join(" ") || "(none)"}\n` +
+    `Next: ${next}`;
+
+  // Keep the summary + the most recent window.
+  const keep = list.slice(list.length - COMPRESS_KEEP);
+  keep.unshift({
+    role: "system",
+    content: summary,
+    createdAt: now(),
+  });
+
   store.set(projectId, keep);
 }
