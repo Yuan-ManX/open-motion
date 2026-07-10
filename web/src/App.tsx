@@ -2,9 +2,8 @@ import { useEffect } from "react";
 import { useUiStore } from "./store/uiStore.js";
 import * as api from "./api/endpoints.js";
 import { Editor } from "./routes/Editor.js";
-import { TemplatesModal } from "./components/modals/TemplatesModal.js";
-import { SkillsModal } from "./components/modals/SkillsModal.js";
 import { ShortcutsModal } from "./components/modals/ShortcutsModal.js";
+import { CommandPalette } from "./components/modals/CommandPalette.js";
 import { ErrorBoundary } from "./components/ErrorBoundary.js";
 
 export default function App() {
@@ -31,7 +30,7 @@ export default function App() {
           <div className="flex items-center gap-2 text-[11px]">
             <span
               className={`inline-block w-2 h-2 rounded-full ${
-                ok ? "bg-green-400" : "bg-red-500"
+                ok ? "bg-white" : "bg-red-500"
               }`}
             />
             <span className="text-gray-500">
@@ -50,9 +49,8 @@ export default function App() {
           <Editor />
         </div>
 
-        <TemplatesModal />
-        <SkillsModal />
         <ShortcutsModal />
+        <CommandPalette />
       </div>
     </ErrorBoundary>
   );
