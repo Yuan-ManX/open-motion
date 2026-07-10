@@ -140,6 +140,10 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
     }
 
     // Assistant issued tool calls; record the turn (memory + persisted log) and execute them.
+    // Emit any reasoning text the assistant produced before the tool calls.
+    if (assistantText.trim()) {
+      onEvent({ type: "reasoning", text: assistantText.trim() });
+    }
     addMemory(projectId, { role: "assistant", content: assistantText, toolCalls });
     addMessage(projectId, {
       role: "assistant",
