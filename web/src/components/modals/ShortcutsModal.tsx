@@ -9,9 +9,11 @@ const SHORTCUTS: { group: string; items: Shortcut[] }[] = [
   {
     group: "Editing",
     items: [
+      { keys: "⌘ K", action: "Open command palette" },
       { keys: "⌘ Z", action: "Undo last change" },
       { keys: "⌘ ⇧ Z", action: "Redo" },
       { keys: "⌘ Y", action: "Redo (alternate)" },
+      { keys: "⌘ D", action: "Duplicate selected component" },
       { keys: "Delete", action: "Remove selected layer" },
       { keys: "Esc", action: "Clear selection" },
     ],
@@ -20,6 +22,13 @@ const SHORTCUTS: { group: string; items: Shortcut[] }[] = [
     group: "Playback",
     items: [
       { keys: "⇧ R", action: "Replay animation" },
+      { keys: "P", action: "Play / pause timeline" },
+      { keys: ",", action: "Step backward 50ms" },
+      { keys: ".", action: "Step forward 50ms" },
+      { keys: "← →", action: "Step timeline (no selection) / nudge (selection)" },
+      { keys: "Home", action: "Jump to start" },
+      { keys: "End", action: "Jump to end" },
+      { keys: "M", action: "Add marker at playhead" },
     ],
   },
   {
