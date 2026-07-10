@@ -41,6 +41,28 @@ export type IntentType =
   | "artboard"
   | "layer_opacity"
   | "rulers"
+  | "nudge"
+  | "clipboard"
+  | "state_machine"
+  | "auto_keyframe"
+  | "listener"
+  | "keyframe_offset"
+  | "marker"
+  | "reverse_keyframes"
+  | "z_index"
+  | "solo"
+  | "hierarchy"
+  | "constraint"
+  | "clip"
+  | "filter_effect"
+  | "transform_3d"
+  | "restraint"
+  | "recipe"
+  | "memory"
+  | "skill"
+  | "grammar"
+  | "parse"
+  | "shader"
   | "unknown";
 
 /** Friendly name -> real template ID. Single source of truth for aliasing. */
@@ -175,6 +197,24 @@ const INTENT_PATTERNS: { type: IntentType; match: RegExp }[] = [
   { type: "artboard", match: /\b(canvas|artboard|stage.*size|set.*width|set.*height|canvas.*size|canvas.*background|artboard.*size)\b/i },
   { type: "layer_opacity", match: /\b(set.*opacity|layer.*opacity|opacity.*to|make.*transparent|make.*opaque)\b/i },
   { type: "rulers", match: /\b(ruler|toggle.*ruler|show.*ruler|hide.*ruler|guide)\b/i },
+  { type: "nudge", match: /\b(nudge|move by|shift by|pixel.*move|micro.*adjust)\b|微调|移动\s*\d+\s*px/i },
+  { type: "clipboard", match: /\b(copy to clipboard|paste from clipboard|clipboard|copy selection|paste here|paste a copy)\b|复制|粘贴/i },
+  { type: "state_machine", match: /\b(capture.*state|apply.*state|save.*state|snapshot|state machine|add transition|list states|remove state|delete state|connect states|go to state)\b|状态机|快照/i },
+  { type: "auto_keyframe", match: /\b(auto.?keyframe|auto.?key|keyframe.*mode|record.*keyframe|automatic.*keyframe)\b/i },
+  { type: "listener", match: /\b(listener|event listener|on click.*trigger|on hover.*trigger|pointer.*enter|pointer.*leave|add.*listener|remove.*listener|event.*handler)\b/i },
+  { type: "keyframe_offset", match: /\b(move.*keyframe|retime.*keyframe|keyframe.*offset|shift.*keyframe|change.*keyframe.*position|keyframe.*to.*\d+%)\b/i },
+  { type: "marker", match: /\b(marker|bookmark|flag.*time|mark.*position|add.*mark)\b/i },
+  { type: "reverse_keyframes", match: /\b(reverse.*keyframes?|play.*backward|backward.*keyframes?|flip.*keyframes?|mirror.*keyframes?|reverse.*animation)\b/i },
+  { type: "z_index", match: /\b(bring.*forward|send.*backward|bring.*front|send.*back|move.*front|move.*back|z.?index|layer.*order|reorder.*layer)\b/i },
+  { type: "solo", match: /\b(solo.*layer|isolate.*component|solo.*component|only.*show.*this)\b/i },
+  { type: "transform_3d", match: /\b(3d|perspective|rotateX|rotateY|rotateZ|translateZ|three.?d)\b/i },
+  { type: "restraint", match: /\b(too much|too many|restraint|density|overwhelm\w*|clutter\w*|visual noise|competing for attention|is this too busy)\b/i },
+  { type: "recipe", match: /\b(recipe|recipes|gentle entrance|impact reveal|elastic bounce|cinematic fade|data pulse|ambient float|typewriter reveal|magnetic hover)\b/i },
+  { type: "memory", match: /\b(remember this|save.*memory|recall.*memory|what did we decide|forget.*memory|persistent memory|cross.?session)\b/i },
+  { type: "skill", match: /\b(generated skill|learned skill|what have you learned|auto.?generated|show.*skills)\b/i },
+  { type: "grammar", match: /\b(grammar|compile.*motion|motion.*expression|fade\.in|slide\.up|bounce\.in|rotate\.cw|then.*with.*easing)\b/i },
+  { type: "parse", match: /\b(parse.*motion|motion.*description|make.*bounce|make.*fade|make.*slide|natural language motion|describe.*animation|translate.*motion)\b/i },
+  { type: "shader", match: /\b(shader|glitch effect|chromatic aberration|neon glow|plasma|pixelate|vignette|film grain|ripple effect|gradient shift)\b/i },
   { type: "composition", match: /\b(stagger|cascade|sequence|one by one|variant|variation|alternative)\b|错开|依次|逐个|变体/i },
   { type: "scene", match: /\b(scene|scenes)\b|场景/i },
   { type: "template", match: /\b(template|模板)\b/i },
