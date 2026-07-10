@@ -5,6 +5,7 @@ import { resolveTemplateId, resolvePresetName } from "../intents.js";
 interface ParsedState {
   componentIds: string[];
   firstComponentId: string | null;
+  secondComponentId: string | null;
   projectName: string | null;
 }
 
@@ -14,6 +15,7 @@ function extractState(messages: ChatOptions["messages"]): ParsedState {
   return {
     componentIds: ids,
     firstComponentId: ids[0] ?? null,
+    secondComponentId: ids[1] ?? null,
     projectName: null,
   };
 }
@@ -249,8 +251,8 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
       : null, `Set a ${property} keyframe at offset ${offset.toFixed(2)} → ${value}.`);
   }
 
-  // --- Add layer ---
-  if (/\b(add|create|new)\s+(?:a\s+|an\s+)?(layer|element|component)\b|添加(?:图层|元素)/i.test(userText)) {
+  // --- Add layer (skip if mentioning listener/state/keyframe to avoid false positive) ---
+  if (!/\blistener\b/i.test(userText) && /\b(add|create|new)\s+(?:a\s+|an\s+)?(layer|element|component)\b|添加(?:图层|元素)/i.test(userText)) {
     const nameM = userText.match(/(?:called|named|名[为叫])\s*["']?(\w+)/i);
     push("add_layer", { name: nameM ? nameM[1] : "New Layer" }, "Added a new layer.");
   }
@@ -677,6 +679,331 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
       show ? "Showing canvas rulers." : "Hiding canvas rulers.");
   }
 
+  // --- Nudge component ---
+  if (/\b(nudge|move by|shift by|pixel.*move)\b/i.test(userText) && state.firstComponentId) {
+    let dx = 0;
+    let dy = 0;
+    const nudgeM = userText.match(/(-?\d+)\s*px\s*(right|left|down|up|→|←|↓|↑)/i)
+      || userText.match(/(right|left|down|up|→|←|↓|↑)\s*(-?\d+)\s*px/i)
+      || userText.match(/\bby\s*(-?\d+)\s*(?:px)?\s*(right|left|down|up)/i);
+    if (nudgeM) {
+      const val = Number(nudgeM[1]);
+      const dir = (nudgeM[2] || "").toLowerCase();
+      if (dir === "right" || dir === "→") dx = val;
+      else if (dir === "left" || dir === "←") dx = -val;
+      else if (dir === "down" || dir === "↓") dy = val;
+      else if (dir === "up" || dir === "↑") dy = -val;
+    } else {
+      if (/\bright\b|→/i.test(userText)) dx = 10;
+      else if (/\bleft\b|←/i.test(userText)) dx = -10;
+      else if (/\bdown\b|↓/i.test(userText)) dy = 10;
+      else if (/\bup\b|↑/i.test(userText)) dy = -10;
+      const numM = userText.match(/(-?\d+)/);
+      if (numM && (dx !== 0 || dy !== 0)) {
+        const n = Number(numM[1]);
+        if (dx !== 0) dx = Math.sign(dx) * Math.abs(n);
+        if (dy !== 0) dy = Math.sign(dy) * Math.abs(n);
+      }
+    }
+    if (dx !== 0 || dy !== 0) {
+      push("nudge_component", { componentId: state.firstComponentId, dx, dy },
+        `Nudged the component by (${dx}, ${dy}) pixels.`);
+    }
+  }
+
+  // --- Copy to clipboard ---
+  if (/\b(copy to clipboard|copy selection|copy this|copy the selection)\b/i.test(userText)) {
+    push("copy_to_clipboard", {},
+      "Copied the selection to the clipboard.");
+  }
+
+  // --- Paste from clipboard ---
+  if (/\b(paste from clipboard|paste here|paste a copy|paste it)\b/i.test(userText)) {
+    const xM = userText.match(/\bx\s*(?::|to|=)?\s*(\d+)/i);
+    const yM = userText.match(/\by\s*(?::|to|=)?\s*(\d+)/i);
+    const args: Record<string, unknown> = {};
+    if (xM) args.x = Number(xM[1]);
+    if (yM) args.y = Number(yM[1]);
+    push("paste_from_clipboard", args,
+      "Pasted from the clipboard.");
+  }
+
+  // --- Capture state ---
+  if (/\b(capture.*state|save.*state|snapshot)\b/i.test(userText)) {
+    const nameM = userText.match(/(?:called|named|as)\s*["']?(\w+)/i) || userText.match(/snapshot\s+(\w+)/i);
+    const name = nameM ? nameM[1] : "State 1";
+    push("capture_state", { name },
+      `Captured the current state as "${name}".`);
+  }
+
+  // --- Apply state ---
+  if (/\b(apply.*state|go to state|switch to state|restore state)\b/i.test(userText)) {
+    push("apply_state", { stateId: "st_placeholder" },
+      "Applied the requested state. (Use list_states to see available state IDs.)");
+  }
+
+  // --- Add transition ---
+  if (/\b(add transition|connect states|transition from)\b/i.test(userText)) {
+    const trigM = userText.match(/\b(on click|on hover|on load|manual)\b/i);
+    const triggerMap: Record<string, string> = {
+      "on click": "onClick",
+      "on hover": "onHover",
+      "on load": "onLoad",
+      "manual": "manual",
+    };
+    const trigger = trigM ? triggerMap[trigM[1].toLowerCase()] : "manual";
+    const durM = userText.match(/(\d+)\s*ms/);
+    const durationMs = durM ? Number(durM[1]) : 500;
+    push("add_transition", { fromStateId: "st_placeholder", toStateId: "st_placeholder2", trigger, durationMs },
+      `Added a transition (${trigger}, ${durationMs}ms).`);
+  }
+
+  // --- List states ---
+  if (/\b(list states|show states|what states|state machine info)\b/i.test(userText)) {
+    push("list_states", {},
+      "Here are the states and transitions in the state machine.");
+  }
+
+  // --- Remove state ---
+  if (/\b(remove state|delete state)\b/i.test(userText)) {
+    push("remove_state", { stateId: "st_placeholder" },
+      "Removed the state from the state machine.");
+  }
+
+  // --- Auto-keyframe ---
+  if (/\b(auto.?keyframe|auto.?key|keyframe.*mode|record.*keyframe)\b/i.test(userText)) {
+    const enabled = !/\b(off|disable|turn off|stop)\b/i.test(userText);
+    push("toggle_auto_keyframe", { enabled },
+      enabled ? "Auto-keyframe enabled — property changes will create keyframes at the playhead." : "Auto-keyframe disabled.");
+  }
+
+  // --- Add listener ---
+  if (/\b(add|create|attach).*listener\b/i.test(userText) && state.firstComponentId) {
+    const evtM = userText.match(/\b(click|hover|pointer enter|pointer leave|pointer down|pointer up|enter|leave|down|up)\b/i);
+    const evtMap: Record<string, string> = {
+      click: "click", hover: "pointerEnter", enter: "pointerEnter", leave: "pointerLeave",
+      down: "pointerDown", up: "pointerUp",
+      "pointer enter": "pointerEnter", "pointer leave": "pointerLeave",
+      "pointer down": "pointerDown", "pointer up": "pointerUp",
+    };
+    const eventType = evtM ? (evtMap[evtM[1].toLowerCase()] ?? "click") : "click";
+    let actionType = "setProperty";
+    if (/\bplay/i.test(userText) && /\banim/i.test(userText)) actionType = "playAnimation";
+    else if (/\bapply\b.*\bstate\b/i.test(userText)) actionType = "applyState";
+    else if (/\bset\b.*\bprop/i.test(userText)) actionType = "setProperty";
+    push("add_listener", { componentId: state.firstComponentId, eventType, actionType, target: state.firstComponentId },
+      `Added a ${eventType} listener that triggers ${actionType}.`);
+  }
+
+  // --- Remove listener ---
+  if (/\b(remove|delete).*listeners?\b/i.test(userText)) {
+    push("remove_listener", { listenerId: "ls_placeholder" }, "Removed the listener.");
+  }
+
+  // --- List listeners ---
+  if (/\b(list|show|what).*listeners?\b/i.test(userText)) {
+    push("list_listeners", {}, "Here are the event listeners in the project.");
+  }
+
+  // --- Set keyframe offset ---
+  if (/\b(move.*keyframe|retime.*keyframe|keyframe.*offset|shift.*keyframe)\b/i.test(userText) && state.firstComponentId) {
+    const idxM = userText.match(/keyframe\s+(\d+)/i);
+    const keyframeIndex = idxM ? Number(idxM[1]) : 0;
+    const offsetM = userText.match(/(?:to|at)\s*(\d+(?:\.\d+)?)\s*%?/i);
+    const offset = offsetM ? Math.min(1, Math.max(0, Number(offsetM[1]) / 100)) : 0.5;
+    push("set_keyframe_offset", { componentId: state.firstComponentId, keyframeIndex, offset },
+      `Moved keyframe ${keyframeIndex} to offset ${offset.toFixed(2)}.`);
+  }
+
+  // --- Add marker ---
+  if (/\b(add.*marker|mark.*position|bookmark|flag.*time)\b/i.test(userText)) {
+    const timeM = userText.match(/(\d+(?:\.\d+)?)\s*(?:ms|millisecond)?/i);
+    const timeMs = timeM ? Number(timeM[1]) : 500;
+    const labelM = userText.match(/(?:called|named|label)\s*["']?(\w+)/i);
+    push("add_marker", { timeMs, label: labelM ? labelM[1] : undefined },
+      `Added a marker at ${timeMs}ms.`);
+  }
+
+  // --- Remove marker ---
+  if (/\b(remove|delete).*markers?\b/i.test(userText)) {
+    push("remove_marker", { markerId: "mk_placeholder" }, "Removed the marker.");
+  }
+
+  // --- List markers ---
+  if (/\b(list|show|what).*markers?\b/i.test(userText)) {
+    push("list_markers", {}, "Here are the timeline markers.");
+  }
+
+  // --- Reverse keyframes ---
+  if (/\b(reverse.*keyframes?|play.*backward|flip.*keyframes?|mirror.*keyframes?)\b/i.test(userText) && state.firstComponentId) {
+    push("reverse_keyframes", { componentId: state.firstComponentId },
+      "Reversed the keyframe order so the animation plays backward.");
+  }
+
+  // --- Z-index ---
+  if (/\b(bring.*forward|send.*backward|bring.*front|send.*back|move.*front|move.*back)\b/i.test(userText) && state.firstComponentId) {
+    const act = /\bfront\b/i.test(userText) && !/\bforward\b/i.test(userText) ? "to-front"
+      : /\bback\b/i.test(userText) && !/\bbackward\b/i.test(userText) ? "to-back"
+      : /\bforward\b/i.test(userText) ? "forward" : "backward";
+    push("set_z_order", { componentId: state.firstComponentId, action: act },
+      act === "to-front" ? "Brought the layer to the front." : act === "to-back" ? "Sent the layer to the back." : act === "forward" ? "Brought the layer forward." : "Sent the layer backward.");
+  }
+
+  // --- Solo layer ---
+  if (/\b(solo|isolate)\b/i.test(userText) && state.firstComponentId) {
+    push("solo_layer", { componentId: state.firstComponentId },
+      "Soloed the layer — all others are hidden.");
+  }
+
+  // --- Hierarchy: parent/child/rig ---
+  if (/\b(parent|rig|bone|attach|nest)\b/i.test(userText) && !/\b(list|show|tree|detach|remove)\b/i.test(userText)) {
+    if (state.firstComponentId && state.secondComponentId) {
+      push("set_parent", { componentId: state.secondComponentId, parentId: state.firstComponentId },
+        `Nested the second layer under the first — transforms now inherit from the parent.`);
+    }
+  }
+  if (/\b(detach|remove parent|orphan)\b/i.test(userText) && state.firstComponentId) {
+    push("remove_parent", { componentId: state.firstComponentId },
+      "Detached the layer from its parent.");
+  }
+  if (/\b(list|show).*(hierarchy|tree|parent)\b/i.test(userText)) {
+    push("list_hierarchy", {}, "Here's the current layer hierarchy tree.");
+  }
+
+  // --- Constraints ---
+  if (/\b(constraint|constrain|pin|look.?at)\b/i.test(userText) && !/\b(list|show|remove|delete)\b/i.test(userText)) {
+    if (state.firstComponentId && state.secondComponentId) {
+      const ctype = /look.?at/i.test(userText) ? "look-at" : /rotation/i.test(userText) ? "rotation" : /scale/i.test(userText) ? "scale" : "position";
+      push("add_constraint", { componentId: state.firstComponentId, targetId: state.secondComponentId, type: ctype, strength: 1, axis: "both" },
+        `Added a ${ctype} constraint linking the two layers.`);
+    }
+  }
+  if (/\b(list|show).*(constraint)\b/i.test(userText)) {
+    push("list_constraints", {}, "Here are all constraints in the project.");
+  }
+
+  // --- Timeline clips ---
+  if (/\b(clip|segment)\b/i.test(userText) && !/\b(list|show|remove|delete|play)\b/i.test(userText)) {
+    push("add_clip", { name: "Clip 1", startMs: 0, endMs: 1000 },
+      "Created a new timeline clip from 0ms to 1000ms.");
+  }
+  if (/\b(list|show).*(clip)\b/i.test(userText)) {
+    push("list_clips", {}, "Here are all timeline clips.");
+  }
+  if (/\bplay.*(clip)\b/i.test(userText)) {
+    push("play_clip", { clipId: "clip_demo" }, "Playing the timeline clip.");
+  }
+
+  // --- CSS filters / shader effects ---
+  if (/\b(blur|brightness|contrast|hue.?rotate|saturate|grayscale|sepia)\b/i.test(userText) && state.firstComponentId) {
+    const filterName = /blur/i.test(userText) ? "blur"
+      : /brightness/i.test(userText) ? "brightness"
+      : /contrast/i.test(userText) ? "contrast"
+      : /hue/i.test(userText) ? "hue-rotate"
+      : /saturate/i.test(userText) ? "saturate"
+      : /grayscale/i.test(userText) ? "grayscale" : "sepia";
+    const val = filterName === "blur" ? "4px" : filterName === "hue-rotate" ? "90deg" : "1.5";
+    push("set_filter", { componentId: state.firstComponentId, filter: filterName, value: val },
+      `Applied ${filterName}(${val}) to the layer.`);
+  }
+
+  // --- 3D transforms ---
+  if (/\b(3d|perspective|rotateX|rotateY|rotateZ|translateZ)\b/i.test(userText) && state.firstComponentId) {
+    push("set_3d_transform", {
+      componentId: state.firstComponentId,
+      perspective: 800,
+      rotateX: /rotateX/i.test(userText) ? 45 : undefined,
+      rotateY: /rotateY/i.test(userText) ? 45 : undefined,
+      rotateZ: /rotateZ/i.test(userText) ? 30 : undefined,
+      translateZ: /translateZ/i.test(userText) ? 50 : undefined,
+    }, "Applied a 3D transform to the layer.");
+  }
+
+  // --- Restraint analysis ---
+  if (/\b(too much|too many|restraint|density|overwhelm\w*|clutter\w*|visual noise|competing for attention|is this too busy)\b/i.test(userText)) {
+    push("analyze_restraint", {}, "Analyzed motion density — here's the restraint score and recommendations.");
+  }
+
+  // --- Motion recipes: browse or apply ---
+  if (/\b(recipe|recipes)\b/i.test(userText) && !/\b(apply|use|try)\b/i.test(userText)) {
+    const catM = userText.match(/\b(entrance|playful|transition|feedback|ambient|text|interaction)\b/i);
+    push("list_recipes", catM ? { category: catM[1].toLowerCase() } : {},
+      catM ? `Here are the ${catM[1].toLowerCase()} recipes available.` : "Here are all available motion recipes with their avoidance conditions.");
+  }
+  if (/\b(apply|use|try)\s+(?:the\s+)?([\w\s-]+?)\s+recipe\b|apply.*recipe/i.test(userText) && state.firstComponentId) {
+    const recipeNameM = userText.match(/(?:apply|use|try)\s+(?:the\s+)?([\w\s-]+?)\s+recipe/i);
+    const recipeId = recipeNameM ? `recipe-${recipeNameM[1].trim().toLowerCase().replace(/\s+/g, "-")}` : "recipe-gentle-entrance";
+    push("apply_recipe", { componentId: state.firstComponentId, recipeId },
+      `Applied the recipe to the component.`);
+  }
+
+  // --- Persistent memory: save ---
+  if (/\b(remember this|save.*memory|save.*note|remember that)\b/i.test(userText)) {
+    const keyM = userText.match(/(?:remember|save)\s+(?:that\s+|this\s+)?(.+)/i);
+    const value = keyM ? keyM[1].trim().slice(0, 200) : "user note";
+    push("save_memory", { key: "user-note", value },
+      `Saved to persistent memory: "${value.slice(0, 80)}${value.length > 80 ? "..." : ""}"`);
+  }
+
+  // --- Persistent memory: recall ---
+  if (/\b(recall.*memory|what did we decide|what do you know|search.*memory|what.*remember)\b/i.test(userText)) {
+    push("recall_memory", { query: userText.slice(0, 100) },
+      "Here's what I found in persistent memory for this project.");
+  }
+
+  // --- Generated skills ---
+  if (/\b(generated skill|learned skill|what have you learned|auto.?generated|show.*skills)\b/i.test(userText)) {
+    push("list_generated_skills", {}, "Here are the skills auto-generated from past task sequences.");
+  }
+
+  // --- Motion grammar compilation ---
+  if (/\b(grammar|compile.*motion)\b/i.test(userText) && state.firstComponentId) {
+    const sourceM = userText.match(/grammar[:\s]+(.+)/i);
+    const source = sourceM ? sourceM[1].trim() : "fade.in(600ms) then slide.up(400ms) with easing(spring)";
+    push("compile_grammar", { componentId: state.firstComponentId, source },
+      `Compiled grammar expression: "${source.slice(0, 60)}"`);
+  }
+
+  // --- Natural language motion parsing ---
+  if (/\b(make.*bounce|make.*fade|make.*slide|parse.*motion|natural language motion|describe.*animation|translate.*motion)\b/i.test(userText)) {
+    const descM = userText.match(/(?:make|parse|describe|translate)\s+(?:it\s+|the\s+|this\s+)?(.+)/i);
+    const description = descM ? descM[1].trim() : userText;
+    if (state.firstComponentId) {
+      push("parse_motion", { description, componentId: state.firstComponentId },
+        `Parsed "${description.slice(0, 60)}" into a motion spec and applied it.`);
+    } else {
+      push("parse_motion", { description },
+        `Parsed "${description.slice(0, 60)}" into a motion spec.`);
+    }
+  }
+
+  // --- Shader effects ---
+  if (/\b(shader|glitch effect|chromatic aberration|neon glow|plasma|pixelate|vignette|film grain|ripple effect|gradient shift)\b/i.test(userText) && state.firstComponentId) {
+    const effectMap: Record<string, string> = {
+      "chromatic": "shader-chromatic",
+      "glitch": "shader-glitch",
+      "plasma": "shader-plasma",
+      "noise": "shader-noise",
+      "grain": "shader-noise",
+      "ripple": "shader-ripple",
+      "vignette": "shader-vignette",
+      "neon": "shader-neon-glow",
+      "pixelate": "shader-pixelate",
+      "pixel": "shader-pixelate",
+      "gradient": "shader-gradient-shift",
+      "invert": "shader-invert-pulse",
+    };
+    let effectId = "shader-chromatic";
+    for (const [keyword, id] of Object.entries(effectMap)) {
+      if (new RegExp(`\\b${keyword}`, "i").test(userText)) {
+        effectId = id;
+        break;
+      }
+    }
+    push("set_shader_effect", { componentId: state.firstComponentId, effectId },
+      `Applied ${effectId} shader effect to the component.`);
+  }
+
   // --- Get spec ---
   if (/\b(spec|state|current|what.*status)\b|当前状态|规格/i.test(userText)) {
     push("get_motion_spec", {}, "Here's the current MotionSpec.");
@@ -703,6 +1030,19 @@ const FALLBACK_REPLY =
   "add/remove per-property keyframes, " +
   "set triggers (onLoad, onClick, onHover, onScroll, afterDelay), toggle onion skinning, open fullscreen preview, " +
   "batch updates, duplicate, reorder, pause/play, " +
+  "nudge components by pixel deltas, copy/paste via clipboard, " +
+  "capture/apply states, add transitions between states, list/remove states, " +
+  "toggle auto-keyframe mode, add/remove event listeners (click, hover, pointer events), " +
+  "move/retime keyframes to new offsets, " +
+  "add/remove/list timeline markers (bookmark time positions), " +
+  "reverse keyframe order (play backward), " +
+  "analyze restraint (motion density, visual competition, 0-100 score), " +
+  "browse/apply motion recipes (gentle entrance, impact reveal, elastic bounce, cinematic fade, data pulse, ambient float, typewriter reveal, magnetic hover) with avoidance checks, " +
+  "save/recall persistent project memory (cross-session knowledge), " +
+  "list auto-generated skills (learned from past task sequences), " +
+  "compile motion grammar expressions (fade.in(600ms) then slide.up(400ms) with easing(spring)), " +
+  "parse natural language motion descriptions ('make it bounce in playfully with spring physics'), " +
+  "apply WebGL shader effects (chromatic aberration, glitch, plasma, neon glow, pixelate, vignette, noise, ripple, gradient shift), " +
   "list/switch templates (fade, bounce, slide, scale, flip, spin, pulse, spring, resize, logo-reveal, squash-stretch, " +
   "flip-card, typewriter, shimmer, morph, notification, progress, ripple, marquee, orbit, wave, confetti, " +
   "parallax, kinetic-text, particle-burst, liquid-morph, elastic-collapse), export (HTML, CSS, JSON, React, video, skill), or show a preview. " +
