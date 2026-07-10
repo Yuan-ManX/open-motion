@@ -77,6 +77,7 @@ interface ComponentRow {
   direction: string | null;
   fill_mode: string | null;
   play_state: string | null;
+  trigger: string | null;
   easing_json: string;
   keyframes_json: string;
   style_json: string;
@@ -94,8 +95,8 @@ export function duplicateProject(id: string): MotionProject | null {
     const newId = createId("c_");
     const ts = now();
     db.prepare(
-      `INSERT INTO motion_components (id, project_id, scene_id, name, selector, template_id, duration_ms, delay_ms, iteration_count, direction, fill_mode, play_state, easing_json, keyframes_json, style_json, order_index, created_at, updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO motion_components (id, project_id, scene_id, name, selector, template_id, duration_ms, delay_ms, iteration_count, direction, fill_mode, play_state, trigger, easing_json, keyframes_json, style_json, order_index, created_at, updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     ).run(
       newId,
       copy.id,
@@ -109,6 +110,7 @@ export function duplicateProject(id: string): MotionProject | null {
       r.direction,
       r.fill_mode,
       r.play_state,
+      r.trigger ?? "onLoad",
       r.easing_json,
       r.keyframes_json,
       r.style_json,
