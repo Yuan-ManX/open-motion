@@ -100,5 +100,16 @@ export function generateSpecCss(components: MotionComponent[]): string {
       return [g.keyframesBlock, g.ruleBlock].filter(Boolean).join("\n");
     })
     .filter(Boolean);
-  return blocks.join("\n\n");
+  const main = blocks.join("\n\n");
+
+  // Accessibility: respect the user's OS-level motion preference by disabling
+  // all animations when prefers-reduced-motion is set.
+  const selectors = components
+    .map((c) => c.selector || `.om-c-${c.id}`)
+    .filter(Boolean);
+  if (selectors.length === 0) return main;
+
+  const reducedMotion = `@media (prefers-reduced-motion: reduce) {\n  ${selectors.join(",\n  ")} {\n    animation: none !important;\n    transition: none !important;\n  }\n}`;
+
+  return `${main}\n\n${reducedMotion}`;
 }
