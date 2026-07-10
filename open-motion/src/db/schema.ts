@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS motion_components (
   keyframes_json TEXT NOT NULL DEFAULT '[]',
   style_json TEXT NOT NULL DEFAULT '{}',
   order_index INTEGER NOT NULL DEFAULT 0,
+  parent_id TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -87,4 +88,47 @@ CREATE TABLE IF NOT EXISTS exports (
   created_at TEXT NOT NULL,
   completed_at TEXT
 );
+
+CREATE TABLE IF NOT EXISTS agent_memory (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  layer TEXT NOT NULL DEFAULT 'project',
+  key TEXT NOT NULL,
+  value TEXT NOT NULL,
+  tags_json TEXT NOT NULL DEFAULT '[]',
+  relevance REAL NOT NULL DEFAULT 0.5,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_agent_memory_project ON agent_memory(project_id, layer);
+CREATE INDEX IF NOT EXISTS idx_agent_memory_tags ON agent_memory(tags_json);
+
+CREATE TABLE IF NOT EXISTS generated_skills (
+  id TEXT PRIMARY KEY,
+  project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  trigger_pattern TEXT NOT NULL DEFAULT '',
+  tool_sequence TEXT NOT NULL DEFAULT '[]',
+  skill_markdown TEXT NOT NULL DEFAULT '',
+  usage_count INTEGER NOT NULL DEFAULT 0,
+  tags_json TEXT NOT NULL DEFAULT '[]',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_generated_skills_tags ON generated_skills(tags_json);
+
+CREATE TABLE IF NOT EXISTS motion_recipes (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,
+  category TEXT NOT NULL DEFAULT 'general',
+  description TEXT NOT NULL DEFAULT '',
+  avoid_when TEXT NOT NULL DEFAULT '[]',
+  restraint_cost INTEGER NOT NULL DEFAULT 1,
+  recipe_json TEXT NOT NULL DEFAULT '{}',
+  skill_markdown TEXT NOT NULL DEFAULT '',
+  tags_json TEXT NOT NULL DEFAULT '[]',
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_motion_recipes_category ON motion_recipes(category);
 `;
