@@ -14,6 +14,13 @@ import { draft } from "../../motion/templates/helper.js";
 import { analyzeMotion, suggestNext } from "../../motion/analysis.js";
 import { getStylePreset } from "../../motion/stylePresets.js";
 import { generateHarmony, isHexColor } from "../../motion/colorHarmony.js";
+import { analyzeRestraint, formatRestraintReport } from "../../motion/restraint.js";
+import { listRecipes, getRecipe, searchRecipes, checkRecipeAvoidance, type MotionRecipe } from "../../motion/recipes.js";
+import { remember } from "../memory/persistentMemory.js";
+import { searchMemory, listGeneratedSkills } from "../../db/repositories/memory.js";
+import { compileGrammar, applyCompiledGrammar, GRAMMAR_EXAMPLES } from "../../motion/grammar.js";
+import { parseNaturalMotion } from "../../motion/naturalParser.js";
+import { getShaderEffect, getShaderCss, listShaderEffects } from "../../motion/shaders.js";
 import { getPreset } from "./presets.js";
 import type { ToolContext, ToolResult } from "./registry.js";
 
@@ -1036,6 +1043,7 @@ export const motionExecutors: Partial<Record<ToolName, Executor>> = {
       trigger: "onLoad",
       keyframes: [],
       style,
+      parentId: null,
       createdAt: ts,
       updatedAt: ts,
     };
@@ -1231,5 +1239,595 @@ export const motionExecutors: Partial<Record<ToolName, Executor>> = {
       specChanged: false,
       data: { states: statesInfo, transitions: transitionsInfo, activeStateId: sm.activeStateId },
     };
+  },
+
+  toggle_auto_keyframe: (args, _ctx) => {
+    const enabled = args.enabled ?? true;
+    return {
+      ok: true,
+      summary: enabled ? "auto-keyframe enabled" : "auto-keyframe disabled",
+      specChanged: false,
+      data: { uiAction: "toggle_auto_keyframe", enabled },
+    };
+  },
+
+  add_listener: (args, ctx) => {
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const componentId = String(args.componentId);
+    const comp = getComponent(ctx.projectId, componentId);
+    if (!comp) return fail(`component ${componentId} not found`);
+    const tokens = { ...project.tokens };
+    let data: { listeners: Array<Record<string, unknown>> };
+    try {
+      data = typeof tokens.listeners === "string" ? JSON.parse(tokens.listeners) : { listeners: [] };
+    } catch {
+      data = { listeners: [] };
+    }
+    const listener = {
+      id: createId("ls_"),
+      componentId,
+      eventType: args.eventType,
+      action: {
+        type: args.actionType,
+        target: String(args.target),
+        ...(args.property != null ? { property: String(args.property) } : {}),
+        ...(args.value != null ? { value: args.value } : {}),
+      },
+    };
+    data.listeners.push(listener);
+    tokens.listeners = JSON.stringify(data);
+    updateProject(ctx.projectId, { tokens });
+    return ok(`added ${args.eventType} listener on "${comp.name}" (${listener.id})`, true, { listenerId: listener.id });
+  },
+
+  remove_listener: (args, ctx) => {
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const listenerId = String(args.listenerId);
+    const tokens = { ...project.tokens };
+    let data: { listeners: Array<{ id: string }> };
+    try {
+      data = typeof tokens.listeners === "string" ? JSON.parse(tokens.listeners) : { listeners: [] };
+    } catch {
+      data = { listeners: [] };
+    }
+    const before = data.listeners.length;
+    data.listeners = data.listeners.filter((l) => l.id !== listenerId);
+    if (data.listeners.length === before) return fail(`listener ${listenerId} not found`);
+    tokens.listeners = JSON.stringify(data);
+    updateProject(ctx.projectId, { tokens });
+    return ok(`removed listener ${listenerId}`);
+  },
+
+  list_listeners: (args, ctx) => {
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const tokens = project.tokens ?? {};
+    let data: { listeners: Array<Record<string, unknown>> };
+    try {
+      data = typeof tokens.listeners === "string" ? JSON.parse(tokens.listeners) : { listeners: [] };
+    } catch {
+      data = { listeners: [] };
+    }
+    const filterComponentId = args.componentId ? String(args.componentId) : null;
+    const listeners = filterComponentId
+      ? data.listeners.filter((l) => l.componentId === filterComponentId)
+      : data.listeners;
+    return {
+      ok: true,
+      summary: `${listeners.length} listener${listeners.length === 1 ? "" : "s"}`,
+      specChanged: false,
+      data: { listeners },
+    };
+  },
+
+  set_keyframe_offset: (args, ctx) => {
+    const componentId = String(args.componentId);
+    const comp = getComponent(ctx.projectId, componentId);
+    if (!comp) return fail(`component ${componentId} not found`);
+    const idx = Number(args.keyframeIndex);
+    if (idx < 0 || idx >= comp.keyframes.length) return fail("keyframe index out of range");
+    const offset = Math.max(0, Math.min(1, Number(args.offset)));
+    const nextKfs = comp.keyframes.map((kf, i) => (i === idx ? { ...kf, offset } : kf));
+    nextKfs.sort((a, b) => a.offset - b.offset);
+    patchComponent(ctx.projectId, componentId, { keyframes: nextKfs });
+    return ok(`moved keyframe ${idx} to offset ${offset} on "${comp.name}"`);
+  },
+
+  add_marker: (args, ctx) => {
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const tokens = { ...project.tokens };
+    let data: { markers: Array<Record<string, unknown>> };
+    try {
+      data = typeof tokens.markers === "string" ? JSON.parse(tokens.markers) : { markers: [] };
+    } catch {
+      data = { markers: [] };
+    }
+    const marker = {
+      id: createId("mk_"),
+      timeMs: Number(args.timeMs),
+      label: typeof args.label === "string" ? args.label : `Marker ${data.markers.length + 1}`,
+    };
+    data.markers.push(marker);
+    data.markers.sort((a, b) => Number(a.timeMs) - Number(b.timeMs));
+    tokens.markers = JSON.stringify(data);
+    updateProject(ctx.projectId, { tokens });
+    return ok(`added marker "${marker.label}" at ${marker.timeMs}ms (${marker.id})`, true, { markerId: marker.id });
+  },
+
+  remove_marker: (args, ctx) => {
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const markerId = String(args.markerId);
+    const tokens = { ...project.tokens };
+    let data: { markers: Array<{ id: string }> };
+    try {
+      data = typeof tokens.markers === "string" ? JSON.parse(tokens.markers) : { markers: [] };
+    } catch {
+      data = { markers: [] };
+    }
+    const before = data.markers.length;
+    data.markers = data.markers.filter((m) => m.id !== markerId);
+    if (data.markers.length === before) return fail(`marker ${markerId} not found`);
+    tokens.markers = JSON.stringify(data);
+    updateProject(ctx.projectId, { tokens });
+    return ok(`removed marker ${markerId}`);
+  },
+
+  list_markers: (args, ctx) => {
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const tokens = project.tokens;
+    let data: { markers: Array<Record<string, unknown>> };
+    try {
+      data = typeof tokens.markers === "string" ? JSON.parse(tokens.markers) : { markers: [] };
+    } catch {
+      data = { markers: [] };
+    }
+    return ok(`${data.markers.length} marker${data.markers.length === 1 ? "" : "s"}`, false, { markers: data.markers });
+  },
+
+  reverse_keyframes: (args, ctx) => {
+    const componentId = String(args.componentId);
+    const comp = getComponent(ctx.projectId, componentId);
+    if (!comp) return fail(`component ${componentId} not found`);
+    if (comp.keyframes.length < 2) return fail("need at least 2 keyframes to reverse");
+    const reversed = comp.keyframes.map((kf) => ({ ...kf, offset: 1 - kf.offset }));
+    reversed.sort((a, b) => a.offset - b.offset);
+    patchComponent(ctx.projectId, componentId, { keyframes: reversed });
+    return ok(`reversed keyframe order on "${comp.name}"`);
+  },
+
+  solo_layer: (_args, _ctx) => {
+    return ok("solo layer toggled", false, { uiAction: "solo_layer", componentId: String(_args.componentId) });
+  },
+
+  set_parent: (args, ctx) => {
+    const componentId = String(args.componentId);
+    const parentId = String(args.parentId);
+    if (componentId === parentId) return fail("component cannot be its own parent");
+    const comp = getComponent(ctx.projectId, componentId);
+    if (!comp) return fail(`component ${componentId} not found`);
+    const parent = getComponent(ctx.projectId, parentId);
+    if (!parent) return fail(`parent component ${parentId} not found`);
+    // Prevent cycles: walk up from parentId, if we hit componentId it's a cycle
+    let current: MotionComponent | null = parent;
+    const visited = new Set<string>();
+    while (current && current.parentId) {
+      if (current.parentId === componentId) return fail("cannot set parent: would create a cycle");
+      if (visited.has(current.parentId)) break;
+      visited.add(current.parentId);
+      current = getComponent(ctx.projectId, current.parentId);
+    }
+    patchComponent(ctx.projectId, componentId, { parentId });
+    return ok(`"${comp.name}" is now a child of "${parent.name}"`);
+  },
+
+  remove_parent: (args, ctx) => {
+    const componentId = String(args.componentId);
+    const comp = getComponent(ctx.projectId, componentId);
+    if (!comp) return fail(`component ${componentId} not found`);
+    if (!comp.parentId) return fail(`"${comp.name}" has no parent`);
+    patchComponent(ctx.projectId, componentId, { parentId: null });
+    return ok(`"${comp.name}" detached from parent`);
+  },
+
+  list_hierarchy: (_args, ctx) => {
+    const comps = listComponents(ctx.projectId);
+    const roots = comps.filter((c) => !c.parentId);
+    const tree = roots.map((r) => {
+      const children = comps.filter((c) => c.parentId === r.id);
+      return {
+        id: r.id,
+        name: r.name,
+        children: children.map((ch) => ({ id: ch.id, name: ch.name })),
+      };
+    });
+    return ok(`${roots.length} root layer(s), ${comps.length - roots.length} child layer(s)`, false, { tree, total: comps.length });
+  },
+
+  add_constraint: (args, ctx) => {
+    const componentId = String(args.componentId);
+    const targetId = String(args.targetId);
+    const comp = getComponent(ctx.projectId, componentId);
+    if (!comp) return fail(`component ${componentId} not found`);
+    const target = getComponent(ctx.projectId, targetId);
+    if (!target) return fail(`target component ${targetId} not found`);
+    const project = getProject(ctx.projectId);
+    if (!project) return fail("project not found");
+    const tokens = project.tokens ?? {};
+    const constraints = JSON.parse(String(tokens.constraints ?? "[]")) as Array<Record<string, unknown>>;
+    const constraint = {
+      id: createId("con_"),
+      componentId,
+      targetId,
+      type: String(args.type),
+      strength: Number(args.strength),
+      axis: String(args.axis),
+    };
+    constraints.push(constraint);
+    tokens.constraints = JSON.stringify(constraints);
+    updateProject(ctx.projectId, { tokens });
+    return ok(`added ${constraint.type} constraint from "${comp.name}" to "${target.name}"`, true, { constraint });
+  },
+
+  remove_constraint: (args, ctx) => {
+    const constraintId = String(args.constraintId);
+    const project = getProject(ctx.projectId);
+    if (!project) return fail("project not found");
+    const tokens = project.tokens ?? {};
+    const constraints = JSON.parse(String(tokens.constraints ?? "[]")) as Array<Record<string, unknown>>;
+    const filtered = constraints.filter((c) => c.id !== constraintId);
+    if (filtered.length === constraints.length) return fail(`constraint ${constraintId} not found`);
+    tokens.constraints = JSON.stringify(filtered);
+    updateProject(ctx.projectId, { tokens });
+    return ok(`removed constraint`, true, { remaining: filtered.length });
+  },
+
+  list_constraints: (_args, ctx) => {
+    const project = getProject(ctx.projectId);
+    if (!project) return fail("project not found");
+    const tokens = project.tokens ?? {};
+    const constraints = JSON.parse(String(tokens.constraints ?? "[]")) as Array<Record<string, unknown>>;
+    return ok(`${constraints.length} constraint(s)`, false, { constraints });
+  },
+
+  add_clip: (args, ctx) => {
+    const project = getProject(ctx.projectId);
+    if (!project) return fail("project not found");
+    const tokens = project.tokens ?? {};
+    const clips = JSON.parse(String(tokens.clips ?? "[]")) as Array<Record<string, unknown>>;
+    const clip = {
+      id: createId("clip_"),
+      name: String(args.name),
+      startMs: Number(args.startMs),
+      endMs: Number(args.endMs),
+      color: args.color ? String(args.color) : "#ffffff",
+    };
+    if (clip.endMs <= clip.startMs) return fail("clip endMs must be greater than startMs");
+    clips.push(clip);
+    tokens.clips = JSON.stringify(clips);
+    updateProject(ctx.projectId, { tokens });
+    return ok(`added clip "${clip.name}" (${clip.startMs}ms–${clip.endMs}ms)`, true, { clip });
+  },
+
+  remove_clip: (args, ctx) => {
+    const clipId = String(args.clipId);
+    const project = getProject(ctx.projectId);
+    if (!project) return fail("project not found");
+    const tokens = project.tokens ?? {};
+    const clips = JSON.parse(String(tokens.clips ?? "[]")) as Array<Record<string, unknown>>;
+    const filtered = clips.filter((c) => c.id !== clipId);
+    if (filtered.length === clips.length) return fail(`clip ${clipId} not found`);
+    tokens.clips = JSON.stringify(filtered);
+    updateProject(ctx.projectId, { tokens });
+    return ok(`removed clip`, true, { remaining: filtered.length });
+  },
+
+  list_clips: (_args, ctx) => {
+    const project = getProject(ctx.projectId);
+    if (!project) return fail("project not found");
+    const tokens = project.tokens ?? {};
+    const clips = JSON.parse(String(tokens.clips ?? "[]")) as Array<Record<string, unknown>>;
+    return ok(`${clips.length} clip(s)`, false, { clips });
+  },
+
+  play_clip: (args, ctx) => {
+    const clipId = String(args.clipId);
+    const project = getProject(ctx.projectId);
+    if (!project) return fail("project not found");
+    const tokens = project.tokens ?? {};
+    const clips = JSON.parse(String(tokens.clips ?? "[]")) as Array<Record<string, unknown>>;
+    const clip = clips.find((c) => c.id === clipId);
+    if (!clip) return fail(`clip ${clipId} not found`);
+    return ok(`playing clip "${clip.name}"`, false, {
+      uiAction: "play_clip",
+      clipId,
+      startMs: clip.startMs,
+      endMs: clip.endMs,
+    });
+  },
+
+  set_filter: (args, ctx) => {
+    const componentId = String(args.componentId);
+    const comp = getComponent(ctx.projectId, componentId);
+    if (!comp) return fail(`component ${componentId} not found`);
+    const filterName = String(args.filter);
+    const filterValue = args.value;
+    const style = { ...comp.style } as Record<string, string | number>;
+    // Build or update the CSS filter string
+    const filterParts: string[] = [];
+    const filterRegex = /(\w+)\(([^)]+)\)/g;
+    const existing = typeof style.filter === "string" ? style.filter : "";
+    let match: RegExpExecArray | null;
+    let found = false;
+    while ((match = filterRegex.exec(existing)) !== null) {
+      if (match[1] === filterName) {
+        filterParts.push(`${filterName}(${filterValue})`);
+        found = true;
+      } else {
+        filterParts.push(match[0]);
+      }
+    }
+    if (!found) filterParts.push(`${filterName}(${filterValue})`);
+    const filterStr = filterParts.join(" ");
+    if (filterStr) {
+      style.filter = filterStr;
+    } else {
+      delete style.filter;
+    }
+    patchComponent(ctx.projectId, componentId, { style });
+    return ok(`set ${filterName}(${filterValue}) filter on "${comp.name}"`);
+  },
+
+  set_3d_transform: (args, ctx) => {
+    const componentId = String(args.componentId);
+    const comp = getComponent(ctx.projectId, componentId);
+    if (!comp) return fail(`component ${componentId} not found`);
+    const style = { ...comp.style } as Record<string, string | number>;
+    if (args.perspective != null) style.perspective = `${args.perspective}px`;
+    if (args.rotateX != null) style.rotateX = `${args.rotateX}deg`;
+    if (args.rotateY != null) style.rotateY = `${args.rotateY}deg`;
+    if (args.rotateZ != null) style.rotateZ = `${args.rotateZ}deg`;
+    if (args.translateZ != null) style.translateZ = `${args.translateZ}px`;
+    patchComponent(ctx.projectId, componentId, { style });
+    const parts: string[] = [];
+    if (args.perspective != null) parts.push(`perspective=${args.perspective}`);
+    if (args.rotateX != null) parts.push(`rotateX=${args.rotateX}°`);
+    if (args.rotateY != null) parts.push(`rotateY=${args.rotateY}°`);
+    if (args.rotateZ != null) parts.push(`rotateZ=${args.rotateZ}°`);
+    if (args.translateZ != null) parts.push(`translateZ=${args.translateZ}px`);
+    return ok(`3D transform on "${comp.name}": ${parts.join(", ")}`);
+  },
+
+  analyze_restraint: (_args, ctx) => {
+    const spec = getProjectSpec(ctx.projectId);
+    if (!spec) return fail(`project ${ctx.projectId} not found`);
+    const analysis = analyzeRestraint(spec);
+    const report = formatRestraintReport(analysis);
+    return {
+      ok: true,
+      summary: `restraint score: ${analysis.score}/100 — ${analysis.warnings.length} warning(s), peak ${analysis.peakSimultaneous} simultaneous`,
+      specChanged: false,
+      data: { analysis, report },
+    };
+  },
+
+  list_recipes: (args, _ctx) => {
+    const category = args.category ? String(args.category) : undefined;
+    const query = args.query ? String(args.query) : undefined;
+    let recipes: MotionRecipe[];
+    if (query) {
+      recipes = searchRecipes(query);
+    } else {
+      recipes = listRecipes(category);
+    }
+    const summary = recipes.length > 0
+      ? `${recipes.length} recipe(s) available`
+      : "no recipes found";
+    return {
+      ok: true,
+      summary,
+      specChanged: false,
+      data: {
+        recipes: recipes.map((r) => ({
+          id: r.id,
+          name: r.name,
+          category: r.category,
+          description: r.description,
+          restraintCost: r.restraintCost,
+          avoidWhen: r.avoidWhen,
+          tags: r.tags,
+        })),
+      },
+    };
+  },
+
+  apply_recipe: (args, ctx) => {
+    const componentId = String(args.componentId);
+    const recipeId = String(args.recipeId);
+    const comp = getComponent(ctx.projectId, componentId);
+    if (!comp) return fail(`component ${componentId} not found`);
+    const recipe = getRecipe(recipeId);
+    if (!recipe) return fail(`recipe ${recipeId} not found`);
+
+    // Check avoidance conditions against current project context
+    const spec = getProjectSpec(ctx.projectId);
+    if (spec) {
+      const hasBounce = spec.components.some((c) => c.easing?.type === "preset" && /bounce|elastic/.test(c.easing.name));
+      const isProfessional = spec.components.some((c) => /professional|calm|minimal/.test(c.name.toLowerCase()));
+      const avoidance = checkRecipeAvoidance(recipe, {
+        componentCount: spec.components.length,
+        hasBounce,
+        isProfessional,
+      });
+      if (avoidance.shouldAvoid) {
+        return fail(`recipe "${recipe.name}" should be avoided here: ${avoidance.reasons.join("; ")}`);
+      }
+    }
+
+    // Apply the recipe to the component
+    const recipeData = recipe.recipe as {
+      easing?: Easing;
+      durationMs?: number;
+      keyframes?: Array<{ offset: number; properties: Record<string, string | number> }>;
+      iterationCount?: number | "infinite";
+      direction?: string;
+      trigger?: string;
+    };
+    const patch: Partial<MotionComponent> = {};
+    if (recipeData.easing) patch.easing = recipeData.easing;
+    if (recipeData.durationMs != null) patch.durationMs = recipeData.durationMs;
+    if (recipeData.keyframes) patch.keyframes = recipeData.keyframes as Keyframe[];
+    if (recipeData.iterationCount != null) patch.iterationCount = recipeData.iterationCount as number | "infinite";
+    if (recipeData.direction) patch.direction = recipeData.direction as MotionComponent["direction"];
+    if (recipeData.trigger) patch.trigger = recipeData.trigger as MotionComponent["trigger"];
+    patchComponent(ctx.projectId, componentId, patch);
+    return ok(`applied recipe "${recipe.name}" to "${comp.name}"`);
+  },
+
+  save_memory: (args, ctx) => {
+    const key = String(args.key);
+    const value = String(args.value);
+    const tags = (args.tags as string[] | undefined) ?? [];
+    const entry = remember(ctx.projectId, key, value, tags, 0.8);
+    return ok(`saved memory: ${key} = ${value}`, false, { memoryId: entry.id });
+  },
+
+  recall_memory: (args, ctx) => {
+    const query = String(args.query);
+    const results = searchMemory(ctx.projectId, query);
+    const summary = results.length > 0
+      ? `recalled ${results.length} memor${results.length === 1 ? "y" : "ies"} for "${query}"`
+      : `no memories found for "${query}"`;
+    return {
+      ok: true,
+      summary,
+      specChanged: false,
+      data: { memories: results },
+    };
+  },
+
+  list_generated_skills: (args, _ctx) => {
+    const projectId = args.projectId ? String(args.projectId) : undefined;
+    const limit = Number(args.limit ?? 10);
+    const skills = listGeneratedSkills(projectId, limit);
+    const summary = skills.length > 0
+      ? `${skills.length} generated skill(s)`
+      : "no generated skills yet";
+    return {
+      ok: true,
+      summary,
+      specChanged: false,
+      data: { skills },
+    };
+  },
+
+  compile_grammar: (args, ctx) => {
+    const componentId = String(args.componentId ?? "");
+    const source = String(args.source ?? "");
+    const projectId = ctx.projectId;
+    const component = getComponent(projectId, componentId);
+    if (!component) return fail(`component ${componentId} not found`);
+
+    const compiled = compileGrammar(source);
+    if (!compiled.isValid) {
+      return {
+        ok: false,
+        summary: `grammar parse error: ${compiled.errors.join("; ")}`,
+        specChanged: false,
+        data: { errors: compiled.errors, examples: GRAMMAR_EXAMPLES },
+      };
+    }
+
+    const patch = applyCompiledGrammar(compiled, component);
+    const updated = patchComponent(projectId, componentId, patch);
+    const stmtSummary = compiled.statements
+      .map((s) => `${s.verb}${s.direction ? `.${s.direction}` : ""}(${s.durationMs}ms)`)
+      .join(" → ");
+
+    return ok(
+      `Compiled grammar: ${stmtSummary}. Total ${compiled.totalDurationMs}ms with ${compiled.statements.length} motion(s).`,
+      true,
+      { component: updated, compiled },
+    );
+  },
+
+  parse_motion: (args, ctx) => {
+    const description = String(args.description ?? "");
+    const componentId = args.componentId ? String(args.componentId) : undefined;
+    const projectId = ctx.projectId;
+
+    const parsed = parseNaturalMotion(description);
+    if (!parsed.isValid) {
+      return {
+        ok: false,
+        summary: `could not parse motion description: ${parsed.errors.join("; ")}`,
+        specChanged: false,
+        data: { errors: parsed.errors },
+      };
+    }
+
+    if (componentId) {
+      const component = getComponent(projectId, componentId);
+      if (!component) return fail(`component ${componentId} not found`);
+      const patch = parsed.toPatch();
+      const updated = patchComponent(projectId, componentId, patch);
+      return ok(
+        `Parsed "${description.slice(0, 60)}" → ${parsed.verb} with ${parsed.easing.type} easing, ${parsed.durationMs}ms.`,
+        true,
+        { component: updated, parsed },
+      );
+    }
+
+    return ok(
+      `Parsed "${description.slice(0, 60)}" → ${parsed.verb} with ${parsed.easing.type} easing, ${parsed.durationMs}ms.`,
+      false,
+      { parsed },
+    );
+  },
+
+  set_shader_effect: (args, ctx) => {
+    const componentId = String(args.componentId ?? "");
+    const effectId = String(args.effectId ?? "");
+    const intensity = args.intensity !== undefined ? Number(args.intensity) : undefined;
+    const projectId = ctx.projectId;
+
+    const component = getComponent(projectId, componentId);
+    if (!component) return fail(`component ${componentId} not found`);
+
+    const effect = getShaderEffect(effectId);
+    if (!effect) {
+      const available = listShaderEffects().map((e) => e.id).join(", ");
+      return fail(`shader effect ${effectId} not found. Available: ${available}`);
+    }
+
+    const cssStyle = getShaderCss(effectId);
+    if (!cssStyle) return fail(`no CSS style for shader effect ${effectId}`);
+
+    // Merge shader CSS into component style
+    const newStyle = { ...component.style, ...cssStyle };
+
+    // Apply intensity-based adjustments
+    if (intensity !== undefined && effect.parameters.intensity) {
+      const scaled = intensity / effect.parameters.intensity.default;
+      if (effect.id === "shader-chromatic" || effect.id === "shader-neon-glow") {
+        const baseOffset = 2 * scaled;
+        newStyle.filter = `drop-shadow(${baseOffset}px 0 0 rgba(255,0,0,0.5)) drop-shadow(-${baseOffset}px 0 0 rgba(0,0,255,0.5))`;
+      } else if (effect.id === "shader-vignette") {
+        const spread = Math.round(20 + 40 * scaled);
+        newStyle.boxShadow = `inset 0 0 ${spread * 2}px ${spread}px rgba(0,0,0,${0.4 + 0.3 * scaled})`;
+      }
+    }
+
+    const updated = patchComponent(projectId, componentId, { style: newStyle });
+
+    return ok(
+      `Applied ${effect.name} shader effect to "${component.name}".`,
+      true,
+      { component: updated, effect },
+    );
   },
 };
