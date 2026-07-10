@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS motion_components (
   direction TEXT NOT NULL DEFAULT 'normal',
   fill_mode TEXT NOT NULL DEFAULT 'forwards',
   play_state TEXT NOT NULL DEFAULT 'running',
+  trigger TEXT NOT NULL DEFAULT 'onLoad',
   easing_json TEXT NOT NULL,
   keyframes_json TEXT NOT NULL DEFAULT '[]',
   style_json TEXT NOT NULL DEFAULT '{}',
