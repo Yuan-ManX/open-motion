@@ -61,11 +61,11 @@ export function ChatPanel() {
   const completedStepIndices = useChatStore((s) => s.completedStepIndices);
   const activeStepIndex = useChatStore((s) => s.activeStepIndex);
   const reasoningText = useChatStore((s) => s.reasoningText);
+  const reflection = useChatStore((s) => s.reflection);
   const error = useChatStore((s) => s.error);
   const send = useChatStore((s) => s.send);
   const regenerate = useChatStore((s) => s.regenerate);
   const loadMessages = useChatStore((s) => s.loadMessages);
-  const clear = useChatStore((s) => s.clear);
   const abort = useChatStore((s) => s.abort);
 
   const [input, setInput] = useState("");
@@ -109,16 +109,6 @@ export function ChatPanel() {
     }
     return -1;
   }, [messages]);
-
-  const agentStatus = useMemo<{ label: string; color: string }>(() => {
-    if (creating) return { label: "Starting", color: "text-white bg-white/10 animate-pulse" };
-    if (error) return { label: "Error", color: "text-red-400 bg-red-950/40" };
-    if (!isStreaming) return { label: messages.length > 0 ? "Ready" : "Idle", color: "text-gray-500 bg-panel2" };
-    if (plan && toolActivity.length === 0) return { label: "Planning", color: "text-gray-300 bg-white/5 animate-pulse" };
-    if (toolActivity.some((a) => !a.done)) return { label: "Executing", color: "text-white bg-white/10" };
-    if (streamingTokens) return { label: "Responding", color: "text-white bg-white/15" };
-    return { label: "Thinking", color: "text-gray-300 bg-white/5 animate-pulse" };
-  }, [creating, error, isStreaming, plan, toolActivity, streamingTokens, messages.length]);
 
   /** Load messages when project changes — skip for auto-created projects. */
   useEffect(() => {
@@ -206,31 +196,6 @@ export function ChatPanel() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-edge">
-        <div className="flex items-center gap-2">
-          <h2 className="text-sm font-semibold text-gray-200">Conversation</h2>
-          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${agentStatus.color}`}>
-            {agentStatus.label}
-          </span>
-          {components.length > 0 && (
-            <span className="text-[10px] text-gray-600">
-              {components.length} {components.length === 1 ? "layer" : "layers"}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {projectId && (
-            <button
-              onClick={() => clear(projectId)}
-              className="text-xs text-gray-500 hover:text-gray-300"
-            >
-              Clear
-            </button>
-          )}
-        </div>
-      </div>
-
       {/* Messages */}
       <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
         {messages.length === 0 && !isStreaming && !creating && (
@@ -364,6 +329,22 @@ export function ChatPanel() {
               <span className="text-[10px]">Thinking</span>
             </div>
             <p className="text-gray-500 italic line-clamp-3">{reasoningText}</p>
+          </div>
+        )}
+
+        {/* Self-reflection on failures */}
+        {reflection && isStreaming && (
+          <div className="text-xs bg-panel2 border border-edge rounded-lg px-3 py-2 max-w-[90%]">
+            <div className="flex items-center gap-1.5 text-gray-400 mb-1">
+              <span className="text-[10px]">Self-Reflection</span>
+              {reflection.failedTools.length > 0 && (
+                <span className="text-[9px] text-red-400 font-mono">{reflection.failedTools.join(", ")}</span>
+              )}
+            </div>
+            <p className="text-gray-400 line-clamp-3">{reflection.text}</p>
+            {reflection.suggestion && (
+              <p className="text-gray-500 mt-1 text-[10px]">→ {reflection.suggestion}</p>
+            )}
           </div>
         )}
 
