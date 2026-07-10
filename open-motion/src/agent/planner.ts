@@ -343,6 +343,174 @@ export function buildPlan(userMessage: string, spec: MotionSpec): Plan {
     steps.push({ tool: "set_rulers", description: "Toggle canvas rulers" });
   }
 
+  // Nudge component.
+  if (/\b(nudge|move by|shift by|pixel.*move)\b/i.test(text)) {
+    if (firstId) steps.push({ tool: "nudge_component", description: "Nudge the component by a pixel delta" });
+  }
+  // Clipboard: copy / paste.
+  if (/\b(copy to clipboard|copy selection)\b/i.test(text)) {
+    steps.push({ tool: "copy_to_clipboard", description: "Copy selection to clipboard" });
+  }
+  if (/\b(paste from clipboard|paste here|paste a copy)\b/i.test(text)) {
+    steps.push({ tool: "paste_from_clipboard", description: "Paste from clipboard" });
+  }
+  // State machine: capture, apply, transition, list, remove.
+  if (/\b(capture.*state|save.*state|snapshot)\b/i.test(text)) {
+    steps.push({ tool: "capture_state", description: "Capture current state as a named snapshot" });
+  }
+  if (/\b(apply.*state|go to state|switch to state|restore state)\b/i.test(text)) {
+    steps.push({ tool: "apply_state", description: "Apply a captured state" });
+  }
+  if (/\b(add transition|connect states|transition from)\b/i.test(text)) {
+    steps.push({ tool: "add_transition", description: "Add a transition between states" });
+  }
+  if (/\b(remove state|delete state)\b/i.test(text)) {
+    steps.push({ tool: "remove_state", description: "Remove a state from the state machine" });
+  }
+  if (/\b(list states|show states|what states|state machine info)\b/i.test(text)) {
+    steps.push({ tool: "list_states", description: "List all states and transitions" });
+  }
+
+  // Auto-keyframe mode.
+  if (/\b(auto.?keyframe|auto.?key|keyframe.*mode|record.*keyframe)\b/i.test(text)) {
+    steps.push({ tool: "toggle_auto_keyframe", description: "Toggle auto-keyframe mode" });
+  }
+  // Event listeners.
+  if (/\b(add.*listener|event listener|on.*trigger.*action|attach.*listener)\b/i.test(text)) {
+    steps.push({ tool: "add_listener", description: "Add an event listener to a component" });
+  }
+  if (/\b(remove.*listener|delete.*listener)\b/i.test(text)) {
+    steps.push({ tool: "remove_listener", description: "Remove an event listener" });
+  }
+  if (/\b(list.*listener|show.*listener|what.*listener)\b/i.test(text)) {
+    steps.push({ tool: "list_listeners", description: "List event listeners" });
+  }
+  // Keyframe offset.
+  if (/\b(move.*keyframe|retime.*keyframe|keyframe.*offset|shift.*keyframe)\b/i.test(text)) {
+    if (firstId) steps.push({ tool: "set_keyframe_offset", description: "Move a keyframe to a new offset" });
+  }
+  // Markers.
+  if (/\b(add.*marker|mark.*position|bookmark)\b/i.test(text)) {
+    steps.push({ tool: "add_marker", description: "Add a timeline marker" });
+  }
+  if (/\b(remove.*marker|delete.*marker)\b/i.test(text)) {
+    steps.push({ tool: "remove_marker", description: "Remove a timeline marker" });
+  }
+  if (/\b(list.*marker|show.*marker|what.*marker)\b/i.test(text)) {
+    steps.push({ tool: "list_markers", description: "List timeline markers" });
+  }
+  // Reverse keyframes.
+  if (/\b(reverse.*keyframes?|play.*backward|flip.*keyframes?)\b/i.test(text)) {
+    if (firstId) steps.push({ tool: "reverse_keyframes", description: "Reverse keyframe order" });
+  }
+  // Z-index.
+  if (/\b(bring.*forward|send.*backward|bring.*front|send.*back|move.*front|move.*back)\b/i.test(text)) {
+    if (firstId) {
+      const act = /\bfront\b/i.test(text) && !/\bforward\b/i.test(text) ? "to-front"
+        : /\bback\b/i.test(text) && !/\bbackward\b/i.test(text) ? "to-back"
+        : /\bforward\b/i.test(text) ? "forward" : "backward";
+      steps.push({ tool: "set_z_order", description: `Move layer ${act}` });
+    }
+  }
+  // Solo.
+  if (/\b(solo|isolate)\b/i.test(text)) {
+    if (firstId) steps.push({ tool: "solo_layer", description: "Solo this layer" });
+  }
+
+  // Hierarchy: parent/child/rig.
+  if (/\b(parent|child|rig|bone|attach|nest|hierarchy)\b/i.test(text)) {
+    const firstName = spec.components[0]?.name;
+    if (/\b(list|show|tree)\b/i.test(text)) {
+      steps.push({ tool: "list_hierarchy", description: "List the layer hierarchy tree" });
+    } else if (/\b(detach|remove|orphan)\b/i.test(text) && firstId) {
+      steps.push({ tool: "remove_parent", description: `Detach "${firstName}" from its parent` });
+    } else if (firstId && spec.components.length > 1) {
+      steps.push({ tool: "set_parent", description: `Set parent-child relationship` });
+    }
+  }
+
+  // Constraints.
+  if (/\b(constraint|constrain|pin|look.?at|follow)\b/i.test(text)) {
+    if (/\b(list|show)\b/i.test(text)) {
+      steps.push({ tool: "list_constraints", description: "List all constraints" });
+    } else if (/\b(remove|delete)\b/i.test(text)) {
+      steps.push({ tool: "remove_constraint", description: "Remove a constraint" });
+    } else if (firstId) {
+      steps.push({ tool: "add_constraint", description: "Add a constraint between components" });
+    }
+  }
+
+  // Timeline clips.
+  if (/\b(clip|segment|section)\b/i.test(text) && !/\bplayback range\b/i.test(text)) {
+    if (/\b(list|show)\b/i.test(text)) {
+      steps.push({ tool: "list_clips", description: "List all timeline clips" });
+    } else if (/\b(play|trigger)\b/i.test(text)) {
+      steps.push({ tool: "play_clip", description: "Play a timeline clip" });
+    } else if (/\b(remove|delete)\b/i.test(text)) {
+      steps.push({ tool: "remove_clip", description: "Remove a timeline clip" });
+    } else {
+      steps.push({ tool: "add_clip", description: "Add a timeline clip" });
+    }
+  }
+
+  // CSS filters / shader effects.
+  if (/\b(blur|brightness|contrast|hue|saturate|grayscale|sepia|filter|shader|effect)\b/i.test(text)) {
+    const firstName = spec.components[0]?.name;
+    if (firstId) steps.push({ tool: "set_filter", description: `Apply filter effect to "${firstName}"` });
+  }
+
+  // 3D transforms.
+  if (/\b(3d|perspective|rotateX|rotateY|rotateZ|translateZ|three.?d)\b/i.test(text)) {
+    const firstName = spec.components[0]?.name;
+    if (firstId) steps.push({ tool: "set_3d_transform", description: `Apply 3D transform to "${firstName}"` });
+  }
+
+  // Restraint analysis: motion density check.
+  if (/\b(too much|too many|restraint|density|overwhelm\w*|clutter\w*|visual noise|competing for attention|is this too busy)\b/i.test(text)) {
+    steps.push({ tool: "analyze_restraint", description: "Analyze motion density and produce a restraint score" });
+  }
+
+  // Motion recipes: browse or apply.
+  if (/\b(recipe|recipes|gentle entrance|impact reveal|elastic bounce|cinematic fade|data pulse|ambient float|typewriter reveal|magnetic hover)\b/i.test(text)) {
+    if (/\b(apply|use|try)\b/i.test(text) && firstId) {
+      steps.push({ tool: "apply_recipe", description: "Apply a curated motion recipe to the component" });
+    } else {
+      steps.push({ tool: "list_recipes", description: "Browse the curated motion recipe library" });
+    }
+  }
+
+  // Persistent memory: save, recall, or list.
+  if (/\b(remember this|save.*memory|save.*note)\b/i.test(text)) {
+    steps.push({ tool: "save_memory", description: "Save a persistent memory entry for this project" });
+  }
+  if (/\b(recall.*memory|what did we decide|what do you know|search.*memory)\b/i.test(text)) {
+    steps.push({ tool: "recall_memory", description: "Search persistent project memory" });
+  }
+
+  // Generated skills: list what the agent has learned.
+  if (/\b(generated skill|learned skill|what have you learned|auto.?generated|show.*skills)\b/i.test(text)) {
+    steps.push({ tool: "list_generated_skills", description: "List auto-generated skills from past sessions" });
+  }
+
+  // Motion grammar compilation
+  if (/\b(grammar|compile.*motion|motion.*expression)\b/i.test(text) && firstId) {
+    steps.push({ tool: "compile_grammar", description: "Compile motion grammar expression into motion specs" });
+  }
+
+  // Natural language motion parsing
+  if (/\b(parse.*motion|make.*bounce|make.*fade|make.*slide|natural language motion|describe.*animation|translate.*motion)\b/i.test(text)) {
+    if (firstId) {
+      steps.push({ tool: "parse_motion", description: "Parse natural language description into motion spec" });
+    } else {
+      steps.push({ tool: "parse_motion", description: "Parse natural language description into motion spec (no component to apply)" });
+    }
+  }
+
+  // Shader effects
+  if (/\b(shader|glitch effect|chromatic aberration|neon glow|plasma|pixelate|vignette|film grain|ripple effect|gradient shift)\b/i.test(text) && firstId) {
+    steps.push({ tool: "set_shader_effect", description: "Apply WebGL shader effect to component" });
+  }
+
   // Get spec.
   if (/\b(spec|state|current|status)\b/i.test(text)) {
     steps.push({ tool: "get_motion_spec", description: "Read the current motion spec" });
