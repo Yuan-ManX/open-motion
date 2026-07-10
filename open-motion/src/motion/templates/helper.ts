@@ -48,6 +48,7 @@ export function draft(
     direction: opts.direction ?? "normal",
     fillMode: opts.fillMode ?? "forwards",
     playState: "running",
+    trigger: "onLoad",
     easing: opts.easing ?? easingPreset("ease-out"),
     keyframes: opts.keyframes ?? [],
     style: opts.style ?? {},
