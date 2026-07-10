@@ -1,11 +1,14 @@
 import { useState, useCallback } from "react";
 import { useProjectStore } from "../../store/projectStore.js";
 import * as api from "../../api/endpoints.js";
+import { StateMachineGraph } from "./StateMachineGraph.js";
 
 interface MotionState {
   id: string;
   name: string;
   components: Record<string, { style: Record<string, string | number> }>;
+  x?: number;
+  y?: number;
 }
 
 interface StateTransition {
@@ -76,10 +79,17 @@ export function StateMachinePanel() {
     for (const c of components) {
       compStyles[c.id] = { style: { ...(c.style as Record<string, string | number>) } };
     }
+    const idx = sm.states.length;
+    const angle = (idx * 72 - 90) * (Math.PI / 180);
+    const radius = 70;
+    const x = 115 + radius * Math.cos(angle);
+    const y = 90 + radius * Math.sin(angle);
     const newState: MotionState = {
       id: genId(),
       name: newStateName.trim(),
       components: compStyles,
+      x,
+      y,
     };
     const data: StateMachineData = {
       ...sm,
@@ -89,6 +99,17 @@ export function StateMachinePanel() {
     await persistStateMachine(data);
     setNewStateName("");
   }, [newStateName, components, sm, persistStateMachine]);
+
+  const handleRepositionState = useCallback(
+    async (stateId: string, x: number, y: number) => {
+      const data: StateMachineData = {
+        ...sm,
+        states: sm.states.map((s) => (s.id === stateId ? { ...s, x, y } : s)),
+      };
+      await persistStateMachine(data);
+    },
+    [sm, persistStateMachine],
+  );
 
   const handleApplyState = useCallback(
     async (stateId: string) => {
@@ -177,6 +198,32 @@ export function StateMachinePanel() {
             ⚲
           </button>
         </div>
+        {/* Visual state machine graph */}
+        {sm.states.length > 0 && (
+          <div className="mb-2">
+            <StateMachineGraph
+              states={sm.states.map((s) => ({
+                id: s.id,
+                name: s.name,
+                x: s.x ?? 115,
+                y: s.y ?? 90,
+                componentCount: Object.keys(s.components).length,
+                isActive: sm.activeStateId === s.id,
+              }))}
+              transitions={sm.transitions.map((t) => ({
+                id: t.id,
+                fromStateId: t.fromStateId,
+                toStateId: t.toStateId,
+                trigger: t.trigger,
+                durationMs: t.durationMs,
+              }))}
+              activeStateId={sm.activeStateId}
+              onSelectState={(id) => void handleApplyState(id)}
+              onRepositionState={(id, x, y) => void handleRepositionState(id, x, y)}
+              onDeleteState={(id) => void handleDeleteState(id)}
+            />
+          </div>
+        )}
         {/* State list */}
         {sm.states.length === 0 && (
           <div className="text-[10px] text-gray-600 py-2 text-center">
