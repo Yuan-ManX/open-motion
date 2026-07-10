@@ -16,6 +16,7 @@ import { chatRouter } from "./routes/chat.js";
 import { skillsRouter } from "./routes/skills.js";
 import { previewRouter } from "./routes/preview.js";
 import { exportRouter } from "./routes/export.js";
+import { agentRouter } from "./routes/agent.js";
 import { mountMcpHttp } from "../mcp/transport-http.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -47,6 +48,7 @@ export function createApp(): Express {
   app.use("/api", skillsRouter);
   app.use("/api", previewRouter);
   app.use("/api", exportRouter);
+  app.use("/api", agentRouter);
 
   mountMcpHttp(app);
 
