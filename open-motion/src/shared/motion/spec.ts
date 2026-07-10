@@ -26,6 +26,8 @@ export const DirectionSchema = z.enum([
 ]);
 export const FillModeSchema = z.enum(["none", "forwards", "backwards", "both"]);
 export const PlayStateSchema = z.enum(["running", "paused"]);
+export const TriggerSchema = z.enum(["onLoad", "onClick", "onHover", "onScroll", "afterDelay"]);
+export type Trigger = z.infer<typeof TriggerSchema>;
 
 /** A single animatable element. The editable unit the agent tools operate on. */
 export const MotionComponentSchema = z.object({
@@ -41,6 +43,7 @@ export const MotionComponentSchema = z.object({
   direction: DirectionSchema.default("normal"),
   fillMode: FillModeSchema.default("forwards"),
   playState: PlayStateSchema.default("running"),
+  trigger: TriggerSchema.default("onLoad"),
   easing: EasingSchema.default(() => easingPreset("ease-out")),
   keyframes: z.array(KeyframeSchema).default([]),
   style: CssStyleSchema.default({}),
