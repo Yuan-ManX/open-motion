@@ -177,6 +177,283 @@ export const RemoveSceneInput = z.object({
   sceneId: zIdField,
 });
 
+/* --------------------------- Composition tools --------------------------- */
+export const StaggerComponentsInput = z.object({
+  projectId: zIdField,
+  stepMs: z.number().int().min(10).max(5000).default(100),
+  startMs: z.number().int().min(0).max(10000).optional(),
+  direction: z.enum(["forward", "reverse", "center"]).default("forward"),
+});
+
+export const MatchTemplateInput = z.object({
+  projectId: zIdField,
+  hint: z.string().optional(),
+});
+
+export const CreateVariantInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  easing: EasingSchema.optional(),
+  durationMs: z.number().int().min(50).max(60000).optional(),
+  scale: z.number().min(0.1).max(10).optional(),
+});
+
+/* --------------------------- Intelligence tools --------------------------- */
+export const AnalyzeMotionInput = z.object({
+  projectId: zIdField,
+  componentId: z.string().optional(),
+});
+
+export const SuggestNextInput = z.object({
+  projectId: zIdField,
+});
+
+/* --------------------------- Motion path tools --------------------------- */
+export const SetMotionPathInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  pathType: z.enum(["line", "circle", "ellipse", "bezier"]),
+  // Line: from → to coordinates
+  fromX: z.number().optional(),
+  fromY: z.number().optional(),
+  toX: z.number().optional(),
+  toY: z.number().optional(),
+  // Circle / ellipse: radius and center
+  centerX: z.number().optional(),
+  centerY: z.number().optional(),
+  radiusX: z.number().optional(),
+  radiusY: z.number().optional(),
+  // Bezier: control points
+  cp1X: z.number().optional(),
+  cp1Y: z.number().optional(),
+  cp2X: z.number().optional(),
+  cp2Y: z.number().optional(),
+  steps: z.number().int().min(8).max(60).default(20),
+  durationMs: z.number().int().min(100).max(30000).optional(),
+});
+
+/* --------------------------- Style preset tools --------------------------- */
+export const ApplyStyleInput = z.object({
+  projectId: zIdField,
+  styleId: z.enum(["playful", "energetic", "calm", "professional", "dramatic", "minimal"]),
+});
+
+/* ------------------------- Pattern recognition tool ------------------------ */
+export const RecognizePatternInput = z.object({
+  projectId: zIdField,
+});
+
+/* --------------------------- Color harmony tool --------------------------- */
+export const HarmonizeColorsInput = z.object({
+  projectId: zIdField,
+  scheme: z.enum(["complementary", "analogous", "triadic", "monochrome"]).default("analogous"),
+  baseColor: z.string().regex(/^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/).optional(),
+});
+
+/* --------------------------- Choreography tool --------------------------- */
+export const ChoreographInput = z.object({
+  projectId: zIdField,
+  pattern: z.enum(["cascade", "wave", "ripple", "canon", "converge"]),
+  stepMs: z.number().int().min(20).max(2000).default(150),
+  durationMs: z.number().int().min(100).max(10000).optional(),
+});
+
+/* --------------------------- Motion refinement tool --------------------------- */
+export const RefineMotionInput = z.object({
+  projectId: zIdField,
+  componentId: z.string().optional(),
+  refinement: z.enum(["snappier", "smoother", "more-dramatic", "calmer", "subtler", "more-energetic", "bouncier", "softer"]),
+});
+
+export const SetCustomBezierInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  x1: z.number().min(-0.2).max(1.2),
+  y1: z.number().min(-0.2).max(1.2),
+  x2: z.number().min(-0.2).max(1.2),
+  y2: z.number().min(-0.2).max(1.2),
+});
+
+export const SetInterpolationInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  keyframeIndex: z.number().int().min(0),
+  interpolation: z.enum(["linear", "ease", "hold"]),
+});
+
+export const AddPropertyKeyframeInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  property: z.string(),
+  offset: z.number().min(0).max(1),
+  value: z.union([z.string(), z.number()]),
+});
+
+export const RemoveKeyframeInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  keyframeIndex: z.number().int().min(0),
+});
+
+export const SetTriggerInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  trigger: z.enum(["onLoad", "onClick", "onHover", "onScroll", "afterDelay"]),
+});
+
+export const SetOnionSkinInput = z.object({
+  projectId: zIdField,
+  enabled: z.boolean(),
+  frames: z.number().int().min(1).max(8).default(3),
+  opacity: z.number().min(0.05).max(0.8).default(0.25),
+});
+
+export const PreviewFullscreenInput = z.object({
+  projectId: zIdField,
+  componentId: z.string().optional(),
+});
+
+/* ----------------------------- Editor UI tools ----------------------------- */
+export const SetCanvasViewInput = z.object({
+  projectId: zIdField,
+  pan: z.object({ x: z.number(), y: z.number() }).optional(),
+  zoom: z.number().min(0.1).max(5).optional(),
+  fit: z.boolean().optional(),
+});
+
+export const LockLayerInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  locked: z.boolean().default(true),
+});
+
+export const SetPlaybackRangeInput = z.object({
+  projectId: zIdField,
+  startMs: z.number().int().min(0).optional(),
+  endMs: z.number().int().positive().optional(),
+  clear: z.boolean().optional(),
+});
+
+export const SelectComponentsInput = z.object({
+  projectId: zIdField,
+  componentIds: z.array(zIdField).default([]),
+  clear: z.boolean().default(true),
+});
+
+export const ToggleSnapInput = z.object({
+  projectId: zIdField,
+  enabled: z.boolean().default(true),
+  size: z.number().int().min(1).max(50).optional(),
+});
+
+export const SetRulersInput = z.object({
+  projectId: zIdField,
+  show: z.boolean().default(true),
+});
+
+/* --------------------------- Editor data tools --------------------------- */
+export const SetZOrderInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  action: z.enum(["forward", "backward", "to-front", "to-back"]),
+});
+
+export const SetTransformPropsInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  x: z.number().optional(),
+  y: z.number().optional(),
+  width: z.number().int().positive().optional(),
+  height: z.number().int().positive().optional(),
+  rotation: z.number().optional(),
+});
+
+export const AlignComponentsInput = z.object({
+  projectId: zIdField,
+  componentIds: z.array(zIdField).min(2),
+  align: z.enum(["left", "center", "right", "top", "middle", "bottom", "distribute-h", "distribute-v"]),
+});
+
+export const AddShapeInput = z.object({
+  projectId: zIdField,
+  shape: z.enum(["rectangle", "circle", "text", "triangle", "star", "polygon", "line", "arrow"]),
+  name: z.string().optional(),
+  x: z.number().optional(),
+  y: z.number().optional(),
+  width: z.number().int().positive().optional(),
+  height: z.number().int().positive().optional(),
+});
+
+export const SetBlendModeInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  blendMode: z.enum([
+    "normal", "multiply", "screen", "overlay", "darken", "lighten",
+    "color-dodge", "color-burn", "hard-light", "soft-light",
+    "difference", "exclusion", "hue", "saturation", "color", "luminosity",
+  ]),
+});
+
+export const SetArtboardInput = z.object({
+  projectId: zIdField,
+  width: z.number().int().min(64).max(4096).optional(),
+  height: z.number().int().min(64).max(4096).optional(),
+  background: z.string().optional(),
+});
+
+export const SetLayerOpacityInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  opacity: z.number().min(0).max(1),
+});
+
+/* --------------------------- Direct manipulation tools --------------------------- */
+export const NudgeComponentInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  dx: z.number(),
+  dy: z.number(),
+});
+
+export const CopyToClipboardInput = z.object({
+  projectId: zIdField,
+  componentIds: z.array(zIdField).optional(),
+});
+
+export const PasteFromClipboardInput = z.object({
+  projectId: zIdField,
+  x: z.number().optional(),
+  y: z.number().optional(),
+});
+
+/* --------------------------- State machine tools --------------------------- */
+export const CaptureStateInput = z.object({
+  projectId: zIdField,
+  name: z.string(),
+});
+
+export const ApplyStateInput = z.object({
+  projectId: zIdField,
+  stateId: zIdField,
+});
+
+export const AddTransitionInput = z.object({
+  projectId: zIdField,
+  fromStateId: zIdField,
+  toStateId: zIdField,
+  trigger: z.enum(["onClick", "onHover", "onLoad", "manual"]).default("manual"),
+  durationMs: z.number().int().min(50).max(10000).default(500),
+});
+
+export const RemoveStateInput = z.object({
+  projectId: zIdField,
+  stateId: zIdField,
+});
+
+export const ListStatesInput = z.object({
+  projectId: zIdField,
+});
+
 /* ----------------------------- Export tools ----------------------------- */
 export const ExportHtmlInput = z.object({
   projectId: zIdField,
@@ -228,6 +505,45 @@ export const TOOL_INPUT_SCHEMAS = {
   describe_motion: DescribeMotionInput,
   list_scenes: ListScenesInput,
   remove_scene: RemoveSceneInput,
+  stagger_components: StaggerComponentsInput,
+  match_template: MatchTemplateInput,
+  create_variant: CreateVariantInput,
+  analyze_motion: AnalyzeMotionInput,
+  suggest_next: SuggestNextInput,
+  set_motion_path: SetMotionPathInput,
+  apply_style: ApplyStyleInput,
+  recognize_pattern: RecognizePatternInput,
+  harmonize_colors: HarmonizeColorsInput,
+  choreograph: ChoreographInput,
+  refine_motion: RefineMotionInput,
+  set_custom_bezier: SetCustomBezierInput,
+  set_interpolation: SetInterpolationInput,
+  add_property_keyframe: AddPropertyKeyframeInput,
+  remove_keyframe: RemoveKeyframeInput,
+  set_trigger: SetTriggerInput,
+  set_onion_skin: SetOnionSkinInput,
+  preview_fullscreen: PreviewFullscreenInput,
+  set_canvas_view: SetCanvasViewInput,
+  lock_layer: LockLayerInput,
+  set_z_order: SetZOrderInput,
+  set_transform_props: SetTransformPropsInput,
+  align_components: AlignComponentsInput,
+  set_playback_range: SetPlaybackRangeInput,
+  select_components: SelectComponentsInput,
+  toggle_snap: ToggleSnapInput,
+  add_shape: AddShapeInput,
+  set_blend_mode: SetBlendModeInput,
+  set_artboard: SetArtboardInput,
+  set_layer_opacity: SetLayerOpacityInput,
+  set_rulers: SetRulersInput,
+  nudge_component: NudgeComponentInput,
+  copy_to_clipboard: CopyToClipboardInput,
+  paste_from_clipboard: PasteFromClipboardInput,
+  capture_state: CaptureStateInput,
+  apply_state: ApplyStateInput,
+  add_transition: AddTransitionInput,
+  remove_state: RemoveStateInput,
+  list_states: ListStatesInput,
   export_html: ExportHtmlInput,
   export_video: ExportVideoInput,
   export_skill: ExportSkillInput,
@@ -267,6 +583,45 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   describe_motion: "Analyze the current motion and produce a natural-language description plus a compact Motion DNA signature (e.g. BOUNCE|NORMAL|LOOP∞|SCALE+OPACITY|FWD). Use when the user asks 'what does this look like' or 'describe this motion'.",
   list_scenes: "List all scenes in a multi-scene project with their component counts.",
   remove_scene: "Remove a scene and all components assigned to it.",
+  stagger_components: "Create a cascading delay effect across all components so they animate in sequence. Supports forward, reverse, and center directions. Use when the user says 'stagger', 'cascade', 'sequence', or 'one by one'.",
+  match_template: "Find the closest matching template to the user's described motion or the current project state. Returns ranked suggestions with match scores. Use when the user says 'find a template' or 'what template fits'.",
+  create_variant: "Create a variation of an existing component with different easing, duration, or property scale. The original is preserved. Use when the user says 'try a variation' or 'what would this look like with different easing'.",
+  analyze_motion: "Analyze the current motion design for quality, timing, accessibility, and composition issues. Returns a list of insights with severity levels (info/warning/critical) and actionable suggestions. Use when the user asks 'is this good', 'analyze', 'review', or 'critique my motion'.",
+  suggest_next: "Generate 3-5 context-aware next-step suggestions based on the current project state. Returns suggestion text and a priority level. Use when the user asks 'what should I do next', 'suggest', or 'ideas'.",
+  set_motion_path: "Animate a component along a custom path (line, circle, ellipse, or bezier curve). Generates keyframes for translateX/translateY along the path. Use when the user says 'move in a circle', 'animate along a path', or 'orbit around a point'.",
+  apply_style: "Apply a coordinated motion style preset (playful, energetic, calm, professional, dramatic, minimal) across ALL components. Adjusts easing, duration, loop, and direction for a coherent aesthetic. Use when the user says 'make it playful', 'give it a professional feel', or 'style the whole project'.",
+  recognize_pattern: "Identify motion design patterns and anti-patterns in the project — monotony, incomplete lifecycle, timing uniformity, motion overload, and dominant category. Returns pattern observations with recommendations. Use when the user asks 'what patterns do you see' or 'is the composition balanced'.",
+  harmonize_colors: "Apply color theory to adjust component colors for visual harmony. Supports complementary, analogous, triadic, and monochrome schemes. Use when the user says 'harmonize colors', 'make colors work together', or 'apply a color scheme'.",
+  choreograph: "Apply a choreographic pattern across all components — cascade (sequential), wave (sine-wave delays), ripple (center-out), canon (offset repetition), converge (all converge to endpoint). Sets delays and adjusts durations for visual rhythm. Use when the user says 'choreograph', 'orchestrate', 'wave pattern', or 'ripple effect'.",
+  refine_motion: "Refine motion with qualitative descriptors — snappier, smoother, more-dramatic, calmer, subtler, more-energetic, bouncier, softer. Applies targeted easing, duration, and loop changes. Use on a single component or project-wide. Use when the user says 'make it snappier', 'smoother', 'more dramatic', or 'calmer'.",
+  set_custom_bezier: "Set a custom cubic-bezier easing curve on a component. Takes four control points (x1, y1, x2, y2) in the 0..1 range. Y-values beyond 0..1 create overshoot/wind-up. Use when the user says 'custom easing', 'bezier curve', or gives specific cubic-bezier values.",
+  set_interpolation: "Set the interpolation type for a specific keyframe — linear (constant speed), ease (smooth), or hold (instant jump, no transition). Use when the user says 'make this keyframe hold' or 'linear interpolation'.",
+  add_property_keyframe: "Add a keyframe for a specific animatable property (e.g., translateX, opacity, scale, rotate) at a given offset (0..1) with a value. Use when the user says 'add a keyframe for opacity at the halfway point' or 'keyframe the scale at 50%'.",
+  remove_keyframe: "Remove a keyframe at a specific index from a component. Use when the user says 'delete the second keyframe' or 'remove that keyframe'.",
+  set_trigger: "Set the trigger that starts the animation — onLoad (play immediately), onClick (play on user click), onHover (play on mouse hover), onScroll (play when scrolled into view), or afterDelay (play after the delay timer). Use when the user says 'trigger on click', 'play on hover', or 'animate on scroll'.",
+  set_onion_skin: "Toggle onion skinning on the canvas — shows ghost overlays of the component at adjacent keyframe positions for visual reference. Takes enabled flag, number of ghost frames (1-8), and opacity (0.05-0.8). Use when the user says 'show onion skin', 'turn on ghost frames', or 'show motion trail'.",
+  preview_fullscreen: "Open the animation in a fullscreen preview overlay without editor chrome. Optionally focus a single component. Use when the user says 'preview fullscreen', 'show me full screen', or 'present the animation'.",
+  set_canvas_view: "Control the canvas viewport — zoom (0.1-5), pan (x/y offset), or fit-to-screen. Use when the user says 'zoom in', 'zoom out', 'fit to screen', 'reset view', or 'pan canvas'.",
+  lock_layer: "Lock or unlock a layer to prevent selection and editing. Takes componentId and locked boolean. Use when the user says 'lock this layer' or 'unlock the layer'.",
+  set_z_order: "Reorder a component's z-position — forward (up one), backward (down one), to-front (top), to-back (bottom). Use when the user says 'bring to front', 'send to back', 'move forward', or 'move backward'.",
+  set_transform_props: "Set static transform properties on a component — X position, Y position, width, height, rotation (degrees). Use when the user says 'set position to X 100', 'resize to 200x100', or 'rotate 45 degrees'.",
+  align_components: "Align or distribute 2+ components — left, center, right, top, middle, bottom, distribute-h, distribute-v. Use when the user says 'align left', 'align center', 'distribute horizontally', or 'align top'.",
+  set_playback_range: "Set or clear the playback time range (in/out points in ms). When set, playback loops within the range. Use when the user says 'set playback range', 'trim to 500-2000ms', or 'clear range'.",
+  select_components: "Select multiple components by id, optionally clearing existing selection first. Use when the user says 'select all', 'select multiple', or 'select these layers'.",
+  toggle_snap: "Enable or disable snap-to-grid with optional grid size (1-50px). Use when the user says 'turn on snap', 'disable snapping', or 'set grid size to 16'.",
+  add_shape: "Add a shape to the canvas — rectangle, circle, text, triangle, star, pentagon, line, or arrow. Optionally set position (x/y) and size (width/height). Use when the user says 'add a rectangle', 'create a star', or 'add an arrow'.",
+  set_blend_mode: "Set a component's CSS blend mode (mixBlendMode). 16 modes: normal, multiply, screen, overlay, darken, lighten, color-dodge, color-burn, hard-light, soft-light, difference, exclusion, hue, saturation, color, luminosity. Use when the user says 'set blend mode to multiply' or 'blend with screen'.",
+  set_artboard: "Set the artboard (canvas) dimensions and background color. Width/height in pixels (64-4096). Use when the user says 'set canvas to 800x600', 'make the canvas wider', or 'set background to black'.",
+  set_layer_opacity: "Set a layer's opacity (0-1 where 1 is fully opaque). Use when the user says 'set opacity to 50%', 'make it semi-transparent', or 'opacity 0.8'.",
+  set_rulers: "Show or hide canvas rulers. Use when the user says 'show rulers', 'hide rulers', or 'toggle rulers'.",
+  nudge_component: "Move a component by a pixel delta (dx, dy). Positive dx moves right, positive dy moves down. Use when the user says 'nudge', 'move by 10px', 'shift left', or gives small position adjustments.",
+  copy_to_clipboard: "Copy the selected component(s) to the internal clipboard for later pasting. Use when the user says 'copy', 'copy this', or 'copy the selection'.",
+  paste_from_clipboard: "Paste the clipboard contents at an optional position (x, y). Creates new components from the clipboard entries. Use when the user says 'paste', 'paste here', or 'paste a copy'.",
+  capture_state: "Capture the current component positions and styles as a named state in the project's state machine. States are snapshots that can be applied later for interactive transitions. Use when the user says 'save state', 'capture state', 'snapshot this', or 'remember this position'.",
+  apply_state: "Apply a previously captured state by its ID — restores all component positions and styles to the state snapshot. Use when the user says 'apply state', 'go to state', 'switch to state', or 'restore state'.",
+  add_transition: "Define a transition between two states with a trigger (onClick, onHover, onLoad, manual) and duration. Use when the user says 'add transition', 'connect states', 'on click go to', or 'transition from A to B'.",
+  remove_state: "Remove a named state and all its associated transitions from the state machine. Use when the user says 'delete state', 'remove state', or 'delete that snapshot'.",
+  list_states: "List all states and transitions in the project's state machine. Returns state names, IDs, component counts, and transition details. Use when the user says 'list states', 'show states', 'what states exist', or 'state machine info'.",
   export_html: "Export the project as a standalone, runnable HTML file. Returns a URL.",
   export_video: "Export the project as a video (mp4 | gif | webm). Returns a jobId to poll.",
   export_skill: "Package the project (or a single component) as a reusable AI-callable skill. Returns a skillId.",
