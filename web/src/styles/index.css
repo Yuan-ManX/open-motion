@@ -5,12 +5,68 @@
 html, body, #root { height: 100%; }
 body {
   margin: 0;
-  background: radial-gradient(120% 120% at 50% 0%, #1b2230 0%, #0b0e14 60%);
-  color: #f4f6fb;
+  background: radial-gradient(120% 120% at 50% 0%, #161616 0%, #000000 60%);
+  color: #f5f5f5;
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-::-webkit-scrollbar { width: 8px; height: 8px; }
+/* Scrollbar — thin, subtle, dark theme */
+::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #222a3a; border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: #2d3850; }
+::-webkit-scrollbar-thumb { background: #262626; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #404040; }
+
+/* Text selection */
+::selection { background: rgba(255, 255, 255, 0.15); color: #ffffff; }
+::moz-selection { background: rgba(255, 255, 255, 0.15); color: #ffffff; }
+
+/* Focus ring — consistent across interactive elements */
+:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.4);
+  outline-offset: 1px;
+}
+
+/* Canvas dot-grid background */
+.canvas-grid {
+  background-image: radial-gradient(circle, #1a1a1a 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+/* Animated dashed outline for selected canvas elements */
+@keyframes march {
+  to { stroke-dashoffset: -8; }
+}
+.selection-outline {
+  outline: 1px dashed rgba(255, 255, 255, 0.6);
+  outline-offset: 2px;
+  animation: march 0.6s linear infinite;
+}
+
+/* Subtle fade-in for chat messages and plan steps */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-in-up {
+  animation: fadeInUp 0.2s ease-out;
+}
+
+/* Pulse glow for active plan step */
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.1); }
+  50% { box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.05); }
+}
+.pulse-glow {
+  animation: pulseGlow 1.5s ease-in-out infinite;
+}
+
+/* Smooth transitions for buttons and interactive elements */
+button, a, [role="button"] {
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+}
+
+/* Thin divider */
+.divider-h { height: 1px; background: #262626; }
+.divider-v { width: 1px; background: #262626; }
