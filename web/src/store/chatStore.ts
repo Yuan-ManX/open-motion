@@ -2,8 +2,10 @@ import { create } from "zustand";
 import type { Message } from "@openmotion/shared";
 import type { ChatEvent } from "@openmotion/shared";
 import { streamChat } from "../api/sse.js";
-import { listMessages, clearMessages } from "../api/endpoints.js";
+import { listMessages, clearMessages, createComponent, patchComponent } from "../api/endpoints.js";
 import { useProjectStore } from "./projectStore.js";
+import { useUiStore } from "./uiStore.js";
+import { useClipboardStore } from "./clipboardStore.js";
 
 export interface ToolActivity {
   callId: string;
@@ -34,6 +36,8 @@ interface ChatState {
   plan: AgentPlan | null;
   completedStepIndices: number[];
   activeStepIndex: number;
+  reasoningText: string;
+  reflection: { text: string; failedTools: string[]; suggestion?: string } | null;
   error: string | null;
   abortController: AbortController | null;
 
@@ -52,13 +56,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
   plan: null,
   completedStepIndices: [],
   activeStepIndex: -1,
+  reasoningText: "",
+  reflection: null,
   error: null,
   abortController: null,
 
   loadMessages: async (projectId) => {
+    if (get().isStreaming) return;
     set({ messages: [] });
     try {
       const msgs = await listMessages(projectId);
+      if (get().isStreaming) return;
       set({ messages: msgs });
     } catch {
       /* ignore */
@@ -84,6 +92,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       plan: null,
       completedStepIndices: [],
       activeStepIndex: -1,
+      reasoningText: "",
       error: null,
     });
 
@@ -98,6 +107,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
             break;
           case "token":
             set({ streamingTokens: get().streamingTokens + event.delta });
+            break;
+          case "reasoning":
+            set({ reasoningText: get().reasoningText + event.text });
+            break;
+          case "reflection":
+            set({
+              reflection: {
+                text: event.text,
+                failedTools: event.failedTools,
+                suggestion: event.suggestion,
+              },
+            });
             break;
           case "tool_call": {
             const state = get();
@@ -137,10 +158,98 @@ export const useChatStore = create<ChatState>((set, get) => ({
               nextActive = nextIdx;
             }
             set({ toolActivity: activity, completedStepIndices: completed, activeStepIndex: nextActive });
+
+            // Handle UI-action tool results that don't change the spec but update editor state
+            const toolActivityEntry = activity.find((a) => a.callId === event.callId);
+            if (toolActivityEntry?.result && typeof toolActivityEntry.result === "object") {
+              const resultData = toolActivityEntry.result as { uiAction?: string };
+              if (resultData.uiAction === "set_onion_skin") {
+                const d = resultData as { enabled: boolean; frames: number; opacity: number };
+                useUiStore.getState().setOnionSkin({ enabled: d.enabled, frames: d.frames, opacity: d.opacity });
+              } else if (resultData.uiAction === "preview_fullscreen") {
+                useUiStore.getState().setPreviewOpen(true);
+              } else if (resultData.uiAction === "set_canvas_view") {
+                const d = resultData as { pan?: { x: number; y: number }; zoom?: number; fit?: boolean };
+                if (d.fit) {
+                  useUiStore.getState().resetCanvasView();
+                } else {
+                  if (d.pan) useUiStore.getState().setCanvasPan(d.pan);
+                  if (d.zoom != null) useUiStore.getState().setCanvasZoom(d.zoom);
+                }
+              } else if (resultData.uiAction === "lock_layer") {
+                const d = resultData as { componentId: string; locked: boolean };
+                useUiStore.getState().setLock(d.componentId, d.locked);
+              } else if (resultData.uiAction === "set_playback_range") {
+                const d = resultData as { startMs: number; endMs: number; clear?: boolean };
+                useUiStore.getState().setPlaybackRange(d.clear ? null : { startMs: d.startMs, endMs: d.endMs });
+              } else if (resultData.uiAction === "select_components") {
+                const d = resultData as { componentIds: string[]; clear: boolean };
+                if (d.clear) useUiStore.getState().clearSelection();
+                if (d.componentIds.length > 0) useUiStore.getState().setSelectedIds(d.componentIds);
+              } else if (resultData.uiAction === "toggle_snap") {
+                const d = resultData as { enabled: boolean; size?: number };
+                useUiStore.getState().setSnapToGrid(d.enabled);
+                if (d.size != null) useUiStore.getState().setSnapSize(d.size);
+              } else if (resultData.uiAction === "set_rulers") {
+                const d = resultData as { show: boolean };
+                useUiStore.getState().setShowRulers(d.show);
+              } else if (resultData.uiAction === "copy_to_clipboard") {
+                const components = useProjectStore.getState().components;
+                const selectedIds = useUiStore.getState().selectedIds;
+                const selected = components.filter((c) => selectedIds.has(c.id));
+                if (selected.length > 0) {
+                  useClipboardStore.getState().copy(selected);
+                }
+              } else if (resultData.uiAction === "paste_from_clipboard") {
+                const d = resultData as { x?: number; y?: number };
+                void (async () => {
+                  const entries = useClipboardStore.getState().entries;
+                  const projectId = useProjectStore.getState().project?.id;
+                  if (entries.length === 0 || !projectId) return;
+                  for (const entry of entries) {
+                    const clone = await createComponent(projectId, { name: `${entry.name} (paste)` });
+                    const newStyle = { ...entry.style };
+                    const left = typeof newStyle.left === "number" ? newStyle.left : parseFloat(String(newStyle.left ?? "0")) || 0;
+                    const top = typeof newStyle.top === "number" ? newStyle.top : parseFloat(String(newStyle.top ?? "0")) || 0;
+                    newStyle.left = left + (d.x ?? 20);
+                    newStyle.top = top + (d.y ?? 20);
+                    await patchComponent(projectId, clone.id, {
+                      easing: entry.easing,
+                      durationMs: entry.durationMs,
+                      delayMs: entry.delayMs,
+                      iterationCount: entry.iterationCount,
+                      direction: entry.direction,
+                      keyframes: entry.keyframes,
+                      style: newStyle,
+                      trigger: entry.trigger,
+                    });
+                    useProjectStore.getState().addComponentLocal(clone);
+                  }
+                })();
+              } else if (resultData.uiAction === "toggle_auto_keyframe") {
+                const d = resultData as { enabled: boolean };
+                useUiStore.getState().setAutoKeyframe(d.enabled);
+              } else if (resultData.uiAction === "solo_layer") {
+                const d = resultData as { componentId: string };
+                const current = useUiStore.getState().soloedId;
+                useUiStore.getState().setSoloedId(current === d.componentId ? null : d.componentId);
+              } else if (resultData.uiAction === "play_clip") {
+                const d = resultData as { startMs: number; endMs: number };
+                useUiStore.getState().setPlaybackRange({ startMs: d.startMs, endMs: d.endMs });
+                useUiStore.getState().setPlayheadMs(d.startMs);
+                useUiStore.getState().setTimelineCommand("play");
+              }
+            }
             break;
           }
           case "spec_update":
             useProjectStore.getState().applySpecUpdate(event.components, event.project);
+            if (event.project?.tokens) {
+              const t = event.project.tokens;
+              const w = Number(t.artboardWidth) || 0;
+              const h = Number(t.artboardHeight) || 0;
+              if (w && h) useUiStore.getState().setCanvasSize({ width: w, height: h });
+            }
             break;
           case "done": {
             const assistantMsg: Message = {
@@ -158,12 +267,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
               plan: null,
               completedStepIndices: [],
               activeStepIndex: -1,
+              reasoningText: "",
+              reflection: null,
               abortController: null,
             });
             break;
           }
           case "error":
-            set({ isStreaming: false, streamingTokens: "", plan: null, completedStepIndices: [], activeStepIndex: -1, error: event.message, abortController: null });
+            set({ isStreaming: false, streamingTokens: "", plan: null, completedStepIndices: [], activeStepIndex: -1, reasoningText: "", reflection: null, error: event.message, abortController: null });
             break;
           case "meta":
             break;
@@ -200,7 +311,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     activeStreamId++;
     const { abortController } = get();
     if (abortController) abortController.abort();
-    set({ isStreaming: false, streamingTokens: "", plan: null, completedStepIndices: [], activeStepIndex: -1, abortController: null });
+    set({ isStreaming: false, streamingTokens: "", plan: null, completedStepIndices: [], activeStepIndex: -1, reasoningText: "", reflection: null, abortController: null });
   },
 
   clear: async (projectId) => {
@@ -215,6 +326,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       plan: null,
       completedStepIndices: [],
       activeStepIndex: -1,
+      reasoningText: "",
+      reflection: null,
       error: null,
       abortController: null,
       isStreaming: false,
