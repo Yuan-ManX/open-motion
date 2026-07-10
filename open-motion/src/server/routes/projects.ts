@@ -12,6 +12,7 @@ import {
   duplicateProjectWithSpec,
   getProjectStats,
 } from "../services/projectService.js";
+import { analyzeMotion, suggestNext } from "../../motion/analysis.js";
 
 const UpdateProjectSchema = z.object({
   name: z.string().optional(),
@@ -73,5 +74,24 @@ projectsRouter.get(
   "/projects/:id/stats",
   runAsync(async (req, res) => {
     res.json(getProjectStats(req.params.id));
+  }),
+);
+
+projectsRouter.get(
+  "/projects/:id/suggestions",
+  runAsync(async (req, res) => {
+    const project = getProjectWithSpec(req.params.id);
+    const spec = project.spec ?? { project, components: [] };
+    res.json({ suggestions: suggestNext(spec) });
+  }),
+);
+
+projectsRouter.get(
+  "/projects/:id/analysis",
+  runAsync(async (req, res) => {
+    const project = getProjectWithSpec(req.params.id);
+    const spec = project.spec ?? { project, components: [] };
+    const componentId = typeof req.query.componentId === "string" ? req.query.componentId : undefined;
+    res.json(analyzeMotion(spec, componentId));
   }),
 );
