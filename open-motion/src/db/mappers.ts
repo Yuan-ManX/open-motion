@@ -38,6 +38,7 @@ interface ComponentRow {
   keyframes_json: string;
   style_json: string;
   order_index: number;
+  parent_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -80,6 +81,7 @@ export function rowToComponent(r: ComponentRow): MotionComponent {
     keyframes: parseJson(r.keyframes_json, []),
     style: parseJson(r.style_json, {}),
     orderIndex: r.order_index,
+    parentId: r.parent_id ?? null,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
