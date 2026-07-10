@@ -26,6 +26,7 @@ export interface CreateComponentInput {
   keyframes?: MotionComponent["keyframes"];
   style?: MotionComponent["style"];
   orderIndex?: number;
+  parentId?: string | null;
 }
 
 export function listProjectComponents(projectId: string): MotionComponent[] {
@@ -61,6 +62,7 @@ export function createProjectComponent(
     keyframes: tpl?.keyframes ?? input.keyframes ?? [],
     style: tpl?.style ?? input.style ?? {},
     orderIndex: input.orderIndex ?? maxOrder + 1,
+    parentId: input.parentId ?? null,
     createdAt: ts,
     updatedAt: ts,
   };
