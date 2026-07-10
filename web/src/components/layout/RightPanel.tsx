@@ -5,8 +5,9 @@ import { ComponentInspector } from "../inspector/ComponentInspector.js";
 import { TemplatesPanel } from "../inspector/TemplatesPanel.js";
 import { SkillsPanel } from "../inspector/SkillsPanel.js";
 import { StateMachinePanel } from "../inspector/StateMachinePanel.js";
+import { MemoryPanel } from "../inspector/MemoryPanel.js";
 
-type TabId = "layers" | "inspector" | "templates" | "skills" | "states";
+type TabId = "layers" | "inspector" | "templates" | "skills" | "states" | "memory";
 
 interface TabDef {
   id: TabId;
@@ -20,12 +21,13 @@ const TABS: TabDef[] = [
   { id: "templates", label: "Templates", icon: "▦" },
   { id: "skills", label: "Skills", icon: "✦" },
   { id: "states", label: "States", icon: "⚙" },
+  { id: "memory", label: "Memory", icon: "◆" },
 ];
 
 /**
- * Tabbed right sidebar with five tabs: Layers, Inspector, Templates, Skills, States.
+ * Tabbed right sidebar with six tabs: Layers, Inspector, Templates, Skills, States, Memory.
  * Templates and Skills are always available (for creating new projects);
- * Layers, Inspector, and States require an open project.
+ * Layers, Inspector, States, and Memory require an open project.
  */
 export function RightPanel() {
   const tab = useUiStore((s) => s.rightPanelTab);
@@ -78,12 +80,14 @@ export function RightPanel() {
           <SkillsPanel />
         ) : !projectId ? (
           <div className="px-4 py-6 text-center text-xs text-gray-600">
-            {tab === "layers" ? "No project loaded." : tab === "states" ? "No project loaded." : "Open a project to inspect layers."}
+            {tab === "layers" ? "No project loaded." : tab === "states" ? "No project loaded." : tab === "memory" ? "No project loaded." : "Open a project to inspect layers."}
           </div>
         ) : tab === "layers" ? (
           <LayersPanel />
         ) : tab === "states" ? (
           <StateMachinePanel />
+        ) : tab === "memory" ? (
+          <MemoryPanel projectId={projectId} />
         ) : (
           <ComponentInspector />
         )}
