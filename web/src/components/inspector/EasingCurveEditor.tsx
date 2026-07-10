@@ -1,161 +1,190 @@
-import { useRef, useState, useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-interface Props {
+interface EasingCurveEditorProps {
+  /** Current bezier control points [x1, y1, x2, y2]. */
   bezier: [number, number, number, number];
-  onChange: (bezier: [number, number, number, number]) => void;
+  /** Callback fired when the user drags a control point. */
+  onChange: (value: [number, number, number, number]) => void;
 }
 
-const SIZE = 180;
+const SVG_SIZE = 160;
 const PADDING = 16;
-const PLOT = SIZE - PADDING * 2;
+const PLOT = SVG_SIZE - PADDING * 2;
 
-function toCanvas(x: number, y: number): [number, number] {
-  return [PADDING + x * PLOT, PADDING + (1 - y) * PLOT];
-}
-
-function fromCanvas(cx: number, cy: number): [number, number] {
-  return [
-    Math.max(0, Math.min(1, (cx - PADDING) / PLOT)),
-    Math.max(0, Math.min(1, 1 - (cy - PADDING) / PLOT)),
-  ];
-}
-
-function bezierPath(p1x: number, p1y: number, p2x: number, p2y: number): string {
-  const [sx, sy] = toCanvas(0, 0);
-  const [ex, ey] = toCanvas(1, 1);
-  const [c1x, c1y] = toCanvas(p1x, p1y);
-  const [c2x, c2y] = toCanvas(p2x, p2y);
-  return `M ${sx} ${sy} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${ex} ${ey}`;
-}
-
-export function EasingCurveEditor({ bezier, onChange }: Props) {
+/**
+ * Interactive cubic-bezier easing curve editor. The user drags two control
+ * point handles to reshape the easing curve. Start (0,0) and end (1,1) are
+ * fixed. Dragging y-values beyond 0–1 creates wind-up/overshoot effects.
+ */
+export function EasingCurveEditor({ bezier, onChange }: EasingCurveEditorProps) {
   const svgRef = useRef<SVGSVGElement>(null);
-  const [dragging, setDragging] = useState<0 | 1 | null>(null);
-  const [previewT, setPreviewT] = useState<number | null>(null);
+  const [dragging, setDragging] = useState<null | "p1" | "p2">(null);
 
-  const [p1x, p1y, p2x, p2y] = bezier;
-  const [c1x, c1y] = toCanvas(p1x, p1y);
-  const [c2x, c2y] = toCanvas(p2x, p2y);
+  const [x1, y1, x2, y2] = bezier;
 
-  const handlePointerDown = useCallback((e: React.PointerEvent, point: 0 | 1) => {
+  const toSvg = useCallback((px: number, py: number) => ({
+    x: PADDING + px * PLOT,
+    y: PADDING + (1 - py) * PLOT,
+  }), []);
+
+  const fromSvg = useCallback((sx: number, sy: number) => ({
+    px: Math.max(-0.2, Math.min(1.2, (sx - PADDING) / PLOT)),
+    py: Math.max(-0.2, Math.min(1.2, 1 - (sy - PADDING) / PLOT)),
+  }), []);
+
+  const p1 = toSvg(x1, y1);
+  const p2 = toSvg(x2, y2);
+  const start = toSvg(0, 0);
+  const end = toSvg(1, 1);
+
+  const handleMouseDown = useCallback((point: "p1" | "p2") => (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    (e.target as Element).setPointerCapture(e.pointerId);
     setDragging(point);
-  }, []);
-
-  const handlePointerMove = useCallback(
-    (e: React.PointerEvent) => {
-      if (dragging === null || !svgRef.current) return;
-      const rect = svgRef.current.getBoundingClientRect();
-      const cx = e.clientX - rect.left;
-      const cy = e.clientY - rect.top;
-      const [x, y] = fromCanvas(cx, cy);
-      if (dragging === 0) {
-        onChange([Number(x.toFixed(3)), Number(y.toFixed(3)), p2x, p2y]);
-      } else {
-        onChange([p1x, p1y, Number(x.toFixed(3)), Number(y.toFixed(3))]);
-      }
-    },
-    [dragging, onChange, p1x, p1y, p2x, p2y],
-  );
-
-  const handlePointerUp = useCallback(() => {
-    setDragging(null);
-  }, []);
-
-  const handleScrub = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
-    if (!svgRef.current) return;
-    const rect = svgRef.current.getBoundingClientRect();
-    const cx = e.clientX - rect.left;
-    const t = Math.max(0, Math.min(1, (cx - PADDING) / PLOT));
-    setPreviewT(t);
+    document.body.style.cursor = "grabbing";
+    document.body.style.userSelect = "none";
   }, []);
 
   useEffect(() => {
-    if (previewT === null) return;
-    const timer = setTimeout(() => setPreviewT(null), 1500);
-    return () => clearTimeout(timer);
-  }, [previewT]);
+    if (!dragging) return;
 
-  const previewDot =
-    previewT !== null
-      ? (() => {
-          const u = 1 - previewT;
-          const x =
-            3 * u * u * previewT * p1x + 3 * u * previewT * previewT * p2x + previewT * previewT * previewT;
-          const y =
-            3 * u * u * previewT * p1y + 3 * u * previewT * previewT * p2y + previewT * previewT * previewT;
-          return toCanvas(x, y);
-        })()
-      : null;
+    const onMouseMove = (e: MouseEvent) => {
+      if (!svgRef.current) return;
+      const rect = svgRef.current.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+      const { px, py } = fromSvg(sx, sy);
+
+      if (dragging === "p1") {
+        onChange([px, py, x2, y2]);
+      } else {
+        onChange([x1, y1, px, py]);
+      }
+    };
+
+    const onMouseUp = () => {
+      setDragging(null);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, [dragging, x1, y1, x2, y2, onChange, fromSvg]);
+
+  // Generate the bezier path for visualization
+  const bezierPath = `M ${start.x} ${start.y} C ${p1.x} ${p1.y}, ${p2.x} ${p2.y}, ${end.x} ${end.y}`;
 
   return (
-    <div className="mt-2 flex flex-col items-center gap-2">
+    <div className="bg-panel2 border border-edge rounded-lg p-2">
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-[10px] text-gray-500 uppercase tracking-wide">Easing Curve</span>
+        <span className="text-[10px] text-gray-600 font-mono">
+          {x1.toFixed(2)}, {y1.toFixed(2)}, {x2.toFixed(2)}, {y2.toFixed(2)}
+        </span>
+      </div>
       <svg
         ref={svgRef}
-        width={SIZE}
-        height={SIZE}
-        className="rounded-lg border border-edge bg-panel2 cursor-crosshair touch-none"
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onMouseMove={handleScrub}
-        onMouseLeave={() => setPreviewT(null)}
+        width={SVG_SIZE}
+        height={SVG_SIZE}
+        className="block mx-auto"
+        style={{ cursor: dragging ? "grabbing" : "default" }}
       >
-        <defs>
-          <pattern id="grid" width={PLOT / 4} height={PLOT / 4} patternUnits="userSpaceOnUse">
-            <path d={`M ${PLOT / 4} 0 L 0 0 0 ${PLOT / 4}`} fill="none" stroke="#222a3a" strokeWidth="0.5" />
-          </pattern>
-        </defs>
-        <rect x={PADDING} y={PADDING} width={PLOT} height={PLOT} fill="url(#grid)" />
+        {/* Grid lines */}
+        {[0, 0.25, 0.5, 0.75, 1].map((t) => {
+          const pos = toSvg(t, t);
+          return (
+            <g key={t}>
+              <line x1={pos.x} y1={PADDING} x2={pos.x} y2={SVG_SIZE - PADDING} stroke="#1a1a1a" strokeWidth={0.5} />
+              <line x1={PADDING} y1={pos.y} x2={SVG_SIZE - PADDING} y2={pos.y} stroke="#1a1a1a" strokeWidth={0.5} />
+            </g>
+          );
+        })}
 
-        <line x1={PADDING} y1={PADDING + PLOT} x2={PADDING + PLOT} y2={PADDING} stroke="#2d3850" strokeWidth="0.5" strokeDasharray="2 2" />
+        {/* Border */}
+        <rect
+          x={PADDING}
+          y={PADDING}
+          width={PLOT}
+          height={PLOT}
+          fill="none"
+          stroke="#262626"
+          strokeWidth={1}
+        />
 
-        <line x1={c1x} y1={c1y} x2={PADDING} y2={PADDING + PLOT} stroke="#3d4860" strokeWidth="1" />
-        <line x1={c2x} y1={c2y} x2={PADDING + PLOT} y2={PADDING} stroke="#3d4860" strokeWidth="1" />
+        {/* Reference diagonal (linear) */}
+        <line
+          x1={start.x}
+          y1={start.y}
+          x2={end.x}
+          y2={end.y}
+          stroke="#262626"
+          strokeWidth={1}
+          strokeDasharray="3 3"
+        />
 
-        <path d={bezierPath(p1x, p1y, p2x, p2y)} fill="none" stroke="#6366f1" strokeWidth="2" />
+        {/* Handle lines */}
+        <line x1={start.x} y1={start.y} x2={p1.x} y2={p1.y} stroke="#404040" strokeWidth={1} />
+        <line x1={end.x} y1={end.y} x2={p2.x} y2={p2.y} stroke="#404040" strokeWidth={1} />
 
-        {previewDot && (
-          <>
-            <line
-              x1={previewDot[0]}
-              y1={PADDING}
-              x2={previewDot[0]}
-              y2={PADDING + PLOT}
-              stroke="#8b5cf6"
-              strokeWidth="0.5"
-              strokeDasharray="1 2"
-              opacity={0.5}
-            />
-            <circle cx={previewDot[0]} cy={previewDot[1]} r="4" fill="#8b5cf6" opacity={0.8} />
-          </>
-        )}
+        {/* Bezier curve */}
+        <path d={bezierPath} fill="none" stroke="#ffffff" strokeWidth={2} />
 
+        {/* Start and end points */}
+        <circle cx={start.x} cy={start.y} r={3} fill="#404040" />
+        <circle cx={end.x} cy={end.y} r={3} fill="#404040" />
+
+        {/* Control point handles */}
         <circle
-          cx={c1x}
-          cy={c1y}
-          r="6"
-          fill="#6366f1"
-          stroke="#fff"
-          strokeWidth="1.5"
-          className="cursor-grab"
-          onPointerDown={(e) => handlePointerDown(e, 0)}
+          cx={p1.x}
+          cy={p1.y}
+          r={5}
+          fill="#ffffff"
+          stroke="#000000"
+          strokeWidth={1}
+          className="cursor-grab hover:r-6"
+          onMouseDown={handleMouseDown("p1")}
         />
         <circle
-          cx={c2x}
-          cy={c2y}
-          r="6"
-          fill="#8b5cf6"
-          stroke="#fff"
-          strokeWidth="1.5"
-          className="cursor-grab"
-          onPointerDown={(e) => handlePointerDown(e, 1)}
+          cx={p2.x}
+          cy={p2.y}
+          r={5}
+          fill="#ffffff"
+          stroke="#000000"
+          strokeWidth={1}
+          className="cursor-grab hover:r-6"
+          onMouseDown={handleMouseDown("p2")}
         />
       </svg>
-      <div className="flex gap-2 text-[10px] font-mono text-gray-500">
-        <span className={dragging === 0 ? "text-accent" : ""}>p1({p1x.toFixed(2)}, {p1y.toFixed(2)})</span>
-        <span className={dragging === 1 ? "text-accent2" : ""}>p2({p2x.toFixed(2)}, {p2y.toFixed(2)})</span>
+      <div className="flex items-center justify-between mt-1.5">
+        <button
+          onClick={() => onChange([0.4, 0, 0.2, 1])}
+          className="text-[10px] text-gray-500 hover:text-accent"
+        >
+          Smooth
+        </button>
+        <button
+          onClick={() => onChange([0.68, -0.55, 0.265, 1.55])}
+          className="text-[10px] text-gray-500 hover:text-accent"
+        >
+          Bounce
+        </button>
+        <button
+          onClick={() => onChange([0, 0, 1, 1])}
+          className="text-[10px] text-gray-500 hover:text-accent"
+        >
+          Linear
+        </button>
+        <button
+          onClick={() => onChange([0.5, 1.5, 0.5, -0.5])}
+          className="text-[10px] text-gray-500 hover:text-accent"
+        >
+          Spring
+        </button>
       </div>
     </div>
   );
