@@ -4,8 +4,8 @@ import { getDb } from "../index.js";
 import { rowToComponent } from "../mappers.js";
 
 const INSERT_SQL = `INSERT INTO motion_components
-  (id, project_id, scene_id, name, selector, template_id, duration_ms, delay_ms, iteration_count, direction, fill_mode, play_state, trigger, easing_json, keyframes_json, style_json, order_index, created_at, updated_at)
-  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`;
+  (id, project_id, scene_id, name, selector, template_id, duration_ms, delay_ms, iteration_count, direction, fill_mode, play_state, trigger, easing_json, keyframes_json, style_json, order_index, parent_id, created_at, updated_at)
+  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`;
 
 export function createComponent(c: MotionComponent): void {
   const db = getDb();
@@ -27,6 +27,7 @@ export function createComponent(c: MotionComponent): void {
     JSON.stringify(c.keyframes),
     JSON.stringify(c.style),
     c.orderIndex,
+    c.parentId ?? null,
     c.createdAt,
     c.updatedAt,
   );
@@ -65,6 +66,7 @@ export type ComponentPatch = Partial<
     | "style"
     | "orderIndex"
     | "sceneId"
+    | "parentId"
   >
 >;
 
@@ -79,7 +81,7 @@ export function patchComponent(
   const db = getDb();
   db.prepare(
     `UPDATE motion_components SET
-      name=?, selector=?, duration_ms=?, delay_ms=?, iteration_count=?, direction=?, fill_mode=?, play_state=?, trigger=?, easing_json=?, keyframes_json=?, style_json=?, order_index=?, scene_id=?, updated_at=?
+      name=?, selector=?, duration_ms=?, delay_ms=?, iteration_count=?, direction=?, fill_mode=?, play_state=?, trigger=?, easing_json=?, keyframes_json=?, style_json=?, order_index=?, scene_id=?, parent_id=?, updated_at=?
      WHERE id=? AND project_id=?`,
   ).run(
     next.name,
@@ -96,6 +98,7 @@ export function patchComponent(
     JSON.stringify(next.style),
     next.orderIndex,
     next.sceneId,
+    next.parentId ?? null,
     next.updatedAt,
     componentId,
     projectId,
