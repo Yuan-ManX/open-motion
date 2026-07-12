@@ -96,3 +96,93 @@ export const exportJson = (projectId: string) =>
   apiGet<CodeExport>(`/projects/${projectId}/export/json`);
 export const exportReact = (projectId: string) =>
   apiGet<CodeExport>(`/projects/${projectId}/export/react`);
+
+// --- Agent memory endpoints ---
+
+export interface AgentMemoryEntry {
+  id: string;
+  projectId: string;
+  layer: "project" | "skill" | "preference";
+  key: string;
+  value: string;
+  tags: string[];
+  relevance: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const listMemory = (projectId: string, layer?: string) =>
+  apiGet<AgentMemoryEntry[]>(`/projects/${projectId}/memory${layer ? `?layer=${layer}` : ""}`);
+export const saveMemory = (projectId: string, input: { key: string; value: string; tags?: string[]; relevance?: number }) =>
+  apiPost<AgentMemoryEntry>(`/projects/${projectId}/memory`, input);
+export const searchMemory = (projectId: string, query: string) =>
+  apiGet<AgentMemoryEntry[]>(`/projects/${projectId}/memory/search?q=${encodeURIComponent(query)}`);
+export const deleteMemory = (memoryId: string) =>
+  apiDelete<void>(`/memory/${memoryId}`);
+export const updateMemoryRelevance = (memoryId: string, relevance: number) =>
+  apiPatch<{ id: string; relevance: number }>(`/memory/${memoryId}/relevance`, { relevance });
+
+// --- Recipe endpoints ---
+
+export interface MotionRecipe {
+  id: string;
+  name: string;
+  category: string;
+  description: string;
+  avoidWhen: string[];
+  restraintCost: number;
+  recipe: Record<string, unknown>;
+  skillMarkdown: string;
+  tags: string[];
+}
+
+export const listRecipes = (category?: string, query?: string) =>
+  apiGet<MotionRecipe[]>(`/recipes${category ? `?category=${category}` : ""}${query ? `${category ? "&" : "?"}q=${encodeURIComponent(query)}` : ""}`);
+export const getRecipe = (id: string) =>
+  apiGet<MotionRecipe>(`/recipes/${id}`);
+
+// --- Generated skills endpoints ---
+
+export interface GeneratedSkill {
+  id: string;
+  projectId: string | null;
+  name: string;
+  description: string;
+  triggerPattern: string;
+  toolSequence: string;
+  skillMarkdown: string;
+  usageCount: number;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const listGeneratedSkills = (projectId?: string, limit = 20) =>
+  apiGet<GeneratedSkill[]>(`/generated-skills${projectId ? `?projectId=${projectId}` : ""}${limit ? `${projectId ? "&" : "?"}limit=${limit}` : ""}`);
+
+// --- Restraint analysis endpoint ---
+
+export interface RestraintWarning {
+  level: "info" | "warn" | "critical";
+  message: string;
+  componentIds?: string[];
+  timeRange?: { start: number; end: number };
+}
+
+export interface RestraintAnalysis {
+  score: number;
+  componentCount: number;
+  peakSimultaneous: number;
+  peakWindowStart: number;
+  peakWindowEnd: number;
+  warnings: RestraintWarning[];
+  recommendations: string[];
+}
+
+export interface RestraintReport {
+  analysis: RestraintAnalysis;
+  report: string;
+}
+
+export const getProjectRestraint = (projectId: string) =>
+  apiGet<RestraintReport>(`/projects/${projectId}/restraint`);
