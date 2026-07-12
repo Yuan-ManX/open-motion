@@ -72,6 +72,12 @@ export const ChatEventSchema = z.discriminatedUnion("type", [
     project: MotionProjectSchema.optional(),
   }),
   z.object({
+    type: z.literal("reflection"),
+    text: z.string(),
+    failedTools: z.array(z.string()).default([]),
+    suggestion: z.string().optional(),
+  }),
+  z.object({
     type: z.literal("done"),
     message: z.string(),
     tokensIn: z.number().default(0),
