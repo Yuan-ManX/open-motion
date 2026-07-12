@@ -5,12 +5,12 @@ export default {
   theme: {
     extend: {
       colors: {
-        ink: "#0b0e14",
-        panel: "#11151f",
-        panel2: "#161b27",
-        edge: "#222a3a",
-        accent: "#6366f1",
-        accent2: "#8b5cf6",
+        ink: "#000000",
+        panel: "#0a0a0a",
+        panel2: "#161616",
+        edge: "#262626",
+        accent: "#ffffff",
+        accent2: "#a3a3a3",
       },
       fontFamily: {
         sans: ["ui-sans-serif", "system-ui", "-apple-system", "Segoe UI", "Roboto", "sans-serif"],
