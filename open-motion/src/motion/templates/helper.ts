@@ -53,6 +53,7 @@ export function draft(
     keyframes: opts.keyframes ?? [],
     style: opts.style ?? {},
     orderIndex: orderCounter++,
+    parentId: null,
   };
   return draft;
 }
