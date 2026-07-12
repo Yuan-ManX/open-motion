@@ -48,6 +48,7 @@ export const MotionComponentSchema = z.object({
   keyframes: z.array(KeyframeSchema).default([]),
   style: CssStyleSchema.default({}),
   orderIndex: z.number().int().default(0),
+  parentId: z.string().nullable().default(null),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
