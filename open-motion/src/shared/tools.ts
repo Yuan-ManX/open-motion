@@ -454,6 +454,67 @@ export const ListStatesInput = z.object({
   projectId: zIdField,
 });
 
+/* --------------------------- Interactive tools -------------------------- */
+export const ToggleAutoKeyframeInput = z.object({
+  projectId: zIdField,
+  enabled: z.boolean().optional(),
+});
+
+export const AddListenerInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  eventType: z.enum(["pointerEnter", "pointerLeave", "pointerDown", "pointerUp", "click"]),
+  actionType: z.enum(["applyState", "playAnimation", "setProperty"]),
+  target: zIdField,
+  property: z.string().optional(),
+  value: z.union([z.string(), z.number()]).optional(),
+});
+
+export const RemoveListenerInput = z.object({
+  projectId: zIdField,
+  listenerId: zIdField,
+});
+
+export const ListListenersInput = z.object({
+  projectId: zIdField,
+  componentId: z.string().optional(),
+});
+
+export const SetKeyframeOffsetInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  keyframeIndex: z.number().int().min(0),
+  offset: z.number().min(0).max(1),
+});
+
+/* --------------------------- Marker tools --------------------------- */
+export const AddMarkerInput = z.object({
+  projectId: zIdField,
+  timeMs: z.number().min(0),
+  label: z.string().optional(),
+});
+
+export const RemoveMarkerInput = z.object({
+  projectId: zIdField,
+  markerId: zIdField,
+});
+
+export const ListMarkersInput = z.object({
+  projectId: zIdField,
+});
+
+/* ----------------------- Keyframe operation tools ----------------------- */
+export const ReverseKeyframesInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+});
+
+/* --------------------------- Solo layer tool --------------------------- */
+export const SoloLayerInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+});
+
 /* ----------------------------- Export tools ----------------------------- */
 export const ExportHtmlInput = z.object({
   projectId: zIdField,
@@ -475,6 +536,139 @@ export const ExportSkillInput = z.object({
 export const ExportCodeInput = z.object({
   projectId: zIdField,
   format: z.enum(["css", "json", "react"]).default("css"),
+});
+
+/* --------------------------- Hierarchy / rigging tools --------------------------- */
+export const SetParentInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  parentId: zIdField,
+});
+
+export const RemoveParentInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+});
+
+export const ListHierarchyInput = z.object({
+  projectId: zIdField,
+});
+
+/* --------------------------- Constraint tools --------------------------- */
+export const AddConstraintInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  targetId: zIdField,
+  type: z.enum(["position", "rotation", "scale", "look-at"]),
+  strength: z.number().min(0).max(1).default(1),
+  axis: z.enum(["x", "y", "both"]).default("both"),
+});
+
+export const RemoveConstraintInput = z.object({
+  projectId: zIdField,
+  constraintId: zIdField,
+});
+
+export const ListConstraintsInput = z.object({
+  projectId: zIdField,
+});
+
+/* --------------------------- Timeline clip tools --------------------------- */
+export const AddClipInput = z.object({
+  projectId: zIdField,
+  name: z.string(),
+  startMs: z.number().int().min(0),
+  endMs: z.number().int().positive(),
+  color: z.string().optional(),
+});
+
+export const RemoveClipInput = z.object({
+  projectId: zIdField,
+  clipId: zIdField,
+});
+
+export const ListClipsInput = z.object({
+  projectId: zIdField,
+});
+
+export const PlayClipInput = z.object({
+  projectId: zIdField,
+  clipId: zIdField,
+});
+
+/* --------------------------- Filter / shader tools --------------------------- */
+export const SetFilterInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  filter: z.string(),
+  value: z.union([z.string(), z.number()]),
+});
+
+/* --------------------------- 3D transform tools --------------------------- */
+export const Set3DTransformInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  perspective: z.number().optional(),
+  rotateX: z.number().optional(),
+  rotateY: z.number().optional(),
+  rotateZ: z.number().optional(),
+  translateZ: z.number().optional(),
+});
+
+/* --------------------------- Restraint engine tools --------------------------- */
+export const AnalyzeRestraintInput = z.object({
+  projectId: zIdField,
+});
+
+/* --------------------------- Motion recipe tools --------------------------- */
+export const ListRecipesInput = z.object({
+  category: z.string().optional(),
+  query: z.string().optional(),
+});
+
+export const ApplyRecipeInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  recipeId: zIdField,
+});
+
+/* --------------------------- Memory tools --------------------------- */
+export const SaveMemoryInput = z.object({
+  projectId: zIdField,
+  key: z.string(),
+  value: z.string(),
+  tags: z.array(z.string()).optional(),
+});
+
+export const RecallMemoryInput = z.object({
+  projectId: zIdField,
+  query: z.string(),
+});
+
+export const ListGeneratedSkillsInput = z.object({
+  projectId: zIdField.optional(),
+  limit: z.number().int().min(1).max(50).default(10),
+});
+
+/* --------------------------- Grammar tools --------------------------- */
+export const CompileGrammarInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  source: z.string().min(1).describe("Motion grammar expression, e.g. fade.in(600ms) then slide.up(400ms) with easing(spring)"),
+});
+
+export const ParseMotionInput = z.object({
+  projectId: zIdField,
+  description: z.string().min(1).describe("Natural language motion description, e.g. 'make it bounce in playfully with spring physics'"),
+  componentId: zIdField.optional(),
+});
+
+/* --------------------------- Shader tools --------------------------- */
+export const SetShaderEffectInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  effectId: z.string().describe("Shader effect ID: shader-chromatic, shader-glitch, shader-plasma, shader-noise, shader-ripple, shader-vignette, shader-neon-glow, shader-pixelate, shader-gradient-shift, shader-invert-pulse"),
+  intensity: z.number().min(0).max(5).optional(),
 });
 
 /** Tool-name → input schema registry. The agent and MCP layer both consume this. */
@@ -544,10 +738,41 @@ export const TOOL_INPUT_SCHEMAS = {
   add_transition: AddTransitionInput,
   remove_state: RemoveStateInput,
   list_states: ListStatesInput,
+  toggle_auto_keyframe: ToggleAutoKeyframeInput,
+  add_listener: AddListenerInput,
+  remove_listener: RemoveListenerInput,
+  list_listeners: ListListenersInput,
+  set_keyframe_offset: SetKeyframeOffsetInput,
+  add_marker: AddMarkerInput,
+  remove_marker: RemoveMarkerInput,
+  list_markers: ListMarkersInput,
+  reverse_keyframes: ReverseKeyframesInput,
+  solo_layer: SoloLayerInput,
   export_html: ExportHtmlInput,
   export_video: ExportVideoInput,
   export_skill: ExportSkillInput,
   export_code: ExportCodeInput,
+  set_parent: SetParentInput,
+  remove_parent: RemoveParentInput,
+  list_hierarchy: ListHierarchyInput,
+  add_constraint: AddConstraintInput,
+  remove_constraint: RemoveConstraintInput,
+  list_constraints: ListConstraintsInput,
+  add_clip: AddClipInput,
+  remove_clip: RemoveClipInput,
+  list_clips: ListClipsInput,
+  play_clip: PlayClipInput,
+  set_filter: SetFilterInput,
+  set_3d_transform: Set3DTransformInput,
+  analyze_restraint: AnalyzeRestraintInput,
+  list_recipes: ListRecipesInput,
+  apply_recipe: ApplyRecipeInput,
+  save_memory: SaveMemoryInput,
+  recall_memory: RecallMemoryInput,
+  list_generated_skills: ListGeneratedSkillsInput,
+  compile_grammar: CompileGrammarInput,
+  parse_motion: ParseMotionInput,
+  set_shader_effect: SetShaderEffectInput,
 } as const;
 
 export type ToolName = keyof typeof TOOL_INPUT_SCHEMAS;
@@ -622,8 +847,39 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   add_transition: "Define a transition between two states with a trigger (onClick, onHover, onLoad, manual) and duration. Use when the user says 'add transition', 'connect states', 'on click go to', or 'transition from A to B'.",
   remove_state: "Remove a named state and all its associated transitions from the state machine. Use when the user says 'delete state', 'remove state', or 'delete that snapshot'.",
   list_states: "List all states and transitions in the project's state machine. Returns state names, IDs, component counts, and transition details. Use when the user says 'list states', 'show states', 'what states exist', or 'state machine info'.",
+  toggle_auto_keyframe: "Toggle auto-keyframe mode on or off. When enabled, property changes in the inspector automatically create keyframes at the current playhead position. Use when the user says 'auto-keyframe', 'record keyframes', or 'keyframe mode'.",
+  add_listener: "Attach an event listener to a component (pointerEnter, pointerLeave, pointerDown, pointerUp, click) that triggers an action (applyState, playAnimation, setProperty) on a target. Use when the user says 'add a listener', 'on click trigger', or 'event listener'.",
+  remove_listener: "Remove an event listener by its ID. Use when the user says 'remove listener', 'delete listener', or 'remove the event handler'.",
+  list_listeners: "List all event listeners in the project, optionally filtered by component. Returns listener IDs, event types, and action details. Use when the user says 'list listeners', 'show listeners', or 'what listeners exist'.",
+  set_keyframe_offset: "Move a keyframe to a new time position (offset 0..1). Re-sorts keyframes automatically. Use when the user says 'move the keyframe', 'retime this keyframe', or 'shift the keyframe to 50%'.",
+  add_marker: "Add a labeled bookmark marker at a specific time (in ms) on the timeline. Use for 'mark this point', 'add a marker at 500ms'.",
+  remove_marker: "Remove a timeline marker by its ID.",
+  list_markers: "List all timeline markers in the project.",
+  reverse_keyframes: "Reverse the keyframe order of a component — swap offsets so the animation plays backward. Use for 'reverse the keyframes', 'play backward'.",
+  solo_layer: "Solo a layer — hides all other components so only this one is visible. Use for 'solo this layer', 'isolate this component'.",
   export_html: "Export the project as a standalone, runnable HTML file. Returns a URL.",
   export_video: "Export the project as a video (mp4 | gif | webm). Returns a jobId to poll.",
   export_skill: "Package the project (or a single component) as a reusable AI-callable skill. Returns a skillId.",
   export_code: "Export animation code as CSS, JSON, or React (format: css | json | react). Returns the generated code string.",
+  set_parent: "Set a component's parent, creating a parent-child hierarchy. The child inherits the parent's transforms (rigging/bone system). Use for 'parent to', 'attach to', 'nest under', 'rig'.",
+  remove_parent: "Remove a component's parent, detaching it from the hierarchy. Use for 'detach', 'remove parent', 'orphan'.",
+  list_hierarchy: "List the layer hierarchy tree showing root components and their children. Use for 'show hierarchy', 'list tree', 'show parents'.",
+  add_constraint: "Add a constraint between two components (position, rotation, scale, look-at). Strength 0-1, axis x/y/both. Use for 'pin to', 'follow', 'constrain', 'look at'.",
+  remove_constraint: "Remove a constraint by its ID.",
+  list_constraints: "List all constraints in the project.",
+  add_clip: "Add a named timeline clip (animation segment) with start and end times in ms. Use for 'add a clip', 'create a segment', 'section'.",
+  remove_clip: "Remove a timeline clip by its ID.",
+  list_clips: "List all timeline clips in the project.",
+  play_clip: "Trigger playback of a specific timeline clip. Use for 'play clip', 'trigger segment'.",
+  set_filter: "Apply a CSS filter effect (blur, brightness, contrast, hue-rotate, saturate, grayscale, sepia) to a component. Stacks with existing filters.",
+  set_3d_transform: "Apply 3D transform properties (perspective, rotateX, rotateY, rotateZ, translateZ) to a component for depth effects.",
+  analyze_restraint: "Analyze motion density and restraint — calculates how many animations compete for attention simultaneously, identifies easing/duration monotony, and recommends improvements. Returns a restraint score (0-100) with warnings. Use when the user asks 'is this too much', 'analyze restraint', or 'check density'.",
+  list_recipes: "Browse the curated motion recipe library. Each recipe carries avoid_when metadata — situations where it should NOT be used. Optionally filter by category or search by query. Returns recipe names, descriptions, restraint costs, and avoidance conditions.",
+  apply_recipe: "Apply a curated motion recipe to a component. Recipes include pre-configured easing, keyframes, and timing. The system checks avoid_when conditions before applying. Use when the user says 'apply a recipe', 'use a gentle entrance', or 'try a cinematic fade'.",
+  save_memory: "Save a persistent memory entry for the project — cross-session knowledge that the agent recalls in future interactions. Use for storing user preferences, design decisions, or project context.",
+  recall_memory: "Search persistent project memory for entries matching a query. Returns relevant memories from past sessions. Use when the user says 'what did we decide', 'remember', or 'what do you know about this project'.",
+  list_generated_skills: "List skills auto-generated by the agent from past successful task sequences. Each skill captures a reusable tool pattern. Use when the user asks 'what have you learned' or 'show me generated skills'.",
+  compile_grammar: "Compile a motion grammar expression into motion specs. Supports verbs (fade, slide, bounce, rotate, scale, spin, pulse, flip, shake, glow, float, blur, skew, wiggle, heartbeat, typewriter, drift, swing, drop), directions (in/out/up/down/left/right/cw/ccw), and parameters (duration, easing, loop, delay). Example: 'fade.in(600ms) then slide.up(400ms) with easing(spring)'. Use when the user writes a grammar expression or says 'compile this motion'.",
+  parse_motion: "Parse a natural language motion description into a structured motion spec. Extracts easing, duration, keyframes, and properties from descriptions like 'make it bounce in playfully with spring physics'. Use when the user describes a motion in natural language and you need to translate it into a spec.",
+  set_shader_effect: "Apply a WebGL shader effect to a component. Available effects: shader-chromatic (RGB split), shader-glitch (displacement blocks), shader-plasma (animated plasma field), shader-noise (film grain), shader-ripple (concentric distortion), shader-vignette (darkened edges), shader-neon-glow (pulsing neon), shader-pixelate (retro pixels), shader-gradient-shift (animated gradient), shader-invert-pulse (strobe invert). Use when the user says 'shader effect', 'glitch effect', 'neon glow', 'chromatic aberration', or 'plasma'.",
 };
