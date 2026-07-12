@@ -5,7 +5,7 @@ import * as api from "../../api/endpoints.js";
 import type { MotionComponent } from "@openmotion/shared";
 import type { SmartGuide } from "../../store/uiStore.js";
 
-type HandleId = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w" | "rotate";
+type HandleId = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w" | "rotate" | "body";
 
 const MIN_SIZE = 20;
 const SNAP_THRESHOLD = 5;
@@ -129,6 +129,7 @@ const HANDLE_CURSORS: Record<HandleId, string> = {
   sw: "nesw-resize",
   w: "ew-resize",
   rotate: "grab",
+  body: "move",
 };
 
 export function SelectionOverlay() {
