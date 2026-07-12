@@ -39,6 +39,7 @@ const ComponentInputSchema = z.object({
   keyframes: z.array(KeyframeSchema).optional(),
   style: CssStyleSchema.optional(),
   orderIndex: z.number().optional(),
+  parentId: z.string().nullable().optional(),
 });
 
 const BatchUpdateSchema = z.object({
