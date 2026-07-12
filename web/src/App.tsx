@@ -9,6 +9,8 @@ import { ErrorBoundary } from "./components/ErrorBoundary.js";
 export default function App() {
   const health = useUiStore((s) => s.health);
   const setHealth = useUiStore((s) => s.setHealth);
+  const sidebarCollapsed = useUiStore((s) => s.sidebarCollapsed);
+  const setSidebarCollapsed = useUiStore((s) => s.setSidebarCollapsed);
 
   useEffect(() => {
     api
@@ -24,18 +26,17 @@ export default function App() {
       <div className="h-screen flex flex-col bg-ink text-gray-100">
         <nav className="flex items-center justify-between px-4 py-1.5 border-b border-edge bg-panel flex-shrink-0">
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="w-7 h-7 rounded-md text-gray-400 hover:text-gray-200 hover:bg-panel2 flex items-center justify-center transition-colors"
+              title={sidebarCollapsed ? "Show conversations" : "Hide conversations"}
+              aria-label={sidebarCollapsed ? "Show conversations" : "Hide conversations"}
+              aria-expanded={!sidebarCollapsed}
+            >
+              <span className="text-sm">≣</span>
+            </button>
             <span className="text-sm font-semibold tracking-tight">OpenMotion</span>
-            <span className="text-[10px] text-gray-600">AI-native motion design</span>
-          </div>
-          <div className="flex items-center gap-2 text-[11px]">
-            <span
-              className={`inline-block w-2 h-2 rounded-full ${
-                ok ? "bg-white" : "bg-red-500"
-              }`}
-            />
-            <span className="text-gray-500">
-              {ok ? `backend · ${health?.provider}` : "backend unavailable"}
-            </span>
+            <span className="text-[10px] text-gray-600">AI-Native Motion Design Platform</span>
           </div>
         </nav>
 
