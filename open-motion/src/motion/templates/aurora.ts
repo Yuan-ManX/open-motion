@@ -1,0 +1,80 @@
+import { easingPreset } from "@openmotion/shared";
+import { draft, kf, type TemplateDef } from "./helper.js";
+
+export const auroraTemplate: TemplateDef = {
+  id: "tpl-aurora",
+  name: "Aurora",
+  category: "emphasis",
+  description: "Northern-lights gradient flow with layered translucent bands drifting across a dark surface — an ambient, atmospheric effect.",
+  tags: ["aurora", "gradient", "ambient", "flow", "atmospheric", "loop"],
+  build: () => [
+    draft("Aurora Base", {
+      durationMs: 6000,
+      easing: easingPreset("linear"),
+      iterationCount: "infinite",
+      direction: "normal",
+      keyframes: [
+        kf(0, { opacity: 0.6 }),
+        kf(0.5, { opacity: 0.9 }),
+        kf(1, { opacity: 0.6 }),
+      ],
+      style: {
+        _content: "",
+        _tag: "div",
+        width: "360px",
+        height: "200px",
+        borderRadius: "16px",
+        backgroundColor: "#0a0a0a",
+        overflow: "hidden",
+        position: "relative",
+      },
+    }),
+    draft("Aurora Band A", {
+      durationMs: 6000,
+      easing: easingPreset("smooth"),
+      iterationCount: "infinite",
+      direction: "alternate",
+      keyframes: [
+        kf(0, { translateX: "-120%", translateY: 0, opacity: 0.4, rotate: -8 }),
+        kf(0.5, { translateX: "20%", translateY: -10, opacity: 0.8, rotate: -4 }),
+        kf(1, { translateX: "120%", translateY: 5, opacity: 0.3, rotate: -12 }),
+      ],
+      style: {
+        _content: "",
+        _tag: "div",
+        width: "400px",
+        height: "80px",
+        borderRadius: "50%",
+        background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.12), rgba(200,255,200,0.08), transparent)",
+        filter: "blur(12px)",
+        position: "absolute",
+        top: "30px",
+        left: "0",
+      },
+    }),
+    draft("Aurora Band B", {
+      durationMs: 5000,
+      delayMs: 800,
+      easing: easingPreset("smooth"),
+      iterationCount: "infinite",
+      direction: "alternate",
+      keyframes: [
+        kf(0, { translateX: "100%", translateY: 10, opacity: 0.3 }),
+        kf(0.5, { translateX: "-20%", translateY: -5, opacity: 0.7 }),
+        kf(1, { translateX: "-100%", translateY: 15, opacity: 0.2 }),
+      ],
+      style: {
+        _content: "",
+        _tag: "div",
+        width: "380px",
+        height: "70px",
+        borderRadius: "50%",
+        background: "linear-gradient(90deg, transparent, rgba(180,200,255,0.1), rgba(255,255,255,0.06), transparent)",
+        filter: "blur(16px)",
+        position: "absolute",
+        top: "80px",
+        left: "0",
+      },
+    }),
+  ],
+};
