@@ -2,6 +2,7 @@ import type { ToolName } from "@openmotion/shared";
 import { exportProjectHtml } from "../../export/html.js";
 import { exportProjectVideo, type VideoFormat } from "../../export/video.js";
 import { exportProjectCss, exportProjectJson, exportProjectReact } from "../../export/code.js";
+import { exportProjectLottie } from "../../export/lottie.js";
 import { packageSkill } from "../../skills/packager.js";
 import { hasPuppeteer, hasFfmpeg } from "../../utils/env.js";
 import type { ToolContext, ToolResult } from "./registry.js";
@@ -73,6 +74,20 @@ export const exportExecutors: Partial<Record<ToolName, Executor>> = {
       summary: `exported ${format} code (${result.code.length} chars, file: ${result.filename}) — preview: ${preview}…`,
       specChanged: false,
       data: { format, filename: result.filename, code: result.code },
+    };
+  },
+
+  export_lottie: (args, ctx) => {
+    const fps = args.fps ? Number(args.fps) : undefined;
+    const result = exportProjectLottie(ctx.projectId, fps);
+    if (!result) {
+      return { ok: false, summary: `project ${ctx.projectId} not found`, specChanged: false };
+    }
+    return {
+      ok: true,
+      summary: `exported Lottie JSON (${result.code.length} chars, ${fps ?? 60}fps, file: ${result.filename})`,
+      specChanged: false,
+      data: { filename: result.filename, code: result.code, fps: fps ?? 60 },
     };
   },
 };
