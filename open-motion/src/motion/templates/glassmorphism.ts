@@ -1,0 +1,66 @@
+import { easingPreset } from "@openmotion/shared";
+import { draft, kf, type TemplateDef } from "./helper.js";
+
+export const glassmorphismTemplate: TemplateDef = {
+  id: "tpl-glassmorphism",
+  name: "Glassmorphism",
+  category: "emphasis",
+  description: "A frosted-glass panel with backdrop blur, subtle border highlight, and a slow drift — the signature translucent UI material with depth and refraction.",
+  tags: ["glass", "glassmorphism", "frosted", "blur", "translucent", "ui", "depth"],
+  build: () => [
+    draft("Glass Panel", {
+      durationMs: 5000,
+      easing: easingPreset("smooth"),
+      iterationCount: "infinite",
+      direction: "alternate",
+      keyframes: [
+        kf(0, { translateY: 0, opacity: 0.85 }),
+        kf(0.5, { translateY: -6, opacity: 1 }),
+        kf(1, { translateY: 0, opacity: 0.85 }),
+      ],
+      style: {
+        _content: "GLASS",
+        _tag: "div",
+        width: "240px",
+        height: "120px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        borderRadius: "16px",
+        backgroundColor: "rgba(255,255,255,0.06)",
+        backdropFilter: "blur(12px)",
+        WebkitBackdropFilter: "blur(12px)",
+        color: "rgba(255,255,255,0.9)",
+        fontSize: "18px",
+        fontWeight: "300",
+        letterSpacing: "4px",
+        border: "1px solid rgba(255,255,255,0.1)",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.12)",
+      },
+    }),
+    draft("Glass Sheen", {
+      durationMs: 4000,
+      delayMs: 300,
+      easing: easingPreset("ease-in-out"),
+      iterationCount: "infinite",
+      direction: "normal",
+      keyframes: [
+        kf(0, { translateX: "-120%", opacity: 0 }),
+        kf(0.3, { opacity: 0.5 }),
+        kf(0.7, { opacity: 0.3 }),
+        kf(1, { translateX: "120%", opacity: 0 }),
+      ],
+      style: {
+        _content: "",
+        _tag: "div",
+        width: "80px",
+        height: "120px",
+        borderRadius: "16px",
+        background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent)",
+        position: "absolute",
+        top: "0",
+        left: "0",
+      },
+    }),
+  ],
+};
