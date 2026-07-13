@@ -26,6 +26,22 @@ export interface AgentPlan {
   summary: string;
 }
 
+export interface ThinkingTrace {
+  text: string;
+  analysis: string;
+  constraints: string[];
+  options: { approach: string; tradeoffs: string }[];
+  chosenApproach: string;
+}
+
+export interface GoalNode {
+  id: string;
+  label: string;
+  status: "pending" | "in_progress" | "completed" | "skipped";
+  tool?: string;
+  children: GoalNode[];
+}
+
 let activeStreamId = 0;
 
 interface ChatState {
@@ -37,7 +53,9 @@ interface ChatState {
   completedStepIndices: number[];
   activeStepIndex: number;
   reasoningText: string;
+  thinking: ThinkingTrace | null;
   reflection: { text: string; failedTools: string[]; suggestion?: string } | null;
+  goal: GoalNode | null;
   error: string | null;
   abortController: AbortController | null;
 
@@ -57,7 +75,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   completedStepIndices: [],
   activeStepIndex: -1,
   reasoningText: "",
+  thinking: null,
   reflection: null,
+  goal: null,
   error: null,
   abortController: null,
 
@@ -93,6 +113,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       completedStepIndices: [],
       activeStepIndex: -1,
       reasoningText: "",
+      thinking: null,
+      goal: null,
       error: null,
     });
 
@@ -104,6 +126,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
         switch (event.type) {
           case "plan":
             set({ plan: { steps: event.steps, summary: event.summary }, completedStepIndices: [], activeStepIndex: -1 });
+            break;
+          case "thinking":
+            set({
+              thinking: {
+                text: event.text,
+                analysis: event.analysis,
+                constraints: event.constraints,
+                options: event.options,
+                chosenApproach: event.chosenApproach,
+              },
+            });
             break;
           case "token":
             set({ streamingTokens: get().streamingTokens + event.delta });
@@ -119,6 +152,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 suggestion: event.suggestion,
               },
             });
+            break;
+          case "goal":
+            set({ goal: event.root as GoalNode });
             break;
           case "tool_call": {
             const state = get();
@@ -268,13 +304,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
               completedStepIndices: [],
               activeStepIndex: -1,
               reasoningText: "",
+              thinking: null,
               reflection: null,
+              goal: null,
               abortController: null,
             });
             break;
           }
           case "error":
-            set({ isStreaming: false, streamingTokens: "", plan: null, completedStepIndices: [], activeStepIndex: -1, reasoningText: "", reflection: null, error: event.message, abortController: null });
+            set({ isStreaming: false, streamingTokens: "", plan: null, completedStepIndices: [], activeStepIndex: -1, reasoningText: "", thinking: null, reflection: null, goal: null, error: event.message, abortController: null });
             break;
           case "meta":
             break;
@@ -311,7 +349,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     activeStreamId++;
     const { abortController } = get();
     if (abortController) abortController.abort();
-    set({ isStreaming: false, streamingTokens: "", plan: null, completedStepIndices: [], activeStepIndex: -1, reasoningText: "", reflection: null, abortController: null });
+    set({ isStreaming: false, streamingTokens: "", plan: null, completedStepIndices: [], activeStepIndex: -1, reasoningText: "", thinking: null, reflection: null, goal: null, abortController: null });
   },
 
   clear: async (projectId) => {
@@ -327,7 +365,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
       completedStepIndices: [],
       activeStepIndex: -1,
       reasoningText: "",
+      thinking: null,
       reflection: null,
+      goal: null,
       error: null,
       abortController: null,
       isStreaming: false,
