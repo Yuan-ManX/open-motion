@@ -4,6 +4,8 @@ import { parseToolArgs } from "./schema.js";
 import { motionExecutors } from "./motionTools.js";
 import { queryExecutors } from "./queryTools.js";
 import { exportExecutors } from "./exportTools.js";
+import { versionExecutors } from "./versionTools.js";
+import { pipelineExecutors } from "./pipelineTools.js";
 
 export interface ToolContext {
   projectId: string;
@@ -21,11 +23,13 @@ export type ToolExecutor = (
   ctx: ToolContext,
 ) => ToolResult | Promise<ToolResult>;
 
-/** Merged executor table across query / motion / export tool families. */
+/** Merged executor table across query / motion / export / version tool families. */
 const EXECUTORS: Partial<Record<ToolName, ToolExecutor>> = {
   ...queryExecutors,
   ...motionExecutors,
   ...exportExecutors,
+  ...versionExecutors,
+  ...pipelineExecutors,
 };
 
 /**
