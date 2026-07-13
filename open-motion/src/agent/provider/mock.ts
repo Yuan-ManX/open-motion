@@ -350,6 +350,13 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     push("export_video", { format: fmtM ? fmtM[1] : "mp4" }, `Started video export as ${fmtM ? fmtM[1] : "mp4"}.`);
   }
 
+  // --- Export Lottie ---
+  if (/(\bexport\b|导出).*\b(lottie|after\s*effects)\b/i.test(userText)) {
+    const fpsM = userText.match(/\b(\d+)\s*fps\b/i);
+    push("export_lottie", { fps: fpsM ? parseInt(fpsM[1], 10) : undefined },
+      "Exported the animation as a Lottie JSON file — ready for web, mobile, or After Effects.");
+  }
+
   // --- Export skill ---
   if (/\bskill\b|打包/i.test(userText)) {
     push("export_skill", { name: "packaged-motion", description: "A motion packaged as a reusable skill." },
@@ -1004,9 +1011,108 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
       `Applied ${effectId} shader effect to the component.`);
   }
 
+  // --- Version history ---
+  if (/\b(save|capture|snapshot)\s+(?:a\s+)?(?:version|snapshot|state)\b/i.test(userText)) {
+    const labelMatch = userText.match(/(?:called|named|labeled)\s+["']?([^"']+?)["']?(?:\s|$)/i);
+    const label = labelMatch ? labelMatch[1] : `Snapshot ${new Date().toLocaleTimeString()}`;
+    push("save_version", { label },
+      `Captured version "${label}" — the project state is now restorable.`);
+  }
+  if (/\b(list|show|view)\s+(?:versions?|snapshots?|history)\b/i.test(userText)) {
+    push("list_versions", {},
+      "Here are all saved version snapshots for this project.");
+  }
+  if (/\b(restore|revert|roll\s*back|go\s*back\s*to)\s+(?:version|snapshot|state)\b/i.test(userText)) {
+    push("list_versions", {},
+      "Listing available versions before restore.");
+    push("restore_version", { versionId: "ver_latest" },
+      "Restored the project to the selected version snapshot.");
+  }
+  if (/\b(delete|remove)\s+(?:version|snapshot)\b/i.test(userText)) {
+    push("list_versions", {},
+      "Listing versions before delete.");
+    push("delete_version", { versionId: "ver_latest" },
+      "Deleted the selected version snapshot.");
+  }
+
+  // --- Design tokens ---
+  if (/\b(save|create|define|add)\s+(?:a\s+)?(?:token|design\s+token)\b/i.test(userText)) {
+    const nameMatch = userText.match(/(?:called|named)\s+["']?([a-z0-9-]+)["']?/i);
+    const valueMatch = userText.match(/(?:to|=|value)\s*["']?([^"'\s]+)["']?/i);
+    const catMatch = userText.match(/\b(duration|easing|color|spacing|radius|shadow|font)\b/i);
+    const name = nameMatch ? nameMatch[1] : "custom-token";
+    const value = valueMatch ? valueMatch[1] : "400ms";
+    const category = catMatch ? catMatch[1] : "duration";
+    push("save_token", { name, category, value },
+      `Saved design token "${name}" (${category}) = ${value}.`);
+  }
+  if (/\b(list|show|view)\s+(?:tokens?|design\s+tokens?)\b/i.test(userText)) {
+    push("list_tokens", {},
+      "Here are all the design tokens for this project.");
+  }
+  if (/\b(update|change)\s+(?:the\s+)?(\w+)\s+token\b/i.test(userText)) {
+    const nameMatch = userText.match(/\b(update|change)\s+(?:the\s+)?(\w+)\s+token\b/i);
+    const valueMatch = userText.match(/(?:to|=)\s*["']?([^"'\s]+)["']?/i);
+    const name = nameMatch ? nameMatch[2].toLowerCase() : "fast";
+    const value = valueMatch ? valueMatch[1] : "300ms";
+    push("update_token", { name, value },
+      `Updated token "${name}" to ${value}.`);
+  }
+  if (/\b(delete|remove)\s+(?:the\s+)?(\w+)\s+token\b/i.test(userText)) {
+    const nameMatch = userText.match(/\b(delete|remove)\s+(?:the\s+)?(\w+)\s+token\b/i);
+    const name = nameMatch ? nameMatch[2].toLowerCase() : "slow";
+    push("delete_token", { name },
+      `Deleted token "${name}".`);
+  }
+
+  // --- Tool pipelines: save, list, run, delete reusable sequences ---
+  if (/\b(save|record|create)\s+(?:a\s+)?(?:pipeline|workflow|sequence|macro)\b/i.test(userText)) {
+    const nameMatch = userText.match(/(?:called|named)\s+["']?([a-z0-9-]+)["']?/i);
+    const name = nameMatch ? nameMatch[1] : "custom-pipeline";
+    push("save_pipeline", {
+      name,
+      description: "A reusable sequence of tool calls.",
+      steps: [
+        { tool: "set_easing", args: { easing: "bounce" }, description: "Set bounce easing" },
+        { tool: "set_duration", args: { durationMs: 800 }, description: "Set 800ms duration" },
+      ],
+      tags: ["reusable"],
+    }, `Saved pipeline "${name}" with 2 step(s).`);
+  }
+  if (/\b(list|show|view)\s+(?:pipelines?|workflows?|sequences?|macros?)\b/i.test(userText)) {
+    push("list_pipelines", {}, "Here are all the saved tool pipelines for this project.");
+  }
+  if (/\b(run|replay|apply|execute)\s+(?:a\s+)?(?:pipeline|workflow|sequence|macro)\b/i.test(userText)) {
+    push("run_pipeline", { pipelineId: "pipe_latest" },
+      "Replayed the pipeline — all steps completed.");
+  }
+  if (/\b(delete|remove)\s+(?:pipeline|workflow|sequence|macro)\b/i.test(userText)) {
+    push("delete_pipeline", { pipelineId: "pipe_latest" },
+      "Deleted the pipeline.");
+  }
+
   // --- Get spec ---
   if (/\b(spec|state|current|what.*status)\b|当前状态|规格/i.test(userText)) {
     push("get_motion_spec", {}, "Here's the current MotionSpec.");
+  }
+
+  // --- Mood intelligence ---
+  if (/\b(what|which)\s+(?:feeling|emotion|mood|vibe)\b/i.test(userText) || /\b(analyze|describe)\s+(?:the\s+)?(?:mood|emotion|feeling|vibe)\b/i.test(userText)) {
+    push("analyze_mood", {}, "The motion conveys a playful, energetic mood with high energy and a steady rhythm.");
+  }
+  const moodMatch = userText.match(/\b(make|set|give|apply)\s+(?:it|everything|this|all)?\s*(?:feel|vibe|mood)?\s*(premium|playful|calm|energetic|dramatic|minimal|confident|gentle|urgent|nostalgic)\b/i);
+  if (moodMatch) {
+    push("set_mood", { mood: moodMatch[2].toLowerCase(), scope: "project" },
+      `Applied ${moodMatch[2].toLowerCase()} mood to all components — easing, duration, and direction adjusted for a ${moodMatch[2].toLowerCase()} aesthetic.`);
+  }
+
+  // --- Creative suggestions ---
+  if (/\b(surprise|creative|inspire)\s*(?:me\s+)?/i.test(userText) || /\bwhat\s+(?:should|could|would|can)\s+i\b/i.test(userText)) {
+    const wantsSurprise = /\bsurprise\b/i.test(userText);
+    push("suggest_creative", { surprise: wantsSurprise },
+      wantsSurprise
+        ? "Here are some creative surprise ideas: try a glitch shader accent, send an element along a circular path, or introduce a 3D perspective tilt."
+        : "Based on the current project state, here are 5 creative suggestions ranked by priority and novelty.");
   }
 
   return { calls, replies };
@@ -1043,9 +1149,16 @@ const FALLBACK_REPLY =
   "compile motion grammar expressions (fade.in(600ms) then slide.up(400ms) with easing(spring)), " +
   "parse natural language motion descriptions ('make it bounce in playfully with spring physics'), " +
   "apply WebGL shader effects (chromatic aberration, glitch, plasma, neon glow, pixelate, vignette, noise, ripple, gradient shift), " +
+  "save/list/restore/delete version snapshots (time-travel through project states), " +
+  "manage design tokens (duration, easing, color, spacing, radius — reusable $name references), " +
+  "save/list/run/delete tool pipelines (reusable sequences of tool calls — record a workflow once, replay it on any project), " +
+  "analyze mood (emotional character of motion — premium, playful, calm, energetic, dramatic, minimal, confident, gentle, urgent, nostalgic) and set mood (translate emotional language into motion parameters), " +
+  "suggest creative ideas (context-aware next steps with surprise mode for unexpected but aesthetically valid combinations), " +
   "list/switch templates (fade, bounce, slide, scale, flip, spin, pulse, spring, resize, logo-reveal, squash-stretch, " +
   "flip-card, typewriter, shimmer, morph, notification, progress, ripple, marquee, orbit, wave, confetti, " +
-  "parallax, kinetic-text, particle-burst, liquid-morph, elastic-collapse), export (HTML, CSS, JSON, React, video, skill), or show a preview. " +
+  "parallax, kinetic-text, particle-burst, liquid-morph, elastic-collapse, glitch, reveal-3d, gradient-shift, " +
+  "elastic-scale, text-scramble, aurora, hologram, prismatic, liquid-metal, neon-flicker, depth-card, " +
+  "glassmorphism, kinetic-ribbon, magnetic-pull), export (HTML, CSS, JSON, React, Lottie, video, skill), or show a preview. " +
   "Tell me what you'd like to do.";
 
 export class MockProvider implements LlmProvider {
