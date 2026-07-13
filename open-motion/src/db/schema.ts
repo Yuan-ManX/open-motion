@@ -131,4 +131,39 @@ CREATE TABLE IF NOT EXISTS motion_recipes (
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_motion_recipes_category ON motion_recipes(category);
+
+CREATE TABLE IF NOT EXISTS project_versions (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  label TEXT NOT NULL DEFAULT '',
+  spec_json TEXT NOT NULL,
+  component_count INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_project_versions_project ON project_versions(project_id, created_at);
+
+CREATE TABLE IF NOT EXISTS motion_tokens (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  category TEXT NOT NULL DEFAULT 'duration',
+  value TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL,
+  UNIQUE(project_id, name)
+);
+CREATE INDEX IF NOT EXISTS idx_motion_tokens_project ON motion_tokens(project_id, category);
+
+CREATE TABLE IF NOT EXISTS tool_pipelines (
+  id TEXT PRIMARY KEY,
+  project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  steps_json TEXT NOT NULL DEFAULT '[]',
+  tags_json TEXT NOT NULL DEFAULT '[]',
+  usage_count INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_tool_pipelines_project ON tool_pipelines(project_id);
 `;
