@@ -6,6 +6,14 @@ import { buildToolSpecs } from "./tools/schema.js";
 import { executeTool, type ToolResult } from "./tools/registry.js";
 import { addMemory, listMemory, restoreMemory, compressMemory } from "./memory/store.js";
 import { buildPlan } from "./planner.js";
+import { think } from "./reasoning.js";
+import {
+  decomposeGoal,
+  startToolGoal,
+  completeToolGoal,
+  serializeGoal,
+  type GoalTree,
+} from "./goals.js";
 import { addMessage } from "../db/repositories/messages.js";
 import { getProjectSpec } from "../db/repositories/projects.js";
 import { remember } from "./memory/persistentMemory.js";
@@ -95,9 +103,27 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
   // Emit a lightweight plan so the user sees the agent's intended steps before
   // tool execution begins. Rule-based so it works in mock mode without an LLM.
   const initialSpec = getProjectSpec(projectId);
+  let goalTree: GoalTree | null = null;
   if (initialSpec) {
+    // Structured thinking trace: analyze the request, evaluate constraints,
+    // consider options, and commit to an approach — all before planning.
+    const trace = think(userMessage, initialSpec);
+    onEvent({
+      type: "thinking",
+      text: trace.text,
+      analysis: trace.analysis,
+      constraints: trace.constraints,
+      options: trace.options,
+      chosenApproach: trace.chosenApproach,
+    });
+
     const plan = buildPlan(userMessage, initialSpec);
     onEvent({ type: "plan", steps: plan.steps, summary: plan.summary });
+
+    // Decompose the plan into a goal tree so the user can see intent phases
+    // and live progress as each tool call advances a goal.
+    goalTree = decomposeGoal(userMessage, plan.steps);
+    onEvent({ type: "goal", root: serializeGoal(goalTree) });
   }
 
   const tools = buildToolSpecs();
@@ -171,10 +197,19 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
     let anySpecChanged = false;
     const failedTools: string[] = [];
     for (const call of toolCalls) {
+      // Link this tool call to its corresponding goal so progress is visible.
+      const activeGoalId = goalTree ? startToolGoal(goalTree, call.tool) : null;
+      if (goalTree && activeGoalId) {
+        onEvent({ type: "goal", root: serializeGoal(goalTree) });
+      }
       onEvent({ type: "tool_call", tool: call.tool, args: call.args, callId: call.callId });
       const result = await executeTool(call.tool, call.args, { projectId });
       allToolCalls.push(call);
       allToolResults.push(result);
+      if (goalTree) {
+        completeToolGoal(goalTree, activeGoalId);
+        onEvent({ type: "goal", root: serializeGoal(goalTree) });
+      }
       onEvent({
         type: "tool_result",
         callId: call.callId,
