@@ -34,6 +34,7 @@ export function draft(
       | "style"
       | "selector"
       | "sceneId"
+      | "trigger"
     >
   > = {},
 ): ComponentDraft {
@@ -48,7 +49,7 @@ export function draft(
     direction: opts.direction ?? "normal",
     fillMode: opts.fillMode ?? "forwards",
     playState: "running",
-    trigger: "onLoad",
+    trigger: opts.trigger ?? "onLoad",
     easing: opts.easing ?? easingPreset("ease-out"),
     keyframes: opts.keyframes ?? [],
     style: opts.style ?? {},
