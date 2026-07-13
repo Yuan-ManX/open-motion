@@ -1,0 +1,68 @@
+import { easingPreset } from "@openmotion/shared";
+import { draft, kf, type TemplateDef } from "./helper.js";
+
+export const hologramTemplate: TemplateDef = {
+  id: "tpl-hologram",
+  name: "Hologram",
+  category: "emphasis",
+  description: "Holographic projection with scanline sweep, chromatic edge split, and flicker — a sci-fi display materialization.",
+  tags: ["hologram", "scanline", "sci-fi", "chromatic", "flicker", "futuristic"],
+  build: () => [
+    draft("Hologram Body", {
+      durationMs: 2000,
+      easing: easingPreset("smooth"),
+      iterationCount: "infinite",
+      direction: "normal",
+      keyframes: [
+        kf(0, { opacity: 0.4, scale: 0.98 }),
+        kf(0.1, { opacity: 0.9, scale: 1 }),
+        kf(0.12, { opacity: 0.6 }),
+        kf(0.15, { opacity: 0.95 }),
+        kf(0.5, { opacity: 0.85, scale: 1 }),
+        kf(0.52, { opacity: 0.5 }),
+        kf(0.55, { opacity: 0.9 }),
+        kf(1, { opacity: 0.4, scale: 0.98 }),
+      ],
+      style: {
+        _content: "HOLOGRAM",
+        _tag: "div",
+        width: "240px",
+        height: "120px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        borderRadius: "4px",
+        backgroundColor: "rgba(10,10,10,0.9)",
+        color: "rgba(220,240,255,0.9)",
+        fontSize: "18px",
+        fontFamily: "monospace",
+        fontWeight: "bold",
+        letterSpacing: "3px",
+        boxShadow: "0 0 20px rgba(100,200,255,0.2), inset 0 0 30px rgba(100,200,255,0.05)",
+        borderTop: "1px solid rgba(150,220,255,0.3)",
+        borderBottom: "1px solid rgba(150,220,255,0.2)",
+      },
+    }),
+    draft("Scanline", {
+      durationMs: 2000,
+      easing: easingPreset("linear"),
+      iterationCount: "infinite",
+      direction: "normal",
+      keyframes: [
+        kf(0, { translateY: "-100%" }),
+        kf(1, { translateY: "100%" }),
+      ],
+      style: {
+        _content: "",
+        _tag: "div",
+        width: "240px",
+        height: "20px",
+        borderRadius: "0",
+        background: "linear-gradient(180deg, transparent, rgba(150,220,255,0.25), transparent)",
+        position: "absolute",
+        top: "0",
+        left: "0",
+      },
+    }),
+  ],
+};
