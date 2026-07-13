@@ -4,6 +4,7 @@ import { getDb } from "../index.js";
 import { rowToProject, rowToComponent, assembleSpec } from "../mappers.js";
 import { instantiateTemplate } from "../../motion/templates/index.js";
 import { createComponent } from "./components.js";
+import { seedDefaultTokens } from "./tokens.js";
 
 export function listProjects(): MotionProject[] {
   const db = getDb();
@@ -34,6 +35,7 @@ export function createProject(opts: CreateProjectOpts = {}): MotionProject {
      VALUES (?, ?, '', '[]', '{}', '{}', 'draft', ?, ?, ?)`,
   ).run(id, name, sourceTemplateId, ts, ts);
   for (const c of tpl) createComponent(c);
+  seedDefaultTokens(id);
   return getProject(id)!;
 }
 
