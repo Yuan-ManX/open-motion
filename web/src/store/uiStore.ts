@@ -21,7 +21,7 @@ interface UiState {
   canvasSize: { width: number; height: number };
   playbackSpeed: number;
   chatWidth: number;
-  rightPanelTab: "layers" | "inspector" | "templates" | "skills" | "states" | "memory";
+  rightPanelTab: "layers" | "inspector" | "templates" | "skills" | "states" | "memory" | "versions" | "graph";
   onionSkin: { enabled: boolean; frames: number; opacity: number };
   previewOpen: boolean;
   scrubTime: number | null;
@@ -40,6 +40,7 @@ interface UiState {
   autoKeyframe: boolean;
   playheadMs: number;
   showMotionPaths: boolean;
+  showPerformanceMonitor: boolean;
   timelineCommand: { action: string; nonce: number } | null;
   soloedId: string | null;
   sidebarCollapsed: boolean;
@@ -57,7 +58,7 @@ interface UiState {
   setCanvasSize: (size: { width: number; height: number }) => void;
   setPlaybackSpeed: (speed: number) => void;
   setChatWidth: (w: number) => void;
-  setRightPanelTab: (tab: "layers" | "inspector" | "templates" | "skills" | "states" | "memory") => void;
+  setRightPanelTab: (tab: "layers" | "inspector" | "templates" | "skills" | "states" | "memory" | "versions" | "graph") => void;
   setOnionSkin: (patch: Partial<UiState["onionSkin"]>) => void;
   setPreviewOpen: (open: boolean) => void;
   setScrubTime: (t: number | null) => void;
@@ -81,6 +82,7 @@ interface UiState {
   setAutoKeyframe: (enabled: boolean) => void;
   setPlayheadMs: (ms: number) => void;
   setShowMotionPaths: (show: boolean) => void;
+  setShowPerformanceMonitor: (show: boolean) => void;
   setTimelineCommand: (action: string) => void;
   setSoloedId: (id: string | null) => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
@@ -120,6 +122,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   autoKeyframe: false,
   playheadMs: 0,
   showMotionPaths: false,
+  showPerformanceMonitor: false,
   timelineCommand: null,
   soloedId: null,
   sidebarCollapsed: true,
@@ -185,6 +188,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   setAutoKeyframe: (enabled) => set({ autoKeyframe: enabled }),
   setPlayheadMs: (ms) => set({ playheadMs: ms }),
   setShowMotionPaths: (show) => set({ showMotionPaths: show }),
+  setShowPerformanceMonitor: (show) => set({ showPerformanceMonitor: show }),
   setTimelineCommand: (action) => set((s) => ({ timelineCommand: { action, nonce: (s.timelineCommand?.nonce ?? 0) + 1 } })),
   setSoloedId: (id) => set({ soloedId: id }),
   setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
