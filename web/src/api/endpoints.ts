@@ -96,6 +96,8 @@ export const exportJson = (projectId: string) =>
   apiGet<CodeExport>(`/projects/${projectId}/export/json`);
 export const exportReact = (projectId: string) =>
   apiGet<CodeExport>(`/projects/${projectId}/export/react`);
+export const exportLottie = (projectId: string, fps?: number) =>
+  apiGet<CodeExport>(`/projects/${projectId}/export/lottie${fps ? `?fps=${fps}` : ""}`);
 
 // --- Agent memory endpoints ---
 
@@ -186,3 +188,117 @@ export interface RestraintReport {
 
 export const getProjectRestraint = (projectId: string) =>
   apiGet<RestraintReport>(`/projects/${projectId}/restraint`);
+
+// --- Version history endpoints ---
+
+export interface VersionSummary {
+  id: string;
+  projectId: string;
+  label: string;
+  componentCount: number;
+  createdAt: string;
+}
+
+export const listVersions = (projectId: string) =>
+  apiGet<VersionSummary[]>(`/projects/${projectId}/versions`);
+export const createVersion = (projectId: string, label: string) =>
+  apiPost<VersionSummary>(`/projects/${projectId}/versions`, { label });
+export const restoreVersion = (projectId: string, versionId: string) =>
+  apiPost<ProjectResponse>(`/projects/${projectId}/versions/${versionId}/restore`, {});
+export const deleteVersion = (projectId: string, versionId: string) =>
+  apiDelete<void>(`/projects/${projectId}/versions/${versionId}`);
+
+// --- Design token endpoints ---
+
+export type TokenCategory = "duration" | "easing" | "color" | "spacing" | "radius" | "shadow" | "font";
+
+export interface DesignToken {
+  id: string;
+  projectId: string;
+  name: string;
+  category: TokenCategory;
+  value: string;
+  description: string;
+  createdAt: string;
+}
+
+export const listTokens = (projectId: string, category?: string) =>
+  apiGet<DesignToken[]>(`/projects/${projectId}/tokens${category ? `?category=${category}` : ""}`);
+export const createToken = (projectId: string, input: { name: string; category: TokenCategory; value: string; description?: string }) =>
+  apiPost<DesignToken>(`/projects/${projectId}/tokens`, input);
+export const updateToken = (projectId: string, name: string, patch: { value?: string; description?: string }) =>
+  apiPatch<DesignToken>(`/projects/${projectId}/tokens/${name}`, patch);
+export const deleteToken = (projectId: string, name: string) =>
+  apiDelete<void>(`/projects/${projectId}/tokens/${name}`);
+
+// --- Tool pipeline endpoints ---
+
+export interface PipelineStep {
+  tool: string;
+  args: Record<string, unknown>;
+  description?: string;
+}
+
+export interface ToolPipeline {
+  id: string;
+  projectId: string | null;
+  name: string;
+  description: string;
+  steps: PipelineStep[];
+  tags: string[];
+  usageCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const listPipelines = (projectId: string) =>
+  apiGet<ToolPipeline[]>(`/projects/${projectId}/pipelines`);
+export const createPipeline = (
+  projectId: string,
+  input: { name: string; description?: string; steps: PipelineStep[]; tags?: string[] },
+) => apiPost<ToolPipeline>(`/projects/${projectId}/pipelines`, input);
+export const updatePipeline = (
+  projectId: string,
+  pipelineId: string,
+  patch: { name?: string; description?: string; steps?: PipelineStep[]; tags?: string[] },
+) => apiPatch<ToolPipeline>(`/projects/${projectId}/pipelines/${pipelineId}`, patch);
+export const deletePipeline = (projectId: string, pipelineId: string) =>
+  apiDelete<void>(`/projects/${projectId}/pipelines/${pipelineId}`);
+
+// --- Project insights endpoint (mood, quality, restraint, complexity, creative) ---
+
+export interface MoodAnalysis {
+  dominantMood: string;
+  moodScores: Record<string, number>;
+  narrative: string;
+  energy: number;
+  rhythm: string;
+  coherence: number;
+}
+
+export interface ProjectInsights {
+  mood: MoodAnalysis;
+  quality: { score: number; insights: string[]; componentCount: number };
+  restraint: { score: number; warnings: Array<{ level: string; message: string }> };
+  creative: {
+    suggestions: Array<{ category: string; title: string; description: string; priority: number; novelty: number }>;
+    diversityIndex: number;
+    projectFingerprint: string;
+  };
+  timing: {
+    easingDistribution: Record<string, number>;
+    durationBuckets: { fast: number; normal: number; slow: number };
+    totalDurationMs: number;
+  };
+  complexity: {
+    score: number;
+    componentCount: number;
+    propertyCount: number;
+    easingVariety: number;
+    loopCount: number;
+  };
+  availableMoods: string[];
+}
+
+export const getProjectInsights = (projectId: string) =>
+  apiGet<ProjectInsights>(`/projects/${projectId}/insights`);
