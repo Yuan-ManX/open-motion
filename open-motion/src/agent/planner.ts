@@ -183,6 +183,8 @@ export function buildPlan(userMessage: string, spec: MotionSpec): Plan {
       steps.push({ tool: "export_code", description: "Export the animation as a React component" });
     } else if (/\b(video|mp4|gif|webm)\b/i.test(text)) {
       steps.push({ tool: "export_video", description: "Render the animation to a video file" });
+    } else if (/\b(lottie|after\s*effects)\b/i.test(text)) {
+      steps.push({ tool: "export_lottie", description: "Export the animation as a Lottie JSON file" });
     } else if (/\bskill\b/i.test(text)) {
       steps.push({ tool: "export_skill", description: "Package the motion as a reusable skill" });
     }
@@ -509,6 +511,68 @@ export function buildPlan(userMessage: string, spec: MotionSpec): Plan {
   // Shader effects
   if (/\b(shader|glitch effect|chromatic aberration|neon glow|plasma|pixelate|vignette|film grain|ripple effect|gradient shift)\b/i.test(text) && firstId) {
     steps.push({ tool: "set_shader_effect", description: "Apply WebGL shader effect to component" });
+  }
+
+  // Version history: capture, list, restore, delete snapshots.
+  if (/\b(save|capture|snapshot)\s+(?:a\s+)?(?:version|snapshot|state)\b/i.test(text)) {
+    steps.push({ tool: "save_version", description: "Capture current project state as a named version snapshot" });
+  }
+  if (/\b(list|show|view)\s+(?:versions?|snapshots?|history)\b/i.test(text)) {
+    steps.push({ tool: "list_versions", description: "List all saved version snapshots" });
+  }
+  if (/\b(restore|revert|roll\s*back|go\s*back\s*to)\s+(?:version|snapshot|state)\b/i.test(text)) {
+    steps.push({ tool: "list_versions", description: "List versions before restore" });
+    steps.push({ tool: "restore_version", description: "Restore project to a previously captured version" });
+  }
+  if (/\b(delete|remove)\s+(?:version|snapshot)\b/i.test(text)) {
+    steps.push({ tool: "list_versions", description: "List versions before delete" });
+    steps.push({ tool: "delete_version", description: "Delete a version snapshot" });
+  }
+
+  // Design tokens: save, list, update, delete reusable values.
+  if (/\b(save|create|define|add)\s+(?:a\s+)?(?:token|design\s+token|duration\s+token|color\s+token|easing\s+token)\b/i.test(text)) {
+    steps.push({ tool: "save_token", description: "Create or upsert a design token" });
+  }
+  if (/\b(list|show|view)\s+(?:tokens?|design\s+tokens?)\b/i.test(text)) {
+    steps.push({ tool: "list_tokens", description: "List all design tokens" });
+  }
+  if (/\b(update|change|set)\s+(?:token|the\s+\w+\s+token)\b/i.test(text)) {
+    steps.push({ tool: "list_tokens", description: "List tokens before update" });
+    steps.push({ tool: "update_token", description: "Update an existing design token value" });
+  }
+  if (/\b(delete|remove)\s+(?:token|the\s+\w+\s+token)\b/i.test(text)) {
+    steps.push({ tool: "list_tokens", description: "List tokens before delete" });
+    steps.push({ tool: "delete_token", description: "Delete a design token" });
+  }
+
+  // Tool pipelines: save, list, run, delete reusable tool-call sequences.
+  if (/\b(save|record|create)\s+(?:a\s+)?(?:pipeline|workflow|sequence|macro)\b/i.test(text)) {
+    steps.push({ tool: "save_pipeline", description: "Save a named sequence of tool calls as a reusable pipeline" });
+  }
+  if (/\b(list|show|view)\s+(?:pipelines?|workflows?|sequences?|macros?)\b/i.test(text)) {
+    steps.push({ tool: "list_pipelines", description: "List all saved tool pipelines" });
+  }
+  if (/\b(run|replay|apply|execute)\s+(?:a\s+)?(?:pipeline|workflow|sequence|macro)\b/i.test(text)) {
+    steps.push({ tool: "list_pipelines", description: "List pipelines before run" });
+    steps.push({ tool: "run_pipeline", description: "Replay a saved pipeline on the current project" });
+  }
+  if (/\b(delete|remove)\s+(?:pipeline|workflow|sequence|macro)\b/i.test(text)) {
+    steps.push({ tool: "list_pipelines", description: "List pipelines before delete" });
+    steps.push({ tool: "delete_pipeline", description: "Delete a saved pipeline" });
+  }
+
+  // Mood intelligence: analyze or set emotional character of motion.
+  if (/\b(what|which)\s+(?:feeling|emotion|mood|vibe)\b/i.test(text) || /\b(analyze|describe)\s+(?:the\s+)?(?:mood|emotion|feeling|vibe)\b/i.test(text)) {
+    steps.push({ tool: "analyze_mood", description: "Analyze the emotional character of the current motion" });
+  }
+  if (/\b(make|set|give|apply)\s+(?:it|everything|this|all|the\s+\w+)?\s*(?:feel|vibe|mood)\s+/i.test(text) || /\b(premium|playful|calm|energetic|dramatic|minimal|confident|gentle|urgent|nostalgic)\s+(?:mood|vibe|feel|aesthetic)\b/i.test(text)) {
+    steps.push({ tool: "set_mood", description: "Apply a mood profile to translate emotional language into motion parameters" });
+  }
+
+  // Creative suggestions: context-aware next-step ideas with surprise mode.
+  if (/\b(surprise|creative|inspire|ideas?|suggest)\s+(?:me\s+)?/i.test(text) || /\bwhat\s+(?:should|could|would|can)\s+i\b/i.test(text)) {
+    const wantsSurprise = /\bsurprise\b/i.test(text);
+    steps.push({ tool: "suggest_creative", description: wantsSurprise ? "Generate creative surprise suggestions" : "Generate context-aware creative suggestions" });
   }
 
   // Get spec.
