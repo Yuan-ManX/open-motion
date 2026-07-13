@@ -1,0 +1,66 @@
+import { easingPreset } from "@openmotion/shared";
+import { draft, kf, type TemplateDef } from "./helper.js";
+
+export const magneticPullTemplate: TemplateDef = {
+  id: "tpl-magnetic-pull",
+  name: "Magnetic Pull",
+  category: "emphasis",
+  description: "An element drawn toward an invisible attractor — overshoot, settle, and micro-oscillation. A physics-based magnetic interaction with spring damping.",
+  tags: ["magnetic", "pull", "attractor", "spring", "physics", "overshoot", "settle"],
+  build: () => [
+    draft("Magnetic Body", {
+      durationMs: 1800,
+      easing: easingPreset("ease-out"),
+      iterationCount: "infinite",
+      direction: "normal",
+      keyframes: [
+        kf(0, { translateX: 0, translateY: 0, scale: 1 }),
+        kf(0.2, { translateX: 24, translateY: -16, scale: 1.05 }),
+        kf(0.35, { translateX: 16, translateY: -10, scale: 0.98 }),
+        kf(0.5, { translateX: 20, translateY: -14, scale: 1.02 }),
+        kf(0.65, { translateX: 18, translateY: -12, scale: 1 }),
+        kf(0.8, { translateX: 19, translateY: -13, scale: 1.01 }),
+        kf(1, { translateX: 18, translateY: -12, scale: 1 }),
+      ],
+      style: {
+        _content: "MAGNET",
+        _tag: "div",
+        width: "140px",
+        height: "140px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        borderRadius: "50%",
+        backgroundColor: "#1a1a1a",
+        color: "#ffffff",
+        fontSize: "14px",
+        fontFamily: "monospace",
+        fontWeight: "bold",
+        letterSpacing: "2px",
+        boxShadow: "0 8px 24px rgba(0,0,0,0.4), inset 0 0 20px rgba(255,255,255,0.04)",
+        border: "1px solid rgba(255,255,255,0.08)",
+      },
+    }),
+    draft("Field Ring", {
+      durationMs: 1800,
+      easing: easingPreset("linear"),
+      iterationCount: "infinite",
+      direction: "normal",
+      keyframes: [
+        kf(0, { scale: 0.6, opacity: 0.5 }),
+        kf(1, { scale: 1.4, opacity: 0 }),
+      ],
+      style: {
+        _content: "",
+        _tag: "div",
+        width: "140px",
+        height: "140px",
+        borderRadius: "50%",
+        border: "1px solid rgba(255,255,255,0.15)",
+        position: "absolute",
+        top: "0",
+        left: "0",
+      },
+    }),
+  ],
+};
