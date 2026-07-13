@@ -32,6 +32,23 @@ import { reveal3dTemplate } from "./reveal3d.js";
 import { gradientShiftTemplate } from "./gradientShift.js";
 import { elasticScaleTemplate } from "./elasticScale.js";
 import { textScrambleTemplate } from "./textScramble.js";
+import { auroraTemplate } from "./aurora.js";
+import { hologramTemplate } from "./hologram.js";
+import { prismaticTemplate } from "./prismatic.js";
+import { liquidMetalTemplate } from "./liquidMetal.js";
+import { neonFlickerTemplate } from "./neonFlicker.js";
+import { depthCardTemplate } from "./depthCard.js";
+import { glassmorphismTemplate } from "./glassmorphism.js";
+import { kineticRibbonTemplate } from "./kineticRibbon.js";
+import { magneticPullTemplate } from "./magneticPull.js";
+import { scrollRevealTemplate } from "./scrollReveal.js";
+import { gestureTapTemplate } from "./gestureTap.js";
+import { gestureSwipeTemplate } from "./gestureSwipe.js";
+import { skeletonLoaderTemplate } from "./skeletonLoader.js";
+import { pageTransitionTemplate } from "./pageTransition.js";
+import { microInteractionTemplate } from "./microInteraction.js";
+import { hoverLiftTemplate } from "./hoverLift.js";
+import { stateTransitionTemplate } from "./stateTransition.js";
 import type { ComponentDraft, TemplateDef } from "./helper.js";
 
 export const TEMPLATES: TemplateDef[] = [
@@ -67,6 +84,23 @@ export const TEMPLATES: TemplateDef[] = [
   gradientShiftTemplate,
   elasticScaleTemplate,
   textScrambleTemplate,
+  auroraTemplate,
+  hologramTemplate,
+  prismaticTemplate,
+  liquidMetalTemplate,
+  neonFlickerTemplate,
+  depthCardTemplate,
+  glassmorphismTemplate,
+  kineticRibbonTemplate,
+  magneticPullTemplate,
+  scrollRevealTemplate,
+  gestureTapTemplate,
+  gestureSwipeTemplate,
+  skeletonLoaderTemplate,
+  pageTransitionTemplate,
+  microInteractionTemplate,
+  hoverLiftTemplate,
+  stateTransitionTemplate,
 ];
 
 export function getTemplate(id: string): TemplateDef | undefined {
