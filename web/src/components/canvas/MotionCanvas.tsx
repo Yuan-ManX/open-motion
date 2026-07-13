@@ -8,6 +8,9 @@ import { AlignmentToolbar } from "./AlignmentToolbar.js";
 import { SelectionOverlay } from "./SelectionOverlay.js";
 import { QuickActionBar } from "./QuickActionBar.js";
 import { CanvasMinimap } from "./CanvasMinimap.js";
+import { MultiSelectGizmo } from "./MultiSelectGizmo.js";
+import { MotionPathOverlay } from "./MotionPathOverlay.js";
+import { PerformanceMonitor } from "./PerformanceMonitor.js";
 
 const MIN_DIM = 64;
 const MAX_DIM = 4096;
@@ -70,6 +73,8 @@ export function MotionCanvas() {
   const smartGuides = useUiStore((s) => s.smartGuides);
   const showMotionPaths = useUiStore((s) => s.showMotionPaths);
   const setShowMotionPaths = useUiStore((s) => s.setShowMotionPaths);
+  const showPerformanceMonitor = useUiStore((s) => s.showPerformanceMonitor);
+  const setShowPerformanceMonitor = useUiStore((s) => s.setShowPerformanceMonitor);
   const marqueeRef = useRef<{ startX: number; startY: number } | null>(null);
   const CANVAS_W = canvasSize.width;
   const CANVAS_H = canvasSize.height;
@@ -419,6 +424,7 @@ export function MotionCanvas() {
           <button onClick={() => setShowRulers(!showRulers)} className={`px-2 py-0.5 text-[10px] rounded ${showRulers ? "bg-accent/20 text-accent" : "text-gray-500 hover:text-gray-300"}`} title="Toggle rulers" aria-label="Toggle rulers" aria-pressed={showRulers}>📊</button>
           <button onClick={() => setOnionSkin({ enabled: !onionSkin.enabled })} className={`px-2 py-0.5 text-[10px] rounded ${onionSkin.enabled ? "bg-accent/20 text-accent" : "text-gray-500 hover:text-gray-300"}`} title="Toggle onion skin" aria-label="Toggle onion skin" aria-pressed={onionSkin.enabled}>◊</button>
           <button onClick={() => setShowMotionPaths(!showMotionPaths)} className={`px-2 py-0.5 text-[10px] rounded ${showMotionPaths ? "bg-accent/20 text-accent" : "text-gray-500 hover:text-gray-300"}`} title="Toggle motion paths" aria-label="Toggle motion paths" aria-pressed={showMotionPaths}>∿</button>
+          <button onClick={() => setShowPerformanceMonitor(!showPerformanceMonitor)} className={`px-2 py-0.5 text-[10px] rounded ${showPerformanceMonitor ? "bg-accent/20 text-accent" : "text-gray-500 hover:text-gray-300"}`} title="Toggle performance monitor" aria-label="Toggle performance monitor" aria-pressed={showPerformanceMonitor}>⚙</button>
           <button onClick={() => setPreviewOpen(true)} className="px-2 py-0.5 text-[10px] text-gray-500 hover:text-accent bg-panel2 border border-edge rounded" title="Fullscreen preview" aria-label="Open fullscreen preview">⤢</button>
           <div className="flex items-center border border-edge rounded overflow-hidden">
             <button onClick={zoomOut} className="w-6 h-6 flex items-center justify-center text-xs text-gray-400 hover:text-accent bg-panel2" title="Zoom out" aria-label="Zoom out">−</button>
@@ -549,46 +555,17 @@ export function MotionCanvas() {
             </svg>
           )}
 
-          {/* Motion path visualization */}
-          {showMotionPaths && selectedId && (() => {
-            const comp = components.find((c) => c.id === selectedId);
-            if (!comp || comp.keyframes.length < 2) return null;
-            const hasPath = comp.keyframes.some((kf) => {
-              const p = kf.properties as Record<string, string | number>;
-              return p.translateX != null || p.translateY != null;
-            });
-            if (!hasPath) return null;
-            const s = comp.style as Record<string, string | number>;
-            const baseLeft = typeof s.left === "number" ? s.left : parseFloat(String(s.left ?? "0")) || 0;
-            const baseTop = typeof s.top === "number" ? s.top : parseFloat(String(s.top ?? "0")) || 0;
-            const baseW = typeof s.width === "number" ? s.width : parseFloat(String(s.width ?? "50")) || 50;
-            const baseH = typeof s.height === "number" ? s.height : parseFloat(String(s.height ?? "50")) || 50;
-            const cx0 = baseLeft + baseW / 2;
-            const cy0 = baseTop + baseH / 2;
-            const points = comp.keyframes.map((kf) => {
-              const p = kf.properties as Record<string, string | number>;
-              const tx = typeof p.translateX === "number" ? p.translateX : 0;
-              const ty = typeof p.translateY === "number" ? p.translateY : 0;
-              return { x: cx0 + tx, y: cy0 + ty, offset: kf.offset };
-            });
-            const pathD = points.map((pt, i) => `${i === 0 ? "M" : "L"} ${pt.x} ${pt.y}`).join(" ");
-            return (
-              <svg className="absolute inset-0 pointer-events-none" width={CANVAS_W} height={CANVAS_H} style={{ overflow: "visible", zIndex: 5 }}>
-                <path d={pathD} fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" strokeDasharray="4 4" />
-                {points.map((pt, i) => (
-                  <g key={i}>
-                    <circle cx={pt.x} cy={pt.y} r="4" fill="rgba(255,255,255,0.8)" stroke="rgba(0,0,0,0.5)" strokeWidth="1" />
-                    <text x={pt.x + 8} y={pt.y + 3} fill="rgba(255,255,255,0.6)" style={{ fontSize: 8, fontFamily: "monospace" }}>
-                      {Math.round(pt.offset * 100)}%
-                    </text>
-                  </g>
-                ))}
-              </svg>
-            );
-          })()}
+          {/* Motion path visualization overlay (all components, easing-colored) */}
+          <MotionPathOverlay />
 
-          {/* Selection overlay with resize/rotate handles */}
-          {selectedId && <SelectionOverlay />}
+          {/* Real-time performance overlay (FPS, animations, memory) */}
+          <PerformanceMonitor />
+
+          {/* Selection overlay with resize/rotate handles (single selection) */}
+          {selectedId && selectedIds.size <= 1 && <SelectionOverlay />}
+
+          {/* Multi-select group gizmo (2+ selected) */}
+          {selectedIds.size > 1 && <MultiSelectGizmo />}
 
           {/* Onion skin ghost frames */}
           {onionSkin.enabled && selectedId && (() => {
