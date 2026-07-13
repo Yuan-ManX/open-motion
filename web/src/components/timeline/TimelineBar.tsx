@@ -25,7 +25,6 @@ function dnaEasingColor(dna: string): string {
 }
 
 const SPEEDS = [0.25, 0.5, 1, 2, 4] as const;
-const RULER_TICKS = 8;
 const ZOOM_LEVELS = [1, 2, 4, 8] as const;
 
 interface Props {
@@ -513,7 +512,8 @@ export function TimelineBar({ onReplay }: Props) {
   }
 
   const playheadPct = maxSpan > 0 ? (currentTime / maxSpan) * 100 : 0;
-  const rulerTicks = Array.from({ length: RULER_TICKS + 1 }, (_, i) => i);
+  const rulerTickCount = Math.min(40, 8 * zoom);
+  const rulerTicks = Array.from({ length: rulerTickCount + 1 }, (_, i) => i);
   const zoomIndex = ZOOM_LEVELS.indexOf(zoom as typeof ZOOM_LEVELS[number]);
 
   return (
@@ -665,8 +665,8 @@ export function TimelineBar({ onReplay }: Props) {
             <div className="w-16 flex-shrink-0" />
             <div className="flex-1 h-4 relative">
               {rulerTicks.map((i) => {
-                const pct = (i / RULER_TICKS) * 100;
-                const ms = Math.round((i / RULER_TICKS) * maxSpan);
+                const pct = (i / rulerTickCount) * 100;
+                const ms = Math.round((i / rulerTickCount) * maxSpan);
                 const label = ms >= 1000 ? `${(ms / 1000).toFixed(ms % 1000 === 0 ? 0 : 1)}s` : `${ms}ms`;
                 return (
                   <div key={i} className="absolute top-0 h-full flex flex-col items-center" style={{ left: `${pct}%`, transform: "translateX(-50%)" }}>
@@ -900,18 +900,6 @@ export function TimelineBar({ onReplay }: Props) {
               </div>
             );
           })}
-        </div>
-      </div>
-
-      {/* Ruler */}
-      <div className="px-3 py-0.5 border-t border-edge flex justify-between items-center">
-        <span className="text-[9px] text-gray-700 font-mono w-20 flex-shrink-0 ml-4">0ms</span>
-        <div className="flex-1 flex justify-between">
-          {rulerTicks.slice(1).map((i) => (
-            <span key={i} className="text-[9px] text-gray-700 font-mono">
-              {Math.round((i / RULER_TICKS) * maxSpan)}ms
-            </span>
-          ))}
         </div>
       </div>
     </div>
