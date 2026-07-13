@@ -21,6 +21,8 @@ import { searchMemory, listGeneratedSkills } from "../../db/repositories/memory.
 import { compileGrammar, applyCompiledGrammar, GRAMMAR_EXAMPLES } from "../../motion/grammar.js";
 import { parseNaturalMotion } from "../../motion/naturalParser.js";
 import { getShaderEffect, getShaderCss, listShaderEffects } from "../../motion/shaders.js";
+import { analyzeMood, moodToSpecPatch, detectMood, getMoodProfile, listMoods } from "../../motion/moodEngine.js";
+import { suggestCreative, suggestStyleTransfer } from "../../motion/creativeEngine.js";
 import { getPreset } from "./presets.js";
 import type { ToolContext, ToolResult } from "./registry.js";
 
@@ -1828,6 +1830,72 @@ export const motionExecutors: Partial<Record<ToolName, Executor>> = {
       `Applied ${effect.name} shader effect to "${component.name}".`,
       true,
       { component: updated, effect },
+    );
+  },
+
+  analyze_mood: (args, ctx) => {
+    const spec = getProjectSpec(ctx.projectId);
+    if (!spec) return fail("project not found");
+    const componentId = args.componentId ? String(args.componentId) : undefined;
+    const analysis = analyzeMood(spec, componentId);
+    const topMoods = Object.entries(analysis.moodScores)
+      .sort((a, b) => (b[1] ?? 0) - (a[1] ?? 0))
+      .slice(0, 3)
+      .map(([m, s]) => `${m} (${Math.round((s ?? 0) * 100)}%)`)
+      .join(", ");
+    return ok(
+      `Mood: ${analysis.dominantMood} | Energy: ${analysis.energy} | Rhythm: ${analysis.rhythm} | Coherence: ${analysis.coherence} | Top: ${topMoods}. ${analysis.narrative}`,
+      false,
+      { analysis, availableMoods: listMoods() },
+    );
+  },
+
+  set_mood: (args, ctx) => {
+    const mood = args.mood as string;
+    const scope = (args.scope as string) ?? "project";
+    const profile = getMoodProfile(mood as never);
+    if (!profile) return fail(`unknown mood: ${mood}. Available: ${listMoods().map((m) => m.mood).join(", ")}`);
+    const patch = moodToSpecPatch(mood as never);
+    const spec = getProjectSpec(ctx.projectId);
+    if (!spec) return fail("project not found");
+
+    const targets = scope === "component" && args.componentId
+      ? spec.components.filter((c) => c.id === args.componentId)
+      : spec.components;
+    if (targets.length === 0) return fail("no components to apply mood to");
+
+    for (const comp of targets) {
+      patchComponent(ctx.projectId, comp.id, {
+        easing: patch.easing,
+        durationMs: patch.durationMs,
+        direction: patch.direction,
+        iterationCount: patch.iterationCount,
+      });
+    }
+
+    const detected = detectMood(mood);
+    return ok(
+      `Applied ${profile.label} mood to ${targets.length} component(s) — ${profile.description}. Easing: ${patch.easing.type === "preset" ? patch.easing.name : patch.easing.type}, duration: ${patch.durationMs}ms, direction: ${patch.direction}, loop: ${patch.iterationCount}.`,
+      true,
+      { mood, profile, appliedCount: targets.length, detectedMoods: detected },
+    );
+  },
+
+  suggest_creative: (args, ctx) => {
+    const spec = getProjectSpec(ctx.projectId);
+    if (!spec) return fail("project not found");
+    const surprise = Boolean(args.surprise);
+    const result = suggestCreative(spec, { surprise });
+    const transfer = suggestStyleTransfer(spec);
+    const suggestions = transfer ? [transfer, ...result.suggestions] : result.suggestions;
+    const summary = suggestions
+      .slice(0, 5)
+      .map((s, i) => `${i + 1}. [${s.priority}] ${s.title} — ${s.description}`)
+      .join("\n");
+    return ok(
+      `Creative suggestions (diversity: ${result.diversityIndex}, ${suggestions.length} ideas):\n${summary}`,
+      false,
+      { suggestions, diversityIndex: result.diversityIndex, projectFingerprint: result.projectFingerprint },
     );
   },
 };
