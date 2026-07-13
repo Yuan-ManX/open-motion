@@ -1,9 +1,79 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
-import { useChatStore } from "../../store/chatStore.js";
+import { useChatStore, type GoalNode } from "../../store/chatStore.js";
 import { useProjectStore } from "../../store/projectStore.js";
 import type { MotionComponent } from "@openmotion/shared";
 import { buildMotionDna, diffDna } from "../../motion/dna.js";
 import * as api from "../../api/endpoints.js";
+
+/** Recursively count leaf goals by status for the progress badge. */
+function countGoals(root: GoalNode): { total: number; done: number; active: number } {
+  let total = 0;
+  let done = 0;
+  let active = 0;
+  const walk = (g: GoalNode) => {
+    if (g.children.length === 0) {
+      total++;
+      if (g.status === "completed" || g.status === "skipped") done++;
+      else if (g.status === "in_progress") active++;
+    } else {
+      for (const c of g.children) walk(c);
+    }
+  };
+  walk(root);
+  return { total, done, active };
+}
+
+/** Render a goal node and its children as an indented tree. */
+function GoalTreeNode({ goal, depth }: { goal: GoalNode; depth: number }) {
+  const isLeaf = goal.children.length === 0;
+  const icon =
+    goal.status === "completed" ? "✓"
+    : goal.status === "in_progress" ? "◉"
+    : goal.status === "skipped" ? "–"
+    : "○";
+  const color =
+    goal.status === "completed" ? "text-gray-600"
+    : goal.status === "in_progress" ? "text-white"
+    : goal.status === "skipped" ? "text-gray-700"
+    : "text-gray-600";
+  const labelColor =
+    goal.status === "completed" ? "text-gray-600 line-through"
+    : goal.status === "in_progress" ? "text-gray-100"
+    : "text-gray-400";
+
+  return (
+    <div className={depth > 0 ? "ml-3 border-l border-edge pl-2" : ""}>
+      <div className={`flex items-start gap-1.5 ${goal.status === "in_progress" ? "pulse-glow rounded px-1 -mx-1" : ""}`}>
+        <span className={`${color} w-3 inline-block flex-shrink-0 ${goal.status === "in_progress" ? "animate-pulse" : ""} text-[10px] mt-0.5`}>
+          {icon}
+        </span>
+        <div className="min-w-0 flex-1">
+          {!isLeaf && depth > 0 && (
+            <span className={`text-[10px] uppercase tracking-wide font-semibold ${labelColor}`}>
+              {goal.label}
+            </span>
+          )}
+          {isLeaf && (
+            <span className={`text-[11px] ${labelColor} flex items-baseline gap-1`}>
+              {goal.tool && (
+                <span className={`font-mono text-[10px] ${goal.status === "completed" ? "text-gray-700" : "text-white"}`}>
+                  {goal.tool}
+                </span>
+              )}
+              <span>{goal.label}</span>
+            </span>
+          )}
+          {!isLeaf && depth === 0 && (
+            <span className={`text-xs font-semibold ${labelColor}`}>{goal.label}</span>
+          )}
+        </div>
+      </div>
+      {goal.children.map((c) => (
+        <GoalTreeNode key={c.id} goal={c} depth={depth + 1} />
+      ))}
+    </div>
+  );
+}
 
 /**
  * Generate context-aware suggestion chips based on the live project state.
@@ -61,7 +131,9 @@ export function ChatPanel() {
   const completedStepIndices = useChatStore((s) => s.completedStepIndices);
   const activeStepIndex = useChatStore((s) => s.activeStepIndex);
   const reasoningText = useChatStore((s) => s.reasoningText);
+  const thinking = useChatStore((s) => s.thinking);
   const reflection = useChatStore((s) => s.reflection);
+  const goal = useChatStore((s) => s.goal);
   const error = useChatStore((s) => s.error);
   const send = useChatStore((s) => s.send);
   const regenerate = useChatStore((s) => s.regenerate);
@@ -131,7 +203,7 @@ export function ChatPanel() {
     if (isNearBottomRef.current) {
       scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
     }
-  }, [messages, streamingTokens, toolActivity, plan]);
+  }, [messages, streamingTokens, toolActivity, plan, goal]);
 
   /**
    * Send a message to the agent. If no project is loaded, auto-create one
@@ -283,6 +355,32 @@ export function ChatPanel() {
           );
         })}
 
+        {/* Structured thinking trace */}
+        {thinking && isStreaming && (
+          <div className="fade-in-up text-xs bg-panel2/40 border border-edge rounded-lg px-3 py-2 max-w-[90%]">
+            <div className="flex items-center gap-1.5 text-gray-500 mb-1">
+              <span className="w-1 h-1 rounded-full bg-gray-500 animate-pulse" />
+              <span className="text-[10px]">Thinking</span>
+            </div>
+            <p className="text-gray-400 line-clamp-2 mb-1">{thinking.analysis}</p>
+            {thinking.constraints.length > 0 && (
+              <div className="space-y-0.5 mb-1">
+                {thinking.constraints.slice(0, 2).map((c, i) => (
+                  <p key={i} className="text-[10px] text-gray-600 flex gap-1">
+                    <span className="text-gray-700">!</span>
+                    <span className="line-clamp-1">{c}</span>
+                  </p>
+                ))}
+              </div>
+            )}
+            {thinking.options.length > 1 && (
+              <p className="text-[10px] text-gray-600">
+                <span className="text-gray-500">Chosen:</span> {thinking.chosenApproach}
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Plan display */}
         {plan && isStreaming && (
           <div className="fade-in-up text-xs bg-panel2 border border-edge rounded-lg px-3 py-2.5 max-w-[90%]">
@@ -321,6 +419,29 @@ export function ChatPanel() {
             </ol>
           </div>
         )}
+
+        {/* Goal tree — live intent decomposition with progress */}
+        {goal && isStreaming && (() => {
+          const { total, done } = countGoals(goal);
+          return (
+            <div className="fade-in-up text-xs bg-panel2/60 border border-edge rounded-lg px-3 py-2.5 max-w-[90%]">
+              <div className="flex items-center gap-1.5 text-gray-300 mb-1.5">
+                <span className="w-1 h-1 rounded-full bg-gray-400" />
+                <span className="text-[10px] uppercase tracking-wide font-semibold">Goal</span>
+                <span className="text-[10px] text-gray-600 ml-auto">
+                  {done}/{total}
+                </span>
+              </div>
+              <div className="h-0.5 bg-edge rounded-full mb-2 overflow-hidden">
+                <div
+                  className="h-full bg-gray-300 rounded-full transition-all duration-300"
+                  style={{ width: `${total > 0 ? (done / total) * 100 : 0}%` }}
+                />
+              </div>
+              <GoalTreeNode goal={goal} depth={0} />
+            </div>
+          );
+        })()}
 
         {/* Reasoning trace */}
         {reasoningText && isStreaming && (
