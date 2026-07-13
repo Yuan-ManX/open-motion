@@ -6,8 +6,10 @@ import { TemplatesPanel } from "../inspector/TemplatesPanel.js";
 import { SkillsPanel } from "../inspector/SkillsPanel.js";
 import { StateMachinePanel } from "../inspector/StateMachinePanel.js";
 import { MemoryPanel } from "../inspector/MemoryPanel.js";
+import { VersionHistoryPanel } from "../inspector/VersionHistoryPanel.js";
+import { NodeGraphPanel } from "../inspector/NodeGraphPanel.js";
 
-type TabId = "layers" | "inspector" | "templates" | "skills" | "states" | "memory";
+type TabId = "layers" | "inspector" | "templates" | "skills" | "states" | "memory" | "versions" | "graph";
 
 interface TabDef {
   id: TabId;
@@ -18,10 +20,12 @@ interface TabDef {
 const TABS: TabDef[] = [
   { id: "layers", label: "Layers", icon: "≡" },
   { id: "inspector", label: "Inspect", icon: "◐" },
+  { id: "graph", label: "Graph", icon: "⬡" },
   { id: "templates", label: "Templates", icon: "▦" },
   { id: "skills", label: "Skills", icon: "✦" },
   { id: "states", label: "States", icon: "⚙" },
   { id: "memory", label: "Memory", icon: "◆" },
+  { id: "versions", label: "History", icon: "⌛" },
 ];
 
 /**
@@ -80,14 +84,18 @@ export function RightPanel() {
           <SkillsPanel />
         ) : !projectId ? (
           <div className="px-4 py-6 text-center text-xs text-gray-600">
-            {tab === "layers" ? "No project loaded." : tab === "states" ? "No project loaded." : tab === "memory" ? "No project loaded." : "Open a project to inspect layers."}
+            {tab === "layers" ? "No project loaded." : tab === "states" ? "No project loaded." : tab === "memory" ? "No project loaded." : tab === "versions" ? "No project loaded." : tab === "graph" ? "No project loaded." : "Open a project to inspect layers."}
           </div>
         ) : tab === "layers" ? (
           <LayersPanel />
+        ) : tab === "graph" ? (
+          <NodeGraphPanel />
         ) : tab === "states" ? (
           <StateMachinePanel />
         ) : tab === "memory" ? (
           <MemoryPanel projectId={projectId} />
+        ) : tab === "versions" ? (
+          <VersionHistoryPanel projectId={projectId} />
         ) : (
           <ComponentInspector />
         )}
