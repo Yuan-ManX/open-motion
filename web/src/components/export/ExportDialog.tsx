@@ -33,6 +33,12 @@ export function ExportDialog() {
   const [codeError, setCodeError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  const [lottieFps, setLottieFps] = useState(60);
+  const [lottieResult, setLottieResult] = useState<api.CodeExport | null>(null);
+  const [lottieBusy, setLottieBusy] = useState(false);
+  const [lottieError, setLottieError] = useState<string | null>(null);
+  const [lottieCopied, setLottieCopied] = useState(false);
+
   const [skillName, setSkillName] = useState("");
   const [skillDesc, setSkillDesc] = useState("");
   const [skillTags, setSkillTags] = useState("");
@@ -55,6 +61,10 @@ export function ExportDialog() {
       setCodeError(null);
       setCodeBusy(false);
       setCopied(false);
+      setLottieResult(null);
+      setLottieError(null);
+      setLottieBusy(false);
+      setLottieCopied(false);
       setSkillName("");
       setSkillDesc("");
       setSkillTags("");
@@ -180,6 +190,44 @@ export function ExportDialog() {
     const a = document.createElement("a");
     a.href = url;
     a.download = codeResult.filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportLottie = async () => {
+    if (!projectId) return;
+    setLottieBusy(true);
+    setLottieError(null);
+    setLottieResult(null);
+    setLottieCopied(false);
+    try {
+      const result = await api.exportLottie(projectId, lottieFps);
+      setLottieResult(result);
+    } catch (e) {
+      setLottieError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLottieBusy(false);
+    }
+  };
+
+  const copyLottie = async () => {
+    if (!lottieResult) return;
+    try {
+      await navigator.clipboard.writeText(lottieResult.code);
+      setLottieCopied(true);
+      setTimeout(() => setLottieCopied(false), 1800);
+    } catch {
+      setLottieError("clipboard unavailable");
+    }
+  };
+
+  const downloadLottie = () => {
+    if (!lottieResult) return;
+    const blob = new Blob([lottieResult.code], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = lottieResult.filename;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -319,6 +367,60 @@ export function ExportDialog() {
                 </div>
                 <pre className="bg-black/40 border border-edge rounded p-2 text-[10px] leading-relaxed text-gray-300 font-mono max-h-56 overflow-auto whitespace-pre">
                   {codeResult.code}
+                </pre>
+              </div>
+            )}
+          </section>
+
+          <div className="border-t border-edge" />
+
+          {/* Lottie export */}
+          <section>
+            <div className="text-xs uppercase tracking-wide text-gray-500 mb-2">Lottie JSON</div>
+            <p className="text-[10px] text-gray-600 mb-2">
+              Industry-standard animation format for web, mobile, and After Effects.
+            </p>
+            <div className="flex items-center gap-2 mb-2">
+              <label className="text-[10px] text-gray-500">FPS</label>
+              <input
+                type="number"
+                min={1}
+                max={120}
+                className="w-20 bg-panel2 border border-edge rounded px-2 py-1 text-sm text-gray-100 focus:outline-none focus:border-accent"
+                value={lottieFps}
+                onChange={(e) => setLottieFps(Number(e.target.value))}
+                disabled={!projectId || lottieBusy}
+              />
+            </div>
+            <button
+              onClick={exportLottie}
+              disabled={!projectId || lottieBusy}
+              className="w-full px-3 py-2 rounded-lg bg-panel2 border border-edge hover:border-accent disabled:opacity-40 text-gray-200 text-sm font-medium transition-colors"
+            >
+              {lottieBusy ? "Generating…" : "Export Lottie"}
+            </button>
+            {lottieError && <p className="text-xs text-red-400 mt-2">{lottieError}</p>}
+            {lottieResult && (
+              <div className="mt-2">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] text-gray-500 font-mono">{lottieResult.filename}</span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={copyLottie}
+                      className="text-[10px] px-2 py-0.5 rounded bg-panel2 border border-edge text-gray-300 hover:border-accent"
+                    >
+                      {lottieCopied ? "Copied ✓" : "Copy"}
+                    </button>
+                    <button
+                      onClick={downloadLottie}
+                      className="text-[10px] px-2 py-0.5 rounded bg-panel2 border border-edge text-gray-300 hover:border-accent"
+                    >
+                      Download
+                    </button>
+                  </div>
+                </div>
+                <pre className="bg-black/40 border border-edge rounded p-2 text-[10px] leading-relaxed text-gray-300 font-mono max-h-40 overflow-auto whitespace-pre">
+                  {lottieResult.code.slice(0, 500)}{lottieResult.code.length > 500 ? "\n…" : ""}
                 </pre>
               </div>
             )}
