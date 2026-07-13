@@ -8,19 +8,30 @@ import {
   listRecipes,
   listGeneratedSkills,
   getProjectRestraint,
+  listTokens,
+  createToken,
+  updateToken,
+  deleteToken,
+  listPipelines,
+  deletePipeline,
   type AgentMemoryEntry,
   type MotionRecipe,
   type GeneratedSkill,
   type RestraintReport,
+  type DesignToken,
+  type TokenCategory,
+  type ToolPipeline,
 } from "../../api/endpoints.js";
 
-type Section = "restraint" | "memory" | "recipes" | "skills";
+type Section = "restraint" | "memory" | "recipes" | "skills" | "tokens" | "pipelines";
 
 const SECTIONS: { id: Section; label: string; icon: string }[] = [
   { id: "restraint", label: "Restraint", icon: "◉" },
   { id: "memory", label: "Memory", icon: "◆" },
   { id: "recipes", label: "Recipes", icon: "▦" },
   { id: "skills", label: "Learned", icon: "✦" },
+  { id: "tokens", label: "Tokens", icon: "◇" },
+  { id: "pipelines", label: "Pipelines", icon: "⇶" },
 ];
 
 function scoreColor(score: number): string {
@@ -494,9 +505,356 @@ function GeneratedSkillsSection({ projectId }: { projectId: string }) {
   );
 }
 
+/** Design tokens section — reusable named values for durations, easings, colors, and more. */
+function TokensSection({ projectId }: { projectId: string }) {
+  const [tokens, setTokens] = useState<DesignToken[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<string>("");
+  const [showForm, setShowForm] = useState(false);
+  const [editingName, setEditingName] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const [deleteName, setDeleteName] = useState<string | null>(null);
+  const [newName, setNewName] = useState("");
+  const [newCategory, setNewCategory] = useState<TokenCategory>("duration");
+  const [newValue, setNewValue] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const list = await listTokens(projectId, filter || undefined);
+      setTokens(list);
+    } catch {
+      setTokens([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId, filter]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const handleCreate = async () => {
+    if (!newName.trim() || !newValue.trim()) return;
+    setBusy(true);
+    try {
+      await createToken(projectId, {
+        name: newName.trim().toLowerCase().replace(/\s+/g, "-"),
+        category: newCategory,
+        value: newValue.trim(),
+      });
+      setNewName("");
+      setNewValue("");
+      setShowForm(false);
+      void refresh();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleUpdate = async (name: string) => {
+    if (!editValue.trim()) return;
+    setBusy(true);
+    try {
+      await updateToken(projectId, name, { value: editValue.trim() });
+      setEditingName(null);
+      void refresh();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDelete = async (name: string) => {
+    await deleteToken(projectId, name);
+    setDeleteName(null);
+    void refresh();
+  };
+
+  const categories: TokenCategory[] = ["duration", "easing", "color", "spacing", "radius", "shadow", "font"];
+
+  return (
+    <div className="h-full flex flex-col">
+      {/* Filter + add */}
+      <div className="p-2 flex gap-1 flex-shrink-0">
+        <select
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          className="flex-1 bg-panel border border-edge rounded px-1.5 py-1 text-[10px] text-gray-300 focus:outline-none focus:border-gray-500"
+        >
+          <option value="">all categories</option>
+          {categories.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+        <button
+          onClick={() => setShowForm(!showForm)}
+          title="Add token"
+          aria-label="Add token"
+          aria-expanded={showForm}
+          className={`px-2 py-1 rounded border border-edge text-[11px] ${showForm ? "bg-panel2 text-gray-200" : "text-gray-400 hover:text-gray-200"}`}
+        >
+          +
+        </button>
+      </div>
+
+      {/* Create form */}
+      {showForm && (
+        <div className="px-2 pb-2 space-y-1.5 flex-shrink-0 border-b border-edge/50">
+          <input
+            type="text"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            placeholder="name (kebab-case)"
+            className="w-full bg-panel border border-edge rounded px-2 py-1 text-[10px] text-gray-200 placeholder:text-gray-600 focus:outline-none focus:border-gray-500"
+          />
+          <div className="flex gap-1">
+            <select
+              value={newCategory}
+              onChange={(e) => setNewCategory(e.target.value as TokenCategory)}
+              className="flex-1 bg-panel border border-edge rounded px-1.5 py-1 text-[10px] text-gray-300 focus:outline-none focus:border-gray-500"
+            >
+              {categories.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+          <input
+            type="text"
+            value={newValue}
+            onChange={(e) => setNewValue(e.target.value)}
+            placeholder="value (e.g. 400ms, #0a0a0a)"
+            className="w-full bg-panel border border-edge rounded px-2 py-1 text-[10px] text-gray-200 placeholder:text-gray-600 focus:outline-none focus:border-gray-500"
+            onKeyDown={(e) => { if (e.key === "Enter") void handleCreate(); }}
+            autoFocus
+          />
+          <button
+            onClick={handleCreate}
+            disabled={busy || !newName.trim() || !newValue.trim()}
+            className="w-full px-2 py-1 rounded bg-accent hover:bg-accent2 disabled:opacity-40 text-black text-[10px] font-medium"
+          >
+            {busy ? "Saving…" : "Save Token"}
+          </button>
+        </div>
+      )}
+
+      {/* Token list */}
+      <div className="flex-1 overflow-y-auto">
+        {loading && <div className="p-3 text-[11px] text-gray-500">Loading tokens…</div>}
+        {!loading && tokens.length === 0 && (
+          <div className="p-3 text-[11px] text-gray-600 leading-relaxed">
+            No tokens yet. Design tokens are reusable values ($name) for durations, easings, colors, spacing, and more. Ask the agent: "save a duration token called fast at 200ms".
+          </div>
+        )}
+        {tokens.map((t) => (
+          <div key={t.id} className="border-b border-edge/50 group">
+            {deleteName === t.name ? (
+              <div className="px-2.5 py-2 bg-red-950/20">
+                <p className="text-[10px] text-red-300 mb-1.5">Delete token "${t.name}"?</p>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => void handleDelete(t.name)}
+                    className="flex-1 px-2 py-1 rounded bg-red-600 hover:bg-red-500 text-white text-[10px] font-medium"
+                  >
+                    Delete
+                  </button>
+                  <button
+                    onClick={() => setDeleteName(null)}
+                    className="flex-1 px-2 py-1 rounded border border-edge text-gray-400 hover:text-gray-200 text-[10px]"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="px-2.5 py-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-gray-600 text-[10px]">$</span>
+                    <span className="text-[11px] font-medium text-gray-200 font-mono">{t.name}</span>
+                  </div>
+                  <span className="text-[8px] uppercase text-gray-600 px-1 py-0.5 rounded bg-edge">{t.category}</span>
+                </div>
+                {editingName === t.name ? (
+                  <div className="mt-1 flex gap-1">
+                    <input
+                      type="text"
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      className="flex-1 bg-panel border border-edge rounded px-1.5 py-0.5 text-[10px] text-gray-200 font-mono focus:outline-none focus:border-gray-500"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") void handleUpdate(t.name);
+                        if (e.key === "Escape") setEditingName(null);
+                      }}
+                      autoFocus
+                    />
+                    <button
+                      onClick={() => void handleUpdate(t.name)}
+                      disabled={busy}
+                      className="px-1.5 py-0.5 rounded bg-accent hover:bg-accent2 disabled:opacity-40 text-black text-[9px] font-medium"
+                    >
+                      ✓
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    className="text-[10px] text-gray-400 mt-0.5 font-mono cursor-pointer hover:text-gray-200"
+                    onClick={() => { setEditingName(t.name); setEditValue(t.value); }}
+                    title="Click to edit"
+                  >
+                    {t.value}
+                  </div>
+                )}
+                {t.description && (
+                  <div className="text-[9px] text-gray-600 mt-0.5 leading-snug">{t.description}</div>
+                )}
+                <div className="flex items-center gap-2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => { setEditingName(t.name); setEditValue(t.value); }}
+                    className="text-[9px] text-gray-500 hover:text-gray-300"
+                  >
+                    edit
+                  </button>
+                  <button
+                    onClick={() => setDeleteName(t.name)}
+                    className="text-[9px] text-red-400 hover:text-red-300"
+                  >
+                    delete
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Pipelines section — browse and delete saved tool-call sequences. */
+function PipelinesSection({ projectId }: { projectId: string }) {
+  const [pipelines, setPipelines] = useState<ToolPipeline[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const list = await listPipelines(projectId);
+      setPipelines(list);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load pipelines");
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deletePipeline(projectId, id);
+      setDeleteId(null);
+      void refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to delete pipeline");
+    }
+  };
+
+  if (loading) return <div className="p-3 text-[11px] text-gray-500">Loading pipelines…</div>;
+  if (error) return (
+    <div className="p-3 text-[11px] text-red-400">
+      {error}
+      <button onClick={() => void refresh()} className="ml-2 underline text-gray-400">retry</button>
+    </div>
+  );
+  if (pipelines.length === 0) {
+    return (
+      <div className="p-3 text-[11px] text-gray-600">
+        No pipelines saved. Ask the agent "save this as a pipeline" to record a reusable workflow.
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-2.5 space-y-1.5">
+      {pipelines.map((p) => {
+        const expanded = expandedId === p.id;
+        const isDelete = deleteId === p.id;
+        return (
+          <div key={p.id} className="rounded border border-edge bg-panel2/50">
+            <button
+              onClick={() => setExpandedId(expanded ? null : p.id)}
+              className="w-full text-left px-2 py-1.5 flex items-center gap-1.5"
+            >
+              <span className="text-[9px] text-gray-600">{expanded ? "▼" : "▶"}</span>
+              <span className="text-[11px] text-gray-200 font-medium flex-1 truncate">{p.name}</span>
+              <span className="text-[9px] text-gray-600 font-mono">{p.steps.length} steps</span>
+              {p.usageCount > 0 && (
+                <span className="text-[9px] text-gray-600">×{p.usageCount}</span>
+              )}
+            </button>
+            {expanded && (
+              <div className="px-2 pb-2 space-y-1">
+                {p.description && (
+                  <p className="text-[10px] text-gray-500">{p.description}</p>
+                )}
+                <div className="space-y-0.5">
+                  {p.steps.map((step, i) => (
+                    <div key={i} className="flex gap-1.5 items-baseline">
+                      <span className="text-[9px] text-gray-700 font-mono w-4">{i + 1}.</span>
+                      <span className="text-[10px] text-white font-mono">{step.tool}</span>
+                      {step.description && (
+                        <span className="text-[10px] text-gray-500 truncate">— {step.description}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {p.tags.length > 0 && (
+                  <div className="flex gap-1 flex-wrap pt-1">
+                    {p.tags.map((tag) => (
+                      <span key={tag} className="text-[9px] px-1.5 py-0.5 rounded bg-panel2 border border-edge text-gray-500">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2 pt-1">
+                  <button
+                    onClick={() => setDeleteId(isDelete ? null : p.id)}
+                    className="text-[9px] text-red-400 hover:text-red-300"
+                  >
+                    {isDelete ? "cancel" : "delete"}
+                  </button>
+                </div>
+                {isDelete && (
+                  <div className="flex items-center gap-2 pt-1">
+                    <span className="text-[10px] text-red-400">Delete this pipeline?</span>
+                    <button
+                      onClick={() => void handleDelete(p.id)}
+                      className="text-[9px] px-2 py-0.5 rounded bg-red-600 text-white hover:bg-red-500"
+                    >
+                      confirm
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 /**
  * Memory panel — aggregates agent intelligence surfaces:
- * restraint score, persistent memory, motion recipes, and auto-generated skills.
+ * restraint score, persistent memory, motion recipes, auto-generated skills, design tokens, and tool pipelines.
  */
 export function MemoryPanel({ projectId }: { projectId: string }) {
   const [section, setSection] = useState<Section>("restraint");
@@ -531,6 +889,12 @@ export function MemoryPanel({ projectId }: { projectId: string }) {
           <MemorySection projectId={projectId} />
         ) : section === "recipes" ? (
           <RecipesSection />
+        ) : section === "tokens" ? (
+          <TokensSection projectId={projectId} />
+        ) : section === "pipelines" ? (
+          <div className="h-full overflow-y-auto">
+            <PipelinesSection projectId={projectId} />
+          </div>
         ) : (
           <GeneratedSkillsSection projectId={projectId} />
         )}
