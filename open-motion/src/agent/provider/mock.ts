@@ -1,4 +1,5 @@
 import type { ChatOptions, ChatResult, LlmProvider, LlmToolCall } from "./types.js";
+import { extractText } from "./types.js";
 import { createId } from "../../utils/id.js";
 import { resolveTemplateId, resolvePresetName } from "../intents.js";
 
@@ -10,7 +11,8 @@ interface ParsedState {
 }
 
 function extractState(messages: ChatOptions["messages"]): ParsedState {
-  const sys = messages.find((m) => m.role === "system")?.content ?? "";
+  const sysMsg = messages.find((m) => m.role === "system");
+  const sys = sysMsg ? extractText(sysMsg.content) : "";
   const ids = Array.from(sys.matchAll(/\bc_[a-zA-Z0-9]{4,}\b/g)).map((m) => m[0]);
   return {
     componentIds: ids,
@@ -519,6 +521,81 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     push("merge_properties",
       { sourceComponentId: state.firstComponentId, targetComponentId: state.secondComponentId, applyTo: "source" },
       `Merged animated properties from both components into one.`);
+  }
+
+  // --- Motion Intelligence: emotion, rhythm, narrative ---
+  if (/\b(emotion|emotional|how.*feel|what.*feel|convey.*emotion|mood.*impact|emotional.*impact)\b/i.test(userText)) {
+    push("analyze_emotion", { projectId: "" },
+      "Analyzed the emotional impact of the motion composition.");
+  }
+  if (/\b(rhythm|tempo|\bbeat\b|groove|cadence|\bpulse\b|syncopat|accelerando|decelerando|\bbpm\b)\b/i.test(userText)) {
+    push("analyze_rhythm", { projectId: "" },
+      "Analyzed the visual rhythm of the motion composition.");
+  }
+  if (/\b(narrative|story.*arc|storytelling|pacing|story.*beat|act.*structure|climax|\bplot\b|coherence)\b/i.test(userText)) {
+    push("analyze_narrative", { projectId: "" },
+      "Analyzed the narrative coherence of the motion composition.");
+  }
+
+  // --- Adaptive Motion: adapt for device/viewport, preview, responsive CSS ---
+  if (/\b(responsive.*css|css.*responsive|generate.*css|export.*css|media.*query|@media)\b/i.test(userText)) {
+    push("generate_responsive_css", { projectId: "" },
+      "Generated responsive CSS with media queries for all breakpoints.");
+  } else if (/\b(preview.*adapt|how.*look.*mobile|what.*change.*tablet|responsive.*preview|adapt.*preview)\b/i.test(userText)) {
+    push("preview_adaptations", { projectId: "" },
+      "Previewed motion adaptations across desktop, tablet, mobile, and small breakpoints.");
+  } else if (/\b(adapt|responsive|mobile|tablet|viewport|breakpoint|reduce.*motion|accessibility.*motion|degrade|device|performance.*tier)\b/i.test(userText)) {
+    const device = /\bmobile\b/i.test(userText) ? "mobile" : /\btablet\b/i.test(userText) ? "tablet" : /\btv\b/i.test(userText) ? "tv" : "desktop";
+    const w = device === "mobile" ? 375 : device === "tablet" ? 768 : device === "tv" ? 1920 : 1440;
+    const h = device === "mobile" ? 667 : device === "tablet" ? 1024 : device === "tv" ? 1080 : 900;
+    const perf = /\blow\b/i.test(userText) ? "low" : /\bmedium\b/i.test(userText) ? "medium" : "high";
+    const access = /\breduce/i.test(userText) ? "reduced" : /\bminimal/i.test(userText) ? "minimal" : "full";
+    const apply = /\bapply\b/i.test(userText);
+    push("adapt_motion", {
+      projectId: "", device, viewportWidth: w, viewportHeight: h,
+      performance: perf, accessibility: access, connectionSpeed: "fast", batteryLevel: 1, apply,
+    }, `Adapted the motion for ${device} (${w}x${h}), ${access} motion, ${perf} performance.`);
+  }
+
+  // --- Motion Synthesis: generative patterns, morphing, custom waveforms ---
+  if (/\b(morph.*to|morph.*into|transition.*into|gradually.*become)\b/i.test(userText)) {
+    const patternM = userText.match(/\b(heartbeat|breathing|walk.?cycle|bounce.?ball|pendulum|ocean.?wave|tremor|fidget|shake.?violent|sway.?gentle|orbit.?elliptical)\b/i);
+    const pattern = patternM ? patternM[1].replace(/\s+/g, "-").toLowerCase() : "heartbeat";
+    push("morph_to_pattern", { projectId: "", targetPattern: pattern, morphSteps: 5 },
+      `Morphed the existing motion toward the ${pattern} pattern in 5 steps.`);
+  } else if (/\b(sine|square|triangle|sawtooth|pulse|noise)\s*wave\b|custom.*waveform/i.test(userText)) {
+    const wfM = userText.match(/\b(sine|square|triangle|sawtooth|pulse|noise)\s*wave\b/i);
+    const wf = wfM ? wfM[1].toLowerCase() : "sine";
+    const propM = userText.match(/\b(translateX|translateY|scale|rotate|opacity)\b/i);
+    const prop = propM ? propM[1] : "translateY";
+    const ampM = userText.match(/amplitude\s*(\d+(?:\.\d+)?)/i);
+    const freqM = userText.match(/frequency\s*(\d+(?:\.\d+)?)/i);
+    push("synthesize_waveform", {
+      projectId: "", waveform: wf, amplitude: ampM ? Number(ampM[1]) : 20,
+      frequency: freqM ? Number(freqM[1]) : 1, property: prop, durationMs: 1000,
+    }, `Synthesized a ${wf} wave on ${prop}.`);
+  } else if (/\b(synthesize|generative.*pattern|heartbeat|breathing|walk.?cycle|bounce.?ball|pendulum|ocean.?wave|tremor|fidget|sway|orbit.*elliptical|shake.*violent)\b/i.test(userText)) {
+    const patternM = userText.match(/\b(heartbeat|breathing|walk.?cycle|bounce.?ball|pendulum|ocean.?wave|tremor|fidget|shake.?violent|sway.?gentle|orbit.?elliptical)\b/i);
+    const pattern = patternM ? patternM[1].replace(/\s+/g, "-").toLowerCase() : "heartbeat";
+    push("synthesize_motion", { projectId: "", pattern },
+      `Synthesized a ${pattern} motion pattern.`);
+  }
+
+  // --- Storytelling: story arcs, pacing analysis, plan application ---
+  if (/\b(pacing.*analysis|tempo.*curve|check.*pacing|pacing.*review|story.*rhythm|dramatic.*timing)\b/i.test(userText)) {
+    push("analyze_pacing", { projectId: "" },
+      "Analyzed the pacing of the story arc — tempo curve, slow/fast segments, and recommendations.");
+  } else if (/\b(apply.*story|align.*story.*beat|time.*component.*arc|apply.*hero.*journey|apply.*story.*plan)\b/i.test(userText)) {
+    const genreM = userText.match(/\b(hero|mystery|romance|comedy|thriller|documentary|fantasy|horror)\b/i);
+    const genre = genreM ? genreM[1].toLowerCase() : "hero";
+    const apply = /\bapply\b/i.test(userText);
+    push("apply_story_plan", { projectId: "", genre, totalDurationMs: 10000, apply },
+      `Applied the ${genre} story plan to align component timing with story beats.`);
+  } else if (/\b(story.*arc|storytelling|hero.*journey|narrative.*structure|genre.*template|romance.*arc|comedy.*rhythm|mystery.*unfolding|fantasy.*quest|horror.*descent|documentary.*flow)\b/i.test(userText)) {
+    const genreM = userText.match(/\b(hero|mystery|romance|comedy|thriller|documentary|fantasy|horror)\b/i);
+    const genre = genreM ? genreM[1].toLowerCase() : "hero";
+    push("create_story_arc", { projectId: "", genre, totalDurationMs: 10000 },
+      `Created a ${genre} story arc with beats, emotional tones, and pacing analysis.`);
   }
 
   // --- Create variant ---
@@ -1493,6 +1570,46 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     }
   }
 
+  // --- Multimodal generation: image ---
+  if (/\b(?:generate|create|draw|render|make)\s+(?:an?\s+)?(?:image|picture|visual|illustration)\b/i.test(userText)) {
+    const promptM = userText.match(/(?:of|showing|depicting|with|illustrating)\s+(.+)$/i);
+    const prompt = promptM ? promptM[1].trim().slice(0, 280) : "abstract gradient composition";
+    push("generate_image", { prompt },
+      `Generated an image from the prompt: "${prompt.slice(0, 80)}"`);
+  }
+
+  // --- Multimodal generation: speech ---
+  if (/\b(?:generate|read|narrate|voice|speak|say)\s+(?:this\s+)?(?:aloud|text|speech|audio)\b|\btext.to.speech\b/i.test(userText)) {
+    const quotedM = userText.match(/["']([^"']+)["']/);
+    const sayM = userText.match(/(?:say|read|speak|narrate)\s+(?:this\s+)?(?:aloud\s+)?(.+)/i);
+    const text = quotedM ? quotedM[1] : (sayM ? sayM[1].trim().slice(0, 280) : "Hello, this is a generated speech sample.");
+    push("generate_speech", { text },
+      `Generated speech audio for: "${text.slice(0, 80)}"`);
+  }
+
+  // --- Multimodal generation: video ---
+  if (/\b(?:generate|create|make|produce|animate)\s+(?:a\s+)?(?:video|clip|movie|sequence|animation video)\b/i.test(userText)) {
+    const promptM = userText.match(/(?:of|showing|depicting|with|about)\s+(.+)$/i);
+    const prompt = promptM ? promptM[1].trim().slice(0, 280) : "smooth camera pan over a landscape";
+    push("generate_video", { prompt },
+      `Generated a video from the prompt: "${prompt.slice(0, 80)}"`);
+  }
+
+  // --- Multimodal generation: 3D model ---
+  if (/\b(?:generate|create|make|build)\s+(?:a\s+)?(?:3d|three.?d|mesh|model)\b/i.test(userText)) {
+    const promptM = userText.match(/(?:of|for|showing|depicting|with|about)\s+(.+)$/i);
+    const prompt = promptM ? promptM[1].trim().slice(0, 280) : "a low-poly character model";
+    push("generate_3d", { prompt },
+      `Generated a 3D model from the prompt: "${prompt.slice(0, 80)}"`);
+  }
+
+  // --- Multimodal generation: list models ---
+  if (/\b(?:list|show|what)\s+(?:available\s+)?(?:models?|providers?|llms?)\b/i.test(userText)) {
+    const providerM = userText.match(/\b(?:from|via|provider)\s+(\w+)/i);
+    push("list_models", { provider: providerM ? providerM[1] : undefined },
+      "Here are the available AI models across all configured providers, with their capabilities and modalities.");
+  }
+
   return { calls, replies };
 }
 
@@ -1536,6 +1653,13 @@ const FALLBACK_REPLY =
   "synthesize standalone animation code from natural language (CSS, React, HTML, or vanilla JS — copy-pasteable snippets), " +
   "compose state machines (hover-press, toggle, loading-sequence, carousel, tab-switch presets with states, transitions, and inputs), " +
   "list and trigger state machine transitions, " +
+  "blend two motions at a ratio, interpolate between components, merge animated properties, " +
+  "analyze animation principles (squash & stretch, anticipation, staging, slow in/out, arcs, secondary action, timing, exaggeration, solid drawing, appeal, follow through, overlapping action), " +
+  "synthesize easing from semantic descriptions (weighty, featherlight, snappy, dramatic, playful, elegant, organic, mechanical, bouncy, calm, aggressive, energetic, light), " +
+  "apply choreography patterns (cascade, call_response, unison, counterpoint, wave, canon, stagger_grid, ripple_out), " +
+  "analyze emotional impact (anticipation, surprise, delight, tension, release, curiosity, satisfaction, urgency, calm, joy, trust — emotional arc and peak intensity), " +
+  "analyze visual rhythm (beat detection, tempo BPM, rhythm type — steady, syncopated, rubato, accelerando, decelerando, chaotic — groove and conflict detection), " +
+  "analyze narrative coherence (5-act story arc — setup, rising, climax, falling, resolution — pacing and coherence scoring, personality archetype, attention flow mapping), " +
   "list/switch templates (fade, bounce, slide, scale, flip, spin, pulse, spring, resize, logo-reveal, squash-stretch, " +
   "flip-card, typewriter, shimmer, morph, notification, progress, ripple, marquee, orbit, wave, confetti, " +
   "parallax, kinetic-text, particle-burst, liquid-morph, elastic-collapse, glitch, reveal-3d, gradient-shift, " +
@@ -1544,13 +1668,15 @@ const FALLBACK_REPLY =
   "Tell me what you'd like to do.";
 
 export class MockProvider implements LlmProvider {
-  readonly name = "mock";
+  readonly name = "mock" as const;
   readonly supportsNativeToolCalls = true;
+  readonly supportsVision = false;
+  readonly supportsStreaming = true;
 
   async chat(options: ChatOptions): Promise<ChatResult> {
     const state = extractState(options.messages);
     const lastUser = [...options.messages].reverse().find((m) => m.role === "user");
-    const userText = lastUser?.content ?? "";
+    const userText = typeof lastUser?.content === "string" ? lastUser.content : extractText(lastUser?.content ?? "");
     const lastAssistantToolCalls = [...options.messages]
       .reverse()
       .find((m) => m.role === "assistant")?.toolCalls;
@@ -1566,11 +1692,11 @@ export class MockProvider implements LlmProvider {
           ? replies.join(" ")
           : `I'll use ${calls.map((c) => c.tool).join(", ")} to handle that.`;
         await streamText(options, reasoning);
-        return { text: reasoning, toolCalls: calls, tokensIn: 0, tokensOut: 0 };
+        return { text: reasoning, toolCalls: calls, tokensIn: 0, tokensOut: 0, provider: "mock", model: "mock" };
       }
 
       await streamText(options, FALLBACK_REPLY);
-      return { text: FALLBACK_REPLY, toolCalls: [], tokensIn: 0, tokensOut: 0 };
+      return { text: FALLBACK_REPLY, toolCalls: [], tokensIn: 0, tokensOut: 0, provider: "mock", model: "mock" };
     }
 
     // Phase 2: tool calls were executed; produce a final summary.
@@ -1579,7 +1705,7 @@ export class MockProvider implements LlmProvider {
       ? replies.join(" ")
       : "Done — I applied that change. Anything else you'd like to tune?";
     await streamText(options, reply);
-    return { text: reply, toolCalls: [], tokensIn: 0, tokensOut: 0 };
+    return { text: reply, toolCalls: [], tokensIn: 0, tokensOut: 0, provider: "mock", model: "mock" };
   }
 }
 
