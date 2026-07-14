@@ -242,6 +242,42 @@ export function buildPlan(userMessage: string, spec: MotionSpec): Plan {
   if (/\b(merge.*propert|combine.*keyframe|union.*animation|layer.*together)\b/i.test(text)) {
     steps.push({ tool: "merge_properties", description: "Merge animated properties from two components" });
   }
+  if (/\b(emotion|emotional|how.*feel|what.*feel|convey.*emotion|mood.*impact)\b/i.test(text)) {
+    steps.push({ tool: "analyze_emotion", description: "Analyze the emotional impact of the motion composition" });
+  }
+  if (/\b(rhythm|tempo|beat|groove|cadence|pulse|bpm)\b/i.test(text)) {
+    steps.push({ tool: "analyze_rhythm", description: "Analyze the visual rhythm and tempo of the motion" });
+  }
+  if (/\b(narrative|story.*arc|storytelling|pacing|story.*beat|climax|coherence)\b/i.test(text)) {
+    steps.push({ tool: "analyze_narrative", description: "Analyze the narrative coherence and story arc" });
+  }
+  if (/\b(responsive.*css|css.*responsive|generate.*css|export.*css|media.*query|@media)\b/i.test(text)) {
+    steps.push({ tool: "generate_responsive_css", description: "Generate responsive CSS with media queries for all breakpoints" });
+  }
+  if (/\b(preview.*adapt|how.*look.*mobile|what.*change.*tablet|responsive.*preview)\b/i.test(text)) {
+    steps.push({ tool: "preview_adaptations", description: "Preview motion adaptations across all breakpoints" });
+  }
+  if (/\b(adapt|responsive|mobile|tablet|viewport|breakpoint|reduce.*motion|accessibility.*motion|device|performance.*tier)\b/i.test(text)) {
+    steps.push({ tool: "adapt_motion", description: "Adapt the motion for the target device, viewport, and performance context" });
+  }
+  if (/\b(morph.*to|morph.*into|transition.*into|gradually.*become)\b/i.test(text)) {
+    steps.push({ tool: "morph_to_pattern", description: "Morph the existing motion toward a generative pattern" });
+  }
+  if (/\b(sine|square|triangle|sawtooth|pulse|noise)\s*wave\b|custom.*waveform/i.test(text)) {
+    steps.push({ tool: "synthesize_waveform", description: "Synthesize a custom waveform-driven motion" });
+  }
+  if (/\b(synthesize|generative.*pattern|heartbeat|breathing|walk.?cycle|bounce.?ball|pendulum|ocean.?wave|tremor|fidget|sway|orbit.*elliptical|shake.*violent)\b/i.test(text)) {
+    steps.push({ tool: "synthesize_motion", description: "Synthesize a motion component from a generative pattern" });
+  }
+  if (/\b(pacing.*analysis|tempo.*curve|check.*pacing|pacing.*review|story.*rhythm|dramatic.*timing)\b/i.test(text)) {
+    steps.push({ tool: "analyze_pacing", description: "Analyze the pacing of the story arc" });
+  }
+  if (/\b(apply.*story|align.*story.*beat|time.*component.*arc|apply.*hero.*journey|apply.*story.*plan)\b/i.test(text)) {
+    steps.push({ tool: "apply_story_plan", description: "Apply the storytelling plan to align component timing with story beats" });
+  }
+  if (/\b(story.*arc|storytelling|hero.*journey|narrative.*structure|genre.*template|romance.*arc|comedy.*rhythm|mystery.*unfolding|fantasy.*quest|horror.*descent|documentary.*flow)\b/i.test(text)) {
+    steps.push({ tool: "create_story_arc", description: "Create a story arc from a genre template" });
+  }
   if (/\b(variant|variation|alternative)\b/i.test(text)) {
     steps.push({ tool: "create_variant", description: "Create a variation of the current motion" });
   }
@@ -750,6 +786,23 @@ export function buildPlan(userMessage: string, spec: MotionSpec): Plan {
     steps.push({ tool: "compose_state_machine", description: "Compose a tab switch state machine" });
   } else if (/\b(trigger|switch|transition|go to)\b.*\bstate\b/i.test(text) && !/\bcompose|create|build|add\b/i.test(text)) {
     steps.push({ tool: "trigger_state_machine", description: "Transition the state machine to a target state" });
+  }
+
+  // Multimodal generation: image, speech, video, and model listing.
+  if (/\b(?:generate|create|draw|render|make)\s+(?:an?\s+)?(?:image|picture|visual|illustration)\b/i.test(text)) {
+    steps.push({ tool: "generate_image", description: "Generate an image from the prompt" });
+  }
+  if (/\b(?:generate|read|narrate|voice|speak|say)\s+(?:this\s+)?(?:aloud|text|speech|audio)\b|\btext.to.speech\b/i.test(text)) {
+    steps.push({ tool: "generate_speech", description: "Generate speech audio from the text" });
+  }
+  if (/\b(?:generate|create|make|produce|animate)\s+(?:a\s+)?(?:video|clip|movie|sequence|animation video)\b/i.test(text)) {
+    steps.push({ tool: "generate_video", description: "Generate a video from the prompt" });
+  }
+  if (/\b(?:generate|create|make|build)\s+(?:a\s+)?(?:3d|three.?d|mesh|model)\b/i.test(text)) {
+    steps.push({ tool: "generate_3d", description: "Generate a 3D model from the prompt" });
+  }
+  if (/\b(?:list|show|what)\s+(?:available\s+)?(?:models?|providers?|llms?)\b/i.test(text)) {
+    steps.push({ tool: "list_models", description: "List available AI models with their capabilities and modalities" });
   }
 
   // Get spec.
