@@ -98,6 +98,12 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
       if (resolveTemplateId(raw)) createRaw = raw;
     }
   }
+  // Guard: when the regex backtracks and captures a bare article ("a", "an",
+  // "the") as the name — e.g. "Add a layer called Title" — discard it so the
+  // dedicated add_layer handler below can extract the real name.
+  if (createRaw && /^(a|an|the)$/i.test(createRaw)) {
+    createRaw = null;
+  }
   if (createRaw) {
     const resolved = resolveTemplateId(createRaw);
     if (resolved) {
@@ -358,7 +364,7 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
   if (/(\bexport\b|导出).*\b(lottie|after\s*effects)\b/i.test(userText)) {
     const fpsM = userText.match(/\b(\d+)\s*fps\b/i);
     push("export_lottie", { fps: fpsM ? parseInt(fpsM[1], 10) : undefined },
-      "Exported the animation as a Lottie JSON file — ready for web, mobile, or After Effects.");
+      "Exported the animation as a Lottie JSON file — ready for web, mobile, and animation tools.");
   }
 
   // --- Export skill ---
@@ -451,7 +457,7 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
   // --- Analyze animation principles ---
   if (/\b(animation.*principles?|motion.*principles?|disney.*principles?|12.*principles?|check.*principles?|analyze.*principles?|principle.*score)\b/i.test(userText)) {
     push("analyze_principles", state.firstComponentId ? { componentId: state.firstComponentId } : {},
-      `Analyzed motion against Disney's 12 principles — overall score 72/100. Present: slow_in_out, timing, staging. Missing: squash_stretch, anticipation, follow_through. Top suggestion: add anticipation keyframe before the main action.`);
+      `Analyzed motion against the 12 fundamental principles of animation — overall score 72/100. Present: slow_in_out, timing, staging. Missing: squash_stretch, anticipation, follow_through. Top suggestion: add anticipation keyframe before the main action.`);
   }
 
   // --- Apply animation principle ---
@@ -488,6 +494,31 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     const pattern = patternMap[choreoM[1].toLowerCase()] ?? "cascade";
     push("apply_choreography", { pattern },
       `Applied ${pattern} choreography — coordinated timing across all components with staggered delays. The group now moves as a cohesive ensemble.`);
+  }
+
+  // --- Blend two motions ---
+  if (/\b(blend|cross.?fade|mix|hybrid)\b.*\b(motions?|animations?|components?)\b/i.test(userText) && state.firstComponentId && state.secondComponentId) {
+    const ratioM = userText.match(/\b(\d+(?:\.\d+)?)\s*(?:%|percent|ratio)(?=\s|$)/i);
+    const ratio = ratioM ? Number(ratioM[1]) / 100 : 0.5;
+    push("blend_motions",
+      { sourceComponentId: state.firstComponentId, targetComponentId: state.secondComponentId, ratio, applyTo: "new" },
+      `Blended the two motions at ratio ${ratio.toFixed(2)} — created a new hybrid component.`);
+  }
+
+  // --- Interpolate between motions ---
+  if (/\b(interpolat\w*|tween|steps?\s*between|intermediate)\b/i.test(userText) && state.firstComponentId && state.secondComponentId) {
+    const stepsM = userText.match(/\b(\d+)\s*(?:steps?|frames?)\b/i);
+    const steps = stepsM ? Number(stepsM[1]) : 5;
+    push("interpolate_motion",
+      { sourceComponentId: state.firstComponentId, targetComponentId: state.secondComponentId, steps },
+      `Generated ${steps} interpolation steps between the two components.`);
+  }
+
+  // --- Merge properties ---
+  if (/\b(merge|combine|union|layer together)\b.*\b(properties?|animations?|keyframes?|motions?)\b/i.test(userText) && state.firstComponentId && state.secondComponentId) {
+    push("merge_properties",
+      { sourceComponentId: state.firstComponentId, targetComponentId: state.secondComponentId, applyTo: "source" },
+      `Merged animated properties from both components into one.`);
   }
 
   // --- Create variant ---
@@ -1503,7 +1534,7 @@ const FALLBACK_REPLY =
   "suggest creative ideas (context-aware next steps with surprise mode for unexpected but aesthetically valid combinations), " +
   "analyze visual context (canvas layout balance, spacing consistency, hierarchy, color palette, overlaps, alignment — 0-100 visual quality score), " +
   "synthesize standalone animation code from natural language (CSS, React, HTML, or vanilla JS — copy-pasteable snippets), " +
-  "compose Rive-inspired state machines (hover-press, toggle, loading-sequence, carousel, tab-switch presets with states, transitions, and inputs), " +
+  "compose state machines (hover-press, toggle, loading-sequence, carousel, tab-switch presets with states, transitions, and inputs), " +
   "list and trigger state machine transitions, " +
   "list/switch templates (fade, bounce, slide, scale, flip, spin, pulse, spring, resize, logo-reveal, squash-stretch, " +
   "flip-card, typewriter, shimmer, morph, notification, progress, ripple, marquee, orbit, wave, confetti, " +

@@ -222,7 +222,7 @@ export function buildPlan(userMessage: string, spec: MotionSpec): Plan {
     steps.push({ tool: "generate_motion_docs", description: "Generate comprehensive motion specification documentation" });
   }
   if (/\b(animation.*principles?|motion.*principles?|disney.*principles?|12.*principles?|check.*principles?|analyze.*principles?|principle.*score)\b/i.test(text)) {
-    steps.push({ tool: "analyze_principles", description: "Analyze motion against Disney's 12 principles of animation" });
+    steps.push({ tool: "analyze_principles", description: "Analyze motion against the 12 fundamental principles of animation" });
   }
   if (/\b(add|apply)\s+(?:the\s+)?(squash.?and.?stretch|anticipation|follow.?through|overlapping.?action|slow.?in.?out|arcs?|secondary.?action|exaggeration|solid.?drawing)\b/i.test(text)) {
     steps.push({ tool: "apply_principle", description: "Apply a specific animation principle to modify keyframes" });
@@ -232,6 +232,15 @@ export function buildPlan(userMessage: string, spec: MotionSpec): Plan {
   }
   if (/\b(cascade|call.?and.?response|unison|counterpoint|wave.*pattern|canon|stagger.?grid|ripple.?out)\b/i.test(text)) {
     steps.push({ tool: "apply_choreography", description: "Apply a choreography pattern to orchestrate multiple components" });
+  }
+  if (/\b(blend|cross.?fade|mix.*motion|hybrid.*motion)\b/i.test(text)) {
+    steps.push({ tool: "blend_motions", description: "Blend two components' motions at a given ratio" });
+  }
+  if (/\b(interpolat\w*|tween.*from|tween.*to|steps?\s*between|intermediate.*motion)\b/i.test(text)) {
+    steps.push({ tool: "interpolate_motion", description: "Generate intermediate motion steps between two components" });
+  }
+  if (/\b(merge.*propert|combine.*keyframe|union.*animation|layer.*together)\b/i.test(text)) {
+    steps.push({ tool: "merge_properties", description: "Merge animated properties from two components" });
   }
   if (/\b(variant|variation|alternative)\b/i.test(text)) {
     steps.push({ tool: "create_variant", description: "Create a variation of the current motion" });
