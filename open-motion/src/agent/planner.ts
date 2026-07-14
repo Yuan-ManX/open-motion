@@ -215,6 +215,24 @@ export function buildPlan(userMessage: string, spec: MotionSpec): Plan {
   if (/\b(find|match|suggest)\b.*\btemplate\b/i.test(text)) {
     steps.push({ tool: "match_template", description: "Find the closest matching template" });
   }
+  if (/\b(find.*similar|similar.*motion|what.*else.*like|search.*similar|are.*there.*other.*like|motion.*like.*this|dna.*search|similar.*dna)\b/i.test(text)) {
+    steps.push({ tool: "find_similar_motion", description: "Search across all projects and templates for motions with similar DNA" });
+  }
+  if (/\b(generate.*docs?|motion.*docs?|spec.*document|documentation|document.*project|export.*spec|motion.*spec)\b/i.test(text)) {
+    steps.push({ tool: "generate_motion_docs", description: "Generate comprehensive motion specification documentation" });
+  }
+  if (/\b(animation.*principles?|motion.*principles?|disney.*principles?|12.*principles?|check.*principles?|analyze.*principles?|principle.*score)\b/i.test(text)) {
+    steps.push({ tool: "analyze_principles", description: "Analyze motion against Disney's 12 principles of animation" });
+  }
+  if (/\b(add|apply)\s+(?:the\s+)?(squash.?and.?stretch|anticipation|follow.?through|overlapping.?action|slow.?in.?out|arcs?|secondary.?action|exaggeration|solid.?drawing)\b/i.test(text)) {
+    steps.push({ tool: "apply_principle", description: "Apply a specific animation principle to modify keyframes" });
+  }
+  if (/\b(synthesize.*easing|feel.*weighty|feel.*light|feel.*dramatic|feel.*playful|feather.?light|custom.*bezier|make.*feel.*like)\b/i.test(text)) {
+    steps.push({ tool: "synthesize_easing", description: "Synthesize a custom easing curve from a semantic description" });
+  }
+  if (/\b(cascade|call.?and.?response|unison|counterpoint|wave.*pattern|canon|stagger.?grid|ripple.?out)\b/i.test(text)) {
+    steps.push({ tool: "apply_choreography", description: "Apply a choreography pattern to orchestrate multiple components" });
+  }
   if (/\b(variant|variation|alternative)\b/i.test(text)) {
     steps.push({ tool: "create_variant", description: "Create a variation of the current motion" });
   }
@@ -481,6 +499,126 @@ export function buildPlan(userMessage: string, spec: MotionSpec): Plan {
     }
   }
 
+  // Project recipes: save, list, apply, seed, delete.
+  if (/\b(save.*as.*recipe|save.*recipe|capture.*recipe)\b/i.test(text) && firstId) {
+    steps.push({ tool: "save_project_recipe", description: "Capture the component's current motion as a reusable project recipe" });
+  }
+  if (/\b(seed.*recipe|load.*recipe.*preset|preset recipe)\b/i.test(text)) {
+    steps.push({ tool: "seed_project_recipes", description: "Seed the project with built-in recipe presets" });
+  }
+  if (/\b(list.*my recipe|my recipe|project recipe|show.*project recipe)\b/i.test(text) && !/\b(apply|delete|remove)\b/i.test(text)) {
+    steps.push({ tool: "list_project_recipes", description: "List saved project recipes" });
+  }
+  if (/\b(apply.*project recipe|use.*project recipe)\b/i.test(text) && firstId) {
+    steps.push({ tool: "apply_project_recipe", description: "Apply a project recipe to the component" });
+  }
+  if (/\b(delete.*recipe|remove.*recipe)\b/i.test(text)) {
+    steps.push({ tool: "delete_project_recipe", description: "Delete a project recipe" });
+  }
+
+  // Brand packs: list, apply, seed, delete.
+  if (/\b(seed.*brand|load.*brand.*preset|brand.*preset)\b/i.test(text)) {
+    steps.push({ tool: "seed_brand_packs", description: "Seed the project with built-in brand pack presets" });
+  }
+  if (/\b(list.*brand|show.*brand|brand.*pack|motion.*identity)\b/i.test(text) && !/\b(apply|delete|seed)\b/i.test(text)) {
+    steps.push({ tool: "list_brand_packs", description: "List motion identity brand packs" });
+  }
+  if (/\b(apply.*brand|make.*everything.*like|use.*brand.*pack)\b/i.test(text)) {
+    steps.push({ tool: "apply_brand_pack", description: "Apply a brand pack to align all components with a motion identity" });
+  }
+  if (/\b(delete.*brand|remove.*brand)\b/i.test(text)) {
+    steps.push({ tool: "delete_brand_pack", description: "Delete a brand pack" });
+  }
+
+  // Motion profiles: set, suggest, list, apply.
+  if (/\b(make.*hero|set.*hero|hero.*element|make.*background|set.*background|background.*component|make.*cta|set.*cta|cta.*element|set.*role)\b/i.test(text) && firstId) {
+    steps.push({ tool: "set_motion_profile", description: "Set the component's motion personality profile" });
+  }
+  if (/\b(suggest.*profile|auto.*profile|what.*role.*should)\b/i.test(text) && firstId) {
+    steps.push({ tool: "suggest_motion_profile", description: "Auto-suggest a motion profile for the component" });
+  }
+  if (/\b(list.*profile|show.*profile|list.*role|all.*profile)\b/i.test(text) && !/\b(apply|set|suggest)\b/i.test(text)) {
+    steps.push({ tool: "list_motion_profiles", description: "List all motion profiles in the project" });
+  }
+  if (/\b(apply.*profile|tune.*based.*profile|match.*motion.*personality)\b/i.test(text) && firstId) {
+    steps.push({ tool: "apply_motion_profile", description: "Apply the component's motion profile to its motion parameters" });
+  }
+
+  // Motion captures: save, list, apply, seed, delete.
+  if (/\b(seed.*captures?|example.*captures?|example.*path|captures?.*example)/i.test(text)) {
+    steps.push({ tool: "seed_motion_captures", description: "Seed the project with example motion captures" });
+  }
+  if (/\b(list.*captures?|show.*captures?|list.*path|what.*captures?)/i.test(text) && !/\b(apply|delete|seed|save)\b/i.test(text)) {
+    steps.push({ tool: "list_motion_captures", description: "List all saved motion captures" });
+  }
+  if (/\b(save.*captures?|record.*cursor|record.*path|captures?.*gesture|captures?.*trajectory|draw.*path|draw.*motion)/i.test(text)) {
+    steps.push({ tool: "save_motion_capture", description: "Save the recorded cursor trajectory as a motion capture" });
+  }
+  if (/\b(apply.*captures?|use.*captures?|trace.*motion|apply.*path)/i.test(text) && firstId) {
+    steps.push({ tool: "apply_motion_capture", description: "Apply the motion capture to the selected component" });
+  }
+  if (/\b(delete.*captures?|remove.*captures?|discard.*captures?)/i.test(text)) {
+    steps.push({ tool: "delete_motion_capture", description: "Delete the motion capture" });
+  }
+
+  // Export presets: list, recommend, apply.
+  if (/\b(list.*export.*presets?|export.*options?|export.*presets?|what.*format|export.*format)/i.test(text) && !/\b(apply|recommend)\b/i.test(text)) {
+    steps.push({ tool: "list_export_presets", description: "List all available smart export presets" });
+  }
+  if (/\b(recommend.*export|best.*export|what.*format.*should|how.*should.*export|which.*export)\b/i.test(text)) {
+    steps.push({ tool: "recommend_export_format", description: "Recommend the best export format for the project" });
+  }
+  if (/\b(export.*for|export.*as|apply.*export.*presets?|make.*lottie|export.*instagram|export.*tiktok|export.*react|export.*vue|export.*email|export.*mobile|export.*figma|export.*embed|export.*social|export.*story|export.*square)/i.test(text)) {
+    steps.push({ tool: "apply_export_preset", description: "Apply the matching export preset for the target platform" });
+  }
+
+  // Session lineage: save, list, resume, get lineage, delete.
+  if (/\b(save.*sessions?|fork.*sessions?|snapshot.*conversation|remember.*branch)/i.test(text)) {
+    steps.push({ tool: "save_session_snapshot", description: "Save a snapshot of the current conversation as a session lineage node" });
+  }
+  if (/\b(list.*sessions?|show.*sessions?|sessions?.*history|what.*conversation)/i.test(text) && !/\b(delete|resume|save|fork)\b/i.test(text)) {
+    steps.push({ tool: "list_session_snapshots", description: "List all session snapshots in the project" });
+  }
+  if (/\b(resume.*sessions?|continue.*sessions?|pick.*up.*where)/i.test(text)) {
+    steps.push({ tool: "resume_session_snapshot", description: "Resume a previously saved session with new activity" });
+  }
+  if (/\b(lineage.*tree|sessions?.*lineage|conversation.*tree|how.*sessions?.*relate|what.*came.*before)/i.test(text)) {
+    steps.push({ tool: "get_session_lineage", description: "Get the full session lineage tree with ancestry and statistics" });
+  }
+  if (/\b(delete.*sessions?|remove.*branch|discard.*sessions?)/i.test(text)) {
+    steps.push({ tool: "delete_session_snapshot", description: "Delete the session snapshot from the lineage" });
+  }
+
+  // Accessibility check.
+  if (/\b(check.*accessibility|accessibility.*check|is.*safe|vestibular|seizure.*risk|flashing.*risk|strobing|reduced.*motion|WCAG|a11y|motion.*safety|safe.*motion|accessibility)/i.test(text)) {
+    steps.push({ tool: "check_accessibility", description: "Analyze motion for accessibility and safety issues" });
+  }
+
+  // Performance check.
+  if (/\b(check.*performance|performance.*check|frame.*budget|is.*performant|fps|jank|optimize.*performance|performance.*issue|perf.*check|render.*cost|animation.*cost)/i.test(text)) {
+    steps.push({ tool: "check_performance", description: "Analyze motion for performance and frame budget issues" });
+  }
+
+  // Storyboard beat management.
+  if (/\b(create.*beat|add.*beat|new.*beat|storyboard.*beat|story.*beat|beat.*titled|narrative.*beat)/i.test(text)) {
+    steps.push({ tool: "create_beat", description: "Create a storyboard beat to sequence the narrative" });
+  }
+  if (/\b(list.*beats|show.*beats|storyboard.*overview|story.*outline|what.*beats|narrative.*outline|storyboard.*summary)/i.test(text)) {
+    steps.push({ tool: "list_beats", description: "List all storyboard beats with cumulative timing" });
+  }
+  if (/\b(update.*beat|edit.*beat|rename.*beat|change.*beat|modify.*beat|adjust.*beat)/i.test(text)) {
+    steps.push({ tool: "update_beat", description: "Update a storyboard beat's content or timing" });
+  }
+  if (/\b(reorder.*beats|rearrange.*beats|reorder.*story|resequence.*beats|shuffle.*beats|move.*beats)/i.test(text)) {
+    steps.push({ tool: "reorder_beats", description: "Reorder storyboard beats into a new sequence" });
+  }
+  if (/\b(delete.*beat|remove.*beat|drop.*beat)/i.test(text)) {
+    steps.push({ tool: "delete_beat", description: "Delete a storyboard beat from the sequence" });
+  }
+  if (/\b(export.*storyboard|storyboard.*export|story.*export|narrative.*export|storyboard.*markdown|storyboard.*json)/i.test(text)) {
+    steps.push({ tool: "export_storyboard", description: "Export the storyboard as Markdown or JSON" });
+  }
+
   // Persistent memory: save, recall, or list.
   if (/\b(remember this|save.*memory|save.*note)\b/i.test(text)) {
     steps.push({ tool: "save_memory", description: "Save a persistent memory entry for this project" });
@@ -573,6 +711,36 @@ export function buildPlan(userMessage: string, spec: MotionSpec): Plan {
   if (/\b(surprise|creative|inspire|ideas?|suggest)\s+(?:me\s+)?/i.test(text) || /\bwhat\s+(?:should|could|would|can)\s+i\b/i.test(text)) {
     const wantsSurprise = /\bsurprise\b/i.test(text);
     steps.push({ tool: "suggest_creative", description: wantsSurprise ? "Generate creative surprise suggestions" : "Generate context-aware creative suggestions" });
+  }
+
+  // Visual context analysis: spatial layout review.
+  if (/\b(visual.*context|layout.*balance|canvas.*look|composition.*review|visual.*review|spatial.*layout|visual.*balance|check.*layout|visual.*layout|how.*canvas.*look)\b/i.test(text)) {
+    steps.push({ tool: "analyze_visual_context", description: "Analyze the canvas layout — balance, spacing, hierarchy, color, overlaps, alignment" });
+  }
+
+  // Code synthesis: generate standalone animation code.
+  if (/\b(generate.*code|synthesize.*code|write.*code|give me.*css|give me.*react|give me.*html|give me.*javascript|code.*snippet|animation.*code|css.*for.*animation|react.*component.*animation|copy.*paste.*code)\b/i.test(text)) {
+    const descMatch = userMessage.match(/\b(?:for|of)\s+(?:a|an)?\s*([\w][\w\s-]*?)(?:\s+animation|\s+effect|\s+motion|\s*$)/i);
+    const description = descMatch ? descMatch[1] : "bounce in";
+    const format = /react/i.test(text) ? "react" : /html/i.test(text) ? "html" : /javascript|js|vanilla/i.test(text) ? "vanilla" : "css";
+    steps.push({ tool: "synthesize_code", description: `Generate ${format} code for a ${description} animation` });
+  }
+
+  // State machine composer.
+  if (/\b(list|show|what)\b.*\bstate.*machines?\b/i.test(text)) {
+    steps.push({ tool: "list_state_machines", description: "List all state machines in the project" });
+  } else if (/\b(hover.*press|press.*hover)\b/i.test(text)) {
+    steps.push({ tool: "compose_state_machine", description: "Compose a hover-press state machine (idle, hover, pressed states)" });
+  } else if (/\btoggle\b/i.test(text) && /\b(state|on.*off)\b/i.test(text)) {
+    steps.push({ tool: "compose_state_machine", description: "Compose a toggle state machine (on/off states)" });
+  } else if (/\bloading\b/i.test(text) && /\b(flow|sequence|state)\b/i.test(text)) {
+    steps.push({ tool: "compose_state_machine", description: "Compose a loading flow state machine (idle, loading, success, error)" });
+  } else if (/\bcarousel\b/i.test(text)) {
+    steps.push({ tool: "compose_state_machine", description: "Compose a carousel state machine with slide states" });
+  } else if (/\btab.*(switch|navigation)\b/i.test(text)) {
+    steps.push({ tool: "compose_state_machine", description: "Compose a tab switch state machine" });
+  } else if (/\b(trigger|switch|transition|go to)\b.*\bstate\b/i.test(text) && !/\bcompose|create|build|add\b/i.test(text)) {
+    steps.push({ tool: "trigger_state_machine", description: "Transition the state machine to a target state" });
   }
 
   // Get spec.
