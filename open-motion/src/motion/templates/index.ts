@@ -49,6 +49,11 @@ import { pageTransitionTemplate } from "./pageTransition.js";
 import { microInteractionTemplate } from "./microInteraction.js";
 import { hoverLiftTemplate } from "./hoverLift.js";
 import { stateTransitionTemplate } from "./stateTransition.js";
+import { dataStreamTemplate } from "./dataStream.js";
+import { gravityDropTemplate } from "./gravityDrop.js";
+import { chromaticPulseTemplate } from "./chromaticPulse.js";
+import { breathingLightTemplate } from "./breathingLight.js";
+import { magneticRippleTemplate } from "./magneticRipple.js";
 import type { ComponentDraft, TemplateDef } from "./helper.js";
 
 export const TEMPLATES: TemplateDef[] = [
@@ -101,6 +106,11 @@ export const TEMPLATES: TemplateDef[] = [
   microInteractionTemplate,
   hoverLiftTemplate,
   stateTransitionTemplate,
+  dataStreamTemplate,
+  gravityDropTemplate,
+  chromaticPulseTemplate,
+  breathingLightTemplate,
+  magneticRippleTemplate,
 ];
 
 export function getTemplate(id: string): TemplateDef | undefined {
