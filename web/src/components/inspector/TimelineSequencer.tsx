@@ -2,6 +2,7 @@ import { useMemo, useState, useCallback } from "react";
 import { useProjectStore } from "../../store/projectStore.js";
 import { useUiStore } from "../../store/uiStore.js";
 import { useChatStore } from "../../store/chatStore.js";
+import { reorderComponents } from "../../api/endpoints.js";
 import { buildMotionDna } from "../../motion/dna.js";
 import type { MotionComponent } from "@openmotion/shared";
 
@@ -37,13 +38,16 @@ export function TimelineSequencer() {
   }, [sorted]);
 
   const handleReorder = useCallback(
-    (fromIdx: number, toIdx: number) => {
+    async (fromIdx: number, toIdx: number) => {
       if (fromIdx === toIdx || !projectId) return;
       const reordered = [...sorted];
       const [moved] = reordered.splice(fromIdx, 1);
       reordered.splice(toIdx, 0, moved);
-      const updates = reordered.map((c, i) => ({ id: c.id, orderIndex: i }));
-      useProjectStore.getState().reorderComponents(updates);
+      const orderedIds = reordered.map((c) => c.id);
+      try {
+        await reorderComponents(projectId, orderedIds);
+        await useProjectStore.getState().loadProject(projectId);
+      } catch { /* ignore reorder errors */ }
     },
     [sorted, projectId],
   );
