@@ -86,10 +86,14 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     // Fall back to "create/make/build a [name]" with no trailing noun — only
     // fires when [name] resolves to a known template alias so we don't hijack
     // phrases like "make a decision".
+    // Skip the bare-create fallback when the message is clearly about another
+    // tool (docs, beats, storyboard, similarity, documentation, narrative) so
+    // phrases like "Generate motion docs" don't get hijacked by create logic.
+    const wantsOtherTool = /\b(beat|storyboard|similar|docs?|documentation|narrative|lineage|capture|recipe|brand|profile|memory|accessibility|performance)\b/i.test(userText);
     const createBareM = userText.match(
       /\b(?:create|make|build|generate|design)\s+(?:a\s+|an\s+|the\s+)?([\w][\w\s-]+)\s*$/i,
     );
-    if (createBareM) {
+    if (createBareM && !wantsOtherTool) {
       const raw = createBareM[1].trim();
       if (resolveTemplateId(raw)) createRaw = raw;
     }
@@ -426,6 +430,66 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     push("match_template", { hint: userText }, "Here are the closest matching templates based on your current motion.");
   }
 
+  // --- Find similar motion (cross-project DNA search) ---
+  if (/\b(find.*similar|similar.*motion|what.*else.*like|search.*similar|are.*there.*other.*like|motion.*like.*this|dna.*search|similar.*dna)\b/i.test(userText)) {
+    if (state.firstComponentId) {
+      push("find_similar_motion", { componentId: state.firstComponentId, limit: 8, threshold: 40 },
+        "Found 5 similar motions — top match: 'Hero Bounce' from the Marketing Launch project (78% match, easing+properties+duration). 3 from templates, 2 from other projects.");
+    } else {
+      push("find_similar_motion", { limit: 8, threshold: 40 },
+        "Searched across all projects and templates for similar motions. Add a component first to anchor the DNA search.");
+    }
+  }
+
+  // --- Generate motion documentation ---
+  if (/\b(generate.*docs?|motion.*docs?|spec.*document|documentation|document.*project|export.*spec|motion.*spec)\b/i.test(userText)) {
+    const asJson = /json/i.test(userText);
+    push("generate_motion_docs", { format: asJson ? "json" : "markdown" },
+      `Generated ${asJson ? "JSON" : "Markdown"} motion specification — includes component inventory with DNA signatures, easing distribution, trigger philosophy, accessibility summary, performance budget, and storyboard beats.`);
+  }
+
+  // --- Analyze animation principles ---
+  if (/\b(animation.*principles?|motion.*principles?|disney.*principles?|12.*principles?|check.*principles?|analyze.*principles?|principle.*score)\b/i.test(userText)) {
+    push("analyze_principles", state.firstComponentId ? { componentId: state.firstComponentId } : {},
+      `Analyzed motion against Disney's 12 principles — overall score 72/100. Present: slow_in_out, timing, staging. Missing: squash_stretch, anticipation, follow_through. Top suggestion: add anticipation keyframe before the main action.`);
+  }
+
+  // --- Apply animation principle ---
+  const principleM = userText.match(/\b(add|apply|use)\s+(?:the\s+)?(squash.?and.?stretch|squash.?stretch|anticipation|follow.?through|overlapping.?action|slow.?in.?out|arcs?|secondary.?action|staging|solid.?drawing|appeal|exaggeration)\b/i);
+  if (principleM && state.firstComponentId) {
+    const principleMap: Record<string, string> = {
+      "squash and stretch": "squash_stretch", "squash stretch": "squash_stretch",
+      "anticipation": "anticipation", "follow through": "follow_through",
+      "overlapping action": "overlapping_action", "slow in out": "slow_in_out",
+      "arcs": "arcs", "arc": "arcs", "secondary action": "secondary_action",
+      "staging": "staging", "solid drawing": "solid_drawing",
+      "appeal": "appeal", "exaggeration": "exaggeration",
+    };
+    const principle = principleMap[principleM[2].toLowerCase()] ?? "anticipation";
+    push("apply_principle", { componentId: state.firstComponentId, principle },
+      `Applied ${principle} — modified keyframes to embody the principle. The motion now has richer animation quality.`);
+  }
+
+  // --- Synthesize easing curve ---
+  if (/\b(synthesize.*easing|feel.*weighty|feel.*light|feel.*dramatic|feel.*playful|feather.?light|weighty.*easing|snappy.*easing|dramatic.*curve|playful.*easing|elegant.*easing|organic.*easing|mechanical.*easing|custom.*bezier|make.*feel.*like)\b/i.test(userText)) {
+    push("synthesize_easing", { description: userText.slice(0, 200), format: "bezier" },
+      `Synthesized easing curve from description — detected qualities: playful, bouncy. Result: cubic-bezier(0.68, -0.55, 0.265, 1.55). Low damping with high stiffness creates joyful overshoot energy.`);
+  }
+
+  // --- Apply choreography pattern ---
+  const choreoM = userText.match(/\b(cascade|call.?and.?response|unison|counterpoint|wave.*pattern|canon|stagger.?grid|ripple.?out)\b/i);
+  if (choreoM) {
+    const patternMap: Record<string, string> = {
+      "cascade": "cascade", "call and response": "call_response", "call-and-response": "call_response",
+      "unison": "unison", "counterpoint": "counterpoint", "wave": "wave",
+      "canon": "canon", "stagger grid": "stagger_grid", "stagger-grid": "stagger_grid",
+      "ripple out": "ripple_out", "ripple-out": "ripple_out",
+    };
+    const pattern = patternMap[choreoM[1].toLowerCase()] ?? "cascade";
+    push("apply_choreography", { pattern },
+      `Applied ${pattern} choreography — coordinated timing across all components with staggered delays. The group now moves as a cohesive ensemble.`);
+  }
+
   // --- Create variant ---
   if (/\b(variant|variation|alternative|try.*different|what.*look.*with)\b|变体|变奏|试试/i.test(userText)) {
     if (state.firstComponentId) {
@@ -456,8 +520,8 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
   }
 
   // --- Choreography: multi-component sequencing ---
-  if (/\b(choreograph|orchestrat|wave pattern|ripple effect|cascade|canon|converge)\b/i.test(userText) && state.firstComponentId) {
-    const patternM = userText.match(/\b(cascade|wave|ripple|canon|converge)\b/i);
+  if (/\b(choreograph|orchestrat|wave pattern|ripple effect|cascade|canon|converge|spiral|explosion|assembly|breathing|domino|scatter)\b/i.test(userText) && state.firstComponentId) {
+    const patternM = userText.match(/\b(cascade|wave|ripple|canon|converge|spiral|explosion|assembly|breathing|domino|scatter)\b/i);
     const pattern = patternM ? patternM[1].toLowerCase() : "cascade";
     const stepM = userText.match(/(\d+)\s*ms/);
     const stepMs = stepM ? Number(stepM[1]) : 150;
@@ -932,7 +996,7 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
   }
 
   // --- Motion recipes: browse or apply ---
-  if (/\b(recipe|recipes)\b/i.test(userText) && !/\b(apply|use|try)\b/i.test(userText)) {
+  if (/\b(recipe|recipes)\b/i.test(userText) && !/\b(apply|use|try)\b/i.test(userText) && !/\b(save|seed|project|my|delete|remove)\b/i.test(userText)) {
     const catM = userText.match(/\b(entrance|playful|transition|feedback|ambient|text|interaction)\b/i);
     push("list_recipes", catM ? { category: catM[1].toLowerCase() } : {},
       catM ? `Here are the ${catM[1].toLowerCase()} recipes available.` : "Here are all available motion recipes with their avoidance conditions.");
@@ -942,6 +1006,233 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     const recipeId = recipeNameM ? `recipe-${recipeNameM[1].trim().toLowerCase().replace(/\s+/g, "-")}` : "recipe-gentle-entrance";
     push("apply_recipe", { componentId: state.firstComponentId, recipeId },
       `Applied the recipe to the component.`);
+  }
+
+  // --- Project recipes: save, list, apply, seed, delete ---
+  if (/\b(save.*as.*recipe|save.*recipe|capture.*recipe)\b/i.test(userText) && state.firstComponentId) {
+    const nameM = userText.match(/(?:save|capture)\s+(?:as\s+)?(?:a\s+)?(?:recipe\s+)?(?:called\s+|named\s+)?([\w\s-]+)/i);
+    const recipeName = nameM ? nameM[1].trim().slice(0, 60) : `Recipe from ${state.firstComponentId}`;
+    push("save_project_recipe", { componentId: state.firstComponentId, name: recipeName },
+      `Captured the current motion as a reusable project recipe: "${recipeName}".`);
+  }
+  if (/\b(seed.*recipe|load.*recipe.*preset|preset recipe)\b/i.test(userText)) {
+    push("seed_project_recipes", {},
+      "Seeded the project with 5 built-in recipe presets: Gentle Entrance, Confident Reveal, Playful Bounce, Ambient Breath, Snappy Click.");
+  }
+  if (/\b(list.*my recipe|my recipe|project recipe|show.*project recipe)\b/i.test(userText) && !/\b(apply|delete|remove)\b/i.test(userText)) {
+    push("list_project_recipes", {},
+      "Here are your saved project recipes. Use apply_project_recipe to apply one to a component.");
+  }
+  if (/\b(apply.*project recipe|use.*project recipe)\b/i.test(userText) && state.firstComponentId) {
+    push("apply_project_recipe", { componentId: state.firstComponentId, recipeId: "precipe_demo" },
+      "Applied the project recipe to the component.");
+  }
+  if (/\b(delete.*recipe|remove.*recipe)\b/i.test(userText)) {
+    push("delete_project_recipe", { recipeId: "precipe_demo" },
+      "Deleted the project recipe.");
+  }
+
+  // --- Brand packs: list, apply, seed, delete ---
+  if (/\b(seed.*brand|load.*brand.*preset|brand.*preset)\b/i.test(userText)) {
+    push("seed_brand_packs", {},
+      "Seeded the project with 5 brand pack presets: Minimal Reserve, Material Expressive, Playful Dynamic, Cinematic Flow, Technical Precision.");
+  }
+  if (/\b(list.*brand|show.*brand|brand.*pack|motion.*identity)\b/i.test(userText) && !/\b(apply|delete|seed)\b/i.test(userText)) {
+    push("list_brand_packs", {},
+      "Here are your motion identity brand packs with personality traits.");
+  }
+  if (/\b(apply.*brand|make.*everything.*like|use.*brand.*pack)\b/i.test(userText)) {
+    const brandNameM = userText.match(/(?:apply|use|make.*like)\s+(?:the\s+)?([\w\s-]+?)(?:\s+brand|\s+style|\s+identity)?$/i);
+    const brandMap: Record<string, string> = {
+      "minimal": "brand_minimal",
+      "apple": "brand_minimal",
+      "material": "brand_material",
+      "google": "brand_material",
+      "playful": "brand_playful",
+      "nintendo": "brand_playful",
+      "cinematic": "brand_cinematic",
+      "stripe": "brand_cinematic",
+      "technical": "brand_technical",
+      "dashboard": "brand_technical",
+    };
+    const brandId = brandNameM ? (brandMap[brandNameM[1].trim().toLowerCase().split(/\s+/)[0]] ?? "brand_minimal") : "brand_minimal";
+    push("apply_brand_pack", { packId: brandId },
+      `Applied the brand pack to all components — timing, easing, triggers, and loops now follow the brand's motion identity.`);
+  }
+  if (/\b(delete.*brand|remove.*brand)\b/i.test(userText)) {
+    push("delete_brand_pack", { packId: "brand_demo" },
+      "Deleted the brand pack.");
+  }
+
+  // --- Motion profiles: set, get, list, suggest, apply ---
+  if (/\b(make.*hero|set.*hero|hero.*element|this is.*hero)\b/i.test(userText) && state.firstComponentId) {
+    push("set_motion_profile", { componentId: state.firstComponentId, role: "hero", temperament: "bold", visualWeight: 9 },
+      "Set the component as a hero element with bold temperament.");
+  } else if (/\b(make.*background|set.*background|background.*component)\b/i.test(userText) && state.firstComponentId) {
+    push("set_motion_profile", { componentId: state.firstComponentId, role: "background", temperament: "subtle", visualWeight: 2 },
+      "Set the component as a background element with subtle temperament.");
+  } else if (/\b(make.*cta|set.*cta|cta.*element)\b/i.test(userText) && state.firstComponentId) {
+    push("set_motion_profile", { componentId: state.firstComponentId, role: "cta", temperament: "urgent", visualWeight: 8 },
+      "Set the component as a call-to-action with urgent temperament.");
+  }
+  if (/\b(suggest.*profile|auto.*profile|what.*role.*should)\b/i.test(userText) && state.firstComponentId) {
+    push("suggest_motion_profile", { componentId: state.firstComponentId },
+      "Suggested a motion profile based on the component's name and properties.");
+  }
+  if (/\b(list.*profile|show.*profile|list.*role|all.*profile)\b/i.test(userText) && !/\b(apply|set|suggest)\b/i.test(userText)) {
+    push("list_motion_profiles", {},
+      "Here are all motion profiles assigned to components in this project.");
+  }
+  if (/\b(apply.*profile|tune.*based.*profile|match.*motion.*personality)\b/i.test(userText) && state.firstComponentId) {
+    push("apply_motion_profile", { componentId: state.firstComponentId },
+      "Applied the motion profile to the component's motion parameters.");
+  }
+
+  // --- Motion captures: save, list, apply, seed, delete ---
+  if (/\b(seed.*captures?|example.*captures?|example.*path|captures?.*example)/i.test(userText)) {
+    push("seed_motion_captures", {},
+      "Seeded the project with 3 example motion captures: Sine Wave Path, Spiral Inward, and Bounce Trail.");
+  }
+  if (/\b(list.*captures?|show.*captures?|list.*path|what.*captures?)/i.test(userText) && !/\b(apply|delete|seed|save)\b/i.test(userText)) {
+    push("list_motion_captures", {},
+      "Here are your saved motion captures with sample counts and durations.");
+  }
+  if (/\b(save.*captures?|record.*cursor|record.*path|captures?.*gesture|captures?.*trajectory|draw.*path|draw.*motion)/i.test(userText)) {
+    // Generate a synthetic sine-wave capture as the recorded trajectory.
+    const samples: Array<{ t: number; x: number; y: number }> = [];
+    for (let i = 0; i <= 24; i++) {
+      const t = (i / 24) * 1800;
+      const x = (i / 24) * 200 - 100;
+      const y = Math.sin((i / 24) * Math.PI * 3) * 60;
+      samples.push({ t, x, y });
+    }
+    const nameM = userText.match(/(?:save|record|capture|draw)\s+(?:the\s+|this\s+|a\s+)?(.+)/i);
+    const name = nameM ? nameM[1].trim().slice(0, 60) : "Recorded Path";
+    push("save_motion_capture", { name, samples, normalize: true, smoothing: 1 },
+      `Saved cursor trajectory as "${name}" with ${samples.length} samples over 1800ms.`);
+  }
+  if (/\b(apply.*captures?|use.*captures?|trace.*motion|apply.*path)/i.test(userText) && state.firstComponentId) {
+    push("apply_motion_capture", { captureId: "cap_demo", componentId: state.firstComponentId, normalize: true },
+      "Applied the motion capture to the component — its keyframes now trace the recorded trajectory.");
+  }
+  if (/\b(delete.*captures?|remove.*captures?|discard.*captures?)/i.test(userText)) {
+    push("delete_motion_capture", { captureId: "cap_demo" },
+      "Deleted the motion capture.");
+  }
+
+  // --- Export presets: list, recommend, apply ---
+  if (/\b(list.*export.*presets?|export.*options?|export.*presets?|what.*format|export.*format)/i.test(userText) && !/\b(apply|recommend)\b/i.test(userText)) {
+    push("list_export_presets", {},
+      "Here are all 9 smart export presets across 8 platforms — each bundles the right format, dimensions, fps, and optimizations.");
+  }
+  if (/\b(recommend.*export|best.*export|what.*format.*should|how.*should.*export|which.*export)\b/i.test(userText)) {
+    push("recommend_export_format", { hint: userText.slice(0, 100) },
+      "Based on the project's motion characteristics, here are the top 3 recommended export formats with scored reasoning.");
+  }
+  if (/\b(export.*for|export.*as|apply.*export.*presets?|make.*lottie|export.*instagram|export.*tiktok|export.*react|export.*vue|export.*email|export.*mobile|export.*figma|export.*embed|export.*social|export.*story|export.*square)/i.test(userText)) {
+    const presetMap: Record<string, string> = {
+      "instagram": "preset-social-square",
+      "social": "preset-social-square",
+      "square": "preset-social-square",
+      "tiktok": "preset-social-story",
+      "story": "preset-social-story",
+      "stories": "preset-social-story",
+      "reels": "preset-social-story",
+      "shorts": "preset-social-story",
+      "vertical": "preset-social-story",
+      "react": "preset-react-component",
+      "vue": "preset-vue-component",
+      "lottie": "preset-mobile-lottie",
+      "mobile": "preset-mobile-lottie",
+      "ios": "preset-mobile-lottie",
+      "android": "preset-mobile-lottie",
+      "email": "preset-email-inline",
+      "newsletter": "preset-email-inline",
+      "mail": "preset-email-inline",
+      "embed": "preset-embed-snippet",
+      "snippet": "preset-embed-snippet",
+      "iframe": "preset-embed-snippet",
+      "banner": "preset-embed-snippet",
+      "figma": "preset-figma-spec",
+      "web": "preset-web-standalone",
+      "html": "preset-web-standalone",
+      "standalone": "preset-web-standalone",
+    };
+    let presetId = "preset-web-standalone";
+    for (const [kw, id] of Object.entries(presetMap)) {
+      if (userText.toLowerCase().includes(kw)) {
+        presetId = id;
+        break;
+      }
+    }
+    push("apply_export_preset", { presetId },
+      `Applied the export preset — ready to export in the optimal format for your target platform.`);
+  }
+
+  // --- Session lineage: save, list, resume, lineage tree, delete ---
+  if (/\b(save.*sessions?|fork.*sessions?|snapshot.*conversation|remember.*branch)/i.test(userText)) {
+    const nameM = userText.match(/(?:save|fork|snapshot|remember)\s+(?:this\s+|the\s+|a\s+)?(.+)/i);
+    const name = nameM ? nameM[1].trim().slice(0, 60) : "Design Session";
+    const tools = ["set_easing", "set_duration", "add_layer", "stagger_components"];
+    push("save_session_snapshot", { name, toolsUsed: tools, messageCount: 8 },
+      `Saved session snapshot "${name}" — 3 insights auto-extracted from tool patterns (timing focus, choreography, component creation).`);
+  }
+  if (/\b(list.*sessions?|show.*sessions?|sessions?.*history|what.*conversation)/i.test(userText) && !/\b(delete|resume|save|fork)\b/i.test(userText)) {
+    push("list_session_snapshots", {},
+      "Here are your session snapshots — 2 active, 1 forked, max depth 2. Each shows summary, tool count, and auto-extracted insights.");
+  }
+  if (/\b(resume.*sessions?|continue.*sessions?|pick.*up.*where)/i.test(userText)) {
+    push("resume_session_snapshot", { sessionId: "sess_demo", summary: "Continued spring tuning and added choreography", messageCount: 12, toolsUsed: ["set_spring", "choreograph", "harmonize_colors"] },
+      "Resumed the session — refreshed summary, re-extracted insights (now includes color focus and choreography).");
+  }
+  if (/\b(lineage.*tree|sessions?.*lineage|conversation.*tree|how.*sessions?.*relate|what.*came.*before)/i.test(userText)) {
+    push("get_session_lineage", {},
+      "Session lineage tree: 4 sessions total, max depth 2, 11 insights across all sessions. The tree shows parent-child forks and ancestry chains.");
+  }
+  if (/\b(delete.*sessions?|remove.*branch|discard.*sessions?)/i.test(userText)) {
+    push("delete_session_snapshot", { sessionId: "sess_demo" },
+      "Deleted the session snapshot from the lineage.");
+  }
+
+  // --- Accessibility check ---
+  if (/\b(check.*accessibility|accessibility.*check|is.*safe|vestibular|seizure.*risk|flashing.*risk|strobing|reduced.*motion|WCAG|a11y|motion.*safety|safe.*motion|accessibility)/i.test(userText)) {
+    push("check_accessibility", {},
+      "Accessibility report: 2 warnings (large displacement on hero, infinite loop without reduced-motion alternative), 1 info (inconsistent timing). Score: 76/100. Remediation: reduce hero translation, add reduced-motion media query, and align timing to 400ms/800ms tiers.");
+  }
+
+  // --- Performance check ---
+  if (/\b(check.*performance|performance.*check|frame.*budget|is.*performant|fps|jank|optimize.*performance|performance.*issue|perf.*check|render.*cost|animation.*cost)/i.test(userText)) {
+    push("check_performance", {},
+      "Performance report: estimated 12.3ms/frame (within 16ms budget). 1 warning — 'Hero' animates layout property 'top' (use transform instead). Paint cost: 6 (box-shadow blur). 3 composite animations, 0 simultaneous overload.");
+  }
+
+  // --- Storyboard beat management ---
+  if (/\b(create.*beat|add.*beat|new.*beat|storyboard.*beat|story.*beat|beat.*titled|narrative.*beat)/i.test(userText)) {
+    const titleM = userText.match(/(?:titled|called|named)\s+["']?([^"']+?)["']?(?:\s|$)/i);
+    const title = titleM ? titleM[1].trim() : "Untitled beat";
+    push("create_beat", { title, description: "Narrative moment in the sequence", durationMs: 1200, transition: "fade" },
+      `Created storyboard beat "${title}" (order 1, 1200ms, fade transition). The beat is now part of the narrative timeline.`);
+  }
+  if (/\b(list.*beats|show.*beats|storyboard.*overview|story.*outline|what.*beats|narrative.*outline|storyboard.*summary)/i.test(userText)) {
+    push("list_beats", {},
+      "Storyboard has 3 beats: 1) Opening (800ms, cut), 2) Reveal (1200ms, fade), 3) Resolution (1500ms, dissolve). Total runtime: 3.5s across 3 scenes.");
+  }
+  if (/\b(update.*beat|edit.*beat|rename.*beat|change.*beat|modify.*beat|adjust.*beat)/i.test(userText)) {
+    push("update_beat", { beatId: "beat_1", title: "Updated beat" },
+      "Updated the storyboard beat — title and timing adjusted.");
+  }
+  if (/\b(reorder.*beats|rearrange.*beats|reorder.*story|resequence.*beats|shuffle.*beats|move.*beats)/i.test(userText)) {
+    push("reorder_beats", { beatIds: ["beat_2", "beat_1", "beat_3"] },
+      "Reordered the storyboard beats into a new sequence.");
+  }
+  if (/\b(delete.*beat|remove.*beat|drop.*beat)/i.test(userText)) {
+    push("delete_beat", { beatId: "beat_1" },
+      "Deleted the storyboard beat from the sequence.");
+  }
+  if (/\b(export.*storyboard|storyboard.*export|story.*export|narrative.*export|storyboard.*markdown|storyboard.*json)/i.test(userText)) {
+    const asJson = /json/i.test(userText);
+    push("export_storyboard", { format: asJson ? "json" : "markdown" },
+      `Exported the storyboard as ${asJson ? "JSON" : "Markdown"} — 3 beats, 3.5s total runtime, ready to share.`);
   }
 
   // --- Persistent memory: save ---
@@ -985,7 +1276,7 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
   }
 
   // --- Shader effects ---
-  if (/\b(shader|glitch effect|chromatic aberration|neon glow|plasma|pixelate|vignette|film grain|ripple effect|gradient shift)\b/i.test(userText) && state.firstComponentId) {
+  if (/\b(shader|glitch effect|chromatic aberration|neon glow|plasma|pixelate|vignette|film grain|ripple effect|gradient shift|aurora|vortex)\b/i.test(userText) && state.firstComponentId) {
     const effectMap: Record<string, string> = {
       "chromatic": "shader-chromatic",
       "glitch": "shader-glitch",
@@ -999,6 +1290,8 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
       "pixel": "shader-pixelate",
       "gradient": "shader-gradient-shift",
       "invert": "shader-invert-pulse",
+      "aurora": "shader-aurora",
+      "vortex": "shader-vortex",
     };
     let effectId = "shader-chromatic";
     for (const [keyword, id] of Object.entries(effectMap)) {
@@ -1115,6 +1408,60 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
         : "Based on the current project state, here are 5 creative suggestions ranked by priority and novelty.");
   }
 
+  // --- Visual context analysis ---
+  if (/\b(visual.*context|layout.*balance|canvas.*look|composition.*review|visual.*review|spatial.*layout|visual.*balance|check.*layout|visual.*layout|how.*canvas.*look)\b/i.test(userText)) {
+    push("analyze_visual_context", {},
+      "Here's my visual analysis of the canvas — balance, spacing, hierarchy, color palette, overlaps, and alignment, with a composite quality score.");
+  }
+
+  // --- Code synthesis ---
+  {
+    const codeMatch = userText.match(/\b(generate|synthesize|write|give me|create)\s+(?:me\s+)?(?:the\s+)?(?:code|css|react|html|javascript|js|snippet)\s*(?:for|of)?\s*(?:a|an)?\s*([\w\s-]+)/i);
+    const cssForAnim = /\b(give me|show me|generate|write)\s+(?:the\s+)?css\s+for\s+(?:a|an)?\s*([\w\s-]+)/i.test(userText);
+    const reactCompAnim = /\b(give me|write|generate|create)\s+(?:a\s+)?react\s+component\s+for\s+(?:a|an)?\s*([\w\s-]+)/i.test(userText);
+    if (codeMatch || cssForAnim || reactCompAnim) {
+      const descMatch = userText.match(/\b(?:for|of)\s+(?:a|an)?\s*([\w][\w\s-]*?)(?:\s+animation|\s+effect|\s+motion|\s*$)/i);
+      const description = descMatch ? descMatch[1] : "bounce in";
+      const format = /react/i.test(userText) ? "react" : /html/i.test(userText) ? "html" : /javascript|js|vanilla/i.test(userText) ? "vanilla" : "css";
+      push("synthesize_code", { description, format },
+        `Here's the generated ${format} code for a ${description} animation — copy and paste it into your project.`);
+    }
+  }
+
+  // --- State machine composer ---
+  {
+    const hoverPress = /\b(hover.*press|press.*hover|hover.*and.*press)\b/i.test(userText);
+    const toggle = /\b(toggle.*state|state.*toggle|toggle.*on.*off|on.*off.*toggle)\b/i.test(userText);
+    const loadingFlow = /\b(loading.*flow|loading.*sequence|loading.*state)\b/i.test(userText);
+    const carouselSm = /\b(carousel|slide.*carousel)\b/i.test(userText);
+    const tabSwitch = /\b(tab.*switch|tab.*navigation|tabs? state)\b/i.test(userText);
+    const listSm = /\b(list|show|what)\b.*\bstate.*machines?\b/i.test(userText);
+    const triggerState = /\b(trigger|switch|transition|go to|change to)\b.*\bstate\b/i.test(userText) && !hoverPress && !toggle && !loadingFlow && !carouselSm && !tabSwitch;
+
+    if (listSm) {
+      push("list_state_machines", {},
+        "Here are the state machines in this project — each has states, transitions, and inputs.");
+    } else if (hoverPress) {
+      push("compose_state_machine", { name: "Hover Press", presetId: "hover-press", componentIds: [] },
+        "Composed a hover-press state machine with idle, hover, and pressed states — driven by isHovered and isPressed inputs.");
+    } else if (toggle) {
+      push("compose_state_machine", { name: "Toggle", presetId: "toggle-on-off", componentIds: [] },
+        "Composed a toggle state machine with on/off states — driven by a trigger input.");
+    } else if (loadingFlow) {
+      push("compose_state_machine", { name: "Loading Flow", presetId: "loading-sequence", componentIds: [] },
+        "Composed a loading flow state machine with idle, loading, success, and error states.");
+    } else if (carouselSm) {
+      push("compose_state_machine", { name: "Carousel", presetId: "carousel", componentIds: [] },
+        "Composed a carousel state machine with slide states and next/prev triggers.");
+    } else if (tabSwitch) {
+      push("compose_state_machine", { name: "Tab Switch", presetId: "tab-switch", componentIds: [] },
+        "Composed a tab switch state machine driven by a number input for the active tab.");
+    } else if (triggerState) {
+      push("trigger_state_machine", { machineId: "sm_current", stateName: "active" },
+        "Transitioned the state machine to the requested state.");
+    }
+  }
+
   return { calls, replies };
 }
 
@@ -1130,7 +1477,7 @@ const FALLBACK_REPLY =
   "apply style presets (playful, energetic, calm, professional, dramatic, minimal) across all components, " +
   "recognize patterns (easing monotony, timing uniformity, incomplete lifecycle, motion overload), " +
   "harmonize colors (complementary, analogous, triadic, monochrome), " +
-  "choreograph components (cascade, wave, ripple, canon, converge), " +
+  "choreograph components (cascade, wave, ripple, canon, converge, spiral, explosion, assembly, breathing, domino, scatter), " +
   "refine motion (snappier, smoother, more dramatic, calmer, subtler, more energetic, bouncier, softer), " +
   "set custom bezier easing curves, set keyframe interpolation (linear, ease, hold), " +
   "add/remove per-property keyframes, " +
@@ -1154,6 +1501,10 @@ const FALLBACK_REPLY =
   "save/list/run/delete tool pipelines (reusable sequences of tool calls — record a workflow once, replay it on any project), " +
   "analyze mood (emotional character of motion — premium, playful, calm, energetic, dramatic, minimal, confident, gentle, urgent, nostalgic) and set mood (translate emotional language into motion parameters), " +
   "suggest creative ideas (context-aware next steps with surprise mode for unexpected but aesthetically valid combinations), " +
+  "analyze visual context (canvas layout balance, spacing consistency, hierarchy, color palette, overlaps, alignment — 0-100 visual quality score), " +
+  "synthesize standalone animation code from natural language (CSS, React, HTML, or vanilla JS — copy-pasteable snippets), " +
+  "compose Rive-inspired state machines (hover-press, toggle, loading-sequence, carousel, tab-switch presets with states, transitions, and inputs), " +
+  "list and trigger state machine transitions, " +
   "list/switch templates (fade, bounce, slide, scale, flip, spin, pulse, spring, resize, logo-reveal, squash-stretch, " +
   "flip-card, typewriter, shimmer, morph, notification, progress, ripple, marquee, orbit, wave, confetti, " +
   "parallax, kinetic-text, particle-burst, liquid-morph, elastic-collapse, glitch, reveal-3d, gradient-shift, " +
