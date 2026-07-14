@@ -1,6 +1,6 @@
 /**
  * Motion Choreography Patterns — pre-built multi-component orchestration
- * patterns inspired by dance and music composition theory. Each pattern
+ * patterns that translate dance and music composition theory into motion. Each pattern
  * coordinates timing, delays, and motion properties across multiple components
  * to create cohesive group animations.
  *
@@ -33,7 +33,7 @@ export const CHOREOGRAPHY_PATTERNS: ChoreographyPatternInfo[] = [
   { id: "call_response", name: "Call & Response", description: "First component performs a motion, then the second responds — like a musical call-and-response. Creates a conversational dynamic between elements.", minComponents: 2, category: "sequential" },
   { id: "unison", name: "Unison", description: "All components animate simultaneously with identical timing. Creates powerful, unified movement — use sparingly for maximum impact.", minComponents: 2, category: "simultaneous" },
   { id: "counterpoint", name: "Counterpoint", description: "Components animate in opposite directions simultaneously — one moves up while the other moves down. Creates visual tension and balance.", minComponents: 2, category: "simultaneous" },
-  { id: "wave", name: "Wave", description: "Components animate with a sine-phase offset, creating a traveling wave through the group. Inspired by stadium waves and fluid dynamics.", minComponents: 3, category: "spatial" },
+  { id: "wave", name: "Wave", description: "Components animate with a sine-phase offset, creating a traveling wave through the group. Evokes stadium waves and fluid dynamics.", minComponents: 3, category: "spatial" },
   { id: "canon", name: "Canon (Round)", description: "Each component performs the same motion but starts at a different time, like a musical round. The motion ripples through the group with identical choreography.", minComponents: 3, category: "musical" },
   { id: "stagger_grid", name: "Stagger Grid", description: "Components in a grid layout stagger their entrance based on diagonal position, creating a diagonal sweep across the grid.", minComponents: 4, category: "spatial" },
   { id: "ripple_out", name: "Ripple Out", description: "Animation starts from the center component and ripples outward to surrounding components, creating an expanding wave effect.", minComponents: 3, category: "spatial" },

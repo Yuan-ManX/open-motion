@@ -1,6 +1,6 @@
 /**
- * Motion Design Principles Engine — applies and analyzes Disney's 12 principles
- * of animation against motion components. Each principle has a checker that
+ * Motion Design Principles Engine — applies and analyzes the 12 fundamental
+ * principles of animation against motion components. Each principle has a checker that
  * detects presence in existing keyframes and an applier that modifies
  * keyframes to embody the principle.
  *

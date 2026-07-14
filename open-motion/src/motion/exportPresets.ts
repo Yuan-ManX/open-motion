@@ -163,7 +163,7 @@ export const EXPORT_PRESETS: ExportPreset[] = [
     name: "Email Inline CSS",
     platform: "email",
     format: "css",
-    description: "CSS-only animation with all styles inlined — no JavaScript, capped at 8 keyframes per component for compatibility with email clients like Apple Mail and Outlook.",
+    description: "CSS-only animation with all styles inlined — no JavaScript, capped at 8 keyframes per component for compatibility with major email clients.",
     width: null,
     height: null,
     fps: null,
@@ -173,7 +173,7 @@ export const EXPORT_PRESETS: ExportPreset[] = [
     forceLoop: false,
     fileExtension: "css",
     keywords: ["email", "newsletter", "mail", "outlook", "gmail", "inline", "css-only"],
-    recommendedFor: ["Email newsletter animations", "Apple Mail compatible", "No-JS environments"],
+    recommendedFor: ["Email newsletter animations", "Email client compatible", "No-JS environments"],
   },
   {
     id: "preset-embed-snippet",
@@ -194,10 +194,10 @@ export const EXPORT_PRESETS: ExportPreset[] = [
   },
   {
     id: "preset-figma-spec",
-    name: "Figma Motion Spec",
+    name: "Design Tool Spec",
     platform: "figma",
     format: "json",
-    description: "Structured JSON spec matching the Figma Motion plugin schema — import directly into Figma to sync animations with design files.",
+    description: "Structured JSON spec matching design tool plugin schemas — import directly into design tools to sync animations with design files.",
     width: null,
     height: null,
     fps: 60,
@@ -207,7 +207,7 @@ export const EXPORT_PRESETS: ExportPreset[] = [
     forceLoop: false,
     fileExtension: "json",
     keywords: ["figma", "design", "spec", "import", "sync", "plugin"],
-    recommendedFor: ["Syncing with Figma design files", "Design-to-dev handoff", "Figma Motion plugin import"],
+    recommendedFor: ["Syncing with design tools", "Design-to-dev handoff", "Plugin import"],
   },
 ];
 
@@ -410,7 +410,7 @@ export function recommendExportPresets(
     if (preset.platform === "figma") {
       if (analysis.componentCount > 0) {
         score += 5;
-        reasons.push("structured spec syncs with Figma layers");
+        reasons.push("structured spec syncs with design tool layers");
       }
     }
 

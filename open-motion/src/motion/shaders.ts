@@ -252,6 +252,53 @@ void main() {
     },
     parameters: { intensity: { default: 0.3, min: 0, max: 1 } },
   },
+  {
+    id: "shader-aurora",
+    name: "Aurora Borealis",
+    category: "pattern",
+    description: "Flowing northern lights with waving color bands of green, cyan, and purple.",
+    glslSource: `
+precision mediump float;
+uniform float u_time;
+varying vec2 v_uv;
+void main() {
+  vec2 uv = v_uv;
+  float wave = sin(uv.x * 3.0 + u_time * 0.8) * 0.15;
+  wave += sin(uv.x * 7.0 - u_time * 0.5) * 0.08;
+  float band = smoothstep(0.04, 0.0, abs(uv.y - 0.5 - wave));
+  vec3 green = vec3(0.1, 0.9, 0.4);
+  vec3 col = green * band;
+  gl_FragColor = vec4(col * 0.8, 1.0);
+}`.trim(),
+    cssStyle: {
+      background: "linear-gradient(180deg, transparent 30%, rgba(26,230,102,0.3) 50%, transparent 70%)",
+      filter: "blur(2px) saturate(1.3)",
+    },
+    parameters: {},
+  },
+  {
+    id: "shader-vortex",
+    name: "Vortex Spiral",
+    category: "pattern",
+    description: "Swirling spiral pattern with rotating arms emanating from center.",
+    glslSource: `
+precision mediump float;
+uniform float u_time;
+varying vec2 v_uv;
+void main() {
+  vec2 p = v_uv - 0.5;
+  float r = length(p);
+  float a = atan(p.y, p.x);
+  float spiral = sin(a * 5.0 + r * 20.0 - u_time * 2.0);
+  vec3 col = vec3(0.5 + 0.5 * sin(spiral + u_time), 0.3 + 0.4 * sin(spiral + u_time + 2.0), 0.8);
+  gl_FragColor = vec4(col * smoothstep(0.5, 0.1, r), 1.0);
+}`.trim(),
+    cssStyle: {
+      background: "conic-gradient(from 0deg, #ff0066, #00ccff, #9900ff, #ff0066)",
+      animation: "spin 4s linear infinite",
+    },
+    parameters: {},
+  },
 ];
 
 const SHADER_MAP = new Map(SHADER_EFFECTS.map((s) => [s.id, s]));
