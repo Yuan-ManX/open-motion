@@ -1,6 +1,7 @@
-import { config } from "../../config.js";
+import { config, getProviderConfigs, type ProviderConfig } from "../../config.js";
 import { createId } from "../../utils/id.js";
 import type { ChatOptions, ChatResult, LlmProvider, LlmToolCall, LlmMessage } from "./types.js";
+import { extractText } from "./types.js";
 
 /** Errors from the OpenAI API with status code context for targeted handling. */
 export class OpenAIProviderError extends Error {
@@ -42,13 +43,33 @@ interface OpenAiChatCompletion {
 
 function toOpenAiMessages(messages: LlmMessage[]): unknown[] {
   return messages.map((m) => {
+    const textContent = typeof m.content === "string" ? m.content : extractText(m.content);
+    const multimodalParts = typeof m.content === "string" ? null : m.content
+      .filter((p) => p.type !== "text")
+      .map((p) => {
+        if (p.type === "image_url") {
+          return { type: "image_url", image_url: p.image_url };
+        }
+        if (p.type === "image_base64") {
+          return { type: "image_url", image_url: { url: `data:${p.media_type};base64,${p.data}` } };
+        }
+        if (p.type === "audio_url") {
+          return { type: "input_audio", input_audio: { data: p.audio_url.url, format: "wav" } };
+        }
+        if (p.type === "audio_base64") {
+          return { type: "input_audio", input_audio: { data: p.data, format: p.media_type.split("/")[1] ?? "wav" } };
+        }
+        return null;
+      })
+      .filter(Boolean);
+
     if (m.role === "tool") {
-      return { role: "tool", tool_call_id: m.toolCallId, content: m.content };
+      return { role: "tool", tool_call_id: m.toolCallId, content: textContent };
     }
     if (m.role === "assistant" && m.toolCalls && m.toolCalls.length > 0) {
       return {
         role: "assistant",
-        content: m.content || null,
+        content: textContent || null,
         tool_calls: m.toolCalls.map((c) => ({
           id: c.callId,
           type: "function" as const,
@@ -56,7 +77,13 @@ function toOpenAiMessages(messages: LlmMessage[]): unknown[] {
         })),
       };
     }
-    return { role: m.role, content: m.content };
+    // Build multimodal content for user messages
+    if (m.role === "user" && multimodalParts && multimodalParts.length > 0) {
+      const parts: unknown[] = [{ type: "text", text: textContent }];
+      parts.push(...multimodalParts);
+      return { role: m.role, content: parts };
+    }
+    return { role: m.role, content: textContent };
   });
 }
 
@@ -72,15 +99,32 @@ function toOpenAiTools(tools: ChatOptions["tools"]): unknown[] {
 }
 
 export class OpenAIProvider implements LlmProvider {
-  readonly name = "openai";
+  readonly name = "openai" as const;
   readonly supportsNativeToolCalls = true;
+  readonly supportsVision = true;
+  readonly supportsStreaming = true;
+
+  private providerConfig: ProviderConfig;
+
+  constructor(providerConfig?: ProviderConfig) {
+    this.providerConfig = providerConfig ?? getProviderConfigs().find((p) => p.type === "openai") ?? {
+      type: "openai",
+      baseUrl: (config.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/$/, ""),
+      model: config.MODEL || "gpt-4o-mini",
+      apiKey: config.OPENAI_API_KEY,
+    };
+  }
 
   private get baseUrl(): string {
-    return (config.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/$/, "");
+    return this.providerConfig.baseUrl;
   }
 
   private get model(): string {
-    return config.MODEL || "gpt-4o-mini";
+    return this.providerConfig.model;
+  }
+
+  private get apiKey(): string | undefined {
+    return this.providerConfig.apiKey;
   }
 
   async chat(options: ChatOptions): Promise<ChatResult> {
@@ -101,7 +145,7 @@ export class OpenAIProvider implements LlmProvider {
     const url = `${this.baseUrl}/chat/completions`;
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${config.OPENAI_API_KEY}`,
+      Authorization: `Bearer ${this.apiKey}`,
     };
 
     const res = await fetch(url, {
@@ -207,7 +251,7 @@ export class OpenAIProvider implements LlmProvider {
       });
     }
 
-    return { text, toolCalls, tokensIn, tokensOut };
+    return { text, toolCalls, tokensIn, tokensOut, provider: this.name, model: this.model };
   }
 
   private parseJson(completion: OpenAiChatCompletion): ChatResult {
@@ -231,6 +275,8 @@ export class OpenAIProvider implements LlmProvider {
       toolCalls,
       tokensIn: completion.usage?.prompt_tokens ?? 0,
       tokensOut: completion.usage?.completion_tokens ?? 0,
+      provider: this.name,
+      model: this.model,
     };
   }
 }
