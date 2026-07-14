@@ -53,8 +53,10 @@ export function TimelineBar({ onReplay }: Props) {
   const toggleLock = useUiStore((s) => s.toggleLock);
   const soloedId = useUiStore((s) => s.soloedId);
   const setSoloedId = useUiStore((s) => s.setSoloedId);
+  const snapToGrid = useUiStore((s) => s.snapToGrid);
 
-  const [isPlaying, setIsPlaying] = useState(false);
+  const isPlaying = useUiStore((s) => s.isPlaying);
+  const setIsPlaying = useUiStore((s) => s.setIsPlaying);
   const [currentTime, setCurrentTime] = useState(0);
   const [loop, setLoop] = useState(false);
   const [zoom, setZoom] = useState(1);
@@ -505,8 +507,51 @@ export function TimelineBar({ onReplay }: Props) {
 
   if (rows.length === 0) {
     return (
-      <div className="bg-panel border-t border-edge px-4 py-3 text-center text-xs text-gray-600">
-        No layers on the timeline.
+      <div className="bg-panel border-t border-edge flex flex-col" style={{ height: 200 }}>
+        {/* Toolbar — transport controls grouped with separators */}
+        <div className="px-3 py-1.5 border-b border-edge flex items-center gap-2">
+          <div className="flex items-center gap-1">
+            <button className="w-7 h-7 flex items-center justify-center rounded-md bg-panel2 text-gray-700 text-xs" disabled title="Play">▶</button>
+            <button className="w-7 h-7 flex items-center justify-center rounded-md bg-panel2 text-gray-700 text-xs" disabled title="Loop">⟲</button>
+          </div>
+          <div className="w-0.5 h-5 bg-white/20" />
+          <div className="flex bg-panel2 rounded-md border border-edge overflow-hidden">
+            {SPEEDS.map((s) => (
+              <span key={s} className={`px-2 py-0.5 text-[10px] ${s === 1 ? "text-gray-400" : "text-gray-700"}`}>{s}×</span>
+            ))}
+          </div>
+          <div className="w-0.5 h-5 bg-white/20" />
+          <span className="text-[9px] text-gray-700 font-mono w-7 text-center">1×</span>
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-[10px] uppercase tracking-wide text-gray-600">Timeline</span>
+            <span className="text-[10px] text-gray-700 bg-panel2 px-1.5 py-0.5 rounded font-mono">0 layers</span>
+            <button
+              onClick={onReplay}
+              className="px-2.5 py-1 rounded-md text-xs text-gray-400 bg-panel2 border border-edge hover:border-accent hover:text-gray-300 transition-colors"
+              title="Replay (Shift+R)"
+              aria-label="Replay"
+            >
+              ↻
+            </button>
+          </div>
+        </div>
+        {/* Ruler */}
+        <div className="px-3 py-1 border-b border-edge flex items-center gap-2">
+          <span className="text-[9px] font-mono text-gray-700 w-8">0ms</span>
+          <div className="flex-1 h-4 bg-panel2 rounded relative overflow-hidden">
+            {Array.from({ length: 9 }).map((_, i) => (
+              <div key={i} className="absolute top-0 bottom-0 border-l border-edge/50" style={{ left: `${(i / 8) * 100}%` }} />
+            ))}
+          </div>
+        </div>
+        {/* Empty tracks area — inviting call-to-action */}
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="text-2xl text-gray-700 mb-1">◂▸</div>
+            <p className="text-sm text-gray-400">No layers on the timeline</p>
+            <p className="text-[11px] text-gray-600 mt-1">Pick a template from the Assets panel or ask the agent to add motion.</p>
+          </div>
+        </div>
       </div>
     );
   }
@@ -517,38 +562,43 @@ export function TimelineBar({ onReplay }: Props) {
   const zoomIndex = ZOOM_LEVELS.indexOf(zoom as typeof ZOOM_LEVELS[number]);
 
   return (
-    <div className="bg-panel border-t border-edge flex flex-col" style={{ height: 190 }}>
+    <div className="bg-panel border-t border-edge flex flex-col" style={{ height: 200 }}>
       <div className="px-3 py-1.5 border-b border-edge flex items-center gap-2">
-        <button
-          onClick={isPlaying ? pause : play}
-          className="w-7 h-7 flex items-center justify-center rounded-md bg-accent hover:bg-accent2 text-black text-xs"
-          title={isPlaying ? "Pause" : "Play"}
-          aria-label={isPlaying ? "Pause animation" : "Play animation"}
-        >
-          {isPlaying ? "⏸" : "▶"}
-        </button>
-        <button
-          onClick={() => setLoop((v) => !v)}
-          className={`w-7 h-7 flex items-center justify-center rounded-md text-xs ${
-            loop ? "bg-accent2/30 text-accent2" : "bg-panel2 text-gray-500 hover:text-gray-300"
-          }`}
-          title="Loop"
-          aria-label="Toggle loop"
-          aria-pressed={loop}
-        >
-          ⟲
-        </button>
-        <button
-          onClick={() => setAutoKeyframe(!autoKeyframe)}
-          className={`w-7 h-7 flex items-center justify-center rounded-md text-xs ${
-            autoKeyframe ? "bg-accent2/30 text-accent2" : "bg-panel2 text-gray-500 hover:text-gray-300"
-          }`}
-          title={autoKeyframe ? "Auto-keyframe ON — style changes at playhead create keyframes" : "Auto-keyframe OFF"}
-          aria-label="Toggle auto-keyframe mode"
-          aria-pressed={autoKeyframe}
-        >
-          ●
-        </button>
+        {/* Transport group: play / loop / auto-keyframe */}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={isPlaying ? pause : play}
+            className="w-7 h-7 flex items-center justify-center rounded-md bg-accent hover:bg-accent2 text-black text-xs"
+            title={isPlaying ? "Pause" : "Play"}
+            aria-label={isPlaying ? "Pause animation" : "Play animation"}
+          >
+            {isPlaying ? "⏸" : "▶"}
+          </button>
+          <button
+            onClick={() => setLoop((v) => !v)}
+            className={`w-7 h-7 flex items-center justify-center rounded-md text-xs ${
+              loop ? "bg-accent2/30 text-accent2" : "bg-panel2 text-gray-500 hover:text-gray-300"
+            }`}
+            title="Loop"
+            aria-label="Toggle loop"
+            aria-pressed={loop}
+          >
+            ⟲
+          </button>
+          <button
+            onClick={() => setAutoKeyframe(!autoKeyframe)}
+            className={`w-7 h-7 flex items-center justify-center rounded-md text-xs ${
+              autoKeyframe ? "bg-accent2/30 text-accent2" : "bg-panel2 text-gray-500 hover:text-gray-300"
+            }`}
+            title={autoKeyframe ? "Auto-keyframe ON — style changes at playhead create keyframes" : "Auto-keyframe OFF"}
+            aria-label="Toggle auto-keyframe mode"
+            aria-pressed={autoKeyframe}
+          >
+            ●
+          </button>
+        </div>
+        <div className="w-0.5 h-5 bg-white/20" />
+        {/* Speed group */}
         <div className="flex bg-panel2 rounded-md border border-edge overflow-hidden">
           {SPEEDS.map((s) => (
             <button
@@ -568,8 +618,9 @@ export function TimelineBar({ onReplay }: Props) {
             </button>
           ))}
         </div>
-        {/* Timeline zoom controls */}
-        <div className="flex items-center gap-0.5 ml-1">
+        <div className="w-0.5 h-5 bg-white/20" />
+        {/* Zoom group */}
+        <div className="flex items-center gap-0.5">
           <button
             onClick={() => setZoom(ZOOM_LEVELS[Math.max(0, zoomIndex - 1)])}
             disabled={zoomIndex <= 0}
@@ -590,18 +641,18 @@ export function TimelineBar({ onReplay }: Props) {
             +
           </button>
         </div>
-        {/* Graph editor toggle */}
+        <div className="w-0.5 h-5 bg-white/20" />
+        {/* Edit group: graph / range / markers */}
         <button
           onClick={() => setGraphMode((v) => !v)}
-          className={`px-1.5 py-0.5 text-[10px] rounded ml-1 ${graphMode ? "bg-accent/20 text-accent" : "text-gray-500 hover:text-gray-300 bg-panel2 border border-edge"}`}
+          className={`px-1.5 py-0.5 text-[10px] rounded ${graphMode ? "bg-accent/20 text-accent" : "text-gray-500 hover:text-gray-300 bg-panel2 border border-edge"}`}
           title="Toggle graph editor (value vs time curve view)"
           aria-label="Toggle graph editor"
           aria-pressed={graphMode}
         >
           ◜
         </button>
-        {/* Playback range controls */}
-        <div className="flex items-center gap-0.5 ml-1">
+        <div className="flex items-center gap-0.5">
           <button
             onClick={() => {
               const endMs = playbackRange?.endMs ?? maxSpan;
@@ -637,20 +688,31 @@ export function TimelineBar({ onReplay }: Props) {
         </div>
         <button
           onClick={handleAddMarker}
-          className="px-1.5 py-0.5 text-[9px] text-gray-500 hover:text-accent bg-panel2 border border-edge rounded ml-1"
+          className="px-1.5 py-0.5 text-[9px] text-gray-500 hover:text-accent bg-panel2 border border-edge rounded"
           title="Add marker at playhead"
           aria-label="Add marker at playhead"
         >
           ⚑
         </button>
-        <span className="text-[10px] uppercase tracking-wide text-gray-500 ml-1">Timeline</span>
-        <span className="text-[10px] text-gray-600 bg-panel2 px-1.5 py-0.5 rounded font-mono">
-          {rows.length} {rows.length === 1 ? "layer" : "layers"}
-        </span>
-        <span className="text-[10px] text-gray-600 font-mono ml-auto">
-          <span className="text-gray-300">{Math.round(currentTime)}</span>
-          <span className="text-gray-700"> / {maxSpan}ms</span>
-        </span>
+        {/* Info group: label + time */}
+        <div className="ml-auto flex items-center gap-2">
+          {snapToGrid && (
+            <span
+              className="text-[9px] text-accent bg-accent/10 border border-accent/30 px-1 py-0.5 rounded font-mono uppercase tracking-wide"
+              title="Snap to grid is enabled"
+            >
+              Snap
+            </span>
+          )}
+          <span className="text-[10px] uppercase tracking-wide text-gray-500">Timeline</span>
+          <span className="text-[10px] text-gray-600 bg-panel2 px-1.5 py-0.5 rounded font-mono">
+            {rows.length} {rows.length === 1 ? "layer" : "layers"}
+          </span>
+          <span className="text-[10px] text-gray-600 font-mono">
+            <span className="text-gray-300">{Math.round(currentTime)}</span>
+            <span className="text-gray-700"> / {maxSpan}ms</span>
+          </span>
+        </div>
       </div>
 
       <div ref={trackRef} className="flex-1 overflow-auto relative" onMouseDown={startScrub} style={{ cursor: isScrubbing ? "grabbing" : "text" }}>
