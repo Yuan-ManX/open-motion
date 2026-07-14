@@ -58,11 +58,28 @@ export type IntentType =
   | "transform_3d"
   | "restraint"
   | "recipe"
+  | "project_recipe"
+  | "brand_pack"
+  | "motion_profile"
+  | "motion_capture"
+  | "export_preset"
+  | "session_lineage"
+  | "accessibility"
+  | "performance"
+  | "storyboard"
   | "memory"
   | "skill"
   | "grammar"
   | "parse"
   | "shader"
+  | "visual_context"
+  | "code_synthesis"
+  | "state_machine"
+  | "similarity"
+  | "documentation"
+  | "principles"
+  | "easing_synthesis"
+  | "choreography"
   | "unknown";
 
 /** Friendly name -> real template ID. Single source of truth for aliasing. */
@@ -265,6 +282,23 @@ const INTENT_PATTERNS: { type: IntentType; match: RegExp }[] = [
   { type: "grammar", match: /\b(grammar|compile.*motion|motion.*expression|fade\.in|slide\.up|bounce\.in|rotate\.cw|then.*with.*easing)\b/i },
   { type: "parse", match: /\b(parse.*motion|motion.*description|make.*bounce|make.*fade|make.*slide|natural language motion|describe.*animation|translate.*motion)\b/i },
   { type: "shader", match: /\b(shader|glitch effect|chromatic aberration|neon glow|plasma|pixelate|vignette|film grain|ripple effect|gradient shift)\b/i },
+  { type: "visual_context", match: /\b(visual.*context|layout.*balance|canvas.*look|composition.*review|visual.*review|spatial.*layout|visual.*balance|layout.*analysis|how.*canvas.*look|check.*layout|visual.*layout)\b/i },
+  { type: "project_recipe", match: /\b(save.*as.*recipe|save.*recipe|capture.*recipe|seed.*recipe|project recipe|my recipe|list.*my recipe|delete.*recipe|remove.*recipe|apply.*project recipe)\b/i },
+  { type: "brand_pack", match: /\b(brand.*pack|motion.*identity|motion.*style|apple.*like|google.*material|nintendo.*style|stripe.*style|minimal.*reserve|playful.*dynamic|cinematic.*flow|technical.*precision|seed.*brand|apply.*brand|make.*everything.*like)\b/i },
+  { type: "motion_profile", match: /\b(motion.*profile|component.*role|component.*personality|hero.*element|background.*component|cta.*element|make.*hero|make.*background|set.*role|temperament|visual.*weight|suggest.*profile|apply.*profile)\b/i },
+  { type: "motion_capture", match: /\b(motion.*captures?|captures?.*path|record.*cursor|cursor.*path|draw.*path|draw.*motion|trace.*motion|save.*captures?|apply.*captures?|captures?.*gesture|record.*gesture|captures?.*trajectory|seed.*captures?)/i },
+  { type: "export_preset", match: /\b(export.*presets?|export.*format|export.*options?|export.*for|export.*as|export.*instagram|export.*tiktok|export.*react|export.*vue|export.*lottie|export.*email|export.*mobile|export.*web|export.*figma|export.*embed|export.*social|export.*story|export.*square|recommend.*export|best.*export|what.*format.*should|how.*should.*export)/i },
+  { type: "session_lineage", match: /\b(save.*sessions?|fork.*sessions?|snapshot.*conversation|sessions?.*history|sessions?.*lineage|conversation.*tree|resume.*sessions?|continue.*sessions?|show.*sessions?|list.*sessions?|what.*conversation|lineage.*tree|how.*sessions?.*relate|what.*came.*before|delete.*sessions?|remove.*branch|remember.*branch)/i },
+  { type: "accessibility", match: /\b(check.*accessibility|accessibility.*check|is.*safe|vestibular|seizure.*risk|flashing.*risk|strobing|reduced.*motion|WCAG|a11y|motion.*safety|safe.*motion|accessibility)/i },
+  { type: "performance", match: /\b(check.*performance|performance.*check|frame.*budget|is.*performant|fps|jank|optimize.*performance|performance.*issue|perf.*check|render.*cost|animation.*cost)/i },
+  { type: "storyboard", match: /\b(storyboard|beat|sequence.*moment|narrative.*timeline|plan.*sequence|add.*beat|create.*beat|list.*beat|reorder.*beat|export.*storyboard)/i },
+  { type: "similarity", match: /\b(find.*similar|similar.*motion|what.*else.*like|search.*similar|are.*there.*other.*like|motion.*like.*this|dna.*search|similar.*dna)/i },
+  { type: "documentation", match: /\b(generate.*docs?|motion.*docs?|spec.*document|documentation|document.*project|export.*spec|motion.*spec)/i },
+  { type: "principles", match: /\b(animation.*principles?|motion.*principles?|disney.*principles?|12.*principles?|squash.*stretch|anticipation|follow.*through|overlapping.*action|slow.*in.*out|arcs?|secondary.*action|staging|solid.*drawing|appeal|exaggeration|check.*principles?|analyze.*principles?|apply.*principle|add.*anticipation|add.*follow.*through|add.*squash|fix.*easing.*principle)/i },
+  { type: "easing_synthesis", match: /\b(synthesize.*easing|easing.*synthes|feel.*weighty|feel.*light|feel.*dramatic|feel.*playful|feather.?light|weighty.*easing|snappy.*easing|dramatic.*curve|playful.*easing|elegant.*easing|organic.*easing|mechanical.*easing|custom.*bezier|custom.*easing.*curve|make.*feel.*like)/i },
+  { type: "choreography", match: /\b(cascade|call.*response|unison|counterpoint|wave.*pattern|canon.*round|stagger.*grid|ripple.*out|choreograph.*pattern|orchestrat.*pattern|multi.*component.*pattern|animate.*together|animate.*sequence|waterfall.*animation)/i },
+  { type: "code_synthesis", match: /\b(generate.*code|synthesize.*code|write.*code|give me.*css|give me.*react|give me.*html|give me.*javascript|code.*snippet|animation.*code|css.*for.*animation|react.*component.*animation|copy.*paste.*code)\b/i },
+  { type: "state_machine", match: /\b(state.*machines?|compose.*state|hover.*press|toggle.*state|loading.*flow|carousel|tab.*switch|tab.*navigation|switch.*state|trigger.*state|transition.*state|list.*state.*machines?)\b/i },
   { type: "composition", match: /\b(stagger|cascade|sequence|one by one|variant|variation|alternative)\b|错开|依次|逐个|变体/i },
   { type: "scene", match: /\b(scene|scenes)\b|场景/i },
   { type: "template", match: /\b(template|模板)\b/i },
