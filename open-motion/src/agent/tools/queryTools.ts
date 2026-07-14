@@ -4,6 +4,11 @@ import { listComponents, deleteComponent, createComponent } from "../../db/repos
 import { listTemplates } from "../../db/repositories/templates.js";
 import { instantiateTemplate } from "../../motion/templates/index.js";
 import { TEMPLATES } from "../../motion/templates/index.js";
+import { findSimilarMotions, summarizeSimilarity } from "../../motion/similarity.js";
+import { generateMotionDocumentation } from "../../motion/documentation.js";
+import { analyzePrinciples, applyPrinciple, PRINCIPLES } from "../../motion/principles.js";
+import { synthesizeEasing } from "../../motion/easingSynthesizer.js";
+import { applyChoreography, CHOREOGRAPHY_PATTERNS } from "../../motion/choreography.js";
 import { publicBaseUrl } from "../../config.js";
 import type { ToolContext, ToolResult } from "./registry.js";
 
@@ -259,6 +264,62 @@ export const queryExecutors: Partial<Record<ToolName, Executor>> = {
     };
   },
 
+  find_similar_motion: (args, ctx) => {
+    const spec = getProjectSpec(ctx.projectId);
+    if (!spec) return { ok: false, summary: `project ${ctx.projectId} not found`, specChanged: false };
+    const targetId = args.componentId ? String(args.componentId) : undefined;
+    const components = targetId
+      ? spec.components.filter((c) => c.id === targetId)
+      : spec.components;
+    if (components.length === 0) {
+      return {
+        ok: true,
+        summary: "no components to search — the canvas is empty",
+        specChanged: false,
+        data: { queryDna: "", matches: [] },
+      };
+    }
+    const queryComp = components[0];
+    const limit = args.limit ? Number(args.limit) : 10;
+    const threshold = args.threshold ? Number(args.threshold) : 40;
+    const { queryDna, matches } = findSimilarMotions(queryComp, {
+      excludeProjectId: ctx.projectId,
+      limit,
+      threshold,
+    });
+    return {
+      ok: true,
+      summary: summarizeSimilarity(matches),
+      specChanged: false,
+      data: { queryDna, matches },
+    };
+  },
+
+  generate_motion_docs: (args, ctx) => {
+    const spec = getProjectSpec(ctx.projectId);
+    if (!spec) return { ok: false, summary: `project ${ctx.projectId} not found`, specChanged: false };
+    const format = (args.format as "markdown" | "json" | undefined) ?? "markdown";
+    const doc = generateMotionDocumentation(spec, {
+      format,
+      includeAccessibility: args.includeAccessibility as boolean | undefined,
+      includePerformance: args.includePerformance as boolean | undefined,
+      includeStoryboard: args.includeStoryboard as boolean | undefined,
+    });
+    const compCount = spec.components.length;
+    return {
+      ok: true,
+      summary: `generated ${format} documentation for "${spec.project.name}" — ${compCount} component(s), ${doc.content.length} chars`,
+      specChanged: false,
+      data: {
+        projectName: doc.projectName,
+        format: doc.format,
+        generatedAt: doc.generatedAt,
+        content: doc.content,
+        contentLength: doc.content.length,
+      },
+    };
+  },
+
   list_scenes: (_args, ctx) => {
     const project = getProject(ctx.projectId);
     if (!project) return { ok: false, summary: `project ${ctx.projectId} not found`, specChanged: false };
@@ -345,5 +406,118 @@ export const queryExecutors: Partial<Record<ToolName, Executor>> = {
   preview_url: (_args, ctx) => {
     const url = `${publicBaseUrl()}/api/projects/${ctx.projectId}/preview`;
     return { ok: true, summary: `preview running at ${url}`, specChanged: false, data: { url } };
+  },
+
+  analyze_principles: (args, ctx) => {
+    const spec = getProjectSpec(ctx.projectId);
+    if (!spec) return { ok: false, summary: `project ${ctx.projectId} not found`, specChanged: false };
+    const componentId = args.componentId as string | undefined;
+    const targets = componentId
+      ? spec.components.filter((c) => c.id === componentId)
+      : spec.components;
+    if (targets.length === 0) {
+      return { ok: false, summary: componentId ? `component ${componentId} not found` : "no components in project", specChanged: false };
+    }
+    const reports = targets.map((c) => analyzePrinciples(c));
+    const avgScore = Math.round(reports.reduce((s, r) => s + r.overallScore, 0) / reports.length);
+    const allMissing = reports.flatMap((r) => r.missingPrinciples);
+    const missingCounts: Record<string, number> = {};
+    for (const m of allMissing) missingCounts[m] = (missingCounts[m] ?? 0) + 1;
+    const topMissing = Object.entries(missingCounts).sort((a, b) => b[1] - a[1]).slice(0, 3);
+    const summary = `${reports.length} component(s) analyzed — avg score ${avgScore}/100. ${reports[0].presentCount}/12 principles present on average. Top missing: ${topMissing.map(([k, v]) => `${k} (${v})`).join(", ") || "none"}.`;
+    return {
+      ok: true,
+      summary,
+      specChanged: false,
+      data: {
+        reports,
+        averageScore: avgScore,
+        principlesList: PRINCIPLES.map((p) => ({ id: p.id, name: p.name, category: p.category, description: p.description })),
+        topMissing,
+      },
+    };
+  },
+
+  apply_principle: (args, ctx) => {
+    const spec = getProjectSpec(ctx.projectId);
+    if (!spec) return { ok: false, summary: `project ${ctx.projectId} not found`, specChanged: false };
+    const componentId = args.componentId as string;
+    const principle = args.principle as Parameters<typeof applyPrinciple>[1];
+    const comp = spec.components.find((c) => c.id === componentId);
+    if (!comp) return { ok: false, summary: `component ${componentId} not found`, specChanged: false };
+    const result = applyPrinciple(comp, principle);
+    deleteComponent(ctx.projectId, componentId);
+    createComponent({
+      ...comp,
+      keyframes: result.modifiedKeyframes,
+      easing: result.modifiedEasing ?? comp.easing,
+      updatedAt: new Date().toISOString(),
+    });
+    return {
+      ok: true,
+      summary: `applied ${principle} to "${comp.name}" — ${result.description.slice(0, 100)}`,
+      specChanged: true,
+      data: {
+        principle,
+        componentId,
+        description: result.description,
+        keyframeCount: result.modifiedKeyframes.length,
+        easingChanged: !!result.modifiedEasing,
+      },
+    };
+  },
+
+  synthesize_easing: (args, _ctx) => {
+    const description = args.description as string;
+    const format = (args.format as "bezier" | "spring" | "css" | undefined) ?? "bezier";
+    const result = synthesizeEasing(description, format);
+    return {
+      ok: true,
+      summary: `synthesized ${result.detectedQualities.join("+") || "default"} easing → ${result.cssString}`,
+      specChanged: false,
+      data: {
+        description: result.description,
+        detectedQualities: result.detectedQualities,
+        easing: result.easing,
+        cssString: result.cssString,
+        rationale: result.rationale,
+      },
+    };
+  },
+
+  apply_choreography: (args, ctx) => {
+    const spec = getProjectSpec(ctx.projectId);
+    if (!spec) return { ok: false, summary: `project ${ctx.projectId} not found`, specChanged: false };
+    const pattern = args.pattern as Parameters<typeof applyChoreography>[1];
+    const baseDelayMs = args.baseDelayMs as number | undefined;
+    const baseDurationMs = args.baseDurationMs as number | undefined;
+    const components = spec.components;
+    if (components.length < 2) {
+      return { ok: false, summary: "need at least 2 components for choreography", specChanged: false };
+    }
+    const result = applyChoreography(components, pattern, { baseDelayMs, baseDurationMs });
+    for (const assignment of result.assignments) {
+      const comp = components.find((c) => c.id === assignment.componentId);
+      if (!comp) continue;
+      deleteComponent(ctx.projectId, assignment.componentId);
+      createComponent({
+        ...comp,
+        delayMs: assignment.delayMs,
+        durationMs: assignment.durationMs,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+    return {
+      ok: true,
+      summary: result.description,
+      specChanged: true,
+      data: {
+        pattern: result.pattern,
+        patternName: result.patternName,
+        componentCount: result.componentCount,
+        assignments: result.assignments,
+        totalDurationMs: result.totalDurationMs,
+      },
+    };
   },
 };
