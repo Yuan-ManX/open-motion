@@ -9,6 +9,7 @@ import { generateMotionDocumentation } from "../../motion/documentation.js";
 import { analyzePrinciples, applyPrinciple, PRINCIPLES } from "../../motion/principles.js";
 import { synthesizeEasing } from "../../motion/easingSynthesizer.js";
 import { applyChoreography, CHOREOGRAPHY_PATTERNS } from "../../motion/choreography.js";
+import { blendMotions, interpolateMotion, mergeProperties, describeBlend } from "../../motion/blend.js";
 import { publicBaseUrl } from "../../config.js";
 import type { ToolContext, ToolResult } from "./registry.js";
 
@@ -517,6 +518,129 @@ export const queryExecutors: Partial<Record<ToolName, Executor>> = {
         componentCount: result.componentCount,
         assignments: result.assignments,
         totalDurationMs: result.totalDurationMs,
+      },
+    };
+  },
+  blend_motions: (args, ctx) => {
+    const spec = getProjectSpec(ctx.projectId);
+    if (!spec) return { ok: false, summary: `project ${ctx.projectId} not found`, specChanged: false };
+    const source = spec.components.find((c) => c.id === args.sourceComponentId);
+    const target = spec.components.find((c) => c.id === args.targetComponentId);
+    if (!source || !target) {
+      return { ok: false, summary: "source or target component not found", specChanged: false };
+    }
+    const ratio = args.ratio as number;
+    const result = blendMotions(source, target, ratio);
+    const applyTo = args.applyTo as "source" | "new";
+
+    if (applyTo === "source") {
+      deleteComponent(ctx.projectId, source.id);
+      createComponent({
+        ...source,
+        keyframes: result.keyframes,
+        easing: result.easing,
+        durationMs: result.durationMs,
+        delayMs: result.delayMs,
+        iterationCount: result.iterationCount,
+        direction: result.direction,
+        updatedAt: new Date().toISOString(),
+      });
+    } else {
+      createComponent({
+        ...source,
+        id: `c_blend${Date.now().toString(36)}`,
+        name: `${source.name}+${target.name} Blend`,
+        keyframes: result.keyframes,
+        easing: result.easing,
+        durationMs: result.durationMs,
+        delayMs: result.delayMs,
+        iterationCount: result.iterationCount,
+        direction: result.direction,
+        templateId: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    }
+    return {
+      ok: true,
+      summary: `Blended ${source.name} and ${target.name} at ratio ${ratio.toFixed(2)} — ${describeBlend(result)}`,
+      specChanged: true,
+      data: {
+        ratio: result.ratio,
+        blendedProperties: result.blendedProperties,
+        keyframeCount: result.keyframes.length,
+        durationMs: result.durationMs,
+        easing: result.easing,
+        appliedTo: applyTo,
+      },
+    };
+  },
+  interpolate_motion: (args, ctx) => {
+    const spec = getProjectSpec(ctx.projectId);
+    if (!spec) return { ok: false, summary: `project ${ctx.projectId} not found`, specChanged: false };
+    const source = spec.components.find((c) => c.id === args.sourceComponentId);
+    const target = spec.components.find((c) => c.id === args.targetComponentId);
+    if (!source || !target) {
+      return { ok: false, summary: "source or target component not found", specChanged: false };
+    }
+    const steps = args.steps as number;
+    const results = interpolateMotion(source, target, steps);
+    return {
+      ok: true,
+      summary: `Generated ${results.length} interpolation steps from ${source.name} to ${target.name}`,
+      specChanged: false,
+      data: {
+        steps: results.map((s) => ({
+          index: s.index,
+          ratio: s.ratio,
+          description: describeBlend(s.result),
+          keyframeCount: s.result.keyframes.length,
+          durationMs: s.result.durationMs,
+          easing: s.result.easing,
+        })),
+      },
+    };
+  },
+  merge_properties: (args, ctx) => {
+    const spec = getProjectSpec(ctx.projectId);
+    if (!spec) return { ok: false, summary: `project ${ctx.projectId} not found`, specChanged: false };
+    const source = spec.components.find((c) => c.id === args.sourceComponentId);
+    const target = spec.components.find((c) => c.id === args.targetComponentId);
+    if (!source || !target) {
+      return { ok: false, summary: "source or target component not found", specChanged: false };
+    }
+    const result = mergeProperties(source, target);
+    const applyTo = args.applyTo as "source" | "new";
+
+    if (applyTo === "source") {
+      deleteComponent(ctx.projectId, source.id);
+      createComponent({
+        ...source,
+        keyframes: result.keyframes,
+        updatedAt: new Date().toISOString(),
+      });
+    } else {
+      createComponent({
+        ...source,
+        id: `c_merge${Date.now().toString(36)}`,
+        name: `${source.name}+${target.name} Merged`,
+        keyframes: result.keyframes,
+        templateId: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    }
+    return {
+      ok: true,
+      summary: `Merged properties from ${source.name} and ${target.name} — ${result.mergedProperties.length} properties, ${result.conflicts.length} conflicts`,
+      specChanged: true,
+      data: {
+        mergedProperties: result.mergedProperties,
+        sourceAProperties: result.sourceAProperties,
+        sourceBProperties: result.sourceBProperties,
+        conflicts: result.conflicts,
+        keyframeCount: result.keyframes.length,
+        appliedTo: applyTo,
       },
     };
   },
