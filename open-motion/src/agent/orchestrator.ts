@@ -18,6 +18,7 @@ import { addMessage } from "../db/repositories/messages.js";
 import { getProjectSpec } from "../db/repositories/projects.js";
 import { remember } from "./memory/persistentMemory.js";
 import { extractSkill } from "./memory/skillGenerator.js";
+import { suggestProactive } from "./proactiveEngine.js";
 import { logger } from "../utils/logger.js";
 
 const MAX_ITERATIONS = 8;
@@ -195,6 +196,8 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
     });
 
     let anySpecChanged = false;
+    let lastSpecTool: string | null = null;
+    let lastComponentId: string | undefined;
     const failedTools: string[] = [];
     for (const call of toolCalls) {
       // Link this tool call to its corresponding goal so progress is visible.
@@ -229,7 +232,14 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
         toolCallId: call.callId,
         toolName: call.tool,
       });
-      if (result.specChanged) anySpecChanged = true;
+      if (result.specChanged) {
+        anySpecChanged = true;
+        lastSpecTool = call.tool;
+        const data = result.data as { componentId?: string } | null;
+        if (data && typeof data.componentId === "string") {
+          lastComponentId = data.componentId;
+        }
+      }
       if (!result.ok) failedTools.push(call.tool);
     }
 
@@ -253,6 +263,20 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
     if (anySpecChanged) {
       const fresh = getProjectSpec(projectId);
       if (fresh) onEvent({ type: "spec_update", components: fresh.components, project: fresh.project });
+      // Proactive suggestions: surface 0-3 contextual next-step prompts tied
+      // to the just-completed tool and the fresh spec state. Hidden by the UI
+      // when empty, so callers see it only when there's something worth saying.
+      if (fresh) {
+        const suggestions = suggestProactive({
+          spec: fresh,
+          lastTool: lastSpecTool,
+          lastToolOk: failedTools.length === 0 || (lastSpecTool !== null && !failedTools.includes(lastSpecTool)),
+          lastComponentId,
+        });
+        if (suggestions.length > 0) {
+          onEvent({ type: "proactive_suggestion", suggestions });
+        }
+      }
     }
     // Loop back: re-assemble context (system prompt now reflects the new spec).
   }
