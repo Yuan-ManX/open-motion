@@ -80,6 +80,9 @@ export type IntentType =
   | "principles"
   | "easing_synthesis"
   | "choreography"
+  | "blend"
+  | "interpolation"
+  | "merge"
   | "unknown";
 
 /** Friendly name -> real template ID. Single source of truth for aliasing. */
@@ -297,6 +300,9 @@ const INTENT_PATTERNS: { type: IntentType; match: RegExp }[] = [
   { type: "principles", match: /\b(animation.*principles?|motion.*principles?|disney.*principles?|12.*principles?|squash.*stretch|anticipation|follow.*through|overlapping.*action|slow.*in.*out|arcs?|secondary.*action|staging|solid.*drawing|appeal|exaggeration|check.*principles?|analyze.*principles?|apply.*principle|add.*anticipation|add.*follow.*through|add.*squash|fix.*easing.*principle)/i },
   { type: "easing_synthesis", match: /\b(synthesize.*easing|easing.*synthes|feel.*weighty|feel.*light|feel.*dramatic|feel.*playful|feather.?light|weighty.*easing|snappy.*easing|dramatic.*curve|playful.*easing|elegant.*easing|organic.*easing|mechanical.*easing|custom.*bezier|custom.*easing.*curve|make.*feel.*like)/i },
   { type: "choreography", match: /\b(cascade|call.*response|unison|counterpoint|wave.*pattern|canon.*round|stagger.*grid|ripple.*out|choreograph.*pattern|orchestrat.*pattern|multi.*component.*pattern|animate.*together|animate.*sequence|waterfall.*animation)/i },
+  { type: "blend", match: /\b(blend.*motion|cross.?fade.*motion|mix.*animation|hybrid.*motion|blend.*two|blend.*component|interpolate.*motion|tween.*motion|merge.*propert|combine.*animation|layer.*motion|union.*keyframe)\b/i },
+  { type: "interpolation", match: /\b(interpolat\w*|tween.*from|tween.*to|steps?\s*between|generate.*steps|intermediate.*motion|in.?between)\b/i },
+  { type: "merge", match: /\b(merge.*propert|merge.*animation|combine.*keyframe|union.*animation|layer.*together|stack.*motion)\b/i },
   { type: "code_synthesis", match: /\b(generate.*code|synthesize.*code|write.*code|give me.*css|give me.*react|give me.*html|give me.*javascript|code.*snippet|animation.*code|css.*for.*animation|react.*component.*animation|copy.*paste.*code)\b/i },
   { type: "state_machine", match: /\b(state.*machines?|compose.*state|hover.*press|toggle.*state|loading.*flow|carousel|tab.*switch|tab.*navigation|switch.*state|trigger.*state|transition.*state|list.*state.*machines?)\b/i },
   { type: "composition", match: /\b(stagger|cascade|sequence|one by one|variant|variation|alternative)\b|错开|依次|逐个|变体/i },
