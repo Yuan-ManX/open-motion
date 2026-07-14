@@ -6,10 +6,10 @@ import { ChatPanel } from "../components/chat/ChatPanel.js";
 import { ConversationSidebar } from "../components/chat/ConversationSidebar.js";
 import { RightPanel } from "../components/layout/RightPanel.js";
 import { ResizableDivider } from "../components/layout/ResizableDivider.js";
+import { StatusBar } from "../components/layout/StatusBar.js";
 import { ExportDialog } from "../components/export/ExportDialog.js";
 import { PreviewOverlay } from "../components/canvas/PreviewOverlay.js";
 import { ContextMenu } from "../components/canvas/ContextMenu.js";
-import { ApiKeyButton } from "../components/settings/ApiKeyButton.js";
 import { useKeyboard } from "../hooks/useKeyboard.js";
 
 export function Editor() {
@@ -72,7 +72,7 @@ export function Editor() {
         {/* Toolbar */}
         <div className="px-4 py-2 border-b border-edge flex items-center gap-3 bg-panel flex-shrink-0">
           <span className="text-sm font-medium text-gray-200 truncate">
-            {project?.name ?? "OpenMotion"}
+            {project?.name ?? "Editor"}
           </span>
           {projectId && (
             <span className="text-[10px] text-gray-600 font-mono">{projectId}</span>
@@ -141,7 +141,6 @@ export function Editor() {
             >
               Export
             </button>
-            <ApiKeyButton />
             <button
               onClick={() => setShortcutsOpen(true)}
               className="px-2 py-1 rounded-md text-xs text-gray-400 bg-panel2 border border-edge hover:border-accent transition-colors"
@@ -161,14 +160,11 @@ export function Editor() {
           <RightPanel />
         </div>
 
-        {/* Timeline */}
-        {projectId ? (
-          <TimelineBar onReplay={triggerReplay} />
-        ) : (
-          <div className="bg-panel border-t border-edge px-4 py-3 text-center text-xs text-gray-600">
-            Create a project to start animating.
-          </div>
-        )}
+        {/* Timeline — always visible as the default non-linear editor */}
+        <TimelineBar onReplay={triggerReplay} />
+
+        {/* Status bar — project info, zoom, fps, playback, provider */}
+        <StatusBar />
       </main>
 
       <ExportDialog />
