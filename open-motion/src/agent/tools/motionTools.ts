@@ -23,6 +23,83 @@ import { parseNaturalMotion } from "../../motion/naturalParser.js";
 import { getShaderEffect, getShaderCss, listShaderEffects } from "../../motion/shaders.js";
 import { analyzeMood, moodToSpecPatch, detectMood, getMoodProfile, listMoods } from "../../motion/moodEngine.js";
 import { suggestCreative, suggestStyleTransfer } from "../../motion/creativeEngine.js";
+import { analyzeVisualContext } from "../visualContext.js";
+import { synthesizeCode } from "../codeSynthesis.js";
+import {
+  composeStateMachine,
+  readStateMachines,
+  writeStateMachines,
+  findStateMachine,
+  transitionTo,
+  summarizeStateMachine,
+  listPresets,
+  validateStateMachine,
+} from "../../motion/stateMachine.js";
+import {
+  saveProjectRecipe,
+  readProjectRecipes,
+  findProjectRecipe,
+  applyProjectRecipe,
+  deleteProjectRecipe,
+  summarizeProjectRecipes,
+  matchProjectRecipesByIntent,
+  seedProjectRecipes,
+} from "../../motion/projectRecipes.js";
+import {
+  readBrandPacks,
+  findBrandPack,
+  summarizeBrandPacks,
+  deleteBrandPack,
+  applyBrandPackToComponent,
+  seedBrandPacks,
+} from "../../motion/brandPack.js";
+import {
+  findMotionProfile,
+  setMotionProfile,
+  suggestMotionProfile,
+  profileToMotionPatch,
+  summarizeMotionProfiles,
+} from "../../motion/motionProfile.js";
+import {
+  finalizeCapture,
+  findCapture,
+  deleteCapture,
+  summarizeCaptures,
+  applyCaptureToComponent,
+  seedCaptures,
+  type CaptureSample,
+} from "../../motion/motionCapture.js";
+import {
+  summarizePresets,
+  findPreset,
+  findPresetByKeyword,
+  topRecommendations,
+} from "../../motion/exportPresets.js";
+import {
+  saveSessionSnapshot,
+  summarizeSessions,
+  updateSession,
+  deleteSession,
+  buildLineageTree,
+  getAncestry,
+  getDescendants,
+  extractInsightsFromTools,
+  generateSessionSummary,
+  getLineageStats,
+} from "../sessionLineage.js";
+import { checkAccessibility } from "../../motion/accessibility.js";
+import { checkPerformance } from "../../motion/performance.js";
+import {
+  createBeat,
+  summarizeBeats,
+  updateBeat,
+  deleteBeat,
+  reorderBeats,
+  exportStoryboardMarkdown,
+  exportStoryboardJson,
+  getStoryboardStats,
+} from "../../motion/storyboard.js";
+import type { StoryboardBeat } from "../../motion/storyboard.js";
 import { getPreset } from "./presets.js";
 import type { ToolContext, ToolResult } from "./registry.js";
 
@@ -603,7 +680,7 @@ export const motionExecutors: Partial<Record<ToolName, Executor>> = {
     const comps = spec.components;
     if (comps.length === 0) return fail("no components to choreograph");
 
-    const pattern = String(args.pattern ?? "cascade") as "cascade" | "wave" | "ripple" | "canon" | "converge";
+    const pattern = String(args.pattern ?? "cascade") as "cascade" | "wave" | "ripple" | "canon" | "converge" | "spiral" | "explosion" | "assembly" | "breathing" | "domino" | "scatter";
     const stepMs = Number(args.stepMs ?? 150);
     const baseDuration = args.durationMs != null ? Number(args.durationMs) : undefined;
     const sorted = [...comps].sort((a, b) => a.orderIndex - b.orderIndex);
@@ -612,6 +689,8 @@ export const motionExecutors: Partial<Record<ToolName, Executor>> = {
     for (let i = 0; i < n; i++) {
       let delay: number;
       let duration: number | undefined;
+      let direction: MotionComponent["direction"] | undefined;
+      let easing: Easing | undefined;
 
       switch (pattern) {
         case "cascade":
@@ -636,6 +715,55 @@ export const motionExecutors: Partial<Record<ToolName, Executor>> = {
           delay = Math.max(0, (n - 1 - i) * stepMs);
           duration = baseDuration ?? sorted[i].durationMs;
           break;
+        case "spiral": {
+          // Golden angle distribution — creates an organic spiral sequence.
+          const goldenAngle = 137.5 * (Math.PI / 180);
+          delay = Math.round(((i * goldenAngle) % (Math.PI * 2)) / (Math.PI * 2) * stepMs * n);
+          duration = baseDuration ?? Math.round(sorted[i].durationMs * (1 + (i / n) * 0.3));
+          easing = { type: "preset", name: i % 2 === 0 ? "smooth" : "ease-out" };
+          break;
+        }
+        case "explosion": {
+          // Center-out burst — center starts first, outer elements follow with growing duration.
+          const center = (n - 1) / 2;
+          const dist = Math.abs(i - center);
+          delay = Math.round(dist * stepMs);
+          duration = baseDuration ?? Math.round(sorted[i].durationMs * (1 + dist * 0.15));
+          easing = { type: "preset", name: "bounce" };
+          break;
+        }
+        case "assembly": {
+          // Components arrive from edges — first and last start first, meeting in the middle.
+          const center = (n - 1) / 2;
+          delay = Math.round((Math.max(0, center - Math.abs(i - center))) * stepMs);
+          duration = baseDuration ?? Math.round(sorted[i].durationMs * 0.8);
+          easing = { type: "preset", name: "ease-out" };
+          break;
+        }
+        case "breathing": {
+          // Synchronized pulse with phase offsets — all components breathe with slight delays.
+          delay = Math.round((i / n) * stepMs * 2);
+          duration = baseDuration ?? Math.round(sorted[i].durationMs * 1.5);
+          easing = { type: "preset", name: "ease-in-out" };
+          break;
+        }
+        case "domino": {
+          // Sequential cascade with alternating direction — like dominoes falling.
+          delay = i * stepMs;
+          duration = baseDuration ?? Math.round(sorted[i].durationMs * 0.7);
+          direction = i % 2 === 0 ? "normal" : "reverse";
+          easing = { type: "preset", name: "ease-in" };
+          break;
+        }
+        case "scatter": {
+          // Reverse explosion — outer elements start first, center follows (components fly outward).
+          const center = (n - 1) / 2;
+          const dist = Math.abs(i - center);
+          delay = Math.round((n - dist) * stepMs * 0.5);
+          duration = baseDuration ?? Math.round(sorted[i].durationMs * (1.2 - dist * 0.05));
+          easing = { type: "preset", name: "ease-in" };
+          break;
+        }
         default:
           delay = i * stepMs;
           duration = baseDuration;
@@ -643,6 +771,8 @@ export const motionExecutors: Partial<Record<ToolName, Executor>> = {
 
       const patch: Partial<MotionComponent> = { delayMs: delay };
       if (duration != null) patch.durationMs = duration;
+      if (direction != null) patch.direction = direction;
+      if (easing != null) patch.easing = easing;
       patchComponent(ctx.projectId, sorted[i].id, patch);
     }
 
@@ -1896,6 +2026,771 @@ export const motionExecutors: Partial<Record<ToolName, Executor>> = {
       `Creative suggestions (diversity: ${result.diversityIndex}, ${suggestions.length} ideas):\n${summary}`,
       false,
       { suggestions, diversityIndex: result.diversityIndex, projectFingerprint: result.projectFingerprint },
+    );
+  },
+
+  analyze_visual_context: (args, ctx) => {
+    const spec = getProjectSpec(ctx.projectId);
+    if (!spec) return fail(`project ${ctx.projectId} not found`);
+    const componentId = args.componentId ? String(args.componentId) : undefined;
+    const result = analyzeVisualContext(spec, componentId);
+    const warningCount = result.insights.filter((i) => i.severity === "warning").length;
+    const criticalCount = result.insights.filter((i) => i.severity === "critical").length;
+    const balanceDir = result.balance.direction === "centered" ? "centered" : `leaning ${result.balance.direction}`;
+    const summary = `visual score: ${result.score}/100 — ${result.insights.length} insight(s) (${criticalCount} critical, ${warningCount} warning). Balance: ${balanceDir} (${result.balance.offsetPx}px off). Spacing consistency: ${result.spacing.consistency}. Hierarchy: ${result.hierarchy.sizeDistribution}. Colors: ${result.colors.uniqueColors}. Overlaps: ${result.overlaps.totalOverlaps}.`;
+    return { ok: true, summary, specChanged: false, data: result };
+  },
+
+  synthesize_code: (args, _ctx) => {
+    const description = String(args.description);
+    const format = (args.format ?? "css") as "css" | "react" | "html" | "vanilla";
+    const result = synthesizeCode(description, format);
+    if (!result.isValid) {
+      return fail(`could not synthesize code: ${result.errors.join("; ")}`);
+    }
+    const summary = `synthesized ${format} code for "${result.verb}" motion (${result.durationMs}ms, ${result.easing.type === "preset" ? result.easing.name : result.easing.type}, ${result.keyframes.length} keyframes) — animation name: ${result.animationName}`;
+    return { ok: true, summary, specChanged: false, data: result };
+  },
+
+  compose_state_machine: (args, ctx) => {
+    const name = String(args.name);
+    const description = args.description ? String(args.description) : undefined;
+    const presetId = args.presetId ? String(args.presetId) : undefined;
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const allComps = listComponents(ctx.projectId);
+    let componentIds = Array.isArray(args.componentIds) ? args.componentIds.map(String) : [];
+    if (componentIds.length === 0) componentIds = allComps.map((c) => c.id);
+    if (componentIds.length === 0) return fail("cannot compose a state machine with no components — add a layer first");
+
+    const machine = composeStateMachine({ name, description, presetId, componentIds });
+    const issues = validateStateMachine(machine);
+    if (issues.length > 0) {
+      return fail(`state machine validation failed: ${issues.join("; ")}`);
+    }
+
+    const tokens = { ...(project.tokens ?? {}) };
+    const machines = readStateMachines(tokens);
+    machines.push(machine);
+    const newTokens = writeStateMachines(tokens, machines);
+    updateProject(ctx.projectId, { tokens: newTokens });
+
+    const summary = `composed state machine "${name}" with ${machine.states.length} states, ${machine.transitions.length} transitions, ${machine.inputs.length} inputs. Preset: ${presetId ?? "custom"}. Components: ${componentIds.length}. Available presets: ${listPresets().join(", ")}`;
+    return { ok: true, summary, specChanged: true, data: { machineId: machine.id, machine } };
+  },
+
+  list_state_machines: (args, ctx) => {
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const tokens = { ...(project.tokens ?? {}) };
+    const machines = readStateMachines(tokens);
+    if (machines.length === 0) {
+      return { ok: true, summary: "no state machines found — use compose_state_machine to create one", specChanged: false, data: { machines: [], presets: listPresets() } };
+    }
+    const summary = `${machines.length} state machine(s): ${machines.map((m) => summarizeStateMachine(m)).join(" | ")}`;
+    return { ok: true, summary, specChanged: false, data: { machines, presets: listPresets() } };
+  },
+
+  trigger_state_machine: (args, ctx) => {
+    const machineId = String(args.machineId);
+    const stateName = String(args.stateName);
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const tokens = { ...(project.tokens ?? {}) };
+    const machines = readStateMachines(tokens);
+    const machine = findStateMachine(machines, machineId);
+    if (!machine) return fail(`state machine ${machineId} not found`);
+
+    const { machine: updated, transition } = transitionTo(machine, stateName);
+    if (!transition && machine.currentStateId === updated.currentStateId) {
+      return fail(`no transition from current state to "${stateName}" — check state names with list_state_machines`);
+    }
+
+    const idx = machines.findIndex((m) => m.id === machineId);
+    machines[idx] = updated;
+    const newTokens = writeStateMachines(tokens, machines);
+    updateProject(ctx.projectId, { tokens: newTokens });
+
+    const targetState = updated.states.find((s) => s.id === updated.currentStateId);
+    const summary = `transitioned "${updated.name}" to "${stateName}"${transition ? ` (${transition.durationMs}ms, ${transition.easing.type === "preset" ? transition.easing.name : transition.easing.type})` : " (instant)"} — visible: ${targetState?.config.visibleComponents.length ?? 0} component(s)`;
+    return { ok: true, summary, specChanged: true, data: { machineId: updated.id, currentStateId: updated.currentStateId, transition } };
+  },
+
+  save_project_recipe: (args, ctx) => {
+    const componentId = String(args.componentId);
+    const name = String(args.name);
+    const description = args.description ? String(args.description) : undefined;
+    const intentKeywords = Array.isArray(args.intentKeywords) ? args.intentKeywords.map(String) : [];
+    const avoidWhen = Array.isArray(args.avoidWhen) ? args.avoidWhen.map(String) : [];
+    const restraintLevel = args.restraintLevel != null ? Number(args.restraintLevel) : undefined;
+
+    const component = getComponent(ctx.projectId, componentId);
+    if (!component) return fail(`component ${componentId} not found`);
+
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+
+    const tokens = { ...(project.tokens ?? {}) };
+    const { recipe, tokens: newTokens } = saveProjectRecipe(
+      component,
+      { name, description, intentKeywords, avoidWhen, restraintLevel },
+      tokens,
+    );
+    updateProject(ctx.projectId, { tokens: newTokens });
+
+    return ok(
+      `saved recipe "${recipe.name}" from component "${component.name}" (easing: ${describeEasing(recipe.easing)}, ${recipe.durationMs}ms, trigger: ${recipe.trigger})`,
+      false,
+      { recipeId: recipe.id, recipe },
+    );
+  },
+
+  list_project_recipes: (args, ctx) => {
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const tokens = { ...(project.tokens ?? {}) };
+    const query = args.query ? String(args.query) : undefined;
+
+    if (query) {
+      const matched = matchProjectRecipesByIntent(query, tokens);
+      const summaries = matched.map((r) => ({
+        id: r.id,
+        name: r.name,
+        description: r.description,
+        intentKeywords: r.intentKeywords,
+        durationMs: r.durationMs,
+        easingType: r.easing.type === "preset" ? r.easing.name : r.easing.type,
+        trigger: r.trigger,
+      }));
+      return {
+        ok: true,
+        summary: `matched ${matched.length} recipe(s) for "${query}"`,
+        specChanged: false,
+        data: { recipes: summaries, total: matched.length, query },
+      };
+    }
+
+    const summaries = summarizeProjectRecipes(tokens);
+    const summaryText = summaries.length > 0
+      ? `${summaries.length} project recipe(s): ${summaries.map((r) => r.name).join(", ")}`
+      : "no project recipes yet — use save_project_recipe to capture one, or seed_project_recipes to load presets";
+    return {
+      ok: true,
+      summary: summaryText,
+      specChanged: false,
+      data: { recipes: summaries, total: summaries.length },
+    };
+  },
+
+  apply_project_recipe: (args, ctx) => {
+    const componentId = String(args.componentId);
+    const recipeId = String(args.recipeId);
+
+    const component = getComponent(ctx.projectId, componentId);
+    if (!component) return fail(`component ${componentId} not found`);
+
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+
+    const tokens = { ...(project.tokens ?? {}) };
+    const recipe = findProjectRecipe(recipeId, tokens);
+    if (!recipe) return fail(`recipe ${recipeId} not found in this project`);
+
+    const patch = applyProjectRecipe(recipe);
+    patchComponent(ctx.projectId, componentId, patch);
+
+    return ok(
+      `applied recipe "${recipe.name}" to "${component.name}" — easing: ${describeEasing(recipe.easing)}, ${recipe.durationMs}ms, trigger: ${recipe.trigger}`,
+      true,
+      { recipeId: recipe.id, appliedPatch: patch },
+    );
+  },
+
+  delete_project_recipe: (args, ctx) => {
+    const recipeId = String(args.recipeId);
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+
+    const tokens = { ...(project.tokens ?? {}) };
+    const recipe = findProjectRecipe(recipeId, tokens);
+    if (!recipe) return fail(`recipe ${recipeId} not found`);
+
+    const newTokens = deleteProjectRecipe(recipeId, tokens);
+    updateProject(ctx.projectId, { tokens: newTokens });
+
+    return ok(`deleted recipe "${recipe.name}"`, false, { recipeId });
+  },
+
+  seed_project_recipes: (_args, ctx) => {
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+
+    const tokens = { ...(project.tokens ?? {}) };
+    const existingCount = readProjectRecipes(tokens).length;
+    const newTokens = seedProjectRecipes(tokens);
+    updateProject(ctx.projectId, { tokens: newTokens });
+
+    const addedCount = readProjectRecipes(newTokens).length - existingCount;
+    return ok(
+      `seeded ${addedCount} project recipe preset(s) — Gentle Entrance, Confident Reveal, Playful Bounce, Ambient Breath, Snappy Click`,
+      false,
+      { addedCount, total: readProjectRecipes(newTokens).length },
+    );
+  },
+
+  list_brand_packs: (_args, ctx) => {
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const tokens = { ...(project.tokens ?? {}) };
+    const summaries = summarizeBrandPacks(tokens);
+    const summaryText = summaries.length > 0
+      ? `${summaries.length} brand pack(s): ${summaries.map((s) => `${s.name} (energy:${s.energy},formality:${s.formality},playfulness:${s.playfulness},precision:${s.precision})`).join(" | ")}`
+      : "no brand packs yet — use seed_brand_packs to load presets (Minimal Reserve, Material Expressive, Playful Dynamic, Cinematic Flow, Technical Precision)";
+    return {
+      ok: true,
+      summary: summaryText,
+      specChanged: false,
+      data: { packs: summaries, total: summaries.length },
+    };
+  },
+
+  apply_brand_pack: (args, ctx) => {
+    const packId = String(args.packId);
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const tokens = { ...(project.tokens ?? {}) };
+    const pack = findBrandPack(packId, tokens);
+    if (!pack) return fail(`brand pack ${packId} not found`);
+
+    const allComps = listComponents(ctx.projectId);
+    if (allComps.length === 0) return fail("no components to apply brand pack to");
+
+    const targetComponentId = args.componentId ? String(args.componentId) : undefined;
+    const targets = targetComponentId
+      ? allComps.filter((c) => c.id === targetComponentId)
+      : allComps;
+    if (targets.length === 0) return fail(`component ${targetComponentId} not found`);
+
+    let applied = 0;
+    for (const comp of targets) {
+      const patch = applyBrandPackToComponent(pack, comp);
+      patchComponent(ctx.projectId, comp.id, patch);
+      applied++;
+    }
+
+    return ok(
+      `applied brand pack "${pack.name}" to ${applied} component(s) — durations mapped to ${pack.durationScale.fast}/${pack.durationScale.normal}/${pack.durationScale.slow}/${pack.durationScale.cinematic}ms scale, primary easing: ${describeEasing(pack.easings.primary)}, trigger: ${pack.defaultTrigger}, loop: ${pack.loopPhilosophy}`,
+      true,
+      { packId: pack.id, appliedCount: applied, pack },
+    );
+  },
+
+  delete_brand_pack: (args, ctx) => {
+    const packId = String(args.packId);
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const tokens = { ...(project.tokens ?? {}) };
+    const pack = findBrandPack(packId, tokens);
+    if (!pack) return fail(`brand pack ${packId} not found`);
+    const newTokens = deleteBrandPack(packId, tokens);
+    updateProject(ctx.projectId, { tokens: newTokens });
+    return ok(`deleted brand pack "${pack.name}"`, false, { packId });
+  },
+
+  seed_brand_packs: (_args, ctx) => {
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const tokens = { ...(project.tokens ?? {}) };
+    const existingCount = readBrandPacks(tokens).length;
+    const newTokens = seedBrandPacks(tokens);
+    updateProject(ctx.projectId, { tokens: newTokens });
+    const addedCount = readBrandPacks(newTokens).length - existingCount;
+    return ok(
+      `seeded ${addedCount} brand pack preset(s) — Minimal Reserve, Material Expressive, Playful Dynamic, Cinematic Flow, Technical Precision`,
+      false,
+      { addedCount, total: readBrandPacks(newTokens).length },
+    );
+  },
+
+  set_motion_profile: (args, ctx) => {
+    const componentId = String(args.componentId);
+    const component = getComponent(ctx.projectId, componentId);
+    if (!component) return fail(`component ${componentId} not found`);
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+
+    const tokens = { ...(project.tokens ?? {}) };
+    const patch: Record<string, unknown> = {};
+    if (args.role) patch.role = args.role;
+    if (args.temperament) patch.temperament = args.temperament;
+    if (args.interactionStyle) patch.interactionStyle = args.interactionStyle;
+    if (args.visualWeight != null) patch.visualWeight = Number(args.visualWeight);
+    if (args.notes) patch.notes = String(args.notes);
+
+    const { profile, tokens: newTokens } = setMotionProfile(componentId, patch, tokens);
+    updateProject(ctx.projectId, { tokens: newTokens });
+
+    return ok(
+      `set motion profile for "${component.name}": role=${profile.role}, temperament=${profile.temperament}, interaction=${profile.interactionStyle}, weight=${profile.visualWeight}/10`,
+      false,
+      { profile },
+    );
+  },
+
+  get_motion_profile: (args, ctx) => {
+    const componentId = String(args.componentId);
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const tokens = { ...(project.tokens ?? {}) };
+    const profile = findMotionProfile(componentId, tokens);
+    if (!profile) return fail(`no motion profile set for component ${componentId}`);
+    const component = getComponent(ctx.projectId, componentId);
+    const compName = component ? component.name : componentId;
+    return ok(
+      `profile for "${compName}": role=${profile.role}, temperament=${profile.temperament}, interaction=${profile.interactionStyle}, weight=${profile.visualWeight}/10${profile.notes ? `, notes: ${profile.notes}` : ""}`,
+      false,
+      { profile },
+    );
+  },
+
+  list_motion_profiles: (_args, ctx) => {
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const tokens = { ...(project.tokens ?? {}) };
+    const summaries = summarizeMotionProfiles(tokens);
+    const allComps = listComponents(ctx.projectId);
+    const summaryText = summaries.length > 0
+      ? `${summaries.length} profile(s): ${summaries.map((s) => {
+          const c = allComps.find((comp) => comp.id === s.componentId);
+          return `${c?.name ?? s.componentId}=${s.role}/${s.temperament}`;
+        }).join(", ")}`
+      : "no motion profiles set — use set_motion_profile or suggest_motion_profile to assign one";
+    return { ok: true, summary: summaryText, specChanged: false, data: { profiles: summaries, total: summaries.length } };
+  },
+
+  suggest_motion_profile: (args, ctx) => {
+    const componentId = String(args.componentId);
+    const component = getComponent(ctx.projectId, componentId);
+    if (!component) return fail(`component ${componentId} not found`);
+    const suggestion = suggestMotionProfile(component);
+    return ok(
+      `suggested profile for "${component.name}": role=${suggestion.role}, temperament=${suggestion.temperament}, interaction=${suggestion.interactionStyle}, weight=${suggestion.visualWeight}/10. Use set_motion_profile to apply, or apply_motion_profile to translate into motion parameters.`,
+      false,
+      { suggestion, componentId },
+    );
+  },
+
+  apply_motion_profile: (args, ctx) => {
+    const componentId = String(args.componentId);
+    const component = getComponent(ctx.projectId, componentId);
+    if (!component) return fail(`component ${componentId} not found`);
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const tokens = { ...(project.tokens ?? {}) };
+    const profile = findMotionProfile(componentId, tokens);
+    if (!profile) return fail(`no motion profile set for component ${componentId} — use set_motion_profile or suggest_motion_profile first`);
+
+    const patch = profileToMotionPatch(profile);
+    patchComponent(ctx.projectId, componentId, {
+      easing: patch.easing,
+      durationMs: patch.durationMs,
+      trigger: patch.trigger as MotionComponent["trigger"],
+      iterationCount: patch.iterationCount,
+    });
+
+    return ok(
+      `applied profile to "${component.name}": easing=${describeEasing(patch.easing)}, duration=${patch.durationMs}ms, trigger=${patch.trigger}, loop=${patch.iterationCount}`,
+      true,
+      { profile, appliedPatch: patch },
+    );
+  },
+
+  save_motion_capture: (args, ctx) => {
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const samples = args.samples as CaptureSample[];
+    if (!Array.isArray(samples) || samples.length < 2) {
+      return fail("capture requires at least 2 samples");
+    }
+    const tokens = { ...(project.tokens ?? {}) };
+    const { capture, tokens: nextTokens } = finalizeCapture(samples, {
+      name: String(args.name),
+      description: args.description ? String(args.description) : undefined,
+      originX: args.originX != null ? Number(args.originX) : undefined,
+      originY: args.originY != null ? Number(args.originY) : undefined,
+      normalize: args.normalize != null ? Boolean(args.normalize) : undefined,
+      smoothing: args.smoothing != null ? Number(args.smoothing) : undefined,
+    }, tokens);
+    updateProject(ctx.projectId, { tokens: nextTokens });
+    return ok(
+      `saved motion capture "${capture.name}" with ${capture.samples.length} samples over ${capture.durationMs}ms`,
+      false,
+      { captureId: capture.id, sampleCount: capture.samples.length, durationMs: capture.durationMs },
+    );
+  },
+
+  list_motion_captures: (args, ctx) => {
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const summaries = summarizeCaptures(project.tokens ?? {});
+    return ok(`found ${summaries.length} motion capture(s)`, false, { captures: summaries });
+  },
+
+  apply_motion_capture: (args, ctx) => {
+    const captureId = String(args.captureId);
+    const componentId = String(args.componentId);
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const capture = findCapture(project.tokens ?? {}, captureId);
+    if (!capture) return fail(`capture ${captureId} not found`);
+    const component = getComponent(ctx.projectId, componentId);
+    if (!component) return fail(`component ${componentId} not found`);
+
+    const { keyframes, durationMs, easing } = applyCaptureToComponent(capture, component, {
+      normalize: args.normalize != null ? Boolean(args.normalize) : undefined,
+      smoothing: args.smoothing != null ? Number(args.smoothing) : undefined,
+      snap: args.snap != null ? Number(args.snap) : undefined,
+      maxKeyframes: args.maxKeyframes != null ? Number(args.maxKeyframes) : undefined,
+    });
+    patchComponent(ctx.projectId, componentId, {
+      keyframes,
+      durationMs,
+      easing,
+    });
+    return ok(
+      `applied capture "${capture.name}" to "${component.name}" — ${keyframes.length} keyframes over ${durationMs}ms`,
+      true,
+      { keyframeCount: keyframes.length, durationMs },
+    );
+  },
+
+  delete_motion_capture: (args, ctx) => {
+    const captureId = String(args.captureId);
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const tokens = { ...(project.tokens ?? {}) };
+    const capture = findCapture(tokens, captureId);
+    if (!capture) return fail(`capture ${captureId} not found`);
+    const nextTokens = deleteCapture(tokens, captureId);
+    updateProject(ctx.projectId, { tokens: nextTokens });
+    return ok(`deleted motion capture "${capture.name}"`, false);
+  },
+
+  seed_motion_captures: (args, ctx) => {
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const tokens = { ...(project.tokens ?? {}) };
+    const { captures, tokens: nextTokens } = seedCaptures(tokens);
+    updateProject(ctx.projectId, { tokens: nextTokens });
+    return ok(
+      `seeded ${captures.length} motion capture(s): ${captures.map((c) => c.name).join(", ")}`,
+      false,
+      { captureIds: captures.map((c) => c.id), count: captures.length },
+    );
+  },
+
+  list_export_presets: (_args, ctx) => {
+    const presets = summarizePresets();
+    return ok(
+      `found ${presets.length} export presets across ${new Set(presets.map((p) => p.platform)).size} platforms`,
+      false,
+      { presets },
+    );
+  },
+
+  recommend_export_format: (args, ctx) => {
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const components = listComponents(ctx.projectId);
+    const hint = args.hint ? String(args.hint) : undefined;
+    const recommendations = topRecommendations(components, 3, hint);
+    const top = recommendations[0];
+    if (!top) return fail("no export presets available");
+    return ok(
+      `recommended "${top.preset.name}" (${top.preset.format}) — score ${top.score}${top.reasons.length > 0 ? `: ${top.reasons.join("; ")}` : ""}`,
+      false,
+      {
+        recommendations: recommendations.map((r) => ({
+          presetId: r.preset.id,
+          name: r.preset.name,
+          platform: r.preset.platform,
+          format: r.preset.format,
+          score: r.score,
+          reasons: r.reasons,
+        })),
+      },
+    );
+  },
+
+  apply_export_preset: (args, ctx) => {
+    const presetId = String(args.presetId);
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const preset = findPreset(presetId);
+    if (!preset) {
+      const byKeyword = findPresetByKeyword(presetId);
+      if (!byKeyword) return fail(`export preset ${presetId} not found`);
+      return ok(
+        `matched preset "${byKeyword.name}" by keyword — ready to export as ${byKeyword.format.toUpperCase()} (${byKeyword.fileExtension})`,
+        false,
+        {
+          presetId: byKeyword.id,
+          name: byKeyword.name,
+          format: byKeyword.format,
+          platform: byKeyword.platform,
+          width: byKeyword.width,
+          height: byKeyword.height,
+          fps: byKeyword.fps,
+          maxKeyframes: byKeyword.maxKeyframes,
+          inlineStyles: byKeyword.inlineStyles,
+          cssOnly: byKeyword.cssOnly,
+          forceLoop: byKeyword.forceLoop,
+          fileExtension: byKeyword.fileExtension,
+        },
+      );
+    }
+    return ok(
+      `applied export preset "${preset.name}" — format: ${preset.format}, platform: ${preset.platform}${preset.width ? `, ${preset.width}×${preset.height}` : ""}${preset.fps ? `, ${preset.fps}fps` : ""}${preset.maxKeyframes > 0 ? `, max ${preset.maxKeyframes} kf` : ""}${preset.cssOnly ? ", CSS-only" : ""}${preset.forceLoop ? ", infinite loop" : ""}`,
+      false,
+      {
+        presetId: preset.id,
+        name: preset.name,
+        format: preset.format,
+        platform: preset.platform,
+        width: preset.width,
+        height: preset.height,
+        fps: preset.fps,
+        maxKeyframes: preset.maxKeyframes,
+        inlineStyles: preset.inlineStyles,
+        cssOnly: preset.cssOnly,
+        forceLoop: preset.forceLoop,
+        fileExtension: preset.fileExtension,
+      },
+    );
+  },
+
+  save_session_snapshot: (args, ctx) => {
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const name = String(args.name);
+    const parentId = args.parentId ? String(args.parentId) : null;
+    const toolsUsed = (args.toolsUsed as string[] | undefined) ?? [];
+    const componentIds = (args.componentIds as string[] | undefined) ?? [];
+    const insights = extractInsightsFromTools(toolsUsed);
+    const summary =
+      args.summary != null
+        ? String(args.summary)
+        : generateSessionSummary(toolsUsed, componentIds.length, args.messageCount != null ? Number(args.messageCount) : 0);
+    const { session, tokens } = saveSessionSnapshot(project.tokens, {
+      name,
+      parentId,
+      summary,
+      messageCount: args.messageCount != null ? Number(args.messageCount) : 0,
+      toolsUsed,
+      componentIds,
+      insights,
+      tags: (args.tags as string[] | undefined) ?? [],
+    });
+    updateProject(ctx.projectId, { tokens });
+    const forkLabel = parentId ? ` as a fork of "${parentId}"` : "";
+    return ok(
+      `saved session snapshot "${name}"${forkLabel} — ${session.insights.length} insight(s) extracted, depth ${session.depth}`,
+      false,
+      {
+        sessionId: session.id,
+        name: session.name,
+        parentId: session.parentId,
+        depth: session.depth,
+        status: session.status,
+        insightCount: session.insights.length,
+        insights: session.insights,
+        summary: session.summary,
+      },
+    );
+  },
+
+  list_session_snapshots: (_args, ctx) => {
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const sessions = summarizeSessions(project.tokens);
+    if (sessions.length === 0) return ok("no session snapshots saved yet", false, { sessions: [] });
+    return ok(
+      `found ${sessions.length} session snapshot(s) — ${sessions.filter((s) => s.status === "active").length} active, ${sessions.filter((s) => s.status === "forked").length} forked`,
+      false,
+      { sessions },
+    );
+  },
+
+  resume_session_snapshot: (args, ctx) => {
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const sessionId = String(args.sessionId);
+    const existing = summarizeSessions(project.tokens).find((s) => s.id === sessionId);
+    if (!existing) return fail(`session ${sessionId} not found`);
+    const patch: Record<string, unknown> = {};
+    if (args.summary != null) patch.summary = String(args.summary);
+    if (args.messageCount != null) patch.messageCount = Number(args.messageCount);
+    if (args.toolsUsed != null) {
+      patch.toolsUsed = args.toolsUsed as string[];
+      patch.insights = extractInsightsFromTools(args.toolsUsed as string[]);
+    }
+    if (args.componentIds != null) patch.componentIds = args.componentIds as string[];
+    if (args.tags != null) patch.tags = args.tags as string[];
+    patch.status = "active";
+    const { session, tokens } = updateSession(project.tokens, sessionId, patch);
+    if (!session) return fail(`failed to resume session ${sessionId}`);
+    updateProject(ctx.projectId, { tokens });
+    return ok(
+      `resumed session "${session.name}" — ${session.insights.length} insight(s), ${session.messageCount} messages`,
+      false,
+      {
+        sessionId: session.id,
+        name: session.name,
+        summary: session.summary,
+        insightCount: session.insights.length,
+        status: session.status,
+      },
+    );
+  },
+
+  get_session_lineage: (args, ctx) => {
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const sessionId = args.sessionId ? String(args.sessionId) : undefined;
+    if (sessionId) {
+      const ancestry = getAncestry(project.tokens, sessionId);
+      const descendants = getDescendants(project.tokens, sessionId);
+      const stats = getLineageStats(project.tokens);
+      return ok(
+        `lineage for session ${sessionId} — ${ancestry.length} ancestor(s), ${descendants.length} descendant(s)`,
+        false,
+        { sessionId, ancestry, descendants, stats },
+      );
+    }
+    const tree = buildLineageTree(project.tokens);
+    const stats = getLineageStats(project.tokens);
+    return ok(
+      `session lineage: ${stats.totalSessions} session(s), max depth ${stats.maxDepth}, ${stats.totalInsights} total insight(s)`,
+      false,
+      { tree, stats },
+    );
+  },
+
+  delete_session_snapshot: (args, ctx) => {
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const sessionId = String(args.sessionId);
+    const tokens = deleteSession(project.tokens, sessionId);
+    updateProject(ctx.projectId, { tokens });
+    return ok(`deleted session snapshot ${sessionId}`);
+  },
+
+  check_accessibility: (args, ctx) => {
+    const all = listComponents(ctx.projectId);
+    const components = args.componentId
+      ? all.filter((c) => c.id === String(args.componentId))
+      : all;
+    if (components.length === 0) return fail("no components to analyze");
+    const report = checkAccessibility(components);
+    return ok(report.summary, false, report);
+  },
+
+  check_performance: (args, ctx) => {
+    const all = listComponents(ctx.projectId);
+    const components = args.componentId
+      ? all.filter((c) => c.id === String(args.componentId))
+      : all;
+    if (components.length === 0) return fail("no components to analyze");
+    const report = checkPerformance(components);
+    return ok(report.summary, false, report);
+  },
+
+  create_beat: (args, ctx) => {
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const { beat, tokens } = createBeat(project.tokens, {
+      title: String(args.title),
+      description: args.description ? String(args.description) : undefined,
+      durationMs: args.durationMs != null ? Number(args.durationMs) : undefined,
+      sceneId: args.sceneId ? String(args.sceneId) : null,
+      componentIds: args.componentIds as string[] | undefined,
+      transition: args.transition as StoryboardBeat["transition"] | undefined,
+    });
+    updateProject(ctx.projectId, { tokens });
+    return ok(`created storyboard beat "${beat.title}" (order ${beat.order}, ${beat.durationMs}ms, ${beat.transition})`, false, {
+      beatId: beat.id,
+      title: beat.title,
+      order: beat.order,
+      durationMs: beat.durationMs,
+      transition: beat.transition,
+    });
+  },
+
+  list_beats: (_args, ctx) => {
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const beats = summarizeBeats(project.tokens);
+    const stats = getStoryboardStats(project.tokens);
+    if (beats.length === 0) return ok("no storyboard beats yet", false, { beats: [], stats });
+    return ok(
+      `${beats.length} beat(s) — total ${(stats.totalDurationMs / 1000).toFixed(1)}s, transitions: ${stats.transitions.join(", ")}`,
+      false,
+      { beats, stats },
+    );
+  },
+
+  update_beat: (args, ctx) => {
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const beatId = String(args.beatId);
+    const patch: Record<string, unknown> = {};
+    if (args.title != null) patch.title = String(args.title);
+    if (args.description != null) patch.description = String(args.description);
+    if (args.durationMs != null) patch.durationMs = Number(args.durationMs);
+    if (args.sceneId != null) patch.sceneId = String(args.sceneId);
+    if (args.componentIds != null) patch.componentIds = args.componentIds as string[];
+    if (args.transition != null) patch.transition = args.transition;
+    const { beat, tokens } = updateBeat(project.tokens, beatId, patch);
+    if (!beat) return fail(`beat ${beatId} not found`);
+    updateProject(ctx.projectId, { tokens });
+    return ok(`updated storyboard beat "${beat.title}"`, false, {
+      beatId: beat.id,
+      title: beat.title,
+      durationMs: beat.durationMs,
+      transition: beat.transition,
+    });
+  },
+
+  reorder_beats: (args, ctx) => {
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const beatIds = args.beatIds as string[];
+    const tokens = reorderBeats(project.tokens, beatIds);
+    updateProject(ctx.projectId, { tokens });
+    return ok(`reordered ${beatIds.length} beats`);
+  },
+
+  delete_beat: (args, ctx) => {
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const beatId = String(args.beatId);
+    const tokens = deleteBeat(project.tokens, beatId);
+    updateProject(ctx.projectId, { tokens });
+    return ok(`deleted storyboard beat ${beatId}`);
+  },
+
+  export_storyboard: (args, ctx) => {
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const format = (args.format as string) ?? "markdown";
+    const content = format === "json"
+      ? exportStoryboardJson(project.tokens)
+      : exportStoryboardMarkdown(project.tokens);
+    const stats = getStoryboardStats(project.tokens);
+    return ok(
+      `exported storyboard as ${format} — ${stats.totalBeats} beat(s), ${(stats.totalDurationMs / 1000).toFixed(1)}s total`,
+      false,
+      { format, content, stats },
     );
   },
 };
