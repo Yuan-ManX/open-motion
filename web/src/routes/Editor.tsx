@@ -1,5 +1,6 @@
 import { useProjectStore } from "../store/projectStore.js";
 import { useUiStore } from "../store/uiStore.js";
+import { useChatStore } from "../store/chatStore.js";
 import { MotionCanvas } from "../components/canvas/MotionCanvas.js";
 import { TimelineBar } from "../components/timeline/TimelineBar.js";
 import { ChatPanel } from "../components/chat/ChatPanel.js";
@@ -10,6 +11,7 @@ import { StatusBar } from "../components/layout/StatusBar.js";
 import { ExportDialog } from "../components/export/ExportDialog.js";
 import { PreviewOverlay } from "../components/canvas/PreviewOverlay.js";
 import { ContextMenu } from "../components/canvas/ContextMenu.js";
+import { ApiSettingsDialog } from "../components/settings/ApiSettingsDialog.js";
 import { useKeyboard } from "../hooks/useKeyboard.js";
 
 export function Editor() {
@@ -24,9 +26,13 @@ export function Editor() {
   const setRightPanelTab = useUiStore((s) => s.setRightPanelTab);
   const setShortcutsOpen = useUiStore((s) => s.setShortcutsOpen);
   const setCommandPaletteOpen = useUiStore((s) => s.setCommandPaletteOpen);
+  const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
   const triggerReplay = useUiStore((s) => s.triggerReplay);
   const chatWidth = useUiStore((s) => s.chatWidth);
   const setChatWidth = useUiStore((s) => s.setChatWidth);
+  const chatMessages = useChatStore((s) => s.messages);
+  const chatStreaming = useChatStore((s) => s.isStreaming);
+  const clearChat = useChatStore((s) => s.clear);
 
   useKeyboard();
 
@@ -52,6 +58,23 @@ export function Editor() {
             </button>
           )}
           <span className="text-sm font-semibold text-gray-200 tracking-tight">Agent</span>
+          {chatMessages.length > 0 && !chatStreaming && (
+            <button
+              onClick={() => {
+                if (projectId) void clearChat(projectId);
+              }}
+              className="ml-auto text-gray-500 hover:text-red-400 transition-colors p-1 rounded hover:bg-panel2"
+              title="Clear conversation"
+              aria-label="Clear conversation"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                <path d="M10 11v6M14 11v6" />
+                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+              </svg>
+            </button>
+          )}
         </div>
         <div className="flex-1 min-h-0">
           <ChatPanel />
@@ -142,6 +165,18 @@ export function Editor() {
               Export
             </button>
             <button
+              onClick={() => setSettingsOpen(true)}
+              className="px-2 py-1 rounded-md text-xs text-gray-400 bg-panel2 border border-edge hover:border-accent transition-colors flex items-center gap-1"
+              title="API settings — configure all model providers"
+              aria-label="API settings"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+              <span className="hidden lg:inline">Settings</span>
+            </button>
+            <button
               onClick={() => setShortcutsOpen(true)}
               className="px-2 py-1 rounded-md text-xs text-gray-400 bg-panel2 border border-edge hover:border-accent transition-colors"
               title="Keyboard shortcuts (Cmd+/)"
@@ -170,6 +205,7 @@ export function Editor() {
       <ExportDialog />
       <PreviewOverlay />
       <ContextMenu />
+      <ApiSettingsDialog />
     </div>
   );
 }
