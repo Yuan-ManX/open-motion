@@ -26,6 +26,19 @@ function dnaEasingColor(dna: string): string {
 
 const SPEEDS = [0.25, 0.5, 1, 2, 4] as const;
 const ZOOM_LEVELS = [1, 2, 4, 8] as const;
+const FPS = 60;
+type TimeFormat = "ms" | "s" | "frames";
+
+/** Format a millisecond value for the timeline ruler and status display. */
+function formatTime(ms: number, fmt: TimeFormat): string {
+  if (fmt === "s") {
+    return ms >= 1000 ? `${(ms / 1000).toFixed(ms % 1000 === 0 ? 0 : 2)}s` : `${ms}ms`;
+  }
+  if (fmt === "frames") {
+    return `${Math.round((ms / 1000) * FPS)}f`;
+  }
+  return `${Math.round(ms)}ms`;
+}
 
 interface Props {
   onReplay: () => void;
@@ -60,11 +73,22 @@ export function TimelineBar({ onReplay }: Props) {
   const [currentTime, setCurrentTime] = useState(0);
   const [loop, setLoop] = useState(false);
   const [zoom, setZoom] = useState(1);
+  const [timeFormat, setTimeFormat] = useState<TimeFormat>("ms");
   const [draggingKf, setDraggingKf] = useState<{ compId: string; kfIndex: number; barLeft: number; barWidth: number } | null>(null);
   const [isScrubbing, setIsScrubbing] = useState(false);
   const [draggingRange, setDraggingRange] = useState<"in" | "out" | null>(null);
   const [expandedTracks, setExpandedTracks] = useState<Set<string>>(new Set());
   const [graphMode, setGraphMode] = useState(false);
+  // Non-linear edit drag state — move, trim-left, trim-right on component bars
+  const [draggingBar, setDraggingBar] = useState<{
+    compId: string;
+    mode: "move" | "trim-left" | "trim-right";
+    startClientX: number;
+    trackLeft: number;
+    trackWidth: number;
+    origDelayMs: number;
+    origDurationMs: number;
+  } | null>(null);
   const rafRef = useRef<number | null>(null);
   const lastTsRef = useRef<number | null>(null);
   const trackRef = useRef<HTMLDivElement | null>(null);
@@ -193,6 +217,92 @@ export function TimelineBar({ onReplay }: Props) {
     } catch { /* ignore */ }
   }, [projectId, project]);
 
+  /** Split the selected component at the playhead position. */
+  const handleSplitAtPlayhead = useCallback(async () => {
+    if (!projectId || !selectedId) return;
+    const comp = components.find((c) => c.id === selectedId);
+    if (!comp) return;
+    // Calculate the split offset within the component's timeline
+    const splitMs = currentTime - comp.delayMs;
+    if (splitMs <= 0 || splitMs >= comp.durationMs) return;
+    const splitOffset = splitMs / comp.durationMs;
+
+    // Patch the original: shorten duration to the split point
+    const firstDuration = splitMs;
+    const firstKeyframes = comp.keyframes
+      .filter((kf) => kf.offset <= splitOffset)
+      .map((kf) => ({ ...kf, offset: kf.offset / splitOffset }));
+
+    try {
+      await api.patchComponent(projectId, comp.id, {
+        durationMs: firstDuration,
+        keyframes: firstKeyframes.length > 0 ? firstKeyframes : comp.keyframes,
+      });
+
+      // Create the second half
+      const clone = await api.createComponent(projectId, { name: `${comp.name} (split)` });
+      const secondDuration = comp.durationMs - splitMs;
+      const secondKeyframes = comp.keyframes
+        .filter((kf) => kf.offset >= splitOffset)
+        .map((kf) => ({ ...kf, offset: (kf.offset - splitOffset) / (1 - splitOffset) }));
+      await api.patchComponent(projectId, clone.id, {
+        easing: comp.easing,
+        durationMs: secondDuration,
+        delayMs: comp.delayMs + splitMs,
+        iterationCount: comp.iterationCount,
+        direction: comp.direction,
+        keyframes: secondKeyframes.length > 0 ? secondKeyframes : comp.keyframes,
+        style: comp.style,
+        trigger: comp.trigger,
+      });
+      await loadProject(projectId);
+    } catch { /* ignore */ }
+  }, [projectId, selectedId, components, currentTime, loadProject]);
+
+  /** Ripple delete — remove selected component and shift subsequent components left. */
+  const handleRippleDelete = useCallback(async () => {
+    if (!projectId || !selectedId) return;
+    const comp = components.find((c) => c.id === selectedId);
+    if (!comp) return;
+    const removedSpan = componentSpan(comp.durationMs, comp.delayMs, comp.iterationCount);
+    const removedDelay = comp.delayMs;
+
+    // Shift components that start after the removed component's delay
+    const toShift = components.filter((c) => c.id !== selectedId && c.delayMs >= removedDelay);
+    try {
+      await api.removeComponent(projectId, selectedId);
+      for (const c of toShift) {
+        const newDelay = Math.max(0, c.delayMs - removedSpan);
+        await api.patchComponent(projectId, c.id, { delayMs: newDelay });
+      }
+      useProjectStore.getState().removeComponentLocal(selectedId);
+      selectComponent(null);
+      await loadProject(projectId);
+    } catch { /* ignore */ }
+  }, [projectId, selectedId, components, loadProject, selectComponent]);
+
+  /** Duplicate the selected component via the API. */
+  const handleDuplicate = useCallback(async () => {
+    if (!projectId || !selectedId) return;
+    const comp = components.find((c) => c.id === selectedId);
+    if (!comp) return;
+    try {
+      const clone = await api.createComponent(projectId, { name: `${comp.name} (copy)` });
+      await api.patchComponent(projectId, clone.id, {
+        easing: comp.easing,
+        durationMs: comp.durationMs,
+        delayMs: comp.delayMs + comp.durationMs,
+        iterationCount: comp.iterationCount,
+        direction: comp.direction,
+        keyframes: comp.keyframes,
+        style: comp.style,
+        trigger: comp.trigger,
+      });
+      await loadProject(projectId);
+      selectComponent(clone.id);
+    } catch { /* ignore */ }
+  }, [projectId, selectedId, components, loadProject, selectComponent]);
+
   const stop = useCallback(() => {
     if (rafRef.current !== null) {
       cancelAnimationFrame(rafRef.current);
@@ -289,6 +399,8 @@ export function TimelineBar({ onReplay }: Props) {
       setPlayheadMs(rangeEnd);
     } else if (action === "addMarker") {
       void handleAddMarker();
+    } else if (action === "fitView") {
+      setZoom(1);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timelineCommand]);
@@ -440,6 +552,114 @@ export function TimelineBar({ onReplay }: Props) {
       window.removeEventListener("mouseup", onMouseUp);
     };
   }, [draggingKf, components, projectId, loadProject]);
+
+  /** Start dragging a component bar — mode controls move vs trim. */
+  const startBarDrag = useCallback(
+    (e: React.MouseEvent, compId: string, mode: "move" | "trim-left" | "trim-right") => {
+      e.stopPropagation();
+      e.preventDefault();
+      const comp = components.find((c) => c.id === compId);
+      if (!comp) return;
+      const trackEl = trackInnerRef.current;
+      if (!trackEl) return;
+      const rect = trackEl.getBoundingClientRect();
+      setDraggingBar({
+        compId,
+        mode,
+        startClientX: e.clientX,
+        trackLeft: rect.left,
+        trackWidth: rect.width,
+        origDelayMs: comp.delayMs,
+        origDurationMs: comp.durationMs,
+      });
+      document.body.style.cursor = mode === "move" ? "grabbing" : "ew-resize";
+      document.body.style.userSelect = "none";
+    },
+    [components],
+  );
+
+  /** Snap a millisecond value to nearby edges when snap-to-grid is on. */
+  const snapMs = useCallback(
+    (ms: number, excludeId: string, thresholdMs = 80): number => {
+      if (!snapToGrid) return ms;
+      const snapPoints: number[] = [0, currentTime, maxSpan];
+      for (const c of components) {
+        if (c.id === excludeId) continue;
+        const span = componentSpan(c.durationMs, c.delayMs, c.iterationCount);
+        snapPoints.push(c.delayMs, span);
+      }
+      for (const m of markers) snapPoints.push(m.timeMs);
+      let best = ms;
+      let bestDist = thresholdMs;
+      for (const p of snapPoints) {
+        const d = Math.abs(p - ms);
+        if (d < bestDist) {
+          bestDist = d;
+          best = p;
+        }
+      }
+      return best;
+    },
+    [snapToGrid, currentTime, maxSpan, components, markers],
+  );
+
+  /** Handle component bar drag — move, trim-left, trim-right with snap. */
+  useEffect(() => {
+    if (!draggingBar) return;
+    const { compId, mode, startClientX, trackLeft, trackWidth, origDelayMs, origDurationMs } = draggingBar;
+
+    const onMouseMove = (e: MouseEvent) => {
+      const deltaRatio = (e.clientX - startClientX) / trackWidth;
+      const deltaMs = deltaRatio * maxSpan;
+
+      useProjectStore.setState((s) => ({
+        components: s.components.map((c) => {
+          if (c.id !== compId) return c;
+          if (mode === "move") {
+            const newDelay = Math.max(0, snapMs(origDelayMs + deltaMs, compId));
+            return { ...c, delayMs: newDelay };
+          }
+          if (mode === "trim-left") {
+            // Adjust delay and duration — duration shrinks as left edge moves right
+            const maxTrim = origDurationMs - 50; // keep at least 50ms
+            const rawDelay = Math.max(0, origDelayMs + deltaMs);
+            const newDelay = Math.min(rawDelay, origDelayMs + maxTrim);
+            const newDuration = Math.max(50, origDurationMs - (newDelay - origDelayMs));
+            return { ...c, delayMs: snapMs(newDelay, compId), durationMs: newDuration };
+          }
+          // trim-right — adjust duration only
+          const newDuration = Math.max(50, snapMs(origDurationMs + deltaMs, compId) - origDelayMs);
+          return { ...c, durationMs: newDuration };
+        }),
+      }));
+    };
+
+    const onMouseUp = async () => {
+      setDraggingBar(null);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      // Persist the dragged component to the backend
+      const comp = useProjectStore.getState().components.find((c) => c.id === compId);
+      if (comp && projectId) {
+        try {
+          await api.patchComponent(projectId, compId, {
+            delayMs: comp.delayMs,
+            durationMs: comp.durationMs,
+          } as Partial<MotionComponent>);
+          void loadProject(projectId);
+        } catch {
+          /* ignore */
+        }
+      }
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, [draggingBar, maxSpan, snapMs, projectId, loadProject]);
 
   const renderGraphEditor = (): React.ReactNode => {
     if (!selectedId) return <div className="px-3 py-4 text-center text-[10px] text-gray-600">Select a component to view its animation graph.</div>;
@@ -640,6 +860,15 @@ export function TimelineBar({ onReplay }: Props) {
           >
             +
           </button>
+          <button
+            onClick={() => setZoom(1)}
+            disabled={zoom === 1}
+            className="w-5 h-5 flex items-center justify-center text-[9px] text-gray-500 hover:text-accent bg-panel2 border border-edge rounded disabled:opacity-30"
+            title="Fit to view (F)"
+            aria-label="Fit timeline to view"
+          >
+            ⤢
+          </button>
         </div>
         <div className="w-0.5 h-5 bg-white/20" />
         {/* Edit group: graph / range / markers */}
@@ -652,6 +881,36 @@ export function TimelineBar({ onReplay }: Props) {
         >
           ◜
         </button>
+        {/* Non-linear edit tools: split / ripple delete / duplicate */}
+        <div className="flex items-center gap-0.5">
+          <button
+            onClick={handleSplitAtPlayhead}
+            disabled={!selectedId}
+            className="px-1.5 py-0.5 text-[9px] text-gray-500 hover:text-accent bg-panel2 border border-edge rounded disabled:opacity-30 disabled:cursor-not-allowed"
+            title="Split at playhead (S)"
+            aria-label="Split at playhead"
+          >
+            ⫼
+          </button>
+          <button
+            onClick={handleRippleDelete}
+            disabled={!selectedId}
+            className="px-1.5 py-0.5 text-[9px] text-gray-500 hover:text-red-400 bg-panel2 border border-edge rounded disabled:opacity-30 disabled:cursor-not-allowed"
+            title="Ripple delete (Shift+Del)"
+            aria-label="Ripple delete selected component"
+          >
+            ✕
+          </button>
+          <button
+            onClick={handleDuplicate}
+            disabled={!selectedId}
+            className="px-1.5 py-0.5 text-[9px] text-gray-500 hover:text-accent bg-panel2 border border-edge rounded disabled:opacity-30 disabled:cursor-not-allowed"
+            title="Duplicate (Cmd+D)"
+            aria-label="Duplicate selected component"
+          >
+            ⧉
+          </button>
+        </div>
         <div className="flex items-center gap-0.5">
           <button
             onClick={() => {
@@ -708,10 +967,15 @@ export function TimelineBar({ onReplay }: Props) {
           <span className="text-[10px] text-gray-600 bg-panel2 px-1.5 py-0.5 rounded font-mono">
             {rows.length} {rows.length === 1 ? "layer" : "layers"}
           </span>
-          <span className="text-[10px] text-gray-600 font-mono">
-            <span className="text-gray-300">{Math.round(currentTime)}</span>
-            <span className="text-gray-700"> / {maxSpan}ms</span>
-          </span>
+          <button
+            onClick={() => setTimeFormat((f) => f === "ms" ? "s" : f === "s" ? "frames" : "ms")}
+            className="text-[10px] text-gray-600 font-mono hover:text-gray-300 transition-colors bg-panel2 px-1.5 py-0.5 rounded"
+            title={`Time format: ${timeFormat} — click to toggle (ms → s → frames)`}
+            aria-label="Toggle time format"
+          >
+            <span className="text-gray-300">{formatTime(currentTime, timeFormat)}</span>
+            <span className="text-gray-700"> / {formatTime(maxSpan, timeFormat)}</span>
+          </button>
         </div>
       </div>
 
@@ -729,7 +993,7 @@ export function TimelineBar({ onReplay }: Props) {
               {rulerTicks.map((i) => {
                 const pct = (i / rulerTickCount) * 100;
                 const ms = Math.round((i / rulerTickCount) * maxSpan);
-                const label = ms >= 1000 ? `${(ms / 1000).toFixed(ms % 1000 === 0 ? 0 : 1)}s` : `${ms}ms`;
+                const label = formatTime(ms, timeFormat);
                 return (
                   <div key={i} className="absolute top-0 h-full flex flex-col items-center" style={{ left: `${pct}%`, transform: "translateX(-50%)" }}>
                     <span className="text-[8px] text-gray-600 font-mono">{label}</span>
@@ -912,10 +1176,31 @@ export function TimelineBar({ onReplay }: Props) {
                   </div>
                   <div className="flex-1 h-7 bg-panel2 rounded relative overflow-hidden border border-edge">
                     <div
-                      className={`absolute top-0 bottom-0 rounded border ${barColor}`}
+                      className={`absolute top-0 bottom-0 rounded border ${barColor} ${isLocked ? "" : "cursor-grab"} group/bar`}
                       style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
-                      title={`${component.durationMs}ms × ${component.iterationCount} — DNA: ${dna}`}
-                    />
+                      title={`${component.durationMs}ms × ${component.iterationCount} — DNA: ${dna}${isLocked ? "" : " — drag to move"}`}
+                      onMouseDown={(e) => {
+                        if (isLocked) return;
+                        startBarDrag(e, component.id, "move");
+                      }}
+                    >
+                      {/* Left trim handle — drag to adjust delay/duration from the start */}
+                      {!isLocked && (
+                        <div
+                          className="absolute top-0 bottom-0 left-0 w-1.5 cursor-ew-resize bg-white/0 hover:bg-white/40 transition-colors z-20"
+                          onMouseDown={(e) => startBarDrag(e, component.id, "trim-left")}
+                          title="Drag to trim start"
+                        />
+                      )}
+                      {/* Right trim handle — drag to adjust duration from the end */}
+                      {!isLocked && (
+                        <div
+                          className="absolute top-0 bottom-0 right-0 w-1.5 cursor-ew-resize bg-white/0 hover:bg-white/40 transition-colors z-20"
+                          onMouseDown={(e) => startBarDrag(e, component.id, "trim-right")}
+                          title="Drag to trim end"
+                        />
+                      )}
+                    </div>
                     {keyframes.map((kf, i) => (
                       <div
                         key={i}
