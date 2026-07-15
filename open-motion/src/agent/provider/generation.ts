@@ -41,20 +41,24 @@ export function isModalityAvailable(modality: GenerationModality): boolean {
     case "text-to-image":
     case "image-to-image":
     case "image-editing":
-      return Boolean(config.OPENAI_API_KEY || config.STABILITY_API_KEY || config.FLUX_API_KEY || config.IDEOGRAM_API_KEY || config.REPLICATE_API_KEY);
+      return Boolean(config.OPENAI_API_KEY || config.STABILITY_API_KEY || config.FLUX_API_KEY || config.IDEOGRAM_API_KEY || config.REPLICATE_API_KEY || config.LEONARDO_API_KEY || config.RECRAFT_API_KEY);
     case "text-to-speech":
-      return Boolean(config.OPENAI_API_KEY || config.ELEVENLABS_API_KEY);
+      return Boolean(config.OPENAI_API_KEY || config.ELEVENLABS_API_KEY || config.PLAYHT_API_KEY || config.CARTESIA_API_KEY);
     case "speech-to-text":
       return Boolean(config.OPENAI_API_KEY || config.ASSEMBLYAI_API_KEY);
     case "text-to-video":
     case "image-to-video":
-      return Boolean(config.RUNWAY_API_KEY || config.LUMA_API_KEY || config.PIKA_API_KEY);
+      return Boolean(config.RUNWAY_API_KEY || config.LUMA_API_KEY || config.PIKA_API_KEY || config.KLING_API_KEY || config.HAILUO_API_KEY || config.MINIMAX_API_KEY);
     case "text-to-audio":
       return Boolean(config.OPENAI_API_KEY || config.ELEVENLABS_API_KEY);
     case "text-to-music":
       return Boolean(config.SUNO_API_KEY);
     case "text-to-3d":
       return Boolean(config.MESHY_API_KEY || config.TRIPO_API_KEY);
+    case "text-to-embedding":
+      return Boolean(config.OPENAI_API_KEY || config.COHERE_API_KEY || config.VOYAGE_API_KEY);
+    case "text-to-animation":
+      return Boolean(config.FAL_API_KEY || config.REPLICATE_API_KEY);
     default:
       return false;
   }
@@ -91,6 +95,10 @@ export async function generateMedia(req: GenerationRequest): Promise<GenerationR
       return generateMusic(req);
     case "text-to-3d":
       return generate3D(req);
+    case "text-to-embedding":
+      return generateEmbedding(req);
+    case "text-to-animation":
+      return generateAnimation(req);
     default:
       throw new Error(`Unsupported generation modality: ${modality}`);
   }
@@ -268,6 +276,61 @@ async function generateImage(req: GenerationRequest): Promise<GenerationResult> 
     };
   }
 
+  // Leonardo AI
+  if (config.LEONARDO_API_KEY) {
+    const leonardoModel = model.startsWith("leonardo") ? model : "leonardo-phoenix";
+    const modelId = leonardoModel === "leonardo-phoenix" ? "6bef9f1b-29cb-40c7-b9ad-455e7d6fc953" : "b24e16ff-06e3-43ee-8dac-7bef9cfa6292";
+    const res = await fetch("https://cloud.leonardo.ai/api/rest/v1/generations", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.LEONARDO_API_KEY}`,
+      },
+      body: JSON.stringify({
+        modelId,
+        prompt: req.prompt,
+        width: req.width ?? 1024,
+        height: req.height ?? 1024,
+        num_images: req.n ?? 1,
+      }),
+    });
+    if (!res.ok) throw new Error(`Leonardo error ${res.status}: ${await res.text()}`);
+    const data = await res.json() as { generations_by_pk?: { generated_images?: Array<{ url?: string }> } };
+    const assetUrl = data.generations_by_pk?.generated_images?.[0]?.url ?? "";
+    return {
+      modality: "text-to-image",
+      model: leonardoModel,
+      provider: "leonardo",
+      assetUrl,
+    };
+  }
+
+  // Recraft
+  if (config.RECRAFT_API_KEY) {
+    const recraftModel = model.startsWith("recraft") ? model : "recraft-v3";
+    const res = await fetch("https://external.api.recraft.ai/v1/images/generations", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.RECRAFT_API_KEY}`,
+      },
+      body: JSON.stringify({
+        prompt: req.prompt,
+        model: recraftModel,
+        size: req.width && req.height ? `${req.width}x${req.height}` : "1024x1024",
+        style: "realistic_image",
+      }),
+    });
+    if (!res.ok) throw new Error(`Recraft error ${res.status}: ${await res.text()}`);
+    const data = await res.json() as { data?: Array<{ url?: string }> };
+    return {
+      modality: "text-to-image",
+      model: recraftModel,
+      provider: "recraft",
+      assetUrl: data.data?.[0]?.url ?? "",
+    };
+  }
+
   throw new Error("No image generation provider configured");
 }
 
@@ -329,6 +392,65 @@ async function generateSpeech(req: GenerationRequest): Promise<GenerationResult>
       model: elevenModel,
       provider: "elevenlabs",
       assetUrl: dataUri,
+    };
+  }
+
+  // PlayHT
+  if (config.PLAYHT_API_KEY) {
+    const playhtModel = model.startsWith("playht") ? model : "playht-3.0-mini";
+    const res = await fetch("https://api.play.ht/api/v2/tts/stream", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.PLAYHT_API_KEY}`,
+        "X-USER-ID": process.env.PLAYHT_USER_ID ?? "",
+        Accept: "audio/mpeg",
+      },
+      body: JSON.stringify({
+        text: req.prompt,
+        voice: req.voiceId ?? "s3://voice-cloning/0f238c78-3b13-4b76-9dec-1c8c1e3a3a99",
+        voice_engine: "Play3.0-mini",
+        output_format: "mp3",
+      }),
+    });
+    if (!res.ok) throw new Error(`PlayHT error ${res.status}: ${await res.text()}`);
+    const pBlob = await res.blob();
+    const pBuffer = Buffer.from(await pBlob.arrayBuffer());
+    const pDataUri = `data:audio/mp3;base64,${pBuffer.toString("base64")}`;
+    return {
+      modality: "text-to-speech",
+      model: playhtModel,
+      provider: "playht",
+      assetUrl: pDataUri,
+    };
+  }
+
+  // Cartesia Sonic — ultra-low-latency conversational TTS
+  if (config.CARTESIA_API_KEY) {
+    const cartesiaModel = model.startsWith("cartesia") ? model : "sonic-2";
+    const res = await fetch("https://api.cartesia.ai/tts/bytes", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-Key": config.CARTESIA_API_KEY,
+        Accept: "audio/mpeg",
+      },
+      body: JSON.stringify({
+        model_id: cartesiaModel,
+        transcript: req.prompt,
+        voice: { mode: "id", id: req.voiceId ?? "7d9f5a3d-9b4e-4b8e-8f2a-6c1d5e3f7a8b" },
+        output_format: { container: "mp3", bit_rate: 128000 },
+      }),
+    });
+    if (!res.ok) throw new Error(`Cartesia error ${res.status}: ${await res.text()}`);
+    const cBlob = await res.blob();
+    const cBuffer = Buffer.from(await cBlob.arrayBuffer());
+    const cDataUri = `data:audio/mp3;base64,${cBuffer.toString("base64")}`;
+    return {
+      modality: "text-to-speech",
+      model: cartesiaModel,
+      provider: "cartesia",
+      assetUrl: cDataUri,
     };
   }
 
@@ -492,6 +614,62 @@ async function generateVideo(req: GenerationRequest): Promise<GenerationResult> 
     };
   }
 
+  // Kling (Kuaishou)
+  if (config.KLING_API_KEY) {
+    const klingModel = "kling-v1.6";
+    const body: Record<string, unknown> = {
+      model: klingModel,
+      prompt: req.prompt,
+      duration: req.duration ?? 5,
+      mode: "std",
+    };
+    if (req.sourceImage) body.image = req.sourceImage;
+    const res = await fetch("https://api.klingai.com/v1/videos/text2video", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.KLING_API_KEY}`,
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`Kling error ${res.status}: ${await res.text()}`);
+    const kData = await res.json() as { data?: { video?: { url?: string }; task_id?: string } };
+    const assetUrl = kData.data?.video?.url ?? "";
+    return {
+      modality,
+      model: klingModel,
+      provider: "kling",
+      assetUrl,
+      durationMs: (req.duration ?? 5) * 1000,
+    };
+  }
+
+  // Hailuo (MiniMax)
+  if (config.HAILUO_API_KEY) {
+    const hailuoModel = "hailuo-video-01";
+    const res = await fetch("https://api.minimax.chat/v1/video_generation", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.HAILUO_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: hailuoModel,
+        prompt: req.prompt,
+      }),
+    });
+    if (!res.ok) throw new Error(`Hailuo error ${res.status}: ${await res.text()}`);
+    const hData = await res.json() as { file_id?: string; video?: { url?: string } };
+    const assetUrl = hData.video?.url ?? "";
+    return {
+      modality,
+      model: hailuoModel,
+      provider: "hailuo",
+      assetUrl,
+      durationMs: (req.duration ?? 6) * 1000,
+    };
+  }
+
   throw new Error("No video generation provider configured");
 }
 
@@ -630,6 +808,147 @@ async function generate3D(req: GenerationRequest): Promise<GenerationResult> {
   }
 
   throw new Error("No 3D generation provider configured");
+}
+
+/** Generate vector embeddings via OpenAI, Cohere, or Voyage AI. */
+async function generateEmbedding(req: GenerationRequest): Promise<GenerationResult> {
+  const model = req.model ?? "text-embedding-3-small";
+
+  // OpenAI embeddings
+  if (config.OPENAI_API_KEY && (model.startsWith("text-embedding") || (!config.COHERE_API_KEY && !config.VOYAGE_API_KEY))) {
+    const baseUrl = (config.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/$/, "");
+    const res = await fetch(`${baseUrl}/embeddings`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model,
+        input: req.prompt,
+      }),
+    });
+    if (!res.ok) throw new Error(`OpenAI embedding error ${res.status}: ${await res.text()}`);
+    const data = await res.json() as { data?: Array<{ embedding?: number[] }> };
+    const embedding = data.data?.[0]?.embedding ?? [];
+    return {
+      modality: "text-to-embedding",
+      model,
+      provider: "openai",
+      assetUrl: JSON.stringify(embedding),
+    };
+  }
+
+  // Cohere embeddings
+  if (config.COHERE_API_KEY && (model.startsWith("embed") || !config.VOYAGE_API_KEY)) {
+    const cohereModel = model.startsWith("embed") ? model : "embed-english-v3.0";
+    const res = await fetch("https://api.cohere.ai/v2/embed", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.COHERE_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: cohereModel,
+        texts: [req.prompt],
+        input_type: "search_document",
+      }),
+    });
+    if (!res.ok) throw new Error(`Cohere embedding error ${res.status}: ${await res.text()}`);
+    const data = await res.json() as { embeddings?: Array<number[]> };
+    const embedding = data.embeddings?.[0] ?? [];
+    return {
+      modality: "text-to-embedding",
+      model: cohereModel,
+      provider: "cohere",
+      assetUrl: JSON.stringify(embedding),
+    };
+  }
+
+  // Voyage AI embeddings
+  if (config.VOYAGE_API_KEY) {
+    const voyageModel = model.startsWith("voyage") ? model : "voyage-3";
+    const res = await fetch("https://api.voyageai.com/v1/embeddings", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.VOYAGE_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: voyageModel,
+        input: [req.prompt],
+      }),
+    });
+    if (!res.ok) throw new Error(`Voyage embedding error ${res.status}: ${await res.text()}`);
+    const data = await res.json() as { data?: Array<{ embedding?: number[] }> };
+    const embedding = data.data?.[0]?.embedding ?? [];
+    return {
+      modality: "text-to-embedding",
+      model: voyageModel,
+      provider: "voyage",
+      assetUrl: JSON.stringify(embedding),
+    };
+  }
+
+  throw new Error("No embedding provider configured");
+}
+
+/** Generate short animation clips via FAL or Replicate. */
+async function generateAnimation(req: GenerationRequest): Promise<GenerationResult> {
+  const model = req.model ?? "fal-animatediff";
+
+  // FAL (fast inference layer)
+  if (config.FAL_API_KEY) {
+    const falModel = model.startsWith("fal-") ? model.replace("fal-", "") : "animatediff";
+    const res = await fetch(`https://fal.run/fal-ai/${falModel}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Key ${config.FAL_API_KEY}`,
+      },
+      body: JSON.stringify({
+        prompt: req.prompt,
+        num_frames: 16,
+        fps: 8,
+        motion_scale: 1.0,
+      }),
+    });
+    if (!res.ok) throw new Error(`FAL animation error ${res.status}: ${await res.text()}`);
+    const data = await res.json() as { video?: { url?: string } };
+    return {
+      modality: "text-to-animation",
+      model: `fal-${falModel}`,
+      provider: "fal",
+      assetUrl: data.video?.url ?? "",
+      durationMs: 2000,
+    };
+  }
+
+  // Replicate — AnimateDiff on Replicate's infrastructure
+  if (config.REPLICATE_API_KEY) {
+    const res = await fetch("https://api.replicate.com/v1/predictions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Token ${config.REPLICATE_API_KEY}`,
+      },
+      body: JSON.stringify({
+        version: "vaultai/animatediff:dd6d2b4a85c9e4e3e7f3a2c1b9e8d7f6a5c4b3e2d1c0b9a8f7e6d5c4b3a2e1d0",
+        input: { prompt: req.prompt, num_frames: 16 },
+      }),
+    });
+    if (!res.ok) throw new Error(`Replicate animation error ${res.status}: ${await res.text()}`);
+    const data = await res.json() as { urls?: { get?: string }; output?: string };
+    return {
+      modality: "text-to-animation",
+      model: "replicate-animatediff",
+      provider: "replicate",
+      assetUrl: data.output ?? data.urls?.get ?? "",
+      durationMs: 2000,
+    };
+  }
+
+  throw new Error("No animation generation provider configured");
 }
 
 /** List all available generation models based on configured API keys. */

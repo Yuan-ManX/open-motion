@@ -83,6 +83,20 @@ export type IntentType =
   | "blend"
   | "interpolation"
   | "merge"
+  | "emotion"
+  | "rhythm"
+  | "narrative"
+  | "adaptive"
+  | "responsive"
+  | "synthesis"
+  | "morph"
+  | "waveform"
+  | "storytelling"
+  | "pacing"
+  | "image"
+  | "speech"
+  | "video"
+  | "models"
   | "unknown";
 
 /** Friendly name -> real template ID. Single source of truth for aliasing. */
@@ -303,6 +317,20 @@ const INTENT_PATTERNS: { type: IntentType; match: RegExp }[] = [
   { type: "blend", match: /\b(blend.*motion|cross.?fade.*motion|mix.*animation|hybrid.*motion|blend.*two|blend.*component|interpolate.*motion|tween.*motion|merge.*propert|combine.*animation|layer.*motion|union.*keyframe)\b/i },
   { type: "interpolation", match: /\b(interpolat\w*|tween.*from|tween.*to|steps?\s*between|generate.*steps|intermediate.*motion|in.?between)\b/i },
   { type: "merge", match: /\b(merge.*propert|merge.*animation|combine.*keyframe|union.*animation|layer.*together|stack.*motion)\b/i },
+  { type: "emotion", match: /\b(emotion|emotional|feel.*motion|how.*feel|what.*feel|convey.*emotion|mood.*impact|emotional.*impact)\b/i },
+  { type: "rhythm", match: /\b(rhythm|tempo|beat|groove|cadence|pulse|syncopat|accelerando|decelerando|bpm)\b/i },
+  { type: "narrative", match: /\b(narrative|story.*arc|storytelling|pacing|story.*beat|act.*structure|climax|plot|coherence)\b/i },
+  { type: "adaptive", match: /\b(adapt|responsive|mobile|tablet|viewport|breakpoint|reduce.*motion|accessibility.*motion|degrade|device|performance.*tier)\b/i },
+  { type: "responsive", match: /\b(responsive.*css|css.*responsive|media.*query|@media|export.*css|generate.*css)\b/i },
+  { type: "synthesis", match: /\b(synthesize|generative.*pattern|heartbeat|breathing|walk.?cycle|bounce.?ball|pendulum|ocean.?wave|tremor|fidget|sway|orbit.*elliptical|shake.*violent)\b/i },
+  { type: "morph", match: /\b(morph.*to|morph.*into|transition.*into|gradually.*become|transform.*into.*pattern)\b/i },
+  { type: "waveform", match: /\b(sine.*wave|square.*wave|triangle.*wave|sawtooth.*wave|custom.*waveform|waveform.*animation|generate.*wave)\b/i },
+  { type: "storytelling", match: /\b(story.*arc|storytelling|hero.*journey|narrative.*structure|story.*beat|genre.*template|romance.*arc|comedy.*rhythm|thriller|mystery.*unfolding|fantasy.*quest|horror.*descent|documentary.*flow)\b/i },
+  { type: "pacing", match: /\b(pacing.*analysis|tempo.*curve|check.*pacing|pacing.*review|story.*rhythm|dramatic.*timing)\b/i },
+  { type: "image", match: /\b(?:generate|create|draw|render|make)\s+(?:an?\s+)?(?:image|picture|visual|illustration)\b/i },
+  { type: "speech", match: /\b(?:generate|read|narrate|voice|speak|say)\s+(?:this\s+)?(?:aloud|text|speech|audio)\b|\btext.to.speech\b/i },
+  { type: "video", match: /\b(?:generate|create|make|produce|animate)\s+(?:a\s+)?(?:video|clip|movie|sequence|animation video)\b/i },
+  { type: "models", match: /\b(?:list|show|what)\s+(?:available\s+)?(?:models?|providers?|llms?)\b/i },
   { type: "code_synthesis", match: /\b(generate.*code|synthesize.*code|write.*code|give me.*css|give me.*react|give me.*html|give me.*javascript|code.*snippet|animation.*code|css.*for.*animation|react.*component.*animation|copy.*paste.*code)\b/i },
   { type: "state_machine", match: /\b(state.*machines?|compose.*state|hover.*press|toggle.*state|loading.*flow|carousel|tab.*switch|tab.*navigation|switch.*state|trigger.*state|transition.*state|list.*state.*machines?)\b/i },
   { type: "composition", match: /\b(stagger|cascade|sequence|one by one|variant|variation|alternative)\b|错开|依次|逐个|变体/i },

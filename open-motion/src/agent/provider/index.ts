@@ -27,7 +27,11 @@ function findConfigForProvider(provider: ExtendedProvider, configs: ProviderConf
   const direct = configs.find((c) => c.type === provider);
   if (direct) return direct;
 
-  // OpenAI-compatible providers — match by base URL
+  // Match by providerName field (most reliable for OpenAI-compatible providers)
+  const byName = configs.find((c) => c.providerName === provider);
+  if (byName) return byName;
+
+  // OpenAI-compatible providers — match by base URL as fallback
   if (OPENAI_COMPATIBLE_PROVIDERS.includes(provider)) {
     const baseUrlMap: Record<string, string> = {
       xai: "api.x.ai",
