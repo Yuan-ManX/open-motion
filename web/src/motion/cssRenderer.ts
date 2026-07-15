@@ -1,25 +1,43 @@
 import type { MotionComponent, Easing, KeyValue, TransformProperty } from "@openmotion/shared";
 import { easingToCss, isTransformProperty } from "@openmotion/shared";
 
-const RESERVED_STYLE_KEYS = new Set(["_content", "_tag", "_label"]);
+const RESERVED_STYLE_KEYS = new Set(["_content", "_tag", "_label", "_src", "_poster", "_loop", "_muted", "_autoplay", "_controls"]);
 
 interface SplitStyle {
   css: Record<string, string | number>;
   content: string;
   tag: string;
+  src: string | null;
+  poster: string | null;
+  loop: boolean;
+  muted: boolean;
+  autoplay: boolean;
+  controls: boolean;
 }
 
 function splitStyle(style: Record<string, string | number>): SplitStyle {
   const css: Record<string, string | number> = {};
   let content = "";
   let tag = "div";
+  let src: string | null = null;
+  let poster: string | null = null;
+  let loop = false;
+  let muted = false;
+  let autoplay = true;
+  let controls = false;
   for (const [k, v] of Object.entries(style)) {
     if (k === "_content") content = String(v);
     else if (k === "_tag") tag = String(v);
+    else if (k === "_src") src = String(v);
+    else if (k === "_poster") poster = String(v);
+    else if (k === "_loop") loop = Boolean(v);
+    else if (k === "_muted") muted = Boolean(v);
+    else if (k === "_autoplay") autoplay = Boolean(v);
+    else if (k === "_controls") controls = Boolean(v);
     else if (RESERVED_STYLE_KEYS.has(k)) continue;
     else css[k] = v;
   }
-  return { css, content, tag };
+  return { css, content, tag, src, poster, loop, muted, autoplay, controls };
 }
 
 function camelToKebab(s: string): string {
@@ -71,6 +89,12 @@ export interface RenderedNode {
   content: string;
   name: string;
   componentId: string;
+  src: string | null;
+  poster: string | null;
+  loop: boolean;
+  muted: boolean;
+  autoplay: boolean;
+  controls: boolean;
 }
 
 export interface RenderedSpec {
@@ -88,7 +112,7 @@ export function renderSpec(components: MotionComponent[], speed = 1): RenderedSp
   for (const component of sorted) {
     const animationName = `om-anim-${component.id.replace(/[^a-zA-Z0-9_-]/g, "")}`;
     const className = `om-c-${component.id}`;
-    const { css: cssStyle, content, tag } = splitStyle(component.style);
+    const { css: cssStyle, content, tag, src, poster, loop, muted, autoplay, controls } = splitStyle(component.style);
 
     // @keyframes
     const frames = [...component.keyframes].sort((a, b) => a.offset - b.offset);
@@ -138,6 +162,12 @@ export function renderSpec(components: MotionComponent[], speed = 1): RenderedSp
       content: content || component.name,
       name: component.name,
       componentId: component.id,
+      src,
+      poster,
+      loop,
+      muted,
+      autoplay,
+      controls,
     });
   }
 
