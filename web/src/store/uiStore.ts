@@ -15,13 +15,15 @@ interface UiState {
   skillsOpen: boolean;
   shortcutsOpen: boolean;
   commandPaletteOpen: boolean;
+  settingsOpen: boolean;
   health: HealthResponse | null;
   replayTrigger: number;
   hiddenIds: Set<string>;
   canvasSize: { width: number; height: number };
   playbackSpeed: number;
   chatWidth: number;
-  rightPanelTab: "layers" | "inspector" | "templates" | "skills" | "states" | "memory" | "versions" | "graph";
+  rightPanelTab: "layers" | "inspector" | "effects" | "templates" | "skills" | "states" | "memory" | "versions" | "graph" | "code" | "shader" | "recipe" | "brand" | "capture" | "export" | "lineage" | "storyboard" | "health" | "variants" | "sequencer" | "sandbox" | "intelligence" | "storytelling" | "adaptive";
+  rightPanelCategory: "design" | "motion" | "intel" | "assets" | "output";
   onionSkin: { enabled: boolean; frames: number; opacity: number };
   previewOpen: boolean;
   scrubTime: number | null;
@@ -45,6 +47,8 @@ interface UiState {
   soloedId: string | null;
   sidebarCollapsed: boolean;
   sidebarWidth: number;
+  rightPanelCollapsed: boolean;
+  isPlaying: boolean;
 
   selectComponent: (id: string | null) => void;
   setExportOpen: (open: boolean) => void;
@@ -52,13 +56,15 @@ interface UiState {
   setSkillsOpen: (open: boolean) => void;
   setShortcutsOpen: (open: boolean) => void;
   setCommandPaletteOpen: (open: boolean) => void;
+  setSettingsOpen: (open: boolean) => void;
   setHealth: (h: HealthResponse | null) => void;
   triggerReplay: () => void;
   toggleHidden: (id: string) => void;
   setCanvasSize: (size: { width: number; height: number }) => void;
   setPlaybackSpeed: (speed: number) => void;
   setChatWidth: (w: number) => void;
-  setRightPanelTab: (tab: "layers" | "inspector" | "templates" | "skills" | "states" | "memory" | "versions" | "graph") => void;
+  setRightPanelTab: (tab: "layers" | "inspector" | "effects" | "templates" | "skills" | "states" | "memory" | "versions" | "graph" | "code" | "shader" | "recipe" | "brand" | "capture" | "export" | "lineage" | "storyboard" | "health" | "variants" | "sequencer" | "sandbox" | "intelligence" | "storytelling" | "adaptive") => void;
+  setRightPanelCategory: (category: "design" | "motion" | "intel" | "assets" | "output") => void;
   setOnionSkin: (patch: Partial<UiState["onionSkin"]>) => void;
   setPreviewOpen: (open: boolean) => void;
   setScrubTime: (t: number | null) => void;
@@ -87,6 +93,8 @@ interface UiState {
   setSoloedId: (id: string | null) => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   setSidebarWidth: (w: number) => void;
+  setRightPanelCollapsed: (collapsed: boolean) => void;
+  setIsPlaying: (playing: boolean) => void;
 }
 
 export const useUiStore = create<UiState>((set, get) => ({
@@ -96,6 +104,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   skillsOpen: false,
   shortcutsOpen: false,
   commandPaletteOpen: false,
+  settingsOpen: false,
   health: null,
   replayTrigger: 0,
   hiddenIds: new Set<string>(),
@@ -103,6 +112,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   playbackSpeed: 1,
   chatWidth: 380,
   rightPanelTab: "layers",
+  rightPanelCategory: "design",
   onionSkin: { enabled: false, frames: 3, opacity: 0.25 },
   previewOpen: false,
   scrubTime: null,
@@ -127,6 +137,8 @@ export const useUiStore = create<UiState>((set, get) => ({
   soloedId: null,
   sidebarCollapsed: true,
   sidebarWidth: 260,
+  rightPanelCollapsed: false,
+  isPlaying: false,
 
   selectComponent: (id) => set({ selectedComponentId: id, selectedIds: id ? new Set([id]) : new Set() }),
   setExportOpen: (open) => set({ exportOpen: open }),
@@ -134,6 +146,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   setSkillsOpen: (open) => set({ skillsOpen: open }),
   setShortcutsOpen: (open) => set({ shortcutsOpen: open }),
   setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
+  setSettingsOpen: (open) => set({ settingsOpen: open }),
   setHealth: (h) => set({ health: h }),
   triggerReplay: () => set((s) => ({ replayTrigger: s.replayTrigger + 1 })),
   toggleHidden: (id) => {
@@ -146,6 +159,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   setPlaybackSpeed: (speed) => set({ playbackSpeed: speed }),
   setChatWidth: (w) => set({ chatWidth: Math.max(280, Math.min(560, w)) }),
   setRightPanelTab: (tab) => set({ rightPanelTab: tab }),
+  setRightPanelCategory: (category) => set({ rightPanelCategory: category }),
   setOnionSkin: (patch) => set((s) => ({ onionSkin: { ...s.onionSkin, ...patch } })),
   setPreviewOpen: (open) => set({ previewOpen: open }),
   setScrubTime: (t) => set({ scrubTime: t }),
@@ -193,4 +207,6 @@ export const useUiStore = create<UiState>((set, get) => ({
   setSoloedId: (id) => set({ soloedId: id }),
   setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
   setSidebarWidth: (w) => set({ sidebarWidth: Math.max(200, Math.min(400, w)) }),
+  setRightPanelCollapsed: (collapsed) => set({ rightPanelCollapsed: collapsed }),
+  setIsPlaying: (playing) => set({ isPlaying: playing }),
 }));
