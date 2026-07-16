@@ -1183,6 +1183,417 @@ export const motionExecutors: Partial<Record<ToolName, Executor>> = {
     return ok(`added ${shape} "${name}" (${component.id})`, true, { componentId: component.id });
   },
 
+  add_image: (args, ctx) => {
+    const src = String(args.src);
+    const name = args.name ? String(args.name) : "Image";
+    const x = args.x != null ? Number(args.x) : 40;
+    const y = args.y != null ? Number(args.y) : 40;
+    const w = args.width != null ? Number(args.width) : 320;
+    const h = args.height != null ? Number(args.height) : 200;
+    const fit = args.fit ? String(args.fit) : "cover";
+    const ts = now();
+    const style: Record<string, string | number> = {
+      _tag: "img",
+      _src: src,
+      position: "absolute",
+      left: `${x}px`,
+      top: `${y}px`,
+      width: w,
+      height: h,
+      objectFit: fit,
+      borderRadius: "8px",
+    };
+    const all = listComponents(ctx.projectId);
+    const maxOrder = all.reduce((max, c) => Math.max(max, c.orderIndex), -1);
+    const component: MotionComponent = {
+      id: createId("c_"),
+      projectId: ctx.projectId,
+      templateId: null,
+      name,
+      selector: null,
+      sceneId: null,
+      orderIndex: maxOrder + 1,
+      easing: { type: "preset", name: "ease-out" },
+      durationMs: 600,
+      delayMs: 0,
+      iterationCount: 1,
+      direction: "normal",
+      fillMode: "forwards",
+      playState: "running",
+      trigger: "onLoad",
+      keyframes: [
+        { offset: 0, properties: { opacity: 0, scale: 0.95 } },
+        { offset: 1, properties: { opacity: 1, scale: 1 } },
+      ],
+      style,
+      parentId: null,
+      createdAt: ts,
+      updatedAt: ts,
+    };
+    createComponent(component);
+    return ok(`added image "${name}" (${component.id})`, true, { componentId: component.id });
+  },
+
+  add_video: (args, ctx) => {
+    const src = String(args.src);
+    const name = args.name ? String(args.name) : "Video";
+    const x = args.x != null ? Number(args.x) : 40;
+    const y = args.y != null ? Number(args.y) : 40;
+    const w = args.width != null ? Number(args.width) : 480;
+    const h = args.height != null ? Number(args.height) : 270;
+    const muted = args.muted !== false;
+    const loop = Boolean(args.loop);
+    const autoplay = args.autoplay !== false;
+    const delayMs = args.delayMs != null ? Number(args.delayMs) : 0;
+    const ts = now();
+    const style: Record<string, string | number> = {
+      _tag: "video",
+      _src: src,
+      _muted: muted ? 1 : 0,
+      _loop: loop ? 1 : 0,
+      _autoplay: autoplay ? 1 : 0,
+      position: "absolute",
+      left: `${x}px`,
+      top: `${y}px`,
+      width: w,
+      height: h,
+      borderRadius: "8px",
+    };
+    const all = listComponents(ctx.projectId);
+    const maxOrder = all.reduce((max, c) => Math.max(max, c.orderIndex), -1);
+    const component: MotionComponent = {
+      id: createId("c_"),
+      projectId: ctx.projectId,
+      templateId: null,
+      name,
+      selector: null,
+      sceneId: null,
+      orderIndex: maxOrder + 1,
+      easing: { type: "preset", name: "ease-out" },
+      durationMs: 5000,
+      delayMs,
+      iterationCount: 1,
+      direction: "normal",
+      fillMode: "forwards",
+      playState: "running",
+      trigger: "onLoad",
+      keyframes: [],
+      style,
+      parentId: null,
+      createdAt: ts,
+      updatedAt: ts,
+    };
+    createComponent(component);
+    return ok(`added video "${name}" (${component.id})`, true, { componentId: component.id });
+  },
+
+  add_audio: (args, ctx) => {
+    const src = String(args.src);
+    const name = args.name ? String(args.name) : "Audio";
+    const delayMs = args.delayMs != null ? Number(args.delayMs) : 0;
+    const loop = Boolean(args.loop);
+    const muted = Boolean(args.muted);
+    const ts = now();
+    const style: Record<string, string | number> = {
+      _tag: "audio",
+      _src: src,
+      _loop: loop ? 1 : 0,
+      _muted: muted ? 1 : 0,
+      _autoplay: 1,
+      position: "absolute",
+      left: "-9999px",
+      width: 0,
+      height: 0,
+    };
+    const all = listComponents(ctx.projectId);
+    const maxOrder = all.reduce((max, c) => Math.max(max, c.orderIndex), -1);
+    const component: MotionComponent = {
+      id: createId("c_"),
+      projectId: ctx.projectId,
+      templateId: null,
+      name,
+      selector: null,
+      sceneId: null,
+      orderIndex: maxOrder + 1,
+      easing: { type: "preset", name: "linear" },
+      durationMs: 30000,
+      delayMs,
+      iterationCount: loop ? "infinite" : 1,
+      direction: "normal",
+      fillMode: "forwards",
+      playState: "running",
+      trigger: "onLoad",
+      keyframes: [],
+      style,
+      parentId: null,
+      createdAt: ts,
+      updatedAt: ts,
+    };
+    createComponent(component);
+    return ok(`added audio "${name}" (${component.id})`, true, { componentId: component.id });
+  },
+
+  add_typewriter_text: (args, ctx) => {
+    const text = String(args.text);
+    const name = args.name ? String(args.name) : "Typewriter Text";
+    const x = args.x != null ? Number(args.x) : 40;
+    const y = args.y != null ? Number(args.y) : 40;
+    const fontSize = args.fontSize != null ? Number(args.fontSize) : 28;
+    const color = args.color ? String(args.color) : "#ffffff";
+    const charDelayMs = args.charDelayMs != null ? Number(args.charDelayMs) : 60;
+    const showCursor = args.cursor !== false;
+    const totalDurationMs = text.length * charDelayMs + 200;
+    const ts = now();
+    // Use a monospace font for accurate character width and clip-path animation
+    const charWidth = fontSize * 0.6;
+    const fullWidth = Math.ceil(text.length * charWidth);
+    const style: Record<string, string | number> = {
+      _tag: "div",
+      _content: showCursor ? `${text}_` : text,
+      position: "absolute",
+      left: `${x}px`,
+      top: `${y}px`,
+      fontSize,
+      color,
+      fontFamily: "'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace",
+      whiteSpace: "pre",
+      overflow: "hidden",
+      width: 0,
+      display: "flex",
+      alignItems: "center",
+    };
+    const all = listComponents(ctx.projectId);
+    const maxOrder = all.reduce((max, c) => Math.max(max, c.orderIndex), -1);
+    const component: MotionComponent = {
+      id: createId("c_"),
+      projectId: ctx.projectId,
+      templateId: null,
+      name,
+      selector: null,
+      sceneId: null,
+      orderIndex: maxOrder + 1,
+      easing: { type: "preset", name: "linear" },
+      durationMs: totalDurationMs,
+      delayMs: 0,
+      iterationCount: 1,
+      direction: "normal",
+      fillMode: "forwards",
+      playState: "running",
+      trigger: "onLoad",
+      keyframes: [
+        { offset: 0, properties: { width: 0 } },
+        { offset: 1, properties: { width: fullWidth } },
+      ],
+      style,
+      parentId: null,
+      createdAt: ts,
+      updatedAt: ts,
+    };
+    createComponent(component);
+    return ok(`added typewriter text "${name}" (${component.id}) — ${text.length} chars over ${totalDurationMs}ms`, true, { componentId: component.id });
+  },
+
+  add_scene_transition: (args, ctx) => {
+    const type = String(args.type) as "dissolve" | "wipe-left" | "wipe-right" | "wipe-up" | "wipe-down" | "slide-left" | "slide-right" | "zoom-in" | "zoom-out" | "flash";
+    const durationMs = args.durationMs != null ? Number(args.durationMs) : 600;
+    const delayMs = args.delayMs != null ? Number(args.delayMs) : 0;
+    const color = args.color ? String(args.color) : "#000000";
+    const ts = now();
+    const all = listComponents(ctx.projectId);
+    const maxOrder = all.reduce((max, c) => Math.max(max, c.orderIndex), -1);
+    // Build keyframes based on transition type
+    let keyframes: Keyframe[] = [];
+    let style: Record<string, string | number> = {
+      _tag: "div",
+      position: "absolute",
+      left: 0,
+      top: 0,
+      width: "100%",
+      height: "100%",
+      backgroundColor: color,
+      pointerEvents: "none",
+      zIndex: 9999,
+    };
+    const ease = { type: "preset" as const, name: "ease-in-out" as "ease-in-out" | "ease-out" };
+    switch (type) {
+      case "dissolve":
+        keyframes = [
+          { offset: 0, properties: { opacity: 0 } },
+          { offset: 0.5, properties: { opacity: 1 } },
+          { offset: 1, properties: { opacity: 0 } },
+        ];
+        break;
+      case "flash":
+        keyframes = [
+          { offset: 0, properties: { opacity: 0 } },
+          { offset: 0.3, properties: { opacity: 1 } },
+          { offset: 0.5, properties: { opacity: 1 } },
+          { offset: 1, properties: { opacity: 0 } },
+        ];
+        ease.name = "ease-out";
+        break;
+      case "wipe-left":
+        keyframes = [
+          { offset: 0, properties: { clipPath: "inset(0 0 0 0)" } },
+          { offset: 0.5, properties: { clipPath: "inset(0 0 0 100%)" } },
+          { offset: 1, properties: { clipPath: "inset(0 0 0 0)" } },
+        ];
+        break;
+      case "wipe-right":
+        keyframes = [
+          { offset: 0, properties: { clipPath: "inset(0 0 0 0)" } },
+          { offset: 0.5, properties: { clipPath: "inset(0 100% 0 0)" } },
+          { offset: 1, properties: { clipPath: "inset(0 0 0 0)" } },
+        ];
+        break;
+      case "wipe-up":
+        keyframes = [
+          { offset: 0, properties: { clipPath: "inset(0 0 0 0)" } },
+          { offset: 0.5, properties: { clipPath: "inset(0 0 100% 0)" } },
+          { offset: 1, properties: { clipPath: "inset(0 0 0 0)" } },
+        ];
+        break;
+      case "wipe-down":
+        keyframes = [
+          { offset: 0, properties: { clipPath: "inset(0 0 0 0)" } },
+          { offset: 0.5, properties: { clipPath: "inset(100% 0 0 0)" } },
+          { offset: 1, properties: { clipPath: "inset(0 0 0 0)" } },
+        ];
+        break;
+      case "slide-left":
+        keyframes = [
+          { offset: 0, properties: { translateX: 0, opacity: 1 } },
+          { offset: 0.5, properties: { translateX: -2000, opacity: 1 } },
+          { offset: 0.51, properties: { translateX: 2000, opacity: 1 } },
+          { offset: 1, properties: { translateX: 0, opacity: 0 } },
+        ];
+        break;
+      case "slide-right":
+        keyframes = [
+          { offset: 0, properties: { translateX: 0, opacity: 1 } },
+          { offset: 0.5, properties: { translateX: 2000, opacity: 1 } },
+          { offset: 0.51, properties: { translateX: -2000, opacity: 1 } },
+          { offset: 1, properties: { translateX: 0, opacity: 0 } },
+        ];
+        break;
+      case "zoom-in":
+        keyframes = [
+          { offset: 0, properties: { scale: 0, opacity: 0 } },
+          { offset: 0.5, properties: { scale: 1, opacity: 1 } },
+          { offset: 1, properties: { scale: 3, opacity: 0 } },
+        ];
+        break;
+      case "zoom-out":
+        keyframes = [
+          { offset: 0, properties: { scale: 3, opacity: 0 } },
+          { offset: 0.5, properties: { scale: 1, opacity: 1 } },
+          { offset: 1, properties: { scale: 0, opacity: 0 } },
+        ];
+        break;
+    }
+    const component: MotionComponent = {
+      id: createId("c_"),
+      projectId: ctx.projectId,
+      templateId: null,
+      name: `Transition: ${type}`,
+      selector: null,
+      sceneId: null,
+      orderIndex: maxOrder + 1,
+      easing: ease,
+      durationMs,
+      delayMs,
+      iterationCount: 1,
+      direction: "normal",
+      fillMode: "forwards",
+      playState: "running",
+      trigger: "onLoad",
+      keyframes,
+      style,
+      parentId: null,
+      createdAt: ts,
+      updatedAt: ts,
+    };
+    createComponent(component);
+    return ok(`added ${type} transition "${name}" (${component.id}) — ${durationMs}ms`, true, { componentId: component.id });
+  },
+
+  add_camera_move: (args, ctx) => {
+    const type = String(args.type) as "pan-left" | "pan-right" | "pan-up" | "pan-down" | "zoom-in" | "zoom-out" | "zoom-pan";
+    const durationMs = args.durationMs != null ? Number(args.durationMs) : 2000;
+    const delayMs = args.delayMs != null ? Number(args.delayMs) : 0;
+    const intensity = args.intensity != null ? Number(args.intensity) : 1;
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    // Store camera move as a project token that the canvas can read
+    const tokens = { ...project.tokens };
+    let camera: { moves: Array<{ type: string; durationMs: number; delayMs: number; intensity: number }> };
+    try {
+      camera = typeof tokens.camera === "string" ? JSON.parse(tokens.camera) : { moves: [] };
+    } catch {
+      camera = { moves: [] };
+    }
+    camera.moves.push({ type, durationMs, delayMs, intensity });
+    tokens.camera = JSON.stringify(camera);
+    updateProject(ctx.projectId, { tokens });
+    // Also create a virtual component for timeline representation
+    const ts = now();
+    const all = listComponents(ctx.projectId);
+    const maxOrder = all.reduce((max, c) => Math.max(max, c.orderIndex), -1);
+    const ease = { type: "preset" as const, name: "ease-in-out" as const };
+    const move = intensity * 100;
+    let keyframes: Keyframe[] = [];
+    switch (type) {
+      case "pan-left":
+        keyframes = [{ offset: 0, properties: { translateX: 0 } }, { offset: 1, properties: { translateX: -move } }];
+        break;
+      case "pan-right":
+        keyframes = [{ offset: 0, properties: { translateX: 0 } }, { offset: 1, properties: { translateX: move } }];
+        break;
+      case "pan-up":
+        keyframes = [{ offset: 0, properties: { translateY: 0 } }, { offset: 1, properties: { translateY: -move } }];
+        break;
+      case "pan-down":
+        keyframes = [{ offset: 0, properties: { translateY: 0 } }, { offset: 1, properties: { translateY: move } }];
+        break;
+      case "zoom-in":
+        keyframes = [{ offset: 0, properties: { scale: 1 } }, { offset: 1, properties: { scale: 1 + intensity * 0.5 } }];
+        break;
+      case "zoom-out":
+        keyframes = [{ offset: 0, properties: { scale: 1 + intensity * 0.5 } }, { offset: 1, properties: { scale: 1 } }];
+        break;
+      case "zoom-pan":
+        keyframes = [
+          { offset: 0, properties: { scale: 1, translateX: 0, translateY: 0 } },
+          { offset: 1, properties: { scale: 1 + intensity * 0.3, translateX: move * 0.5, translateY: -move * 0.3 } },
+        ];
+        break;
+    }
+    const component: MotionComponent = {
+      id: createId("c_cam_"),
+      projectId: ctx.projectId,
+      templateId: null,
+      name: `Camera: ${type}`,
+      selector: null,
+      sceneId: null,
+      orderIndex: maxOrder + 1,
+      easing: ease,
+      durationMs,
+      delayMs,
+      iterationCount: 1,
+      direction: "normal",
+      fillMode: "forwards",
+      playState: "running",
+      trigger: "onLoad",
+      keyframes,
+      style: { _tag: "div", position: "absolute", left: "-9999px", width: 0, height: 0, opacity: 0 },
+      parentId: null,
+      createdAt: ts,
+      updatedAt: ts,
+    };
+    createComponent(component);
+    return ok(`added camera move "${type}" (${component.id}) — ${durationMs}ms, intensity ${intensity}`, true, { componentId: component.id, cameraTokens: tokens.camera });
+  },
+
   set_blend_mode: (args, ctx) => {
     const componentId = String(args.componentId);
     const blendMode = String(args.blendMode);
@@ -1732,6 +2143,78 @@ export const motionExecutors: Partial<Record<ToolName, Executor>> = {
     if (args.rotateZ != null) parts.push(`rotateZ=${args.rotateZ}°`);
     if (args.translateZ != null) parts.push(`translateZ=${args.translateZ}px`);
     return ok(`3D transform on "${comp.name}": ${parts.join(", ")}`);
+  },
+
+  set_adjustment_layer: (args, ctx) => {
+    const componentId = String(args.componentId);
+    const comp = getComponent(ctx.projectId, componentId);
+    if (!comp) return fail(`component ${componentId} not found`);
+    const style = { ...comp.style } as Record<string, string | number>;
+    if (args.enabled) {
+      // Convert filter to backdropFilter — adjustment layer mode
+      const currentFilter = typeof style.filter === "string" ? style.filter : "blur(0px)";
+      style.backdropFilter = currentFilter;
+      delete style.filter;
+    } else {
+      // Convert backdropFilter back to filter — normal mode
+      const currentBackdrop = typeof style.backdropFilter === "string" ? style.backdropFilter : "";
+      if (currentBackdrop) {
+        style.filter = currentBackdrop;
+      }
+      delete style.backdropFilter;
+    }
+    patchComponent(ctx.projectId, componentId, { style });
+    return ok(`"${comp.name}" ${args.enabled ? "is now an adjustment layer" : "is now a regular layer"}`);
+  },
+
+  create_precomp: (args, ctx) => {
+    const ids = args.componentIds as string[];
+    const compId = `comp_${Date.now().toString(36)}`;
+    const name = String(args.name || `Pre-comp ${compId.slice(-4)}`);
+    let count = 0;
+    for (const id of ids) {
+      const comp = getComponent(ctx.projectId, String(id));
+      if (!comp) continue;
+      const style = { ...comp.style } as Record<string, string | number>;
+      style._compId = compId;
+      style._compName = name;
+      patchComponent(ctx.projectId, String(id), { style });
+      count++;
+    }
+    return ok(`grouped ${count} component(s) into pre-composition "${name}" (${compId})`);
+  },
+
+  ungroup_precomp: (args, ctx) => {
+    const ids = args.componentIds as string[];
+    let count = 0;
+    for (const id of ids) {
+      const comp = getComponent(ctx.projectId, String(id));
+      if (!comp) continue;
+      const style = { ...comp.style } as Record<string, string | number>;
+      delete style._compId;
+      delete style._compName;
+      patchComponent(ctx.projectId, String(id), { style });
+      count++;
+    }
+    return ok(`removed ${count} component(s) from pre-composition`);
+  },
+
+  set_expression: (args, ctx) => {
+    const componentId = String(args.componentId);
+    const comp = getComponent(ctx.projectId, componentId);
+    if (!comp) return fail(`component ${componentId} not found`);
+    const style = { ...comp.style } as Record<string, string | number>;
+    const prop = String(args.property);
+    const exprKey = `_expr:${prop}`;
+    const enabledKey = `_exprEnabled:${prop}`;
+    if (args.enabled) {
+      style[exprKey] = String(args.expression);
+      style[enabledKey] = 1;
+    } else {
+      style[enabledKey] = 0;
+    }
+    patchComponent(ctx.projectId, componentId, { style });
+    return ok(`expression on "${comp.name}".${prop}: ${args.enabled ? "enabled" : "disabled"} — ${String(args.expression)}`);
   },
 
   analyze_restraint: (_args, ctx) => {
