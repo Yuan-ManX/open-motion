@@ -49,7 +49,28 @@ export interface ChatResult {
   model?: string;
 }
 
-export type ProviderName = "mock" | "openai" | "anthropic" | "gemini" | "ollama" | "router";
+export type ProviderName =
+  | "mock" | "openai" | "anthropic" | "gemini" | "ollama" | "router"
+  | "xai" | "mistral" | "cohere" | "groq" | "together" | "fireworks"
+  | "perplexity" | "openrouter" | "zhipu" | "qwen" | "yi" | "deepseek"
+  | "stability" | "elevenlabs" | "runway" | "midjourney" | "pika" | "sora"
+  | "luma" | "meshy" | "tripo" | "flux" | "ideogram" | "suno" | "assemblyai"
+  | "replicate" | "leonardo" | "recraft" | "kling" | "hailuo" | "playht"
+  | "voyage" | "cartesia" | "fal" | "deepinfra" | "modelscope" | "minimax"
+  | "baai" | "deepinfra";
+
+/** A single chunk emitted during streaming chat. */
+export interface ChatStreamChunk {
+  /** Delta text content. */
+  delta?: string;
+  /** Tool call fragments accumulated so far. */
+  toolCalls?: LlmToolCall[];
+  /** Usage snapshot (may be partial until the final chunk). */
+  tokensIn?: number;
+  tokensOut?: number;
+  /** True when the stream is complete. */
+  done?: boolean;
+}
 
 export interface LlmProvider {
   readonly name: ProviderName;
@@ -57,6 +78,8 @@ export interface LlmProvider {
   readonly supportsVision: boolean;
   readonly supportsStreaming: boolean;
   chat(options: ChatOptions): Promise<ChatResult>;
+  /** Stream chat completions as an async iterator of chunks. */
+  streamChat?(options: ChatOptions): AsyncIterable<ChatStreamChunk>;
 }
 
 /** Helper: extract plain text from a message content (string or content parts). */
