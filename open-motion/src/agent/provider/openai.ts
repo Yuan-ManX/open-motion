@@ -1,6 +1,6 @@
 import { config, getProviderConfigs, type ProviderConfig } from "../../config.js";
 import { createId } from "../../utils/id.js";
-import type { ChatOptions, ChatResult, LlmProvider, LlmToolCall, LlmMessage } from "./types.js";
+import type { ChatOptions, ChatResult, ChatStreamChunk, LlmProvider, LlmToolCall, LlmMessage, ProviderName } from "./types.js";
 import { extractText } from "./types.js";
 
 /** Errors from the OpenAI API with status code context for targeted handling. */
@@ -13,6 +13,22 @@ export class OpenAIProviderError extends Error {
     super(message);
     this.name = "OpenAIProviderError";
   }
+}
+
+/** Request timeout for non-streaming chat completions (ms). */
+const CHAT_TIMEOUT_MS = 120_000;
+/** Request timeout for streaming chat completions (ms). */
+const STREAM_TIMEOUT_MS = 300_000;
+
+/** Create an AbortController that aborts after the specified duration. */
+function createTimeoutController(timeoutMs: number): AbortController {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  // Allow the Node.js process to exit even if the timer is still pending
+  if (typeof timer === "object" && "unref" in timer) {
+    (timer as { unref: () => void }).unref();
+  }
+  return controller;
 }
 
 interface OpenAiToolCallDelta {
@@ -98,13 +114,18 @@ function toOpenAiTools(tools: ChatOptions["tools"]): unknown[] {
   }));
 }
 
+/**
+ * OpenAI-compatible provider. Serves any API that implements the
+ * /chat/completions endpoint (OpenAI, Groq, Together, DeepSeek, Mistral, etc.).
+ * The providerName field controls how this provider appears in monitoring.
+ */
 export class OpenAIProvider implements LlmProvider {
-  readonly name = "openai" as const;
+  readonly name: ProviderName;
   readonly supportsNativeToolCalls = true;
   readonly supportsVision = true;
   readonly supportsStreaming = true;
 
-  private providerConfig: ProviderConfig;
+  protected providerConfig: ProviderConfig;
 
   constructor(providerConfig?: ProviderConfig) {
     this.providerConfig = providerConfig ?? getProviderConfigs().find((p) => p.type === "openai") ?? {
@@ -113,17 +134,18 @@ export class OpenAIProvider implements LlmProvider {
       model: config.MODEL || "gpt-4o-mini",
       apiKey: config.OPENAI_API_KEY,
     };
+    this.name = (this.providerConfig.providerName as ProviderName) ?? "openai";
   }
 
-  private get baseUrl(): string {
+  protected get baseUrl(): string {
     return this.providerConfig.baseUrl;
   }
 
-  private get model(): string {
+  protected get model(): string {
     return this.providerConfig.model;
   }
 
-  private get apiKey(): string | undefined {
+  protected get apiKey(): string | undefined {
     return this.providerConfig.apiKey;
   }
 
@@ -148,11 +170,21 @@ export class OpenAIProvider implements LlmProvider {
       Authorization: `Bearer ${this.apiKey}`,
     };
 
-    const res = await fetch(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
-    });
+    const controller = createTimeoutController(CHAT_TIMEOUT_MS);
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } catch (err) {
+      if (controller.signal.aborted) {
+        throw new OpenAIProviderError(`${this.name} request timed out after ${CHAT_TIMEOUT_MS}ms`, 408);
+      }
+      throw err;
+    }
 
     if (!res.ok) {
       const errText = await res.text().catch(() => res.statusText);
@@ -161,7 +193,7 @@ export class OpenAIProvider implements LlmProvider {
 
       let message: string;
       if (res.status === 401) {
-        message = "Invalid API key — check your OPENAI_API_KEY configuration.";
+        message = `Invalid API key — check your ${this.name.toUpperCase()}_API_KEY configuration.`;
       } else if (res.status === 403) {
         message = "API key lacks permission for this model or endpoint.";
       } else if (res.status === 429) {
@@ -169,9 +201,9 @@ export class OpenAIProvider implements LlmProvider {
           ? `Rate limited — retry after ${retryAfterSec}s.`
           : "Rate limited — too many requests. Please slow down.";
       } else if (res.status >= 500) {
-        message = `OpenAI server error (${res.status}): ${errText}`;
+        message = `${this.name} server error (${res.status}): ${errText}`;
       } else {
-        message = `OpenAI API error ${res.status}: ${errText}`;
+        message = `${this.name} API error ${res.status}: ${errText}`;
       }
       throw new OpenAIProviderError(message, res.status, retryAfterSec);
     }
@@ -182,7 +214,105 @@ export class OpenAIProvider implements LlmProvider {
     return this.parseJson(await res.json());
   }
 
-  private async parseStream(
+  /** Stream chat completions as an async iterator of chunks. */
+  async *streamChat(options: ChatOptions): AsyncIterable<ChatStreamChunk> {
+    const body: Record<string, unknown> = {
+      model: this.model,
+      messages: toOpenAiMessages(options.messages),
+      stream: true,
+      stream_options: { include_usage: true },
+    };
+    if (options.tools.length > 0) {
+      body.tools = toOpenAiTools(options.tools);
+      body.tool_choice = "auto";
+    }
+
+    const url = `${this.baseUrl}/chat/completions`;
+    const controller = createTimeoutController(STREAM_TIMEOUT_MS);
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } catch (err) {
+      if (controller.signal.aborted) {
+        throw new OpenAIProviderError(`${this.name} stream timed out after ${STREAM_TIMEOUT_MS}ms`, 408);
+      }
+      throw err;
+    }
+
+    if (!res.ok || !res.body) {
+      const errText = await res.text().catch(() => res.statusText);
+      throw new OpenAIProviderError(`${this.name} API error ${res.status}: ${errText}`, res.status);
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    const toolAccum = new Map<number, { id: string; name: string; args: string }>();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith("data:")) continue;
+        const payload = trimmed.slice(5).trim();
+        if (payload === "[DONE]") continue;
+        let chunk: { choices?: OpenAiStreamChoice[]; usage?: { prompt_tokens?: number; completion_tokens?: number } };
+        try {
+          chunk = JSON.parse(payload);
+        } catch {
+          continue;
+        }
+        const choice = chunk.choices?.[0];
+        const delta = choice?.delta;
+        if (delta?.tool_calls) {
+          for (const tc of delta.tool_calls) {
+            const existing = toolAccum.get(tc.index) ?? { id: "", name: "", args: "" };
+            if (tc.id) existing.id = tc.id;
+            if (tc.function?.name) existing.name += tc.function.name;
+            if (tc.function?.arguments) existing.args += tc.function.arguments;
+            toolAccum.set(tc.index, existing);
+          }
+        }
+        yield {
+          delta: delta?.content ?? undefined,
+          tokensIn: chunk.usage?.prompt_tokens,
+          tokensOut: chunk.usage?.completion_tokens,
+        };
+      }
+    }
+
+    const toolCalls: LlmToolCall[] = [];
+    for (const [, acc] of [...toolAccum.entries()].sort((a, b) => a[0] - b[0])) {
+      let parsedArgs: unknown = {};
+      if (acc.args) {
+        try {
+          parsedArgs = JSON.parse(acc.args);
+        } catch {
+          parsedArgs = { _raw: acc.args };
+        }
+      }
+      toolCalls.push({
+        callId: acc.id || createId("call_"),
+        tool: acc.name as LlmToolCall["tool"],
+        args: parsedArgs,
+      });
+    }
+    yield { toolCalls: toolCalls.length > 0 ? toolCalls : undefined, done: true };
+  }
+
+  protected async parseStream(
     stream: ReadableStream<Uint8Array>,
     options: ChatOptions,
   ): Promise<ChatResult> {
@@ -254,7 +384,7 @@ export class OpenAIProvider implements LlmProvider {
     return { text, toolCalls, tokensIn, tokensOut, provider: this.name, model: this.model };
   }
 
-  private parseJson(completion: OpenAiChatCompletion): ChatResult {
+  protected parseJson(completion: OpenAiChatCompletion): ChatResult {
     const choice = completion.choices?.[0];
     const text = choice?.message?.content ?? "";
     const toolCalls: LlmToolCall[] = (choice?.message?.tool_calls ?? []).map((tc) => {
