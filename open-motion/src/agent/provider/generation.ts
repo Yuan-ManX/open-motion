@@ -48,7 +48,7 @@ export function isModalityAvailable(modality: GenerationModality): boolean {
       return Boolean(config.OPENAI_API_KEY || config.ASSEMBLYAI_API_KEY);
     case "text-to-video":
     case "image-to-video":
-      return Boolean(config.RUNWAY_API_KEY || config.LUMA_API_KEY || config.PIKA_API_KEY || config.KLING_API_KEY || config.HAILUO_API_KEY || config.MINIMAX_API_KEY);
+      return Boolean(config.RUNWAY_API_KEY || config.LUMA_API_KEY || config.PIKA_API_KEY || config.KLING_API_KEY || config.HAILUO_API_KEY || config.MINIMAX_API_KEY || config.OPENAI_API_KEY || config.GEMINI_API_KEY);
     case "text-to-audio":
       return Boolean(config.OPENAI_API_KEY || config.ELEVENLABS_API_KEY);
     case "text-to-music":
@@ -56,7 +56,7 @@ export function isModalityAvailable(modality: GenerationModality): boolean {
     case "text-to-3d":
       return Boolean(config.MESHY_API_KEY || config.TRIPO_API_KEY);
     case "text-to-embedding":
-      return Boolean(config.OPENAI_API_KEY || config.COHERE_API_KEY || config.VOYAGE_API_KEY);
+      return Boolean(config.OPENAI_API_KEY || config.COHERE_API_KEY || config.VOYAGE_API_KEY || config.BAAI_API_KEY);
     case "text-to-animation":
       return Boolean(config.FAL_API_KEY || config.REPLICATE_API_KEY);
     default:
@@ -670,6 +670,72 @@ async function generateVideo(req: GenerationRequest): Promise<GenerationResult> 
     };
   }
 
+  // OpenAI Sora — text-to-video and image-to-video via OpenAI's video API
+  if (config.OPENAI_API_KEY && (req.model?.startsWith("sora") || !config.RUNWAY_API_KEY)) {
+    const soraModel = req.model?.startsWith("sora") ? req.model : "sora-2";
+    const baseUrl = (config.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/$/, "");
+    const body: Record<string, unknown> = {
+      model: soraModel,
+      prompt: req.prompt,
+      size: req.width && req.height ? `${req.width}x${req.height}` : "1280x720",
+      duration: req.duration ?? 5,
+    };
+    if (req.sourceImage) body.input_image = req.sourceImage;
+
+    const res = await fetch(`${baseUrl}/videos/generations`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`Sora error ${res.status}: ${await res.text()}`);
+    const data = await res.json() as { id?: string; url?: string; output?: { url?: string }[] };
+    const assetUrl = data.url ?? data.output?.[0]?.url ?? "";
+    return {
+      modality,
+      model: soraModel,
+      provider: "sora",
+      assetUrl,
+      durationMs: (req.duration ?? 5) * 1000,
+    };
+  }
+
+  // Google Veo 3 — text-to-video via Gemini API (requires GEMINI_API_KEY)
+  if (config.GEMINI_API_KEY && (req.model?.startsWith("veo") || !config.RUNWAY_API_KEY)) {
+    const veoModel = req.model?.startsWith("veo") ? req.model : "veo-3.1";
+    const body: Record<string, unknown> = {
+      instances: [{ prompt: req.prompt }],
+      model: veoModel,
+      videoConfig: {
+        aspectRatio: req.width && req.height ? `${req.width}:${req.height}` : "16:9",
+        durationSeconds: req.duration ?? 5,
+      },
+    };
+
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${veoModel}:predictLongRunning`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": config.GEMINI_API_KEY,
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`Veo error ${res.status}: ${await res.text()}`);
+    const data = await res.json() as { name?: string; operations?: { name?: string }[] };
+    // Veo returns a long-running operation name — the operation URL is returned for polling
+    const operationName = data.name ?? data.operations?.[0]?.name ?? "";
+    const assetUrl = operationName ? `veo://operation/${operationName}` : "";
+    return {
+      modality,
+      model: veoModel,
+      provider: "gemini",
+      assetUrl,
+      durationMs: (req.duration ?? 5) * 1000,
+    };
+  }
+
   throw new Error("No video generation provider configured");
 }
 
@@ -810,12 +876,37 @@ async function generate3D(req: GenerationRequest): Promise<GenerationResult> {
   throw new Error("No 3D generation provider configured");
 }
 
-/** Generate vector embeddings via OpenAI, Cohere, or Voyage AI. */
+/** Generate vector embeddings via OpenAI, Cohere, Voyage AI, or BAAI BGE. */
 async function generateEmbedding(req: GenerationRequest): Promise<GenerationResult> {
   const model = req.model ?? "text-embedding-3-small";
 
+  // BAAI BGE embeddings — check first when bge model is explicitly requested
+  if (config.BAAI_API_KEY && model.startsWith("bge")) {
+    const hfModelPath = `BAAI/${model}`;
+    const res = await fetch(`https://api-inference.huggingface.co/pipeline/feature-extraction/${hfModelPath}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.BAAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        inputs: req.prompt,
+        options: { wait_for_model: true },
+      }),
+    });
+    if (!res.ok) throw new Error(`BAAI embedding error ${res.status}: ${await res.text()}`);
+    const data = await res.json() as number[] | number[][];
+    const embedding = Array.isArray(data[0]) ? (data[0] as number[]) : (data as number[]);
+    return {
+      modality: "text-to-embedding",
+      model,
+      provider: "baai",
+      assetUrl: JSON.stringify(embedding),
+    };
+  }
+
   // OpenAI embeddings
-  if (config.OPENAI_API_KEY && (model.startsWith("text-embedding") || (!config.COHERE_API_KEY && !config.VOYAGE_API_KEY))) {
+  if (config.OPENAI_API_KEY && (model.startsWith("text-embedding") || (!config.COHERE_API_KEY && !config.VOYAGE_API_KEY && !config.BAAI_API_KEY))) {
     const baseUrl = (config.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/$/, "");
     const res = await fetch(`${baseUrl}/embeddings`, {
       method: "POST",
@@ -886,6 +977,31 @@ async function generateEmbedding(req: GenerationRequest): Promise<GenerationResu
       modality: "text-to-embedding",
       model: voyageModel,
       provider: "voyage",
+      assetUrl: JSON.stringify(embedding),
+    };
+  }
+
+  // BAAI BGE embeddings — fallback when BAAI key is set and no other provider matched
+  if (config.BAAI_API_KEY) {
+    const bgeModel = "bge-m3";
+    const res = await fetch(`https://api-inference.huggingface.co/pipeline/feature-extraction/BAAI/${bgeModel}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.BAAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        inputs: req.prompt,
+        options: { wait_for_model: true },
+      }),
+    });
+    if (!res.ok) throw new Error(`BAAI embedding error ${res.status}: ${await res.text()}`);
+    const data = await res.json() as number[] | number[][];
+    const embedding = Array.isArray(data[0]) ? (data[0] as number[]) : (data as number[]);
+    return {
+      modality: "text-to-embedding",
+      model: bgeModel,
+      provider: "baai",
       assetUrl: JSON.stringify(embedding),
     };
   }
