@@ -876,7 +876,7 @@ export function ComponentInspector() {
           />
         </div>
 
-        {/* Event Listeners (Rive-style) */}
+        {/* Event Listeners (interaction-driven) */}
         <ListenerPanel component={component} />
 
         {/* Keyframes */}
