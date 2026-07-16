@@ -1,6 +1,6 @@
 import type { MotionComponent, Scene, Easing, ToolName } from "@openmotion/shared";
 import { getProject, getProjectSpec, updateProject } from "../../db/repositories/projects.js";
-import { listComponents, deleteComponent, createComponent } from "../../db/repositories/components.js";
+import { listComponents, deleteComponent, createComponent, patchComponent } from "../../db/repositories/components.js";
 import { listTemplates } from "../../db/repositories/templates.js";
 import { instantiateTemplate } from "../../motion/templates/index.js";
 import { TEMPLATES } from "../../motion/templates/index.js";
@@ -10,7 +10,13 @@ import { analyzePrinciples, applyPrinciple, PRINCIPLES } from "../../motion/prin
 import { synthesizeEasing } from "../../motion/easingSynthesizer.js";
 import { applyChoreography, CHOREOGRAPHY_PATTERNS } from "../../motion/choreography.js";
 import { blendMotions, interpolateMotion, mergeProperties, describeBlend } from "../../motion/blend.js";
+import { analyzeIntelligence } from "../../motion/intelligence.js";
+import { adaptMotion, generateResponsiveCss, previewAdaptations } from "../../motion/adaptive.js";
+import { synthesizeMotion, morphToPattern, synthesizeCustomWaveform, listGenerativePatterns } from "../../motion/synthesis.js";
+import { createStorytellingPlan, analyzePacing, applyStorytellingPlan, listStoryGenres } from "../../motion/storytelling.js";
 import { publicBaseUrl } from "../../config.js";
+import { generateMedia, isModalityAvailable } from "../provider/generation.js";
+import { MODEL_REGISTRY, findModel, modelsByProvider, modelsByModality } from "../provider/registry.js";
 import type { ToolContext, ToolResult } from "./registry.js";
 
 type Executor = (args: Record<string, unknown>, ctx: ToolContext) => ToolResult | Promise<ToolResult>;
@@ -642,6 +648,360 @@ export const queryExecutors: Partial<Record<ToolName, Executor>> = {
         keyframeCount: result.keyframes.length,
         appliedTo: applyTo,
       },
+    };
+  },
+
+  analyze_emotion: (args, ctx) => {
+    const spec = getProjectSpec(ctx.projectId);
+    if (!spec) return { ok: false, summary: `project ${ctx.projectId} not found`, specChanged: false };
+    const report = analyzeIntelligence(spec);
+    return {
+      ok: true,
+      summary: report.emotion.narrativeDescription,
+      specChanged: false,
+      data: {
+        journey: report.emotion.journey,
+        dominantEmotion: report.emotion.dominantEmotion,
+        emotionalRange: report.emotion.emotionalRange,
+        emotionalArc: report.emotion.emotionalArc,
+        peakIntensity: report.emotion.peakIntensity,
+        description: report.emotion.narrativeDescription,
+      },
+    };
+  },
+
+  analyze_rhythm: (args, ctx) => {
+    const spec = getProjectSpec(ctx.projectId);
+    if (!spec) return { ok: false, summary: `project ${ctx.projectId} not found`, specChanged: false };
+    const report = analyzeIntelligence(spec);
+    return {
+      ok: true,
+      summary: report.rhythm.description,
+      specChanged: false,
+      data: {
+        beats: report.rhythm.beats,
+        tempoBpm: report.rhythm.tempoBpm,
+        rhythmType: report.rhythm.rhythmType,
+        regularity: report.rhythm.regularity,
+        groove: report.rhythm.groove,
+        conflicts: report.rhythm.conflicts,
+        description: report.rhythm.description,
+      },
+    };
+  },
+
+  analyze_narrative: (args, ctx) => {
+    const spec = getProjectSpec(ctx.projectId);
+    if (!spec) return { ok: false, summary: `project ${ctx.projectId} not found`, specChanged: false };
+    const report = analyzeIntelligence(spec);
+    return {
+      ok: true,
+      summary: report.narrative.description,
+      specChanged: false,
+      data: {
+        segments: report.narrative.segments,
+        hasCompleteArc: report.narrative.hasCompleteArc,
+        missingActs: report.narrative.missingActs,
+        pacingScore: report.narrative.pacingScore,
+        coherenceScore: report.narrative.coherenceScore,
+        suggestions: report.narrative.suggestions,
+        personality: report.personality,
+        attention: report.attention,
+        overallIntelligence: report.overallIntelligence,
+        description: report.narrative.description,
+      },
+    };
+  },
+
+  adapt_motion: (args, ctx) => {
+    const spec = getProjectSpec(ctx.projectId);
+    if (!spec) return { ok: false, summary: `project ${ctx.projectId} not found`, specChanged: false };
+    const result = adaptMotion(spec, {
+      viewport: {
+        device: args.device as "desktop" | "tablet" | "mobile" | "tv",
+        width: args.viewportWidth as number,
+        height: args.viewportHeight as number,
+        pixelRatio: 1,
+      },
+      performance: args.performance as "high" | "medium" | "low",
+      accessibility: args.accessibility as "full" | "reduced" | "minimal",
+      connectionSpeed: args.connectionSpeed as "fast" | "slow" | "offline",
+      batteryLevel: (args.batteryLevel as number) ?? 1,
+    });
+    const apply = (args.apply as boolean) ?? false;
+    if (apply) {
+      for (const adapted of result.adaptedSpec.components) {
+        patchComponent(ctx.projectId, adapted.id, {
+          durationMs: adapted.durationMs,
+          delayMs: adapted.delayMs,
+          iterationCount: adapted.iterationCount,
+          easing: adapted.easing,
+          keyframes: adapted.keyframes,
+        });
+      }
+    }
+    return {
+      ok: true,
+      summary: result.summary,
+      specChanged: apply,
+      data: {
+        changes: result.changes,
+        reductionLevel: result.reductionLevel,
+        applied: apply,
+        adaptedSpec: apply ? undefined : result.adaptedSpec,
+      },
+    };
+  },
+
+  preview_adaptations: (args, ctx) => {
+    const spec = getProjectSpec(ctx.projectId);
+    if (!spec) return { ok: false, summary: `project ${ctx.projectId} not found`, specChanged: false };
+    const previews = previewAdaptations(spec);
+    return {
+      ok: true,
+      summary: previews.map((p) => p.description).join("; "),
+      specChanged: false,
+      data: { previews },
+    };
+  },
+
+  generate_responsive_css: (args, ctx) => {
+    const spec = getProjectSpec(ctx.projectId);
+    if (!spec) return { ok: false, summary: `project ${ctx.projectId} not found`, specChanged: false };
+    const css = generateResponsiveCss(spec);
+    return {
+      ok: true,
+      summary: `Generated responsive CSS with ${spec.components.length} component(s) across 4 breakpoints.`,
+      specChanged: false,
+      data: { css, componentCount: spec.components.length },
+    };
+  },
+
+  synthesize_motion: (args, ctx) => {
+    const result = synthesizeMotion({
+      pattern: args.pattern as "heartbeat" | "breathing" | "walk-cycle" | "bounce-ball" | "pendulum" | "ocean-wave" | "tremor" | "fidget" | "heartbeat-fast" | "shake-violent" | "sway-gentle" | "orbit-elliptical",
+      durationMs: (args.durationMs as number) || 0,
+      loopCount: (args.loopCount as number | "infinite") ?? "infinite",
+      amplitudeScale: (args.amplitudeScale as number) ?? 1,
+      speedScale: (args.speedScale as number) ?? 1,
+      componentName: (args.componentName as string) || "",
+      projectId: ctx.projectId,
+    });
+    createComponent(result.component);
+    return {
+      ok: true,
+      summary: `Synthesized a ${args.pattern} motion — ${result.description} (${result.keyframeCount} keyframes).`,
+      specChanged: true,
+      data: {
+        componentId: result.component.id,
+        componentName: result.component.name,
+        description: result.description,
+        waveform: result.waveform,
+        keyframeCount: result.keyframeCount,
+        patterns: listGenerativePatterns(),
+      },
+    };
+  },
+
+  morph_to_pattern: (args, ctx) => {
+    const spec = getProjectSpec(ctx.projectId);
+    if (!spec) return { ok: false, summary: `project ${ctx.projectId} not found`, specChanged: false };
+    if (spec.components.length === 0) {
+      return { ok: false, summary: "No components to morph. Add a component first.", specChanged: false };
+    }
+    const result = morphToPattern({
+      sourceSpec: spec,
+      targetPattern: args.targetPattern as "heartbeat" | "breathing" | "walk-cycle" | "bounce-ball" | "pendulum" | "ocean-wave" | "tremor" | "fidget" | "heartbeat-fast" | "shake-violent" | "sway-gentle" | "orbit-elliptical",
+      morphSteps: (args.morphSteps as number) ?? 5,
+      durationMs: (args.durationMs as number) || 0,
+      projectId: ctx.projectId,
+    });
+    for (const step of result.steps) {
+      createComponent(step);
+    }
+    return {
+      ok: true,
+      summary: result.description,
+      specChanged: true,
+      data: {
+        steps: result.steps.map((s) => ({ id: s.id, name: s.name, durationMs: s.durationMs, keyframeCount: s.keyframes.length })),
+        targetPattern: args.targetPattern,
+      },
+    };
+  },
+
+  synthesize_waveform: (args, ctx) => {
+    const result = synthesizeCustomWaveform({
+      waveform: args.waveform as "sine" | "square" | "triangle" | "sawtooth" | "noise" | "pulse",
+      amplitude: args.amplitude as number,
+      frequency: args.frequency as number,
+      phase: (args.phase as number) ?? 0,
+      offset: (args.offset as number) ?? 0,
+      property: args.property as string,
+      durationMs: args.durationMs as number,
+      loopCount: (args.loopCount as number | "infinite") ?? "infinite",
+      componentName: (args.componentName as string) || "",
+      keyframeCount: (args.keyframeCount as number) ?? 12,
+      projectId: ctx.projectId,
+    });
+    createComponent(result.component);
+    return {
+      ok: true,
+      summary: `Synthesized a ${args.waveform} wave on ${args.property} — ${result.keyframeCount} keyframes, amplitude ${args.amplitude}, frequency ${args.frequency}Hz.`,
+      specChanged: true,
+      data: {
+        componentId: result.component.id,
+        componentName: result.component.name,
+        description: result.description,
+        waveform: result.waveform,
+        keyframeCount: result.keyframeCount,
+      },
+    };
+  },
+
+  create_story_arc: (args, ctx) => {
+    const spec = getProjectSpec(ctx.projectId);
+    if (!spec) return { ok: false, summary: `project ${ctx.projectId} not found`, specChanged: false };
+    const plan = createStorytellingPlan(
+      args.genre as "hero" | "mystery" | "romance" | "comedy" | "thriller" | "documentary" | "fantasy" | "horror",
+      (args.totalDurationMs as number) ?? 10000,
+      spec.components,
+    );
+    return {
+      ok: true,
+      summary: plan.description,
+      specChanged: false,
+      data: {
+        arc: plan.arc,
+        transitions: plan.transitions,
+        componentAssignments: plan.componentAssignments,
+        genres: listStoryGenres(),
+      },
+    };
+  },
+
+  analyze_pacing: (args, ctx) => {
+    const spec = getProjectSpec(ctx.projectId);
+    if (!spec) return { ok: false, summary: `project ${ctx.projectId} not found`, specChanged: false };
+    const plan = createStorytellingPlan("hero", spec.components.reduce((s, c) => Math.max(s, c.delayMs + c.durationMs), 5000), spec.components);
+    const pacing = analyzePacing(plan.arc);
+    return {
+      ok: true,
+      summary: `Pacing score: ${pacing.overallScore}/100. ${pacing.recommendations[0]}`,
+      specChanged: false,
+      data: {
+        tempoCurve: pacing.tempoCurve,
+        avgTempo: pacing.avgTempo,
+        tempoVariance: pacing.tempoVariance,
+        slowSegments: pacing.slowSegments,
+        fastSegments: pacing.fastSegments,
+        recommendations: pacing.recommendations,
+        overallScore: pacing.overallScore,
+      },
+    };
+  },
+
+  apply_story_plan: (args, ctx) => {
+    const spec = getProjectSpec(ctx.projectId);
+    if (!spec) return { ok: false, summary: `project ${ctx.projectId} not found`, specChanged: false };
+    const plan = createStorytellingPlan(
+      args.genre as "hero" | "mystery" | "romance" | "comedy" | "thriller" | "documentary" | "fantasy" | "horror",
+      (args.totalDurationMs as number) ?? 10000,
+      spec.components,
+    );
+    const { changes } = applyStorytellingPlan(spec, plan);
+    const apply = (args.apply as boolean) ?? false;
+    if (apply) {
+      for (const change of changes) {
+        if (change.field === "delayMs") {
+          patchComponent(ctx.projectId, change.componentId, { delayMs: parseInt(change.newValue) });
+        } else if (change.field === "durationMs") {
+          patchComponent(ctx.projectId, change.componentId, { durationMs: parseInt(change.newValue) });
+        }
+      }
+    }
+    return {
+      ok: true,
+      summary: `Story plan ${apply ? "applied" : "previewed"}: ${changes.length} timing change(s). ${plan.description}`,
+      specChanged: apply,
+      data: {
+        changes,
+        applied: apply,
+        arc: plan.arc,
+        componentAssignments: plan.componentAssignments,
+      },
+    };
+  },
+
+  generate_image: async (args) => {
+    const result = await generateMedia({
+      prompt: args.prompt as string,
+      modality: "text-to-image",
+      model: args.model as string | undefined,
+      width: args.width as number | undefined,
+      height: args.height as number | undefined,
+      negativePrompt: args.negativePrompt as string | undefined,
+    });
+    return { ok: true, summary: `Generated image via ${result.provider}/${result.model}`, specChanged: false, data: result };
+  },
+
+  generate_speech: async (args) => {
+    const result = await generateMedia({
+      prompt: args.text as string,
+      modality: "text-to-speech",
+      model: args.model as string | undefined,
+      voiceId: args.voiceId as string | undefined,
+    });
+    return { ok: true, summary: `Generated speech via ${result.provider}/${result.model}`, specChanged: false, data: result };
+  },
+
+  generate_video: async (args) => {
+    const sourceImage = args.sourceImage as string | undefined;
+    const result = await generateMedia({
+      prompt: args.prompt as string,
+      modality: sourceImage ? "image-to-video" : "text-to-video",
+      model: args.model as string | undefined,
+      sourceImage,
+      duration: args.duration as number | undefined,
+    });
+    return { ok: true, summary: `Generated video via ${result.provider}/${result.model}`, specChanged: false, data: result };
+  },
+
+  generate_3d: async (args) => {
+    const sourceImage = args.sourceImage as string | undefined;
+    const result = await generateMedia({
+      prompt: args.prompt as string,
+      modality: "text-to-3d",
+      model: args.model as string | undefined,
+      sourceImage,
+    });
+    return { ok: true, summary: `Generated 3D model via ${result.provider}/${result.model}`, specChanged: false, data: result };
+  },
+
+  list_models: (args) => {
+    let filtered = MODEL_REGISTRY;
+    if (args.provider) {
+      filtered = modelsByProvider(String(args.provider));
+    }
+    if (args.modality) {
+      const byModality = modelsByModality(args.modality as Parameters<typeof modelsByModality>[0]);
+      filtered = filtered.filter((m) => byModality.includes(m));
+    }
+    const models = filtered.map((m) => ({
+      id: m.id,
+      name: m.name,
+      provider: m.provider,
+      contextWindow: m.contextWindow,
+      capabilities: m.capabilities,
+      generationModality: m.generationModality,
+      description: m.description,
+      available: m.generationModality ? isModalityAvailable(m.generationModality) : true,
+    }));
+    return {
+      ok: true,
+      summary: `${models.length} model(s) available`,
+      specChanged: false,
+      data: { models },
     };
   },
 };
