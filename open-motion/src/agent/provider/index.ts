@@ -14,6 +14,7 @@ let instance: LlmProvider | null = null;
 const OPENAI_COMPATIBLE_PROVIDERS: ExtendedProvider[] = [
   "openai", "xai", "mistral", "cohere", "groq", "together", "fireworks",
   "perplexity", "openrouter", "zhipu", "qwen", "yi", "deepseek",
+  "deepinfra", "minimax", "modelscope",
 ];
 
 /**
@@ -46,6 +47,9 @@ function findConfigForProvider(provider: ExtendedProvider, configs: ProviderConf
       qwen: "dashscope.aliyuncs.com",
       yi: "api.01.ai",
       deepseek: "api.deepseek.com",
+      deepinfra: "api.deepinfra.com",
+      minimax: "api.minimax.chat",
+      modelscope: "api-inference.modelscope.cn",
       openai: "api.openai.com",
     };
     const expectedHost = baseUrlMap[provider];
