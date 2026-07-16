@@ -113,3 +113,16 @@ export function deleteComponent(projectId: string, componentId: string): boolean
     .run(componentId, projectId);
   return info.changes > 0;
 }
+
+/** Delete multiple components in a single transaction. Returns the count removed. */
+export function batchDeleteComponents(projectId: string, componentIds: string[]): number {
+  if (componentIds.length === 0) return 0;
+  const db = getDb();
+  const placeholders = componentIds.map(() => "?").join(",");
+  const info = db
+    .prepare(
+      `DELETE FROM motion_components WHERE project_id = ? AND id IN (${placeholders})`,
+    )
+    .run(projectId, ...componentIds);
+  return Number(info.changes);
+}

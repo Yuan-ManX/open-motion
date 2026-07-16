@@ -172,7 +172,7 @@ export function applyBrandPackToComponent(
 export const BRAND_PACK_PRESETS: Array<Omit<BrandPack, "id" | "createdAt">> = [
   {
     name: "Minimal Reserve",
-    description: "Understated, confident, Apple-keynote timing. Smooth deceleration, generous durations, no loops.",
+    description: "Understated, confident, presentation-grade timing. Smooth deceleration, generous durations, no loops.",
     durationScale: { fast: 250, normal: 400, slow: 600, cinematic: 900 },
     easings: {
       primary: easingPreset("smooth"),
@@ -191,7 +191,7 @@ export const BRAND_PACK_PRESETS: Array<Omit<BrandPack, "id" | "createdAt">> = [
   },
   {
     name: "Material Expressive",
-    description: "Google Material motion — snappy, responsive, standardized easing curves.",
+    description: "Material-style responsive motion — snappy, standardized easing curves.",
     durationScale: { fast: 150, normal: 300, slow: 450, cinematic: 600 },
     easings: {
       primary: easingBezier([0.4, 0.0], [0.2, 1]),
@@ -210,7 +210,7 @@ export const BRAND_PACK_PRESETS: Array<Omit<BrandPack, "id" | "createdAt">> = [
   },
   {
     name: "Playful Dynamic",
-    description: "Nintendo-inspired bounce, spring physics, energetic cascades. Fun and tactile.",
+    description: "Playful bounce with spring physics, energetic cascades. Fun and tactile.",
     durationScale: { fast: 200, normal: 400, slow: 700, cinematic: 1000 },
     easings: {
       primary: easingSpring(400, 15, 1),
@@ -229,7 +229,7 @@ export const BRAND_PACK_PRESETS: Array<Omit<BrandPack, "id" | "createdAt">> = [
   },
   {
     name: "Cinematic Flow",
-    description: "Stripe-style refined motion — custom bezier curves, generous timing, ambient breathing.",
+    description: "Refined motion with custom bezier curves, generous timing, ambient breathing.",
     durationScale: { fast: 300, normal: 500, slow: 800, cinematic: 1200 },
     easings: {
       primary: easingBezier([0.16, 1], [0.3, 1]),

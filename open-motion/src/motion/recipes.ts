@@ -53,9 +53,6 @@ function rowToRecipe(r: RecipeRow): MotionRecipe {
 /** Seed the recipe library with curated entries. Called during migration. */
 export function seedRecipes(): void {
   const db = getDb();
-  const count = (db.prepare(`SELECT COUNT(*) as c FROM motion_recipes`).get() as { c: number }).c;
-  if (count > 0) return;
-
   const ts = now();
   const recipes: Array<{
     id: string;
@@ -217,14 +214,155 @@ export function seedRecipes(): void {
       skill_markdown: `# Magnetic Hover\n\nSubtle cursor-following shift on hover.\n\n**Avoid when:** touch devices, list items, or 4+ simultaneous hovers.\n\n**Restraint cost:** 1 (minimal)`,
       tags_json: JSON.stringify(["interaction", "hover", "tactile"]),
     },
+    // --- Exit recipes ---
+    {
+      id: "recipe-swift-dismissal",
+      name: "Swift Dismissal",
+      category: "exit",
+      description: "Quick fade and slide-out for dismissing cards and modals without lingering.",
+      avoid_when: ["cinematic-context", "hero-exit", "more-than-3-simultaneous"],
+      restraint_cost: 1,
+      recipe_json: JSON.stringify({
+        easing: { type: "preset", name: "ease-in-quad" },
+        durationMs: 300,
+        keyframes: [
+          { offset: 0, properties: { opacity: 1, translateX: 0 } },
+          { offset: 1, properties: { opacity: 0, translateX: 40 } },
+        ],
+      }),
+      skill_markdown: `# Swift Dismissal\n\nQuick fade and slide for dismissals.\n\n**Avoid when:** cinematic context, hero exits, or 3+ simultaneous dismissals.\n\n**Restraint cost:** 1 (minimal)`,
+      tags_json: JSON.stringify(["exit", "dismiss", "quick"]),
+    },
+    {
+      id: "recipe-graceful-departure",
+      name: "Graceful Departure",
+      category: "exit",
+      description: "Slow scale-down with blur for a cinematic, deliberate exit.",
+      avoid_when: ["fast-interaction", "list-item", "error-state"],
+      restraint_cost: 2,
+      recipe_json: JSON.stringify({
+        easing: { type: "preset", name: "smooth" },
+        durationMs: 700,
+        keyframes: [
+          { offset: 0, properties: { opacity: 1, scale: 1, blur: "0px" } },
+          { offset: 0.5, properties: { opacity: 0.7, scale: 0.95, blur: "2px" } },
+          { offset: 1, properties: { opacity: 0, scale: 0.85, blur: "8px" } },
+        ],
+      }),
+      skill_markdown: `# Graceful Departure\n\nCinematic blur and scale-down exit.\n\n**Avoid when:** fast interactions, list items, error states.\n\n**Restraint cost:** 2 (low-moderate)`,
+      tags_json: JSON.stringify(["exit", "cinematic", "blur"]),
+    },
+    // --- Loading recipes ---
+    {
+      id: "recipe-skeleton-shimmer",
+      name: "Skeleton Shimmer",
+      category: "loading",
+      description: "Gradient sweep across placeholder blocks for loading states.",
+      avoid_when: ["loaded-content", "error-state", "more-than-6-simultaneous"],
+      restraint_cost: 2,
+      recipe_json: JSON.stringify({
+        easing: { type: "preset", name: "ease-in-out" },
+        durationMs: 1500,
+        iterationCount: "infinite",
+        keyframes: [
+          { offset: 0, properties: { backgroundPosition: "-200% 0" } },
+          { offset: 1, properties: { backgroundPosition: "200% 0" } },
+        ],
+      }),
+      skill_markdown: `# Skeleton Shimmer\n\nGradient sweep for loading placeholders.\n\n**Avoid when:** content is loaded, error states, or 6+ simultaneous shimmers.\n\n**Restraint cost:** 2 (low-moderate)`,
+      tags_json: JSON.stringify(["loading", "skeleton", "shimmer"]),
+    },
+    {
+      id: "recipe-progress-march",
+      name: "Progress March",
+      category: "loading",
+      description: "Determinate progress bar with a pulsing leading edge.",
+      avoid_when: ["indeterminate-loading", "background-task"],
+      restraint_cost: 1,
+      recipe_json: JSON.stringify({
+        easing: { type: "preset", name: "ease-out" },
+        durationMs: 500,
+        iterationCount: "infinite",
+        direction: "alternate",
+        keyframes: [
+          { offset: 0, properties: { opacity: 0.6 } },
+          { offset: 1, properties: { opacity: 1 } },
+        ],
+      }),
+      skill_markdown: `# Progress March\n\nPulsing leading edge for determinate progress.\n\n**Avoid when:** indeterminate loading, background tasks.\n\n**Restraint cost:** 1 (minimal)`,
+      tags_json: JSON.stringify(["loading", "progress", "pulse"]),
+    },
+    // --- Notification recipes ---
+    {
+      id: "recipe-toast-rise",
+      name: "Toast Rise",
+      category: "notification",
+      description: "Toast slides up from bottom with a subtle scale and auto-dismisses.",
+      avoid_when: ["modal-open", "more-than-3-simultaneous", "fullscreen-mode"],
+      restraint_cost: 2,
+      recipe_json: JSON.stringify({
+        easing: { type: "preset", name: "back" },
+        durationMs: 400,
+        keyframes: [
+          { offset: 0, properties: { opacity: 0, translateY: 40, scale: 0.9 } },
+          { offset: 1, properties: { opacity: 1, translateY: 0, scale: 1 } },
+        ],
+      }),
+      skill_markdown: `# Toast Rise\n\nSlide-up with scale for toast notifications.\n\n**Avoid when:** modals open, 3+ simultaneous toasts, fullscreen.\n\n**Restraint cost:** 2 (low-moderate)`,
+      tags_json: JSON.stringify(["notification", "toast", "slide"]),
+    },
+    // --- Data viz recipes ---
+    {
+      id: "recipe-bar-grow",
+      name: "Bar Grow",
+      category: "data-viz",
+      description: "Chart bars grow from baseline with staggered timing for data reveal.",
+      avoid_when: ["real-time-data", "more-than-20-bars"],
+      restraint_cost: 2,
+      recipe_json: JSON.stringify({
+        easing: { type: "preset", name: "ease-out" },
+        durationMs: 600,
+        keyframes: [
+          { offset: 0, properties: { scaleY: 0 } },
+          { offset: 1, properties: { scaleY: 1 } },
+        ],
+      }),
+      skill_markdown: `# Bar Grow\n\nStaggered bar growth for chart reveals.\n\n**Avoid when:** real-time data, or 20+ bars.\n\n**Restraint cost:** 2 (low-moderate)`,
+      tags_json: JSON.stringify(["data-viz", "chart", "grow"]),
+    },
+    // --- Celebration recipes ---
+    {
+      id: "recipe-confetti-burst",
+      name: "Confetti Burst",
+      category: "celebration",
+      description: "Particle burst with gravity and rotation for achievement unlocks.",
+      avoid_when: ["professional-tone", "error-state", "more-than-1-simultaneous", "accessibility-sensitive"],
+      restraint_cost: 5,
+      recipe_json: JSON.stringify({
+        easing: { type: "preset", name: "ease-out" },
+        durationMs: 2000,
+        keyframes: [
+          { offset: 0, properties: { opacity: 1, translateY: 0, rotate: 0 } },
+          { offset: 0.6, properties: { opacity: 1, translateY: 120, rotate: 180 } },
+          { offset: 1, properties: { opacity: 0, translateY: 200, rotate: 360 } },
+        ],
+      }),
+      skill_markdown: `# Confetti Burst\n\nParticle celebration with gravity and rotation.\n\n**Avoid when:** professional tone, error states, multiple simultaneous bursts, or accessibility-sensitive contexts.\n\n**Restraint cost:** 5 (very high)`,
+      tags_json: JSON.stringify(["celebration", "confetti", "particles"]),
+    },
   ];
 
-  const stmt = db.prepare(
+  // Insert only recipes that don't already exist (incremental seeding)
+  const checkStmt = db.prepare(`SELECT id FROM motion_recipes WHERE id = ?`);
+  const insertStmt = db.prepare(
     `INSERT INTO motion_recipes (id, name, category, description, avoid_when, restraint_cost, recipe_json, skill_markdown, tags_json, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   for (const r of recipes) {
-    stmt.run(r.id, r.name, r.category, r.description, JSON.stringify(r.avoid_when), r.restraint_cost, r.recipe_json, r.skill_markdown, r.tags_json, ts);
+    const existing = checkStmt.get(r.id) as { id: string } | undefined;
+    if (!existing) {
+      insertStmt.run(r.id, r.name, r.category, r.description, JSON.stringify(r.avoid_when), r.restraint_cost, r.recipe_json, r.skill_markdown, r.tags_json, ts);
+    }
   }
 }
 

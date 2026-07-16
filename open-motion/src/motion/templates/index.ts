@@ -54,6 +54,18 @@ import { gravityDropTemplate } from "./gravityDrop.js";
 import { chromaticPulseTemplate } from "./chromaticPulse.js";
 import { breathingLightTemplate } from "./breathingLight.js";
 import { magneticRippleTemplate } from "./magneticRipple.js";
+import { counterTemplate } from "./counter.js";
+import { textRevealTemplate } from "./textReveal.js";
+import { blurRevealTemplate } from "./blurReveal.js";
+import { kineticTypographyTemplate } from "./kineticTypography.js";
+import { splitTextTemplate } from "./splitText.js";
+import { mouseParallaxTemplate } from "./mouseParallax.js";
+import { longPressTemplate } from "./longPress.js";
+import { fadeOutTemplate } from "./fadeOut.js";
+import { slideOutTemplate } from "./slideOut.js";
+import { zoomOutTemplate } from "./zoomOut.js";
+import { collapseDownTemplate } from "./collapseDown.js";
+import { dissolveOutTemplate } from "./dissolveOut.js";
 import type { ComponentDraft, TemplateDef } from "./helper.js";
 
 export const TEMPLATES: TemplateDef[] = [
@@ -111,6 +123,18 @@ export const TEMPLATES: TemplateDef[] = [
   chromaticPulseTemplate,
   breathingLightTemplate,
   magneticRippleTemplate,
+  counterTemplate,
+  textRevealTemplate,
+  blurRevealTemplate,
+  kineticTypographyTemplate,
+  splitTextTemplate,
+  mouseParallaxTemplate,
+  longPressTemplate,
+  fadeOutTemplate,
+  slideOutTemplate,
+  zoomOutTemplate,
+  collapseDownTemplate,
+  dissolveOutTemplate,
 ];
 
 export function getTemplate(id: string): TemplateDef | undefined {

@@ -1105,7 +1105,7 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
 
   // --- Motion recipes: browse or apply ---
   if (/\b(recipe|recipes)\b/i.test(userText) && !/\b(apply|use|try)\b/i.test(userText) && !/\b(save|seed|project|my|delete|remove)\b/i.test(userText)) {
-    const catM = userText.match(/\b(entrance|playful|transition|feedback|ambient|text|interaction)\b/i);
+    const catM = userText.match(/\b(entrance|playful|transition|feedback|ambient|text|interaction|exit|loading|notification|data-viz|celebration)\b/i);
     push("list_recipes", catM ? { category: catM[1].toLowerCase() } : {},
       catM ? `Here are the ${catM[1].toLowerCase()} recipes available.` : "Here are all available motion recipes with their avoidance conditions.");
   }
@@ -1638,7 +1638,7 @@ const FALLBACK_REPLY =
   "add/remove/list timeline markers (bookmark time positions), " +
   "reverse keyframe order (play backward), " +
   "analyze restraint (motion density, visual competition, 0-100 score), " +
-  "browse/apply motion recipes (gentle entrance, impact reveal, elastic bounce, cinematic fade, data pulse, ambient float, typewriter reveal, magnetic hover) with avoidance checks, " +
+  "browse/apply motion recipes (gentle entrance, impact reveal, elastic bounce, cinematic fade, data pulse, ambient float, typewriter reveal, magnetic hover, swift dismissal, graceful departure, skeleton shimmer, progress march, toast rise, bar grow, confetti burst) with avoidance checks, " +
   "save/recall persistent project memory (cross-session knowledge), " +
   "list auto-generated skills (learned from past task sequences), " +
   "compile motion grammar expressions (fade.in(600ms) then slide.up(400ms) with easing(spring)), " +
@@ -1660,11 +1660,11 @@ const FALLBACK_REPLY =
   "analyze emotional impact (anticipation, surprise, delight, tension, release, curiosity, satisfaction, urgency, calm, joy, trust — emotional arc and peak intensity), " +
   "analyze visual rhythm (beat detection, tempo BPM, rhythm type — steady, syncopated, rubato, accelerando, decelerando, chaotic — groove and conflict detection), " +
   "analyze narrative coherence (5-act story arc — setup, rising, climax, falling, resolution — pacing and coherence scoring, personality archetype, attention flow mapping), " +
-  "list/switch templates (fade, bounce, slide, scale, flip, spin, pulse, spring, resize, logo-reveal, squash-stretch, " +
+  "list/switch templates (fade, fade-out, bounce, slide, slide-out, scale, zoom-out, flip, spin, pulse, spring, resize, logo-reveal, squash-stretch, " +
   "flip-card, typewriter, shimmer, morph, notification, progress, ripple, marquee, orbit, wave, confetti, " +
   "parallax, kinetic-text, particle-burst, liquid-morph, elastic-collapse, glitch, reveal-3d, gradient-shift, " +
   "elastic-scale, text-scramble, aurora, hologram, prismatic, liquid-metal, neon-flicker, depth-card, " +
-  "glassmorphism, kinetic-ribbon, magnetic-pull), export (HTML, CSS, JSON, React, Lottie, video, skill), or show a preview. " +
+  "glassmorphism, kinetic-ribbon, magnetic-pull, collapse-down, dissolve-out), export (HTML, CSS, JSON, React, Lottie, video, skill), or show a preview. " +
   "Tell me what you'd like to do.";
 
 export class MockProvider implements LlmProvider {
