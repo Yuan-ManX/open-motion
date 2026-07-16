@@ -38,6 +38,53 @@ export function listTemplates(category?: string, tag?: string): Template[] {
   return result;
 }
 
+/** Fuzzy search templates by query across name, description, category, and tags. */
+export function searchTemplatesByQuery(query: string, limit = 30): Array<Template & { score: number; matchedFields: string[] }> {
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+  const terms = q.split(/\s+/).filter((t) => t.length > 0);
+  const all = listTemplates();
+  const scored: Array<Template & { score: number; matchedFields: string[] }> = [];
+
+  for (const tpl of all) {
+    const nameLc = tpl.name.toLowerCase();
+    const descLc = tpl.description.toLowerCase();
+    const catLc = tpl.category.toLowerCase();
+    const tagsLc = tpl.tags.map((t) => t.toLowerCase());
+    const fields: string[] = [];
+    let score = 0;
+
+    for (const term of terms) {
+      // Name match — highest weight
+      if (nameLc.includes(term)) {
+        score += nameLc === term ? 10 : nameLc.startsWith(term) ? 7 : 5;
+        if (!fields.includes("name")) fields.push("name");
+      }
+      // Tag exact match — high weight
+      if (tagsLc.includes(term)) {
+        score += 6;
+        if (!fields.includes("tags")) fields.push("tags");
+      }
+      // Description match — medium weight
+      if (descLc.includes(term)) {
+        score += 3;
+        if (!fields.includes("description")) fields.push("description");
+      }
+      // Category match — low weight
+      if (catLc.includes(term)) {
+        score += 2;
+        if (!fields.includes("category")) fields.push("category");
+      }
+    }
+
+    if (score > 0) {
+      scored.push({ ...tpl, score, matchedFields: fields });
+    }
+  }
+
+  return scored.sort((a, b) => b.score - a.score).slice(0, limit);
+}
+
 export function getTemplate(id: string): Template | null {
   const db = getDb();
   const row = db.prepare("SELECT * FROM templates WHERE id = ?").get(id) as unknown as TemplateRow | undefined;
