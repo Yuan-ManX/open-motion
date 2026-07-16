@@ -19,6 +19,9 @@ import { getProjectSpec } from "../db/repositories/projects.js";
 import { remember } from "./memory/persistentMemory.js";
 import { extractSkill } from "./memory/skillGenerator.js";
 import { suggestProactive } from "./proactiveEngine.js";
+import { recordToolExecution, isToolUnreliable } from "./analytics.js";
+import { generateSessionSummary } from "./sessionSummary.js";
+import { composeTools, composedToToolCalls } from "./toolComposer.js";
 import { logger } from "../utils/logger.js";
 
 const MAX_ITERATIONS = 8;
@@ -130,6 +133,96 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
   const tools = buildToolSpecs();
   const allToolCalls: LlmToolCall[] = [];
   const allToolResults: ToolResult[] = [];
+  const componentCountBefore = initialSpec?.components.length ?? 0;
+
+  // Tool composition pre-pass: if the user's message matches a known
+  // compound pattern (e.g., "add a bouncy fade with 200ms delay"),
+  // synthesize the tool calls directly without an LLM round-trip.
+  if (initialSpec) {
+    const composition = composeTools(userMessage, projectId, initialSpec.components.length > 0);
+    if (composition.matched) {
+      logger.info("tool composition matched", { pattern: composition.patternName, tools: composition.tools.length });
+      onEvent({
+        type: "reasoning",
+        text: `Composed ${composition.tools.length} tool calls via pattern: ${composition.patternName}`,
+      });
+
+      // Execute the composed tools sequentially, resolving __last__ placeholder
+      const composedCalls = composedToToolCalls(composition.tools);
+      for (let i = 0; i < composedCalls.length; i++) {
+        const call = composedCalls[i];
+        // Resolve __last__ to the most recently created component
+        const args = call.args as Record<string, unknown>;
+        if (args && typeof args === "object" && args.componentId === "__last__") {
+          const freshSpec = getProjectSpec(projectId);
+          const lastComponent = freshSpec?.components[freshSpec.components.length - 1];
+          if (lastComponent) {
+            call.args = { ...args, componentId: lastComponent.id };
+          } else {
+            // Skip this tool if no component exists yet
+            continue;
+          }
+        }
+
+        onEvent({ type: "tool_call", tool: call.tool, args: call.args, callId: call.callId });
+        const toolStart = Date.now();
+        const result = await executeTool(call.tool, call.args, { projectId });
+        const toolDurationMs = Date.now() - toolStart;
+        recordToolExecution(projectId, call.tool, result.ok, toolDurationMs);
+        if (isToolUnreliable(projectId, call.tool)) {
+          logger.warn("composed tool is unreliable", { tool: call.tool });
+        }
+        allToolCalls.push(call);
+        allToolResults.push(result);
+
+        if (goalTree) {
+          const gid = startToolGoal(goalTree, call.tool);
+          if (gid) onEvent({ type: "goal", root: serializeGoal(goalTree) });
+          onEvent({
+            type: "tool_result",
+            callId: call.callId,
+            tool: call.tool,
+            result: result.data ?? null,
+            summary: result.summary,
+          });
+          if (result.ok && gid) {
+            completeToolGoal(goalTree, gid);
+            onEvent({ type: "goal", root: serializeGoal(goalTree) });
+          }
+        } else {
+          onEvent({
+            type: "tool_result",
+            callId: call.callId,
+            tool: call.tool,
+            result: result.data ?? null,
+            summary: result.summary,
+          });
+        }
+      }
+
+      // Generate session summary for the composed execution
+      const freshSpec = getProjectSpec(projectId);
+      const componentCountAfter = freshSpec?.components.length ?? componentCountBefore;
+      const summaryText = composition.tools.map((t: { reason: string }) => t.reason).join("; ");
+      addMemory(projectId, { role: "assistant", content: summaryText });
+      addMessage(projectId, { role: "assistant", content: summaryText });
+
+      if (allToolCalls.length > 0) {
+        const summary = generateSessionSummary({
+          userMessage,
+          toolCalls: allToolCalls,
+          toolResults: allToolResults,
+          goalTree,
+          componentCountBefore,
+          componentCountAfter,
+        });
+        onEvent({ type: "session_summary", summary });
+      }
+
+      onEvent({ type: "done", message: summaryText, tokensIn: 0, tokensOut: 0 });
+      return;
+    }
+  }
 
   for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
     // Pass userMessage on first iteration so persistent memory can be retrieved
@@ -177,6 +270,21 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
           logger.info("generated skill from task", { skillId: skill.id, skillName: skill.name });
         }
       }
+      // Generate a session summary when tools were executed, so the user
+      // gets a recap of what was accomplished and what to do next.
+      if (allToolCalls.length > 0) {
+        const freshSpec = getProjectSpec(projectId);
+        const componentCountAfter = freshSpec?.components.length ?? componentCountBefore;
+        const summary = generateSessionSummary({
+          userMessage,
+          toolCalls: allToolCalls,
+          toolResults: allToolResults,
+          goalTree,
+          componentCountBefore,
+          componentCountAfter,
+        });
+        onEvent({ type: "session_summary", summary });
+      }
       onEvent({ type: "done", message: assistantText, tokensIn, tokensOut });
       return;
     }
@@ -206,7 +314,15 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
         onEvent({ type: "goal", root: serializeGoal(goalTree) });
       }
       onEvent({ type: "tool_call", tool: call.tool, args: call.args, callId: call.callId });
+      // Recovery heuristic: warn when a tool has been failing repeatedly
+      if (isToolUnreliable(projectId, call.tool)) {
+        logger.warn("tool is currently unreliable — recent failures detected", { tool: call.tool });
+      }
+      const toolStart = Date.now();
       const result = await executeTool(call.tool, call.args, { projectId });
+      const toolDurationMs = Date.now() - toolStart;
+      // Record analytics for observability and recovery heuristics
+      recordToolExecution(projectId, call.tool, result.ok, toolDurationMs);
       allToolCalls.push(call);
       allToolResults.push(result);
       if (goalTree) {
