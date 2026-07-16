@@ -1,10 +1,11 @@
 import { getProjectSpec } from "../db/repositories/projects.js";
 import { generateSpecCss } from "../motion/generator/css.js";
+import { generateReactFile } from "../motion/generator/react.js";
 import type { MotionComponent, MotionSpec } from "@openmotion/shared";
 
 export interface CodeExport {
   code: string;
-  language: "css" | "json" | "tsx";
+  language: "css" | "json" | "tsx" | "jsx";
   filename: string;
 }
 
@@ -81,6 +82,19 @@ export function ${componentName}() {
     code: code + cssBlock,
     language: "tsx",
     filename: `${componentName}.tsx`,
+  };
+}
+
+/** Generate a self-contained Framer Motion component file from the spec. */
+export function exportProjectFramer(projectId: string): CodeExport | null {
+  const spec = getProjectSpec(projectId);
+  if (!spec) return null;
+  const componentName = toPascalCase(spec.project.name) || "OpenMotion";
+  const code = generateReactFile(spec.components, { format: "framer", typescript: true });
+  return {
+    code,
+    language: "tsx",
+    filename: `${componentName}.framer.tsx`,
   };
 }
 
