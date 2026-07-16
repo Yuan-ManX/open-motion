@@ -5,7 +5,7 @@ import * as api from "../../api/endpoints.js";
 
 type VideoStatus = "idle" | "pending" | "running" | "done" | "failed";
 type Format = "mp4" | "gif" | "webm";
-type CodeFormat = "css" | "json" | "react";
+type CodeFormat = "css" | "json" | "react" | "framer";
 
 export function ExportDialog() {
   const open = useUiStore((s) => s.exportOpen);
@@ -156,7 +156,9 @@ export function ExportDialog() {
           ? await api.exportCss(projectId)
           : codeFormat === "json"
             ? await api.exportJson(projectId)
-            : await api.exportReact(projectId);
+            : codeFormat === "framer"
+              ? await api.exportFramer(projectId)
+              : await api.exportReact(projectId);
       setCodeResult(result);
     } catch (e) {
       setCodeError(e instanceof Error ? e.message : String(e));
@@ -337,6 +339,12 @@ export function ExportDialog() {
               >
                 React
               </button>
+              <button
+                className={tabCls(codeFormat === "framer")}
+                onClick={() => setCodeFormat("framer")}
+              >
+                Framer
+              </button>
             </div>
             <button
               onClick={exportCode}
@@ -378,7 +386,7 @@ export function ExportDialog() {
           <section>
             <div className="text-xs uppercase tracking-wide text-gray-500 mb-2">Lottie JSON</div>
             <p className="text-[10px] text-gray-600 mb-2">
-              Industry-standard animation format for web, mobile, and After Effects.
+              Industry-standard animation format for web, mobile, and animation tools.
             </p>
             <div className="flex items-center gap-2 mb-2">
               <label className="text-[10px] text-gray-500">FPS</label>
