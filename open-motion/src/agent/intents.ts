@@ -217,6 +217,17 @@ export const TEMPLATE_ALIASES: Record<string, string> = {
   "state-transition": "tpl-state-transition",
   statetransition: "tpl-state-transition",
   "state-change": "tpl-state-transition",
+  "fade-out": "tpl-fade-out",
+  fadeout: "tpl-fade-out",
+  "slide-out": "tpl-slide-out",
+  slideout: "tpl-slide-out",
+  "zoom-out": "tpl-zoom-out",
+  zoomout: "tpl-zoom-out",
+  "collapse-down": "tpl-collapse-down",
+  collapsedown: "tpl-collapse-down",
+  "dissolve-out": "tpl-dissolve-out",
+  dissolveout: "tpl-dissolve-out",
+  dissolve: "tpl-dissolve-out",
 };
 
 /** Friendly name -> preset name (used by apply_preset). */
