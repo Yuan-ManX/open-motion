@@ -87,12 +87,12 @@ const PRESETS: PresetSummary[] = [
   },
   {
     id: "preset-figma-spec",
-    name: "Figma Motion Spec",
+    name: "Design Tool Spec",
     platform: "figma",
     format: "json",
-    description: "Structured JSON matching Figma Motion plugin schema — import directly into Figma.",
+    description: "Structured JSON matching design tool plugin schemas — import directly into design tools.",
     fileExtension: "json",
-    recommendedFor: ["Figma design sync", "Design-to-dev handoff", "Plugin import"],
+    recommendedFor: ["Design tool sync", "Design-to-dev handoff", "Plugin import"],
   },
 ];
 
