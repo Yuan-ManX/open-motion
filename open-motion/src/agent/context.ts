@@ -3,6 +3,9 @@ import { getProject, getProjectSpec } from "../db/repositories/projects.js";
 import { buildSystemPrompt } from "./prompts/system.js";
 import { buildMessages } from "./memory/memory.js";
 import { assembleMemoryContext } from "./memory/persistentMemory.js";
+import { listMemory } from "./memory/store.js";
+import { semanticSearch, formatRelevantMemory } from "./memory/semanticSearch.js";
+import { formatAnalyticsContext } from "./analytics.js";
 import type { LlmMessage } from "./provider/types.js";
 
 export interface AgentContext {
@@ -17,6 +20,11 @@ export interface AgentContext {
  * the current components, assemble persistent memory context, and build the
  * LLM message list. Called at the start of each orchestrator iteration so
  * spec changes and memory updates are reflected.
+ *
+ * When a userMessage is provided (first iteration), semantic search retrieves
+ * the most topically relevant past conversation entries across the entire
+ * memory history — including entries compressed out of the active window —
+ * and injects them into the system prompt for contextual awareness.
  */
 export function assembleAgentContext(projectId: string, userMessage?: string): AgentContext | null {
   const project = getProject(projectId);
@@ -28,11 +36,30 @@ export function assembleAgentContext(projectId: string, userMessage?: string): A
   const memoryContext = userMessage
     ? assembleMemoryContext(projectId, userMessage)
     : null;
-  const basePrompt = buildSystemPrompt(spec);
-  const systemPrompt = memoryContext && (memoryContext.projectMemory || memoryContext.relevantSkills)
-    ? basePrompt + memoryContext.projectMemory + memoryContext.relevantSkills
-    : basePrompt;
+  let basePrompt = buildSystemPrompt(spec);
 
-  const messages = buildMessages(projectId, systemPrompt);
-  return { project, spec, messages, systemPrompt };
+  if (memoryContext && (memoryContext.projectMemory || memoryContext.relevantSkills)) {
+    basePrompt += memoryContext.projectMemory + memoryContext.relevantSkills;
+  }
+
+  // Semantic memory search: find relevant past conversation entries
+  if (userMessage) {
+    const entries = listMemory(projectId);
+    if (entries.length > 3) {
+      const results = semanticSearch(entries, userMessage, 3, 0.08);
+      const relevant = formatRelevantMemory(results);
+      if (relevant) {
+        basePrompt += "\n" + relevant;
+      }
+    }
+  }
+
+  // Inject tool execution analytics for observability
+  const analyticsCtx = formatAnalyticsContext(projectId);
+  if (analyticsCtx) {
+    basePrompt += "\n" + analyticsCtx;
+  }
+
+  const messages = buildMessages(projectId, basePrompt);
+  return { project, spec, messages, systemPrompt: basePrompt };
 }
