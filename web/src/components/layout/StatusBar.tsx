@@ -12,8 +12,10 @@ export function StatusBar() {
   const projectId = useProjectStore((s) => s.projectId);
   const components = useProjectStore((s) => s.components);
   const selectedId = useUiStore((s) => s.selectedComponentId);
+  const selectedIds = useUiStore((s) => s.selectedIds);
   const canvasZoom = useUiStore((s) => s.canvasZoom);
   const isPlaying = useUiStore((s) => s.isPlaying);
+  const playheadMs = useUiStore((s) => s.playheadMs);
 
   const [fps, setFps] = useState(0);
   const [providerMode, setProviderMode] = useState<string>("");
@@ -55,6 +57,12 @@ export function StatusBar() {
 
   const selectedComponent = components.find((c) => c.id === selectedId);
 
+  // Compute total animation duration across all components
+  const totalDuration = components.reduce((max, c) => {
+    const iters = c.iterationCount === "infinite" ? 1 : Number(c.iterationCount) || 1;
+    return Math.max(max, c.delayMs + c.durationMs * iters);
+  }, 0);
+
   return (
     <div className="h-6 bg-panel border-t border-edge text-[10px] text-gray-500 font-mono flex items-center gap-3 px-3 flex-shrink-0 overflow-hidden">
       <span className="text-gray-400 truncate max-w-[180px]" title={project?.name}>
@@ -70,6 +78,24 @@ export function StatusBar() {
       <span className={isPlaying ? "text-accent" : "text-gray-500"}>
         {isPlaying ? "▶ playing" : "⏸ paused"}
       </span>
+      {playheadMs != null && (
+        <>
+          <Sep />
+          <span className="text-gray-400">{Math.round(playheadMs)}ms</span>
+        </>
+      )}
+      {totalDuration > 0 && (
+        <>
+          <Sep />
+          <span className="text-gray-700">/ {Math.round(totalDuration)}ms</span>
+        </>
+      )}
+      {selectedIds.size > 1 && (
+        <>
+          <Sep />
+          <span className="text-accent">{selectedIds.size} selected</span>
+        </>
+      )}
       {selectedComponent && (
         <>
           <Sep />
