@@ -1,6 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useProjectStore } from "../../store/projectStore.js";
 import { useChatStore } from "../../store/chatStore.js";
+import * as api from "../../api/endpoints.js";
 
 interface BrandPackSummary {
   id: string;
@@ -51,6 +52,14 @@ export function BrandPackPanel() {
 
   const packs = useMemo(() => readPacksFromTokens(project?.tokens), [project?.tokens]);
 
+  // Fetch style presets from backend
+  const [stylePresets, setStylePresets] = useState<api.StylePreset[]>([]);
+  useEffect(() => {
+    api.listStylePresets()
+      .then(setStylePresets)
+      .catch(() => setStylePresets([]));
+  }, []);
+
   if (!projectId) {
     return (
       <div className="px-4 py-6 text-center text-xs text-gray-600">
@@ -61,7 +70,30 @@ export function BrandPackPanel() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
+      {/* Style Presets section */}
+      <div className="px-3 py-2 border-b border-edge flex-shrink-0">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[10px] font-mono uppercase tracking-wider text-gray-500">
+            Style Presets
+          </span>
+          <span className="text-[9px] text-gray-600 font-mono">{stylePresets.length}</span>
+        </div>
+        <div className="grid grid-cols-2 gap-1 max-h-32 overflow-y-auto">
+          {stylePresets.map((preset) => (
+            <button
+              key={preset.id}
+              onClick={() => sendAgentMessage(projectId, `Apply the ${preset.name} style preset to all components`)}
+              className="px-1.5 py-1 text-[9px] text-gray-400 border border-edge hover:text-gray-100 hover:border-gray-400 transition-colors text-left"
+              title={preset.description}
+            >
+              <span className="font-medium text-gray-300">{preset.name}</span>
+              <span className="block text-[8px] text-gray-600 font-mono">{preset.durationMs}ms</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Brand Packs header */}
       <div className="px-3 py-2 border-b border-edge flex-shrink-0">
         <div className="flex items-center justify-between mb-2">
           <span className="text-[10px] font-mono uppercase tracking-wider text-gray-500">
