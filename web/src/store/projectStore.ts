@@ -27,6 +27,7 @@ interface ProjectState {
   patchComponentLocal: (componentId: string, patch: Partial<MotionComponent>) => void;
   updateComponentLive: (componentId: string, stylePatch: Record<string, string | number>) => void;
   removeComponentLocal: (componentId: string) => void;
+  reorderComponentsLocal: (orderedIds: string[]) => void;
   undo: () => void;
   redo: () => void;
   reset: () => void;
@@ -116,6 +117,16 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const state = get();
     const past = [...state.past, snapshot(state)].slice(-HISTORY_LIMIT);
     set({ components: state.components.filter((c) => c.id !== componentId), past, future: [] });
+  },
+
+  reorderComponentsLocal: (orderedIds) => {
+    const state = get();
+    const past = [...state.past, snapshot(state)].slice(-HISTORY_LIMIT);
+    const idToIndex = new Map(orderedIds.map((id, i) => [id, i]));
+    const reordered = [...state.components]
+      .map((c) => ({ ...c, orderIndex: idToIndex.get(c.id) ?? c.orderIndex }))
+      .sort((a, b) => a.orderIndex - b.orderIndex);
+    set({ components: reordered, past, future: [] });
   },
 
   undo: () => {
