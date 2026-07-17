@@ -18,6 +18,7 @@ import {
   getProjectComponent,
   patchProjectComponent,
   deleteProjectComponent,
+  batchDeleteProjectComponents,
   batchUpdateComponents,
   duplicateProjectComponent,
   reorderProjectComponents,
@@ -55,6 +56,10 @@ const ReorderSchema = z.object({
   orderedIds: z.array(z.string()),
 });
 
+const BatchDeleteSchema = z.object({
+  componentIds: z.array(z.string()).min(1),
+});
+
 export const componentsRouter = Router({ mergeParams: true });
 
 componentsRouter.get(
@@ -88,6 +93,16 @@ componentsRouter.patch(
   runAsync(async (req, res) => {
     const { updates } = validated<z.infer<typeof BatchUpdateSchema>>(req);
     res.json(batchUpdateComponents(req.params.id, updates));
+  }),
+);
+
+componentsRouter.delete(
+  "/batch",
+  validate(BatchDeleteSchema),
+  runAsync(async (req, res) => {
+    const { componentIds } = validated<z.infer<typeof BatchDeleteSchema>>(req);
+    const removed = batchDeleteProjectComponents(req.params.id, componentIds);
+    res.json({ removed });
   }),
 );
 
