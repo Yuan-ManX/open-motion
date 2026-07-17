@@ -17,6 +17,13 @@ import { skillsRouter } from "./routes/skills.js";
 import { previewRouter } from "./routes/preview.js";
 import { exportRouter } from "./routes/export.js";
 import { agentRouter } from "./routes/agent.js";
+import { versionsRouter } from "./routes/versions.js";
+import { tokensRouter } from "./routes/tokens.js";
+import { pipelinesRouter } from "./routes/pipelines.js";
+import { insightsRouter } from "./routes/insights.js";
+import { catalogRouter } from "./routes/catalog.js";
+import { motionRouter } from "./routes/motion.js";
+import { providersRouter } from "./routes/providers.js";
 import { mountMcpHttp } from "../mcp/transport-http.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -49,6 +56,13 @@ export function createApp(): Express {
   app.use("/api", previewRouter);
   app.use("/api", exportRouter);
   app.use("/api", agentRouter);
+  app.use("/api", versionsRouter);
+  app.use("/api", tokensRouter);
+  app.use("/api", pipelinesRouter);
+  app.use("/api", insightsRouter);
+  app.use("/api", catalogRouter);
+  app.use("/api", motionRouter);
+  app.use("/api", providersRouter);
 
   mountMcpHttp(app);
 
