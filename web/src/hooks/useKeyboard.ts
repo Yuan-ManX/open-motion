@@ -11,13 +11,22 @@ import * as api from "../api/endpoints.js";
  * - Cmd/Ctrl+Shift+Z or Cmd/Ctrl+Y: redo
  * - Shift+R: replay the current animation
  * - Cmd/Ctrl+E: open the export dialog
+ * - Cmd/Ctrl+S: save the current project (reload to confirm persistence)
  * - Cmd/Ctrl+D: duplicate the selected component
  * - Cmd/Ctrl+C/V/X: copy/paste/cut component
  * - Cmd/Ctrl+A: select all components
  * - Cmd/Ctrl+/: toggle the keyboard shortcuts help
  * - Arrow keys: nudge selected component by 1px (10px with Shift)
+ * - Alt+ArrowUp/Down: navigate between timeline components
  * - Escape: clear component selection
  * - Delete/Backspace: remove the selected component (skipped while typing)
+ * - Shift+Delete: ripple delete the selected component (shifts subsequent layers left)
+ * - S: split the selected component at the playhead position
+ * - F: fit timeline to view (reset zoom)
+ * - P: toggle play/pause
+ * - M: add marker at playhead
+ * - , / .: step backward / forward one frame
+ * - Home / End: jump to start / end of timeline
  * - Space (hold): canvas pan mode
  */
 export function useKeyboard() {
@@ -111,6 +120,28 @@ export function useKeyboard() {
         setExportOpen(true);
         return;
       }
+      // Cmd/Ctrl+S: save the current project (reload from server to confirm persistence)
+      if ((e.metaKey || e.ctrlKey) && (e.key === "s" || e.key === "S")) {
+        e.preventDefault();
+        if (projectId) {
+          void useProjectStore.getState().loadProject(projectId);
+        }
+        return;
+      }
+      // Alt+ArrowUp/Down: navigate between components in the timeline
+      if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown") && components.length > 0) {
+        e.preventDefault();
+        const sorted = [...components].sort((a, b) => a.delayMs - b.delayMs);
+        const currentIdx = selectedId ? sorted.findIndex((c) => c.id === selectedId) : -1;
+        if (e.key === "ArrowDown") {
+          const nextIdx = currentIdx < sorted.length - 1 ? currentIdx + 1 : 0;
+          selectComponent(sorted[nextIdx].id);
+        } else {
+          const prevIdx = currentIdx > 0 ? currentIdx - 1 : sorted.length - 1;
+          selectComponent(sorted[prevIdx].id);
+        }
+        return;
+      }
       // Arrow key nudge (with selection) or timeline stepping (without selection)
       if (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "ArrowLeft" || e.key === "ArrowRight") {
         if (selectedIds.size > 0 && projectId) {
@@ -161,12 +192,53 @@ export function useKeyboard() {
         useUiStore.getState().setTimelineCommand("jumpEnd");
         return;
       }
+      // Fit timeline to view — resets zoom to 1x
+      if ((e.key === "f" || e.key === "F") && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        useUiStore.getState().setTimelineCommand("fitView");
+        return;
+      }
       if (e.key === "m" || e.key === "M") {
         if (!e.metaKey && !e.ctrlKey) {
           e.preventDefault();
           useUiStore.getState().setTimelineCommand("addMarker");
           return;
         }
+      }
+      // Split at playhead — splits the selected component at the current playhead
+      if ((e.key === "s" || e.key === "S") && !e.metaKey && !e.ctrlKey && selectedId && projectId) {
+        e.preventDefault();
+        const comp = components.find((c) => c.id === selectedId);
+        if (comp) {
+          const playheadMs = useUiStore.getState().playheadMs ?? 0;
+          const splitMs = playheadMs - comp.delayMs;
+          if (splitMs > 0 && splitMs < comp.durationMs) {
+            const splitOffset = splitMs / comp.durationMs;
+            const firstKeyframes = comp.keyframes
+              .filter((kf) => kf.offset <= splitOffset)
+              .map((kf) => ({ ...kf, offset: kf.offset / splitOffset }));
+            void api.patchComponent(projectId, comp.id, {
+              durationMs: splitMs,
+              keyframes: firstKeyframes.length > 0 ? firstKeyframes : comp.keyframes,
+            }).then(() =>
+              api.createComponent(projectId, { name: `${comp.name} (split)` }).then((clone) =>
+                api.patchComponent(projectId, clone.id, {
+                  easing: comp.easing,
+                  durationMs: comp.durationMs - splitMs,
+                  delayMs: comp.delayMs + splitMs,
+                  iterationCount: comp.iterationCount,
+                  direction: comp.direction,
+                  keyframes: comp.keyframes
+                    .filter((kf) => kf.offset >= splitOffset)
+                    .map((kf) => ({ ...kf, offset: (kf.offset - splitOffset) / (1 - splitOffset) })),
+                  style: comp.style,
+                  trigger: comp.trigger,
+                }),
+              ),
+            ).then(() => useProjectStore.getState().loadProject(projectId)).catch(() => {});
+          }
+        }
+        return;
       }
       // Copy / Cut
       if ((e.metaKey || e.ctrlKey) && (e.key === "c" || e.key === "C") && selectedIds.size > 0) {
@@ -221,15 +293,46 @@ export function useKeyboard() {
       }
       if ((e.key === "Delete" || e.key === "Backspace") && selectedId && projectId) {
         e.preventDefault();
-        void api
-          .removeComponent(projectId, selectedId)
-          .then(() => {
-            useProjectStore.getState().removeComponentLocal(selectedId);
-            selectComponent(null);
-          })
-          .catch(() => {
-            /* ignore — selection stays as-is */
-          });
+        // Shift+Delete: ripple delete — remove and shift subsequent components left
+        if (e.shiftKey) {
+          const comp = components.find((c) => c.id === selectedId);
+          if (comp) {
+            const iters = comp.iterationCount === "infinite" ? 1 : Number(comp.iterationCount) || 1;
+            const removedSpan = comp.delayMs + comp.durationMs * iters;
+            const removedDelay = comp.delayMs;
+            const toShift = components.filter((c) => c.id !== selectedId && c.delayMs >= removedDelay);
+            void api.removeComponent(projectId, selectedId)
+              .then(async () => {
+                for (const c of toShift) {
+                  const newDelay = Math.max(0, c.delayMs - removedSpan);
+                  await api.patchComponent(projectId, c.id, { delayMs: newDelay });
+                }
+                useProjectStore.getState().removeComponentLocal(selectedId);
+                selectComponent(null);
+                await useProjectStore.getState().loadProject(projectId);
+              })
+              .catch(() => {});
+          }
+        } else if (selectedIds.size > 1) {
+          // Batch delete when multiple components are selected
+          const ids = Array.from(selectedIds);
+          void api.batchRemoveComponents(projectId, ids)
+            .then(() => {
+              ids.forEach((id) => useProjectStore.getState().removeComponentLocal(id));
+              selectComponent(null);
+            })
+            .catch(() => {});
+        } else {
+          void api
+            .removeComponent(projectId, selectedId)
+            .then(() => {
+              useProjectStore.getState().removeComponentLocal(selectedId);
+              selectComponent(null);
+            })
+            .catch(() => {
+              /* ignore — selection stays as-is */
+            });
+        }
       }
     };
     window.addEventListener("keydown", onKey);
