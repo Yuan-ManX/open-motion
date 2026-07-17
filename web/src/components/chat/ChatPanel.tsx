@@ -4,6 +4,7 @@ import { useProjectStore } from "../../store/projectStore.js";
 import type { MotionComponent } from "@openmotion/shared";
 import { buildMotionDna, diffDna } from "../../motion/dna.js";
 import * as api from "../../api/endpoints.js";
+import { ModelSelector } from "./ModelSelector.js";
 
 /** Recursively count leaf goals by status for the progress badge. */
 function countGoals(root: GoalNode): { total: number; done: number; active: number } {
@@ -134,6 +135,8 @@ export function ChatPanel() {
   const thinking = useChatStore((s) => s.thinking);
   const reflection = useChatStore((s) => s.reflection);
   const goal = useChatStore((s) => s.goal);
+  const proactiveSuggestions = useChatStore((s) => s.proactiveSuggestions);
+  const sessionSummary = useChatStore((s) => s.sessionSummary);
   const error = useChatStore((s) => s.error);
   const send = useChatStore((s) => s.send);
   const regenerate = useChatStore((s) => s.regenerate);
@@ -151,6 +154,24 @@ export function ChatPanel() {
   const isNearBottomRef = useRef(true);
   const skipLoadRef = useRef(false);
   const lastUserTextRef = useRef<string | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  /** Auto-resize the textarea up to a max height, ChatGPT-style. */
+  const autoResize = useCallback(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 140) + "px";
+  }, []);
+
+  /** Clear input and reset textarea height after sending. */
+  const clearInput = useCallback(() => {
+    setInput("");
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (el) el.style.height = "auto";
+    });
+  }, []);
 
   const suggestions = useMemo(() => buildSuggestions(components, !!projectId), [components, projectId]);
 
@@ -203,7 +224,7 @@ export function ChatPanel() {
     if (isNearBottomRef.current) {
       scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
     }
-  }, [messages, streamingTokens, toolActivity, plan, goal]);
+  }, [messages, streamingTokens, toolActivity, plan, goal, sessionSummary]);
 
   /**
    * Send a message to the agent. If no project is loaded, auto-create one
@@ -234,12 +255,26 @@ export function ChatPanel() {
     send(pid, text.trim());
   }, [projectId, isStreaming, creating, components, loadProject, send]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!input.trim()) return;
     const text = input;
-    setInput("");
+    clearInput();
     void submitText(text);
+  };
+
+  /** Enter to send, Shift+Enter for newline — standard chat textarea UX. */
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit();
+    }
+  };
+
+  /** Update input value and trigger auto-resize. */
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value);
+    autoResize();
   };
 
   const handleSuggestion = (s: string) => {
@@ -562,8 +597,79 @@ export function ChatPanel() {
         </div>
       )}
 
-      {/* Input form — always visible */}
+      {/* Session summary — shown after the agent completes a tool-using turn */}
+      {sessionSummary && !isStreaming && (
+        <div className="px-4 py-2.5 border-t border-edge bg-panel2/30">
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <span className="text-[10px] text-gray-500 uppercase tracking-wide">Session recap</span>
+            <span className="text-[9px] text-gray-700 font-mono">
+              {sessionSummary.metrics.successes}/{sessionSummary.metrics.toolCalls} ok
+              {sessionSummary.metrics.goalsTotal > 0 && ` · ${sessionSummary.metrics.goalsCompleted}/${sessionSummary.metrics.goalsTotal} goals`}
+            </span>
+          </div>
+          <p className="text-[11px] text-gray-200 font-medium mb-1">{sessionSummary.headline}</p>
+          {sessionSummary.outcomes.length > 0 && (
+            <ul className="text-[10px] text-gray-400 space-y-0.5 mb-1.5">
+              {sessionSummary.outcomes.slice(0, 3).map((o, i) => (
+                <li key={i} className="flex gap-1">
+                  <span className="text-gray-600">·</span>
+                  <span>{o}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {sessionSummary.nextSteps.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {sessionSummary.nextSteps.slice(0, 3).map((step, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => handleSuggestion(step)}
+                  className="text-[10px] px-2 py-0.5 rounded-full bg-panel2 border border-edge text-gray-400 hover:bg-panel1 hover:text-gray-200 transition-colors"
+                >
+                  {step}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Proactive next-step suggestions from the orchestrator */}
+      {proactiveSuggestions.length > 0 && isStreaming && (
+        <div className="px-4 py-2 border-t border-edge bg-panel2/40">
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <span className="text-[10px] text-gray-500">Next steps</span>
+            <span className="text-[9px] text-gray-700">click to send</span>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {proactiveSuggestions.map((s, i) => {
+              const kindClass =
+                s.kind === "interact" ? "border-white/40 text-white"
+                : s.kind === "diversify" ? "border-gray-400 text-gray-200"
+                : s.kind === "sequence" ? "border-gray-500 text-gray-300"
+                : s.kind === "polish" ? "border-gray-600 text-gray-400"
+                : s.kind === "extend" ? "border-gray-300 text-gray-200"
+                : "border-edge text-gray-400";
+              return (
+                <button
+                  key={`${s.tool}-${i}`}
+                  type="button"
+                  onClick={() => handleSuggestion(s.prompt)}
+                  title={s.reason}
+                  className={`text-[11px] px-2.5 py-1 rounded-full bg-panel2 border ${kindClass} hover:bg-panel1 hover:scale-[1.03] active:scale-[0.97] transition-all`}
+                >
+                  {s.title}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Input form — ChatGPT-style unified input container */}
       <form onSubmit={handleSubmit} className="p-3 border-t border-edge">
+        {/* Suggestion chips above the input */}
         <div className="flex gap-1 mb-2 flex-wrap">
           {suggestions.map((s) => (
             <button
@@ -577,31 +683,40 @@ export function ChatPanel() {
             </button>
           ))}
         </div>
-        <div className="flex gap-2">
-          <input
+        {/* Unified input box — textarea + model selector + send button */}
+        <div className="bg-panel2 border border-edge rounded-xl focus-within:border-accent focus-within:ring-1 focus-within:ring-accent/20 transition-all">
+          <textarea
+            ref={textareaRef}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={handleInputChange}
+            onKeyDown={handleKeyDown}
             placeholder={placeholder}
             disabled={busy}
-            className="flex-1 bg-panel2 border border-edge rounded-lg px-3 py-2 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 disabled:opacity-50"
+            rows={1}
+            className="w-full bg-transparent px-3 pt-2.5 pb-1 text-sm text-gray-100 placeholder-gray-600 focus:outline-none disabled:opacity-50 resize-none overflow-hidden"
+            style={{ maxHeight: "140px" }}
           />
-          {isStreaming ? (
-            <button
-              type="button"
-              onClick={abort}
-              className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-sm font-medium"
-            >
-              Stop
-            </button>
-          ) : (
-            <button
-              type="submit"
-              disabled={!input.trim() || creating}
-              className="px-4 py-2 rounded-lg bg-accent hover:bg-accent2 disabled:opacity-40 disabled:cursor-not-allowed text-black text-sm font-medium"
-            >
-              {creating ? "…" : "Send"}
-            </button>
-          )}
+          {/* Bottom bar: model selector (left) + send button (right) */}
+          <div className="flex items-center justify-between px-2 pb-2 gap-2">
+            <ModelSelector />
+            {isStreaming ? (
+              <button
+                type="button"
+                onClick={abort}
+                className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-medium transition-colors"
+              >
+                Stop
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={!input.trim() || creating}
+                className="px-4 py-1.5 rounded-lg bg-accent hover:bg-accent2 disabled:opacity-40 disabled:cursor-not-allowed text-black text-xs font-medium transition-colors"
+              >
+                {creating ? "…" : "Send"}
+              </button>
+            )}
+          </div>
         </div>
       </form>
     </div>
