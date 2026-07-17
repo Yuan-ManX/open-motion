@@ -18,6 +18,11 @@ import {
 import { analyzeProjectRestraint } from "../services/restraintService.js";
 import { compileGrammar, GRAMMAR_EXAMPLES, MOTION_VERBS } from "../../motion/grammar.js";
 import { listShaderEffects, getShaderEffect } from "../../motion/shaders.js";
+import { getSessionMetrics, listToolStats, resetAnalytics } from "../../agent/analytics.js";
+import { composeTools } from "../../agent/toolComposer.js";
+import { listMemory as listConversationMemory } from "../../agent/memory/store.js";
+import { semanticSearch } from "../../agent/memory/semanticSearch.js";
+import { TOOL_NAMES, TOOL_DESCRIPTIONS } from "@openmotion/shared";
 
 export const agentRouter = Router();
 
@@ -178,5 +183,92 @@ agentRouter.get(
       return;
     }
     res.json(effect);
+  }),
+);
+
+// --- Analytics endpoints ---
+
+agentRouter.get(
+  "/projects/:id/analytics",
+  runAsync(async (req: Request, res: Response) => {
+    res.json(getSessionMetrics(req.params.id));
+  }),
+);
+
+agentRouter.get(
+  "/projects/:id/analytics/tools",
+  runAsync(async (req: Request, res: Response) => {
+    res.json(listToolStats(req.params.id));
+  }),
+);
+
+agentRouter.delete(
+  "/projects/:id/analytics",
+  runAsync(async (req: Request, res: Response) => {
+    resetAnalytics(req.params.id);
+    res.status(204).end();
+  }),
+);
+
+// --- Agent capabilities endpoint ---
+
+agentRouter.get(
+  "/capabilities",
+  runAsync(async (_req: Request, res: Response) => {
+    const tools = TOOL_NAMES.map((name) => ({
+      name,
+      description: TOOL_DESCRIPTIONS[name],
+    }));
+    res.json({
+      toolCount: tools.length,
+      tools,
+    });
+  }),
+);
+
+// --- Tool composition preview endpoint ---
+
+const ComposePreviewSchema = z.object({
+  message: z.string().min(1),
+  hasComponents: z.boolean().default(false),
+});
+
+agentRouter.post(
+  "/projects/:id/compose",
+  validate(ComposePreviewSchema),
+  runAsync(async (req: Request, res: Response) => {
+    const { message, hasComponents } = validated<{ message: string; hasComponents: boolean }>(req);
+    const result = composeTools(message, req.params.id, hasComponents);
+    res.json(result);
+  }),
+);
+
+// --- Semantic memory search endpoint ---
+
+agentRouter.get(
+  "/projects/:id/semantic-search",
+  runAsync(async (req: Request, res: Response) => {
+    const query = typeof req.query.q === "string" ? req.query.q : "";
+    if (!query) {
+      res.status(400).json({ error: "Query parameter 'q' is required" });
+      return;
+    }
+    const limit = Math.min(20, Math.max(1, parseInt(String(req.query.limit ?? "5"), 10)));
+    const entries = listConversationMemory(req.params.id);
+    const results = semanticSearch(entries, query, limit);
+    res.json({
+      query,
+      totalEntries: entries.length,
+      resultCount: results.length,
+      results: results.map((r: { score: number; matchedTerms: string[]; entry: { role: string; content: string; createdAt: string } }) => ({
+        score: Math.round(r.score * 1000) / 1000,
+        matchedTerms: r.matchedTerms,
+        entry: {
+          role: r.entry.role,
+          content: r.entry.content.slice(0, 300),
+          createdAt: r.entry.createdAt,
+        },
+      })),
+    });
   }),
 );
