@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { useProjectStore } from "../../store/projectStore.js";
 import { useUiStore } from "../../store/uiStore.js";
+import { useClipboardStore } from "../../store/clipboardStore.js";
 import { buildMotionDna } from "../../motion/dna.js";
 import * as api from "../../api/endpoints.js";
 import type { MotionComponent } from "@openmotion/shared";
@@ -51,6 +52,9 @@ export function TimelineBar({ onReplay }: Props) {
   const project = useProjectStore((s) => s.project);
   const selectedId = useUiStore((s) => s.selectedComponentId);
   const selectComponent = useUiStore((s) => s.selectComponent);
+  const selectedIds = useUiStore((s) => s.selectedIds);
+  const toggleSelection = useUiStore((s) => s.toggleSelection);
+  const clearSelection = useUiStore((s) => s.clearSelection);
   const speed = useUiStore((s) => s.playbackSpeed);
   const setSpeed = useUiStore((s) => s.setPlaybackSpeed);
   const triggerReplay = useUiStore((s) => s.triggerReplay);
@@ -67,6 +71,7 @@ export function TimelineBar({ onReplay }: Props) {
   const soloedId = useUiStore((s) => s.soloedId);
   const setSoloedId = useUiStore((s) => s.setSoloedId);
   const snapToGrid = useUiStore((s) => s.snapToGrid);
+  const setSnapToGrid = useUiStore((s) => s.setSnapToGrid);
 
   const isPlaying = useUiStore((s) => s.isPlaying);
   const setIsPlaying = useUiStore((s) => s.setIsPlaying);
@@ -89,6 +94,12 @@ export function TimelineBar({ onReplay }: Props) {
     origDelayMs: number;
     origDurationMs: number;
   } | null>(null);
+  // Right-click context menu on component bars
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; compId: string } | null>(null);
+  // Inline rename state for component names
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const renameInputRef = useRef<HTMLInputElement | null>(null);
   const rafRef = useRef<number | null>(null);
   const lastTsRef = useRef<number | null>(null);
   const trackRef = useRef<HTMLDivElement | null>(null);
@@ -102,6 +113,47 @@ export function TimelineBar({ onReplay }: Props) {
       return next;
     });
   }, []);
+
+  /** Drag-to-reorder state: which component ID is being dragged. */
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+
+  /** Handle drag start on a component row. */
+  const handleDragStart = useCallback((e: React.DragEvent, compId: string) => {
+    setDraggingId(compId);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", compId);
+  }, []);
+
+  /** Handle drag over a component row — allow drop. */
+  const handleDragOver = useCallback((e: React.DragEvent, compId: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (dragOverId !== compId) setDragOverId(compId);
+  }, [dragOverId]);
+
+  /** Handle drop on a component row — reorder tracks. */
+  const handleDrop = useCallback((e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    const sourceId = draggingId ?? e.dataTransfer.getData("text/plain");
+    setDraggingId(null);
+    setDragOverId(null);
+    if (!sourceId || sourceId === targetId) return;
+
+    const orderedIds = components
+      .sort((a, b) => a.orderIndex - b.orderIndex)
+      .map((c) => c.id);
+    const fromIdx = orderedIds.indexOf(sourceId);
+    const toIdx = orderedIds.indexOf(targetId);
+    if (fromIdx < 0 || toIdx < 0) return;
+    orderedIds.splice(fromIdx, 1);
+    orderedIds.splice(toIdx, 0, sourceId);
+
+    useProjectStore.getState().reorderComponentsLocal(orderedIds);
+    if (projectId) {
+      void api.reorderComponents(projectId, orderedIds).catch(() => {});
+    }
+  }, [draggingId, components, projectId]);
 
   const { maxSpan, rows } = useMemo(() => {
     const sorted = [...components].sort((a, b) => a.orderIndex - b.orderIndex);
@@ -302,6 +354,104 @@ export function TimelineBar({ onReplay }: Props) {
       selectComponent(clone.id);
     } catch { /* ignore */ }
   }, [projectId, selectedId, components, loadProject, selectComponent]);
+
+  /** Commit an inline rename of a component. */
+  const commitRename = useCallback(async () => {
+    if (!projectId || !renamingId) return;
+    const trimmed = renameValue.trim();
+    if (!trimmed) {
+      setRenamingId(null);
+      return;
+    }
+    const comp = components.find((c) => c.id === renamingId);
+    if (comp && comp.name !== trimmed) {
+      try {
+        await api.patchComponent(projectId, renamingId, { name: trimmed });
+        await loadProject(projectId);
+      } catch { /* ignore */ }
+    }
+    setRenamingId(null);
+    setRenameValue("");
+  }, [projectId, renamingId, renameValue, components, loadProject]);
+
+  /** Start inline rename for a component. */
+  const startRename = useCallback((compId: string) => {
+    const comp = components.find((c) => c.id === compId);
+    if (!comp) return;
+    setRenamingId(compId);
+    setRenameValue(comp.name);
+    // Focus the input on the next tick after it renders
+    setTimeout(() => {
+      renameInputRef.current?.focus();
+      renameInputRef.current?.select();
+    }, 0);
+  }, [components]);
+
+  /** Simple delete without rippling — just remove the component. */
+  const handleDelete = useCallback(async (compId: string) => {
+    if (!projectId) return;
+    try {
+      await api.removeComponent(projectId, compId);
+      useProjectStore.getState().removeComponentLocal(compId);
+      if (selectedId === compId) selectComponent(null);
+      await loadProject(projectId);
+    } catch { /* ignore */ }
+  }, [projectId, selectedId, selectComponent, loadProject]);
+
+  /** Open the context menu at the cursor position for a component. */
+  const openContextMenu = useCallback((e: React.MouseEvent, compId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    selectComponent(compId);
+    setContextMenu({ x: e.clientX, y: e.clientY, compId });
+  }, [selectComponent]);
+
+  /** Run a context menu action and close the menu. */
+  const runMenuAction = useCallback((action: () => void) => {
+    setContextMenu(null);
+    action();
+  }, []);
+
+  /** Copy the selected component(s) to the clipboard. */
+  const handleCopy = useCallback(() => {
+    const ids = selectedIds.size > 0 ? Array.from(selectedIds) : (selectedId ? [selectedId] : []);
+    const selectedComps = components.filter((c) => ids.includes(c.id));
+    if (selectedComps.length > 0) {
+      useClipboardStore.getState().copy(selectedComps);
+    }
+  }, [selectedIds, selectedId, components]);
+
+  /** Paste clipboard contents as new components. */
+  const handlePaste = useCallback(async () => {
+    if (!projectId) return;
+    const entries = useClipboardStore.getState().entries;
+    if (entries.length === 0) return;
+    for (const entry of entries) {
+      try {
+        const clone = await api.createComponent(projectId, { name: `${entry.name} (paste)` });
+        const newStyle = { ...entry.style };
+        const left = typeof newStyle.left === "number" ? newStyle.left : parseFloat(String(newStyle.left ?? "0")) || 0;
+        const top = typeof newStyle.top === "number" ? newStyle.top : parseFloat(String(newStyle.top ?? "0")) || 0;
+        newStyle.left = left + 20;
+        newStyle.top = top + 20;
+        await api.patchComponent(projectId, clone.id, {
+          easing: entry.easing,
+          durationMs: entry.durationMs,
+          delayMs: entry.delayMs,
+          iterationCount: entry.iterationCount,
+          direction: entry.direction,
+          keyframes: entry.keyframes,
+          style: newStyle,
+          trigger: entry.trigger,
+        });
+        useProjectStore.getState().addComponentLocal(clone);
+        selectComponent(clone.id);
+      } catch { /* ignore */ }
+    }
+  }, [projectId, selectComponent]);
+
+  /** Whether the clipboard has content to paste. */
+  const canPaste = useClipboardStore((s) => s.entries.length > 0);
 
   const stop = useCallback(() => {
     if (rafRef.current !== null) {
@@ -553,6 +703,42 @@ export function TimelineBar({ onReplay }: Props) {
     };
   }, [draggingKf, components, projectId, loadProject]);
 
+  // Close the context menu on any outside click or Escape key
+  useEffect(() => {
+    if (!contextMenu) return;
+    const onDown = () => setContextMenu(null);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setContextMenu(null);
+    };
+    // Defer one tick so the opening right-click doesn't immediately close it
+    const t = setTimeout(() => {
+      window.addEventListener("mousedown", onDown);
+      window.addEventListener("keydown", onKey);
+    }, 0);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [contextMenu]);
+
+  // Escape cancels inline rename; Enter commits it
+  useEffect(() => {
+    if (!renamingId) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setRenamingId(null);
+        setRenameValue("");
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        void commitRename();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [renamingId, commitRename]);
+
   /** Start dragging a component bar — mode controls move vs trim. */
   const startBarDrag = useCallback(
     (e: React.MouseEvent, compId: string, mode: "move" | "trim-left" | "trim-right") => {
@@ -764,12 +950,25 @@ export function TimelineBar({ onReplay }: Props) {
             ))}
           </div>
         </div>
-        {/* Empty tracks area — inviting call-to-action */}
+        {/* Empty tracks area — inviting call-to-action with shortcut hints */}
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <div className="text-2xl text-gray-700 mb-1">◂▸</div>
             <p className="text-sm text-gray-400">No layers on the timeline</p>
             <p className="text-[11px] text-gray-600 mt-1">Pick a template from the Assets panel or ask the agent to add motion.</p>
+            <div className="mt-3 flex items-center justify-center gap-2 text-[9px] text-gray-700 font-mono">
+              <span className="bg-panel2 px-1.5 py-0.5 rounded border border-edge">Space</span>
+              <span>play</span>
+              <span className="text-edge mx-0.5">·</span>
+              <span className="bg-panel2 px-1.5 py-0.5 rounded border border-edge">S</span>
+              <span>split</span>
+              <span className="text-edge mx-0.5">·</span>
+              <span className="bg-panel2 px-1.5 py-0.5 rounded border border-edge">D</span>
+              <span>duplicate</span>
+              <span className="text-edge mx-0.5">·</span>
+              <span className="bg-panel2 px-1.5 py-0.5 rounded border border-edge">F</span>
+              <span>fit view</span>
+            </div>
           </div>
         </div>
       </div>
@@ -881,6 +1080,15 @@ export function TimelineBar({ onReplay }: Props) {
         >
           ◜
         </button>
+        <button
+          onClick={() => setSnapToGrid(!snapToGrid)}
+          className={`px-1.5 py-0.5 text-[10px] rounded ${snapToGrid ? "bg-accent/20 text-accent" : "text-gray-500 hover:text-gray-300 bg-panel2 border border-edge"}`}
+          title="Toggle snap-to-grid — aligns drags to playhead, marker, and component edges"
+          aria-label="Toggle snap to grid"
+          aria-pressed={snapToGrid}
+        >
+          ⊞
+        </button>
         {/* Non-linear edit tools: split / ripple delete / duplicate */}
         <div className="flex items-center gap-0.5">
           <button
@@ -967,6 +1175,11 @@ export function TimelineBar({ onReplay }: Props) {
           <span className="text-[10px] text-gray-600 bg-panel2 px-1.5 py-0.5 rounded font-mono">
             {rows.length} {rows.length === 1 ? "layer" : "layers"}
           </span>
+          {selectedIds.size > 1 && (
+            <span className="text-[10px] text-accent bg-accent/10 border border-accent/30 px-1.5 py-0.5 rounded font-mono">
+              {selectedIds.size} selected
+            </span>
+          )}
           <button
             onClick={() => setTimeFormat((f) => f === "ms" ? "s" : f === "s" ? "frames" : "ms")}
             className="text-[10px] text-gray-600 font-mono hover:text-gray-300 transition-colors bg-panel2 px-1.5 py-0.5 rounded"
@@ -1116,7 +1329,7 @@ export function TimelineBar({ onReplay }: Props) {
           {graphMode && renderGraphEditor()}
 
           {!graphMode && rows.map(({ component, leftPct, widthPct, keyframes, dna, isLoop, propTracks }) => {
-            const isSelected = component.id === selectedId;
+            const isSelected = selectedIds.has(component.id) || component.id === selectedId;
             const isExpanded = expandedTracks.has(component.id);
             const hasKeyframes = propTracks.length > 0;
             const barColor = isSelected ? "bg-accent/50 border-accent/60" : dnaEasingColor(dna);
@@ -1127,12 +1340,24 @@ export function TimelineBar({ onReplay }: Props) {
             return (
               <div key={component.id} className={isDimmed ? "opacity-30" : ""}>
                 <div
-                  className={`flex items-center gap-1 px-3 py-1 cursor-pointer transition-colors ${isSelected ? "bg-panel2" : "hover:bg-panel2/50"}`}
+                  className={`flex items-center gap-1 px-3 py-1 cursor-pointer transition-colors ${isSelected ? "bg-panel2" : "hover:bg-panel2/50"} ${dragOverId === component.id && draggingId !== component.id ? "border-t-2 border-accent" : ""} ${draggingId === component.id ? "opacity-50" : ""}`}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, component.id)}
+                  onDragOver={(e) => handleDragOver(e, component.id)}
+                  onDrop={(e) => handleDrop(e, component.id)}
+                  onDragEnd={() => { setDraggingId(null); setDragOverId(null); }}
                   onClick={(e) => {
                     e.stopPropagation();
-                    selectComponent(isSelected ? null : component.id);
+                    if (e.shiftKey) {
+                      toggleSelection(component.id);
+                    } else {
+                      selectComponent(isSelected ? null : component.id);
+                    }
                   }}
+                  onContextMenu={(e) => openContextMenu(e, component.id)}
                 >
+                  {/* Drag handle for reordering tracks */}
+                  <span className="text-[10px] text-gray-600 hover:text-gray-400 cursor-grab active:cursor-grabbing flex-shrink-0 select-none" title="Drag to reorder">⠿</span>
                   <button
                     onClick={(e) => { e.stopPropagation(); toggleExpand(component.id); }}
                     className={`w-3 flex items-center justify-center text-[10px] text-gray-500 hover:text-accent flex-shrink-0 ${hasKeyframes ? "" : "opacity-30"}`}
@@ -1172,7 +1397,29 @@ export function TimelineBar({ onReplay }: Props) {
                   </button>
                   <div className="w-14 text-[10px] text-gray-400 truncate font-mono flex items-center gap-0.5 flex-shrink-0">
                     {isLoop && <span className="text-white/70 flex-shrink-0" title="loops">↻</span>}
-                    <span className="truncate">{component.name}</span>
+                    {renamingId === component.id ? (
+                      <input
+                        ref={renameInputRef}
+                        value={renameValue}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        onBlur={() => void commitRename()}
+                        onClick={(e) => e.stopPropagation()}
+                        onDoubleClick={(e) => e.stopPropagation()}
+                        className="flex-1 min-w-0 bg-panel2 border border-accent text-gray-200 text-[10px] font-mono px-0.5 py-0 outline-none rounded"
+                        aria-label={`Rename ${component.name}`}
+                      />
+                    ) : (
+                      <span
+                        className="truncate cursor-text"
+                        onDoubleClick={(e) => {
+                          e.stopPropagation();
+                          startRename(component.id);
+                        }}
+                        title="Double-click to rename"
+                      >
+                        {component.name}
+                      </span>
+                    )}
                   </div>
                   <div className="flex-1 h-7 bg-panel2 rounded relative overflow-hidden border border-edge">
                     <div
@@ -1249,6 +1496,86 @@ export function TimelineBar({ onReplay }: Props) {
           })}
         </div>
       </div>
+      {/* Right-click context menu for component bars */}
+      {contextMenu && (
+        <div
+          className="fixed z-50 min-w-[170px] bg-panel border border-edge rounded-md shadow-xl py-1 text-[11px] text-gray-300 font-mono"
+          style={{
+            left: Math.min(contextMenu.x, window.innerWidth - 190),
+            top: Math.min(contextMenu.y, window.innerHeight - 340),
+          }}
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          role="menu"
+        >
+          <button
+            className="w-full text-left px-3 py-1 hover:bg-panel2 text-gray-300"
+            onClick={() => runMenuAction(() => void handleSplitAtPlayhead())}
+            role="menuitem"
+          >
+            <span className="inline-block w-4 text-gray-600">S</span> Split at playhead
+          </button>
+          <button
+            className="w-full text-left px-3 py-1 hover:bg-panel2 text-gray-300"
+            onClick={() => runMenuAction(() => void handleDuplicate())}
+            role="menuitem"
+          >
+            <span className="inline-block w-4 text-gray-600">D</span> Duplicate
+          </button>
+          <button
+            className="w-full text-left px-3 py-1 hover:bg-panel2 text-gray-300"
+            onClick={() => runMenuAction(handleCopy)}
+            role="menuitem"
+          >
+            <span className="inline-block w-4 text-gray-600">C</span> Copy
+          </button>
+          <button
+            className="w-full text-left px-3 py-1 hover:bg-panel2 text-gray-300 disabled:opacity-30 disabled:cursor-not-allowed"
+            onClick={() => runMenuAction(() => void handlePaste())}
+            disabled={!canPaste}
+            role="menuitem"
+          >
+            <span className="inline-block w-4 text-gray-600">V</span> Paste
+          </button>
+          <button
+            className="w-full text-left px-3 py-1 hover:bg-panel2 text-gray-300"
+            onClick={() => runMenuAction(() => startRename(contextMenu.compId))}
+            role="menuitem"
+          >
+            <span className="inline-block w-4 text-gray-600">R</span> Rename
+          </button>
+          <div className="my-1 border-t border-edge" />
+          <button
+            className="w-full text-left px-3 py-1 hover:bg-panel2 text-gray-300"
+            onClick={() => runMenuAction(() => toggleLock(contextMenu.compId))}
+            role="menuitem"
+          >
+            <span className="inline-block w-4 text-gray-600">L</span> {lockedIds.has(contextMenu.compId) ? "Unlock" : "Lock"}
+          </button>
+          <button
+            className="w-full text-left px-3 py-1 hover:bg-panel2 text-gray-300"
+            onClick={() => runMenuAction(() => toggleHidden(contextMenu.compId))}
+            role="menuitem"
+          >
+            <span className="inline-block w-4 text-gray-600">H</span> {hiddenIds.has(contextMenu.compId) ? "Show" : "Hide"}
+          </button>
+          <div className="my-1 border-t border-edge" />
+          <button
+            className="w-full text-left px-3 py-1 hover:bg-panel2 text-gray-300"
+            onClick={() => runMenuAction(() => void handleRippleDelete())}
+            role="menuitem"
+          >
+            <span className="inline-block w-4 text-gray-600">⌫</span> Ripple delete
+          </button>
+          <button
+            className="w-full text-left px-3 py-1 hover:bg-panel2 hover:text-red-400 text-red-400/90"
+            onClick={() => runMenuAction(() => void handleDelete(contextMenu.compId))}
+            role="menuitem"
+          >
+            <span className="inline-block w-4 text-red-400/60">×</span> Delete
+          </button>
+        </div>
+      )}
     </div>
   );
 }
