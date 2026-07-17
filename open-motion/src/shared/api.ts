@@ -41,12 +41,14 @@ export type ProjectResponse = z.infer<typeof ProjectResponseSchema>;
 /* ----------------------------- Chat / SSE ----------------------------- */
 export const ChatRequestSchema = z.object({
   message: z.string().min(1),
+  model: z.string().optional(),
 });
 
 /** Typed SSE event frames for the chat stream. */
 export const ChatEventSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("meta"), provider: z.enum(["mock", "openai"]) }),
   z.object({ type: z.literal("token"), delta: z.string() }),
+  z.object({ type: z.literal("thinking"), text: z.string(), analysis: z.string().default(""), constraints: z.array(z.string()).default([]), options: z.array(z.object({ approach: z.string(), tradeoffs: z.string() })).default([]), chosenApproach: z.string().default("") }),
   z.object({ type: z.literal("reasoning"), text: z.string() }),
   z.object({
     type: z.literal("plan"),
@@ -76,6 +78,42 @@ export const ChatEventSchema = z.discriminatedUnion("type", [
     text: z.string(),
     failedTools: z.array(z.string()).default([]),
     suggestion: z.string().optional(),
+  }),
+  z.object({
+    type: z.literal("proactive_suggestion"),
+    suggestions: z.array(z.object({
+      title: z.string(),
+      reason: z.string(),
+      tool: z.string(),
+      prompt: z.string(),
+      kind: z.enum(["refine", "extend", "diversify", "interact", "sequence", "polish"]).default("refine"),
+    })).default([]),
+  }),
+  z.object({
+    type: z.literal("goal"),
+    root: z.object({
+      id: z.string(),
+      label: z.string(),
+      status: z.enum(["pending", "in_progress", "completed", "skipped"]),
+      children: z.array(z.lazy(() => z.any())).default([]),
+    }),
+  }),
+  z.object({
+    type: z.literal("session_summary"),
+    summary: z.object({
+      headline: z.string(),
+      intent: z.string(),
+      actions: z.array(z.string()),
+      outcomes: z.array(z.string()),
+      metrics: z.object({
+        toolCalls: z.number(),
+        successes: z.number(),
+        failures: z.number(),
+        goalsTotal: z.number(),
+        goalsCompleted: z.number(),
+      }),
+      nextSteps: z.array(z.string()),
+    }),
   }),
   z.object({
     type: z.literal("done"),
