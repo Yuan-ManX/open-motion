@@ -16,12 +16,12 @@ chatRouter.post(
   chatRateLimit,
   validate(ChatRequestSchema),
   runAsync(async (req, res) => {
-    const { message } = validated<{ message: string }>(req);
+    const { message, model } = validated<{ message: string; model?: string }>(req);
     const projectId = req.params.id;
     const wantsStream = req.query.stream !== "false";
 
     if (!wantsStream) {
-      const result = await chat(projectId, message);
+      const result = await chat(projectId, message, undefined, model);
       res.json(result);
       return;
     }
@@ -40,6 +40,7 @@ chatRouter.post(
             sse.send(event);
           }
         },
+        model,
       );
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
