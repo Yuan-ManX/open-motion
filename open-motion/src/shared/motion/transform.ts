@@ -30,6 +30,7 @@ export const NON_TRANSFORM_PROPERTIES = [
   "fontSize",
   "letterSpacing",
   "boxShadow",
+  "clipPath",
 ] as const;
 
 export const TransformPropertySchema = z.enum([
