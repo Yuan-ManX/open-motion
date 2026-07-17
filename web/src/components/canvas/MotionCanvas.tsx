@@ -499,43 +499,70 @@ export function MotionCanvas() {
               const isLocked = lockedIds.has(node.componentId);
               const compListeners = listenersByComponent.get(node.componentId) ?? [];
               const findListener = (evt: string) => compListeners.find((l) => l.eventType === evt);
+              const isMediaTag = node.tag === "img" || node.tag === "video" || node.tag === "audio";
+              const isVoidTag = node.tag === "img" || node.tag === "input" || node.tag === "br" || node.tag === "hr";
+              const mediaProps = isMediaTag ? {
+                src: node.src ?? undefined,
+                poster: node.poster ?? undefined,
+                loop: node.loop || undefined,
+                muted: node.muted || undefined,
+                autoPlay: node.autoplay || undefined,
+                controls: node.controls || undefined,
+                playsInline: true,
+              } : {};
+              const eventHandlers = {
+                onClick: (e: React.MouseEvent) => {
+                  e.stopPropagation();
+                  if (isLocked) return;
+                  const cl = findListener("click");
+                  if (cl && cl.action) executeListenerAction(cl.action as Record<string, unknown>);
+                  if (e.shiftKey) {
+                    toggleSelection(node.componentId);
+                  } else {
+                    selectComponent(isSelected && selectedIds.size === 1 ? null : node.componentId);
+                  }
+                },
+                onMouseEnter: (e: React.MouseEvent) => {
+                  e.stopPropagation();
+                  const cl = findListener("pointerEnter");
+                  if (cl && cl.action) executeListenerAction(cl.action as Record<string, unknown>);
+                },
+                onMouseLeave: (e: React.MouseEvent) => {
+                  e.stopPropagation();
+                  const cl = findListener("pointerLeave");
+                  if (cl && cl.action) executeListenerAction(cl.action as Record<string, unknown>);
+                },
+                onMouseDown: (e: React.MouseEvent) => {
+                  const cl = findListener("pointerDown");
+                  if (cl && cl.action) executeListenerAction(cl.action as Record<string, unknown>);
+                },
+                onMouseUp: (e: React.MouseEvent) => {
+                  const cl = findListener("pointerUp");
+                  if (cl && cl.action) executeListenerAction(cl.action as Record<string, unknown>);
+                },
+              };
+              if (isVoidTag) {
+                return (
+                  <Tag
+                    key={node.componentId}
+                    className={`${node.className} ${isLocked ? "cursor-not-allowed" : "cursor-pointer"} ${isSelected ? "selection-outline" : ""}`}
+                    data-om-name={node.name}
+                    style={isLocked ? { opacity: 0.5 } : undefined}
+                    {...mediaProps}
+                    {...eventHandlers}
+                  />
+                );
+              }
               return (
                 <Tag
                   key={node.componentId}
                   className={`${node.className} ${isLocked ? "cursor-not-allowed" : "cursor-pointer"} ${isSelected ? "selection-outline" : ""}`}
                   data-om-name={node.name}
                   style={isLocked ? { opacity: 0.5 } : undefined}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (isLocked) return;
-                    const cl = findListener("click");
-                    if (cl && cl.action) executeListenerAction(cl.action as Record<string, unknown>);
-                    if (e.shiftKey) {
-                      toggleSelection(node.componentId);
-                    } else {
-                      selectComponent(isSelected && selectedIds.size === 1 ? null : node.componentId);
-                    }
-                  }}
-                  onMouseEnter={(e) => {
-                    e.stopPropagation();
-                    const cl = findListener("pointerEnter");
-                    if (cl && cl.action) executeListenerAction(cl.action as Record<string, unknown>);
-                  }}
-                  onMouseLeave={(e) => {
-                    e.stopPropagation();
-                    const cl = findListener("pointerLeave");
-                    if (cl && cl.action) executeListenerAction(cl.action as Record<string, unknown>);
-                  }}
-                  onMouseDown={(e) => {
-                    const cl = findListener("pointerDown");
-                    if (cl && cl.action) executeListenerAction(cl.action as Record<string, unknown>);
-                  }}
-                  onMouseUp={(e) => {
-                    const cl = findListener("pointerUp");
-                    if (cl && cl.action) executeListenerAction(cl.action as Record<string, unknown>);
-                  }}
+                  {...mediaProps}
+                  {...eventHandlers}
                 >
-                  {node.content}
+                  {isMediaTag ? null : node.content}
                   {isLocked && <span className="ml-1 text-[9px] text-gray-500">🔒</span>}
                 </Tag>
               );
