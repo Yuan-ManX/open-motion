@@ -42,6 +42,29 @@ export interface GoalNode {
   children: GoalNode[];
 }
 
+export interface ProactiveSuggestion {
+  title: string;
+  reason: string;
+  tool: string;
+  prompt: string;
+  kind: "refine" | "extend" | "diversify" | "interact" | "sequence" | "polish";
+}
+
+export interface SessionSummary {
+  headline: string;
+  intent: string;
+  actions: string[];
+  outcomes: string[];
+  metrics: {
+    toolCalls: number;
+    successes: number;
+    failures: number;
+    goalsTotal: number;
+    goalsCompleted: number;
+  };
+  nextSteps: string[];
+}
+
 let activeStreamId = 0;
 
 interface ChatState {
@@ -56,6 +79,8 @@ interface ChatState {
   thinking: ThinkingTrace | null;
   reflection: { text: string; failedTools: string[]; suggestion?: string } | null;
   goal: GoalNode | null;
+  proactiveSuggestions: ProactiveSuggestion[];
+  sessionSummary: SessionSummary | null;
   error: string | null;
   abortController: AbortController | null;
 
@@ -78,6 +103,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   thinking: null,
   reflection: null,
   goal: null,
+  proactiveSuggestions: [],
+  sessionSummary: null,
   error: null,
   abortController: null,
 
@@ -115,6 +142,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       reasoningText: "",
       thinking: null,
       goal: null,
+      proactiveSuggestions: [],
+      sessionSummary: null,
       error: null,
     });
 
@@ -287,6 +316,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
               if (w && h) useUiStore.getState().setCanvasSize({ width: w, height: h });
             }
             break;
+          case "proactive_suggestion":
+            set({ proactiveSuggestions: event.suggestions });
+            break;
+          case "session_summary":
+            set({ sessionSummary: event.summary });
+            break;
           case "done": {
             const assistantMsg: Message = {
               id: `local-${Date.now()}`,
@@ -307,12 +342,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
               thinking: null,
               reflection: null,
               goal: null,
+              proactiveSuggestions: [],
               abortController: null,
             });
             break;
           }
           case "error":
-            set({ isStreaming: false, streamingTokens: "", plan: null, completedStepIndices: [], activeStepIndex: -1, reasoningText: "", thinking: null, reflection: null, goal: null, error: event.message, abortController: null });
+            set({ isStreaming: false, streamingTokens: "", plan: null, completedStepIndices: [], activeStepIndex: -1, reasoningText: "", thinking: null, reflection: null, goal: null, proactiveSuggestions: [], error: event.message, abortController: null });
             break;
           case "meta":
             break;
@@ -349,7 +385,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     activeStreamId++;
     const { abortController } = get();
     if (abortController) abortController.abort();
-    set({ isStreaming: false, streamingTokens: "", plan: null, completedStepIndices: [], activeStepIndex: -1, reasoningText: "", thinking: null, reflection: null, goal: null, abortController: null });
+    set({ isStreaming: false, streamingTokens: "", plan: null, completedStepIndices: [], activeStepIndex: -1, reasoningText: "", thinking: null, reflection: null, goal: null, sessionSummary: null, abortController: null });
   },
 
   clear: async (projectId) => {
@@ -368,6 +404,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       thinking: null,
       reflection: null,
       goal: null,
+      sessionSummary: null,
       error: null,
       abortController: null,
       isStreaming: false,
