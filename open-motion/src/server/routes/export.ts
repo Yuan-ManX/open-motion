@@ -9,6 +9,8 @@ import {
   exportHtml,
   exportVideo,
   exportCode,
+  exportFramer,
+  exportLottie,
   getJobOrThrow,
 } from "../services/exportService.js";
 import { exportsDir } from "../../db/index.js";
@@ -52,6 +54,21 @@ exportRouter.get(
   "/projects/:id/export/react",
   runAsync(async (req, res) => {
     res.json(exportCode(req.params.id, "react"));
+  }),
+);
+
+exportRouter.get(
+  "/projects/:id/export/framer",
+  runAsync(async (req, res) => {
+    res.json(exportFramer(req.params.id));
+  }),
+);
+
+exportRouter.get(
+  "/projects/:id/export/lottie",
+  runAsync(async (req, res) => {
+    const fps = req.query.fps ? parseInt(String(req.query.fps), 10) : undefined;
+    res.json(exportLottie(req.params.id, fps));
   }),
 );
 
