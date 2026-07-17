@@ -2,6 +2,7 @@ import { useUiStore } from "../../store/uiStore.js";
 import { useProjectStore } from "../../store/projectStore.js";
 import { LayersPanel } from "../inspector/LayersPanel.js";
 import { ComponentInspector } from "../inspector/ComponentInspector.js";
+import { EffectsPanel } from "../inspector/EffectsPanel.js";
 import { TemplatesPanel } from "../inspector/TemplatesPanel.js";
 import { SkillsPanel } from "../inspector/SkillsPanel.js";
 import { StateMachinePanel } from "../inspector/StateMachinePanel.js";
@@ -23,10 +24,12 @@ import { MotionSandbox } from "../inspector/MotionSandbox.js";
 import { MotionIntelligencePanel } from "../inspector/MotionIntelligencePanel.js";
 import { StorytellingPanel } from "../inspector/StorytellingPanel.js";
 import { AdaptivePanel } from "../inspector/AdaptivePanel.js";
+import { AccessibilityPanel } from "../inspector/AccessibilityPanel.js";
+import { PerformancePanel } from "../inspector/PerformancePanel.js";
 
 type TabId =
-  | "layers" | "inspector" | "graph" | "code" | "shader" | "recipe" | "brand"
-  | "capture" | "export" | "lineage"
+  | "layers" | "inspector" | "effects" | "graph" | "code" | "shader" | "recipe" | "brand"
+  | "capture" | "export" | "lineage" | "a11y" | "perf"
   | "storyboard" | "health" | "variants" | "sequencer" | "sandbox"
   | "intelligence" | "storytelling" | "adaptive" | "templates" | "skills"
   | "states" | "memory" | "versions";
@@ -56,6 +59,7 @@ const CATEGORIES: CategoryDef[] = [
     tabs: [
       { id: "layers", label: "Layers", icon: "≡" },
       { id: "inspector", label: "Inspect", icon: "◐" },
+      { id: "effects", label: "Effects", icon: "◈" },
       { id: "graph", label: "Graph", icon: "⬡" },
       { id: "code", label: "Code", icon: "</>" },
       { id: "shader", label: "Shader", icon: "◉" },
@@ -105,6 +109,8 @@ const CATEGORIES: CategoryDef[] = [
       { id: "export", label: "Export", icon: "↗" },
       { id: "lineage", label: "Lineage", icon: "⬥" },
       { id: "versions", label: "History", icon: "⌛" },
+      { id: "a11y", label: "A11y", icon: "♿" },
+      { id: "perf", label: "Perf", icon: "⚡" },
     ],
   },
 ];
@@ -137,7 +143,7 @@ export function RightPanel() {
   const activeCategory = categoryOfTab(tab as TabId);
   const currentCategory = CATEGORIES.find((c) => c.id === activeCategory) ?? CATEGORIES[0];
 
-  // Collapsed state: thin vertical icon rail with expand button
+  // Collapsed state: thin vertical icon rail — click any icon to expand and jump to that category
   if (collapsed) {
     return (
       <div className="w-8 border-l border-edge flex flex-col items-center py-2 flex-shrink-0 bg-panel">
@@ -151,15 +157,28 @@ export function RightPanel() {
           ◀
         </button>
         <div className="flex flex-col items-center gap-1">
-          {CATEGORIES.map((c) => (
-            <span
-              key={c.id}
-              className="w-7 h-7 flex items-center justify-center text-sm text-gray-700 rounded hover:text-gray-400 transition-colors"
-              title={c.label}
-            >
-              {c.icon}
-            </span>
-          ))}
+          {CATEGORIES.map((c) => {
+            const isActive = activeCategory === c.id;
+            return (
+              <button
+                key={c.id}
+                onClick={() => {
+                  setCategory(c.id);
+                  setTab(c.tabs[0].id);
+                  setCollapsed(false);
+                }}
+                className={`w-7 h-7 flex items-center justify-center text-sm rounded transition-colors ${
+                  isActive
+                    ? "text-gray-100 bg-panel3"
+                    : "text-gray-700 hover:text-gray-300 hover:bg-panel2"
+                }`}
+                title={c.label}
+                aria-label={`Open ${c.label}`}
+              >
+                {c.icon}
+              </button>
+            );
+          })}
         </div>
       </div>
     );
@@ -168,8 +187,8 @@ export function RightPanel() {
   return (
     <div className="w-72 border-l border-edge flex flex-col flex-shrink-0 bg-panel">
       {/* Sub-tab row — panels within the active category, with collapse toggle */}
-      <div className="flex items-center border-b border-edge flex-shrink-0 overflow-x-auto bg-panel2/50">
-        <div className="flex flex-1 min-w-0">
+      <div className="flex items-stretch border-b border-edge flex-shrink-0 bg-panel2/50">
+        <div className="flex flex-1 min-w-0 overflow-x-auto scrollbar-thin">
           {currentCategory.tabs.map((t) => {
             const isActive = tab === t.id;
             const showBadge = t.id === "layers" && componentCount > 0;
@@ -178,7 +197,7 @@ export function RightPanel() {
               <button
                 key={t.id}
                 onClick={() => setTab(t.id)}
-                className={`px-3 py-2 text-xs font-medium transition-colors relative flex items-center gap-1.5 whitespace-nowrap ${
+                className={`px-3 py-2 text-xs font-medium transition-colors relative flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 ${
                   isActive
                     ? "text-gray-100"
                     : "text-gray-500 hover:text-gray-300"
@@ -203,7 +222,7 @@ export function RightPanel() {
         </div>
         <button
           onClick={() => setCollapsed(true)}
-          className="flex-shrink-0 px-2 py-2 text-gray-600 hover:text-gray-200 transition-colors border-l border-edge"
+          className="flex-shrink-0 w-8 flex items-center justify-center text-gray-500 hover:text-gray-100 hover:bg-panel3 transition-colors border-l border-edge"
           title="Hide panel"
           aria-label="Hide right panel"
           aria-expanded={true}
@@ -263,6 +282,10 @@ export function RightPanel() {
           <ExportPresetsPanel />
         ) : tab === "lineage" ? (
           <SessionLineagePanel />
+        ) : tab === "a11y" ? (
+          <AccessibilityPanel />
+        ) : tab === "perf" ? (
+          <PerformancePanel />
         ) : tab === "storyboard" ? (
           <StoryboardPanel />
         ) : tab === "health" ? (
@@ -281,12 +304,14 @@ export function RightPanel() {
           <AdaptivePanel />
         ) : !projectId ? (
           <div className="px-4 py-8 text-center text-xs text-gray-600">
-            {tab === "layers" || tab === "states" || tab === "memory" || tab === "versions" || tab === "graph"
+            {tab === "layers" || tab === "states" || tab === "memory" || tab === "versions" || tab === "graph" || tab === "effects"
               ? "No project loaded."
               : "Open a project to inspect layers."}
           </div>
         ) : tab === "layers" ? (
           <LayersPanel />
+        ) : tab === "effects" ? (
+          <EffectsPanel />
         ) : tab === "graph" ? (
           <NodeGraphPanel />
         ) : tab === "states" ? (
