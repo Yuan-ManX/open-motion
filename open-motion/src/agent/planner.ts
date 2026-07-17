@@ -70,7 +70,7 @@ export function buildPlan(userMessage: string, spec: MotionSpec): Plan {
   }
 
   // Easing change.
-  if (/\b(bouncy|bounce|springy|smooth|soft|snappy|sharp|crisp|elastic|back|linear|ease-in|ease-out)\b/i.test(text)) {
+  if (/\b(bouncy|bounce|springy|smooth|soft|snappy|sharp|crisp|elastic|back|linear|ease-in-out|ease-in|ease-out|ease)\b/i.test(text)) {
     if (firstId) {
       steps.push({
         tool: "set_easing",
@@ -296,7 +296,7 @@ export function buildPlan(userMessage: string, spec: MotionSpec): Plan {
   }
 
   // Style presets: apply coordinated aesthetic across all components.
-  if (/\b(playful|energetic|calm|professional|dramatic|minimal|style)\b/i.test(text)) {
+  if (/\b(playful|energetic|calm|professional|dramatic|minimal|cinematic|glassy|retro|futuristic|organic|mechanical|luxury|style)\b/i.test(text)) {
     steps.push({ tool: "apply_style", description: "Apply a coordinated motion style across all components" });
   }
 
@@ -311,7 +311,7 @@ export function buildPlan(userMessage: string, spec: MotionSpec): Plan {
   }
 
   // Choreography: multi-component sequencing.
-  if (/\b(choreograph|orchestrat|wave pattern|ripple effect|cascade|canon|converge)\b/i.test(text)) {
+  if (/\b(choreograph|orchestrat|wave pattern|ripple effect|cascade|canon|converge|spiral|explosion|assembly|breathing|domino|scatter)\b/i.test(text)) {
     steps.push({ tool: "choreograph", description: "Apply a choreographic pattern across all components" });
   }
 
@@ -536,7 +536,7 @@ export function buildPlan(userMessage: string, spec: MotionSpec): Plan {
   }
 
   // Motion recipes: browse or apply.
-  if (/\b(recipe|recipes|gentle entrance|impact reveal|elastic bounce|cinematic fade|data pulse|ambient float|typewriter reveal|magnetic hover)\b/i.test(text)) {
+  if (/\b(recipe|recipes|gentle entrance|impact reveal|elastic bounce|cinematic fade|data pulse|ambient float|typewriter reveal|magnetic hover|swift dismissal|graceful departure|skeleton shimmer|progress march|toast rise|bar grow|confetti burst)\b/i.test(text)) {
     if (/\b(apply|use|try)\b/i.test(text) && firstId) {
       steps.push({ tool: "apply_recipe", description: "Apply a curated motion recipe to the component" });
     } else {
@@ -692,7 +692,7 @@ export function buildPlan(userMessage: string, spec: MotionSpec): Plan {
   }
 
   // Shader effects
-  if (/\b(shader|glitch effect|chromatic aberration|neon glow|plasma|pixelate|vignette|film grain|ripple effect|gradient shift)\b/i.test(text) && firstId) {
+  if (/\b(shader|glitch effect|chromatic aberration|neon glow|plasma|pixelate|vignette|film grain|ripple effect|gradient shift|aurora|vortex|mesh.?gradient|dot.?orbit|dot.?grid|warp|swirl|waves|perlin|simplex|voronoi|metaballs?|pulsing.?border|smoke.?ring|god.?rays|heatmap|liquid.?metal|gem.?smoke|halftone|dithering|grain.?gradient|color.?panels|paper.?texture|fluted.?glass|water)\b/i.test(text) && firstId) {
     steps.push({ tool: "set_shader_effect", description: "Apply WebGL shader effect to component" });
   }
 
