@@ -5,7 +5,7 @@ export const squashStretchTemplate: TemplateDef = {
   id: "tpl-squash-stretch",
   name: "Squash & Stretch",
   category: "emphasis",
-  description: "The Disney principle: squash on impact, stretch on release.",
+  description: "A classic animation principle: squash on impact, stretch on release.",
   tags: ["scale", "squash", "emphasis"],
   build: () => [
     draft("Ball", {
