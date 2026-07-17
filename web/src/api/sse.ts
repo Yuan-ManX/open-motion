@@ -4,6 +4,8 @@ import { authHeaders } from "./auth.js";
 /**
  * Stream a chat request over SSE. Parses the text/event-stream frames and
  * dispatches typed events. Returns an AbortController so the caller can cancel.
+ * The selected model (if any) is forwarded so the backend router can honour
+ * the user's choice from the model picker.
  */
 export function streamChat(
   projectId: string,
@@ -14,16 +16,22 @@ export function streamChat(
   const controller = new AbortController();
 
   (async () => {
+    let model: string | undefined;
+    try {
+      model = localStorage.getItem("openmotion.selectedModel") ?? undefined;
+    } catch {
+      /* localStorage unavailable */
+    }
     try {
       const res = await fetch(`/api/projects/${projectId}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ message }),
+        body: JSON.stringify({ message, model }),
         signal: controller.signal,
       });
       if (!res.ok || !res.body) {
         if (res.status === 401) {
-          throw new Error("unauthorized — set your API key via the 🔑 button in the toolbar");
+          throw new Error("unauthorized — set your OPENMOTION_API_KEY to access the backend");
         }
         throw new Error(`chat request failed: ${res.status}`);
       }
