@@ -22,7 +22,7 @@ interface UiState {
   canvasSize: { width: number; height: number };
   playbackSpeed: number;
   chatWidth: number;
-  rightPanelTab: "layers" | "inspector" | "effects" | "templates" | "skills" | "states" | "memory" | "versions" | "graph" | "code" | "shader" | "recipe" | "brand" | "capture" | "export" | "lineage" | "storyboard" | "health" | "variants" | "sequencer" | "sandbox" | "intelligence" | "storytelling" | "adaptive";
+  rightPanelTab: "layers" | "inspector" | "effects" | "templates" | "skills" | "states" | "memory" | "versions" | "graph" | "code" | "shader" | "recipe" | "brand" | "capture" | "export" | "lineage" | "a11y" | "perf" | "storyboard" | "health" | "variants" | "sequencer" | "sandbox" | "intelligence" | "storytelling" | "adaptive";
   rightPanelCategory: "design" | "motion" | "intel" | "assets" | "output";
   onionSkin: { enabled: boolean; frames: number; opacity: number };
   previewOpen: boolean;
@@ -49,6 +49,8 @@ interface UiState {
   sidebarWidth: number;
   rightPanelCollapsed: boolean;
   isPlaying: boolean;
+  /** Custom track display order — overrides default delayMs sort when non-empty. */
+  trackOrder: string[];
 
   selectComponent: (id: string | null) => void;
   setExportOpen: (open: boolean) => void;
@@ -63,7 +65,7 @@ interface UiState {
   setCanvasSize: (size: { width: number; height: number }) => void;
   setPlaybackSpeed: (speed: number) => void;
   setChatWidth: (w: number) => void;
-  setRightPanelTab: (tab: "layers" | "inspector" | "effects" | "templates" | "skills" | "states" | "memory" | "versions" | "graph" | "code" | "shader" | "recipe" | "brand" | "capture" | "export" | "lineage" | "storyboard" | "health" | "variants" | "sequencer" | "sandbox" | "intelligence" | "storytelling" | "adaptive") => void;
+  setRightPanelTab: (tab: "layers" | "inspector" | "effects" | "templates" | "skills" | "states" | "memory" | "versions" | "graph" | "code" | "shader" | "recipe" | "brand" | "capture" | "export" | "lineage" | "a11y" | "perf" | "storyboard" | "health" | "variants" | "sequencer" | "sandbox" | "intelligence" | "storytelling" | "adaptive") => void;
   setRightPanelCategory: (category: "design" | "motion" | "intel" | "assets" | "output") => void;
   setOnionSkin: (patch: Partial<UiState["onionSkin"]>) => void;
   setPreviewOpen: (open: boolean) => void;
@@ -95,6 +97,7 @@ interface UiState {
   setSidebarWidth: (w: number) => void;
   setRightPanelCollapsed: (collapsed: boolean) => void;
   setIsPlaying: (playing: boolean) => void;
+  setTrackOrder: (order: string[]) => void;
 }
 
 export const useUiStore = create<UiState>((set, get) => ({
@@ -139,6 +142,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   sidebarWidth: 260,
   rightPanelCollapsed: false,
   isPlaying: false,
+  trackOrder: [],
 
   selectComponent: (id) => set({ selectedComponentId: id, selectedIds: id ? new Set([id]) : new Set() }),
   setExportOpen: (open) => set({ exportOpen: open }),
@@ -209,4 +213,5 @@ export const useUiStore = create<UiState>((set, get) => ({
   setSidebarWidth: (w) => set({ sidebarWidth: Math.max(200, Math.min(400, w)) }),
   setRightPanelCollapsed: (collapsed) => set({ rightPanelCollapsed: collapsed }),
   setIsPlaying: (playing) => set({ isPlaying: playing }),
+  setTrackOrder: (order) => set({ trackOrder: order }),
 }));
