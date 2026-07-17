@@ -8,6 +8,7 @@ import {
   patchComponent,
   createComponent,
   deleteComponent,
+  batchDeleteComponents,
   type ComponentPatch,
 } from "../../db/repositories/components.js";
 import { instantiateTemplate } from "../../motion/templates/index.js";
@@ -92,6 +93,12 @@ export function deleteProjectComponent(projectId: string, componentId: string): 
   ensureProjectExists(projectId);
   const ok = deleteComponent(projectId, componentId);
   if (!ok) throw new HttpError(404, "component not found");
+}
+
+/** Remove multiple components in one operation. Returns the count actually deleted. */
+export function batchDeleteProjectComponents(projectId: string, componentIds: string[]): number {
+  ensureProjectExists(projectId);
+  return batchDeleteComponents(projectId, componentIds);
 }
 
 /** Apply a patch to multiple components in one operation. */
