@@ -109,6 +109,12 @@ const PATTERNS: CompositionPattern[] = [
         "chromatic pulse": "tpl-chromatic-pulse",
         "kinetic ribbon": "tpl-kinetic-ribbon",
         "magnetic ripple": "tpl-magnetic-ripple",
+        "glitch": "tpl-glitch",
+        "gradient shift": "tpl-gradient-shift",
+        "text scramble": "tpl-text-scramble",
+        "data stream": "tpl-data-stream",
+        "gravity drop": "tpl-gravity-drop",
+        "breathing light": "tpl-breathing-light",
         "fadeout": "tpl-fade-out",
         "slideout": "tpl-slide-out",
         "zoomout": "tpl-zoom-out",
@@ -267,6 +273,9 @@ const PATTERNS: CompositionPattern[] = [
     match: (msg, ctx) => {
       if (!has(msg, "make it", "refine", "adjust", "tweak")) return null;
       if (!ctx.hasComponents) return null;
+      // Skip when the user explicitly requests an easing preset — the mock
+      // provider's EASING_INTENTS will handle "soft easing", "ease-in" etc.
+      if (has(msg, "easing")) return null;
 
       const tools: ComposedTool[] = [];
 
@@ -386,7 +395,7 @@ const PATTERNS: CompositionPattern[] = [
   {
     name: "style-preset",
     match: (msg, ctx) => {
-      if (!has(msg, "style preset", "apply style", "make it playful", "make it energetic", "make it calm", "make it professional", "make it dramatic", "make it minimal", "playful style", "energetic style", "calm style", "professional style", "dramatic style", "minimal style")) {
+      if (!has(msg, "style preset", "apply style", "make it playful", "make it energetic", "make it calm", "make it professional", "make it dramatic", "make it minimal", "make it cinematic", "make it glassy", "make it retro", "make it futuristic", "make it organic", "make it mechanical", "make it luxury", "playful style", "energetic style", "calm style", "professional style", "dramatic style", "minimal style", "cinematic style", "glassy style", "retro style", "futuristic style", "organic style", "mechanical style", "luxury style")) {
         return null;
       }
       if (!ctx.hasComponents) return null;
@@ -398,6 +407,13 @@ const PATTERNS: CompositionPattern[] = [
       else if (has(msg, "professional")) presetId = "professional";
       else if (has(msg, "dramatic")) presetId = "dramatic";
       else if (has(msg, "minimal")) presetId = "minimal";
+      else if (has(msg, "cinematic")) presetId = "cinematic";
+      else if (has(msg, "glassy")) presetId = "glassy";
+      else if (has(msg, "retro")) presetId = "retro";
+      else if (has(msg, "futuristic")) presetId = "futuristic";
+      else if (has(msg, "organic")) presetId = "organic";
+      else if (has(msg, "mechanical")) presetId = "mechanical";
+      else if (has(msg, "luxury")) presetId = "luxury";
 
       if (!presetId) return null;
 
@@ -408,6 +424,94 @@ const PATTERNS: CompositionPattern[] = [
           reason: `Apply ${presetId} style preset to all components`,
         },
       ];
+    },
+  },
+
+  // --- Spring physics composition ---
+  {
+    name: "spring-physics",
+    match: (msg, ctx) => {
+      if (!has(msg, "spring", "physics")) return null;
+      if (!ctx.hasComponents) return null;
+
+      const stiffness = extractNumber(msg, /stiffness\s*(\d+)/) ?? 180;
+      const damping = extractNumber(msg, /damping\s*(\d+)/) ?? 14;
+      const mass = extractNumber(msg, /mass\s*(\d+(?:\.\d+)?)/) ?? 1;
+
+      return [
+        {
+          tool: "set_spring",
+          args: { projectId: ctx.projectId, componentId: "__last__", stiffness, damping, mass },
+          reason: `Configure spring physics: stiffness ${stiffness}, damping ${damping}, mass ${mass}`,
+        },
+      ];
+    },
+  },
+
+  // --- Loop animation composition ---
+  {
+    name: "loop-animation",
+    match: (msg, ctx) => {
+      if (!has(msg, "loop", "repeat", "forever", "infinite")) return null;
+      if (!ctx.hasComponents) return null;
+
+      const countMatch = msg.match(/(\d+)\s*(?:times?|loops?|repeats?)/);
+      const iterationCount: number | "infinite" = countMatch ? parseInt(countMatch[1], 10) : "infinite";
+
+      let direction: "normal" | "reverse" | "alternate" | "alternate-reverse" = "normal";
+      // Check compound direction first so "alternate-reverse" wins over "alternate"
+      if (has(msg, "alternate-reverse", "alternate reverse")) direction = "alternate-reverse";
+      else if (has(msg, "alternate")) direction = "alternate";
+      else if (has(msg, "reverse")) direction = "reverse";
+
+      return [
+        {
+          tool: "set_loop",
+          args: { projectId: ctx.projectId, componentId: "__last__", iterationCount, direction },
+          reason: `Set loop to ${iterationCount === "infinite" ? "infinite" : iterationCount + "x"} with ${direction} direction`,
+        },
+      ];
+    },
+  },
+
+  // --- Recipe apply composition ---
+  {
+    name: "recipe-apply",
+    match: (msg, ctx) => {
+      if (!has(msg, "recipe", "preset animation", "motion recipe")) return null;
+      if (!ctx.hasComponents) return null;
+
+      const recipeMap: Record<string, string> = {
+        "gentle entrance": "recipe-gentle-entrance",
+        "impact reveal": "recipe-impact-reveal",
+        "elastic bounce": "recipe-elastic-bounce",
+        "cinematic fade": "recipe-cinematic-fade",
+        "data pulse": "recipe-data-pulse",
+        "ambient float": "recipe-ambient-float",
+        "typewriter reveal": "recipe-typewriter-reveal",
+        "magnetic hover": "recipe-magnetic-hover",
+        "swift dismissal": "recipe-swift-dismissal",
+        "graceful departure": "recipe-graceful-departure",
+        "skeleton shimmer": "recipe-skeleton-shimmer",
+        "progress march": "recipe-progress-march",
+        "toast rise": "recipe-toast-rise",
+        "bar grow": "recipe-bar-grow",
+        "confetti burst": "recipe-confetti-burst",
+      };
+
+      for (const [keyword, recipeId] of Object.entries(recipeMap)) {
+        if (msg.includes(keyword)) {
+          return [
+            {
+              tool: "apply_recipe",
+              args: { projectId: ctx.projectId, componentId: "__last__", recipeId },
+              reason: `Apply ${keyword} recipe`,
+            },
+          ];
+        }
+      }
+
+      return null;
     },
   },
 ];
