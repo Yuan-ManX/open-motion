@@ -5,7 +5,22 @@ import { getProjectSpec } from "../../db/repositories/projects.js";
 import { listMessages, clearMessages } from "../../db/repositories/messages.js";
 import { clearMemory } from "../../agent/memory/store.js";
 import { orchestrate } from "../../agent/orchestrator.js";
-import { getProvider } from "../../agent/provider/index.js";
+import { getProvider, getProviderForModel } from "../../agent/provider/index.js";
+
+interface CollectedSummary {
+  headline: string;
+  intent: string;
+  actions: string[];
+  outcomes: string[];
+  metrics: {
+    toolCalls: number;
+    successes: number;
+    failures: number;
+    goalsTotal: number;
+    goalsCompleted: number;
+  };
+  nextSteps: string[];
+}
 
 export interface ChatResult {
   provider: string;
@@ -15,15 +30,26 @@ export interface ChatResult {
   tokensIn: number;
   tokensOut: number;
   spec: ReturnType<typeof getProjectSpec>;
+  summary?: CollectedSummary;
+}
+
+/** Resolve the provider, honouring a user-selected model when provided. */
+async function resolveProvider(model?: string) {
+  if (model) {
+    const specific = await getProviderForModel(model);
+    if (specific) return specific;
+  }
+  return getProvider();
 }
 
 export async function chat(
   projectId: string,
   message: string,
   onEvent?: (event: ChatEvent) => void,
+  model?: string,
 ): Promise<ChatResult> {
   ensureProjectExists(projectId);
-  const provider = await getProvider();
+  const provider = await resolveProvider(model);
 
   const collected = {
     provider: provider.name,
@@ -35,6 +61,7 @@ export async function chat(
   };
   let finalMessage = "";
   let errored: string | null = null;
+  let sessionSummary: CollectedSummary | undefined;
 
   await orchestrate({
     projectId,
@@ -51,6 +78,9 @@ export async function chat(
           break;
         case "tool_result":
           collected.toolResults.push({ callId: event.callId, tool: event.tool, summary: event.summary });
+          break;
+        case "session_summary":
+          sessionSummary = event.summary;
           break;
         case "done":
           finalMessage = event.message;
@@ -76,6 +106,7 @@ export async function chat(
     tokensIn: collected.tokensIn,
     tokensOut: collected.tokensOut,
     spec: getProjectSpec(projectId),
+    ...(sessionSummary ? { summary: sessionSummary } : {}),
   };
 }
 
@@ -84,9 +115,10 @@ export async function chatStream(
   message: string,
   onMeta: (providerName: string) => void,
   onEvent: (event: ChatEvent) => void,
+  model?: string,
 ): Promise<void> {
   ensureProjectExists(projectId);
-  const provider = await getProvider();
+  const provider = await resolveProvider(model);
   onMeta(provider.name);
   await orchestrate({ projectId, userMessage: message, provider, onEvent });
 }
