@@ -43,10 +43,20 @@ function parseRepeatCount(text: string): number | "infinite" {
 const EASING_INTENTS: { match: RegExp; preset: string; reply: string }[] = [
   { match: /\b(bouncy|bounce|bouncier|springy)\b|弹跳|弹性/i, preset: "bounce", reply: "Switched to a bouncy easing so it overshoots with spring." },
   { match: /\b(elastic)\b/i, preset: "elastic", reply: "Applied an elastic easing for that stretchy, snappy feel." },
-  { match: /\b(smooth|smoother|soft|gentle)\b|柔和|平滑/i, preset: "smooth", reply: "Smoothed the easing so the motion glides." },
+  { match: /\b(smooth|smoother|gentle)\b|柔和|平滑/i, preset: "smooth", reply: "Smoothed the easing so the motion glides." },
+  { match: /\b(soft)\b/i, preset: "soft", reply: "Applied a soft easing for a gentle, natural deceleration." },
   { match: /\b(snappy|sharp|crisp)\b|利落|干脆/i, preset: "snappy", reply: "Made the easing snappy for a crisp start and stop." },
+  // Compound ease patterns must come before simpler ones (longest match first)
+  { match: /\bease[-\s]in[-\s]out[-\s]quad\b/i, preset: "ease-in-out-quad", reply: "Set easing to ease-in-out-quad — symmetric quad acceleration." },
+  { match: /\bease[-\s]in[-\s]out[-\s]cubic\b/i, preset: "ease-in-out-cubic", reply: "Set easing to ease-in-out-cubic — smooth cubic S-curve." },
+  { match: /\bease[-\s]in[-\s]quad\b/i, preset: "ease-in-quad", reply: "Set easing to ease-in-quad — gentle quad acceleration." },
+  { match: /\bease[-\s]out[-\s]quad\b/i, preset: "ease-out-quad", reply: "Set easing to ease-out-quad — gentle quad deceleration." },
+  { match: /\bease[-\s]in[-\s]cubic\b/i, preset: "ease-in-cubic", reply: "Set easing to ease-in-cubic — strong cubic acceleration." },
+  { match: /\bease[-\s]out[-\s]cubic\b/i, preset: "ease-out-cubic", reply: "Set easing to ease-out-cubic — strong cubic deceleration." },
+  { match: /\bease[-\s]in[-\s]out\b/i, preset: "ease-in-out", reply: "Set easing to ease-in-out — slow start and finish, fast middle." },
   { match: /\b(ease-in)\b/i, preset: "ease-in", reply: "Set easing to ease-in — slow start, fast finish." },
   { match: /\b(ease-out|ease out)\b/i, preset: "ease-out", reply: "Set easing to ease-out — fast start, slow finish." },
+  { match: /\b(ease)\b/i, preset: "ease", reply: "Set easing to ease — the default CSS smooth curve." },
   { match: /\b(linear)\b/i, preset: "linear", reply: "Set easing to linear — constant speed throughout." },
   { match: /\b(back|overshoot)\b/i, preset: "back", reply: "Applied a back easing for a slight overshoot." },
 ];
@@ -173,11 +183,33 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     push("set_delay", { componentId: state.firstComponentId, delayMs: ms }, `Added a ${ms}ms delay before it starts.`);
   }
 
-  // --- Loop ---
+  // --- Loop (with optional direction) ---
   if (/\b(loop|repeat|forever)\b|循环|重复/i.test(userText) && state.firstComponentId) {
     const count = parseRepeatCount(userText);
-    push("set_loop", { componentId: state.firstComponentId, iterationCount: count },
-      count === "infinite" ? "Set it to loop forever." : `Set it to repeat ${count} times.`);
+    // Parse optional direction from phrases like "loop with alternate direction".
+    // Order longer alternatives (alternate-reverse) before shorter ones (alternate)
+    // so the regex engine captures the full compound direction token.
+    const dirM = userText.match(/\b(normal|reverse|alternate-reverse|alternate)\b/i);
+    const direction = dirM ? dirM[1].toLowerCase() : undefined;
+    const args: Record<string, unknown> = { componentId: state.firstComponentId, iterationCount: count };
+    if (direction) args.direction = direction;
+    push("set_loop", args,
+      count === "infinite"
+        ? `Set it to loop forever${direction ? ` (${direction})` : ""}.`
+        : `Set it to repeat ${count} times${direction ? ` (${direction})` : ""}.`);
+  }
+
+  // --- Direction-only change (uses batch_update for a single component).
+  // projectId is injected by the tool executor from the session context, so
+  // we omit it here — matching the convention used by set_easing/set_loop. ---
+  if (/\b(direction|play.*backward|play.*reverse|alternate.*direction|reverse.*direction)\b/i.test(userText)
+      && !/\b(loop|repeat|forever)\b/i.test(userText)
+      && state.firstComponentId) {
+    const dirM = userText.match(/\b(normal|reverse|alternate-reverse|alternate)\b/i);
+    const direction = dirM ? dirM[1].toLowerCase() : "reverse";
+    push("batch_update",
+      { componentIds: [state.firstComponentId], direction },
+      `Set animation direction to ${direction}.`);
   }
 
   // --- Fill mode ---
@@ -608,7 +640,7 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
   }
 
   // --- Style presets: apply coordinated aesthetic across all components ---
-  const styleM = userText.match(/\b(playful|energetic|calm|professional|dramatic|minimal)\b/i);
+  const styleM = userText.match(/\b(playful|energetic|calm|professional|dramatic|minimal|cinematic|glassy|retro|futuristic|organic|mechanical|luxury)\b/i);
   if (styleM && state.firstComponentId) {
     push("apply_style", { styleId: styleM[1].toLowerCase() },
       `Applied the ${styleM[1].toLowerCase()} style across all components for a coherent feel.`);
@@ -1384,22 +1416,50 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
   }
 
   // --- Shader effects ---
-  if (/\b(shader|glitch effect|chromatic aberration|neon glow|plasma|pixelate|vignette|film grain|ripple effect|gradient shift|aurora|vortex)\b/i.test(userText) && state.firstComponentId) {
+  if (/\b(shader|glitch effect|chromatic aberration|neon glow|plasma|pixelate|vignette|film grain|ripple effect|gradient shift|aurora|vortex|mesh.?gradient|dot.?orbit|dot.?grid|warp|swirl|waves|perlin|simplex|voronoi|metaballs?|pulsing.?border|smoke.?ring|god.?rays|heatmap|liquid.?metal|gem.?smoke|halftone|dithering|grain.?gradient|color.?panels|paper.?texture|fluted.?glass|water)\b/i.test(userText) && state.firstComponentId) {
     const effectMap: Record<string, string> = {
       "chromatic": "shader-chromatic",
       "glitch": "shader-glitch",
       "plasma": "shader-plasma",
       "noise": "shader-noise",
+      "grain gradient": "shader-grain-gradient",
       "grain": "shader-noise",
       "ripple": "shader-ripple",
       "vignette": "shader-vignette",
       "neon": "shader-neon-glow",
       "pixelate": "shader-pixelate",
       "pixel": "shader-pixelate",
+      "gradient shift": "shader-gradient-shift",
       "gradient": "shader-gradient-shift",
+      "mesh gradient": "shader-mesh-gradient",
+      "mesh": "shader-mesh-gradient",
       "invert": "shader-invert-pulse",
       "aurora": "shader-aurora",
       "vortex": "shader-vortex",
+      "dot orbit": "shader-dot-orbit",
+      "dot grid": "shader-dot-grid",
+      "warp": "shader-warp",
+      "swirl": "shader-swirl",
+      "waves": "shader-waves",
+      "perlin": "shader-perlin",
+      "simplex": "shader-simplex",
+      "voronoi": "shader-voronoi",
+      "metaball": "shader-metaballs",
+      "pulsing border": "shader-pulsing-border",
+      "smoke ring": "shader-smoke-ring",
+      "god rays": "shader-god-rays",
+      "god ray": "shader-god-rays",
+      "heatmap": "shader-heatmap",
+      "liquid metal": "shader-liquid-metal",
+      "gem smoke": "shader-gem-smoke",
+      "halftone dots": "shader-halftone-dots",
+      "halftone cmyk": "shader-halftone-cmyk",
+      "halftone": "shader-halftone-dots",
+      "dithering": "shader-dithering",
+      "color panels": "shader-color-panels",
+      "paper texture": "shader-paper-texture",
+      "fluted glass": "shader-fluted-glass",
+      "water": "shader-water",
     };
     let effectId = "shader-chromatic";
     for (const [keyword, id] of Object.entries(effectMap)) {
@@ -1622,7 +1682,7 @@ const FALLBACK_REPLY =
   "stagger components (cascade, sequence, one by one), " +
   "match template (find closest fit), create variant (try different easing/duration), " +
   "apply presets (shake, wiggle, float, glow, heartbeat, typewriter), " +
-  "apply style presets (playful, energetic, calm, professional, dramatic, minimal) across all components, " +
+  "apply style presets (playful, energetic, calm, professional, dramatic, minimal, cinematic, glassy, retro, futuristic, organic, mechanical, luxury) across all components, " +
   "recognize patterns (easing monotony, timing uniformity, incomplete lifecycle, motion overload), " +
   "harmonize colors (complementary, analogous, triadic, monochrome), " +
   "choreograph components (cascade, wave, ripple, canon, converge, spiral, explosion, assembly, breathing, domino, scatter), " +
@@ -1643,7 +1703,7 @@ const FALLBACK_REPLY =
   "list auto-generated skills (learned from past task sequences), " +
   "compile motion grammar expressions (fade.in(600ms) then slide.up(400ms) with easing(spring)), " +
   "parse natural language motion descriptions ('make it bounce in playfully with spring physics'), " +
-  "apply WebGL shader effects (chromatic aberration, glitch, plasma, neon glow, pixelate, vignette, noise, ripple, gradient shift), " +
+  "apply WebGL shader effects (chromatic aberration, glitch, plasma, neon glow, pixelate, vignette, noise, ripple, gradient shift, invert pulse, aurora, vortex, mesh gradient, dot orbit, dot grid, warp, swirl, waves, perlin, simplex, voronoi, metaballs, pulsing border, smoke ring, god rays, heatmap, liquid metal, gem smoke, halftone dots, halftone cmyk, dithering, grain gradient, color panels, paper texture, fluted glass, water), " +
   "save/list/restore/delete version snapshots (time-travel through project states), " +
   "manage design tokens (duration, easing, color, spacing, radius — reusable $name references), " +
   "save/list/run/delete tool pipelines (reusable sequences of tool calls — record a workflow once, replay it on any project), " +
@@ -1664,7 +1724,9 @@ const FALLBACK_REPLY =
   "flip-card, typewriter, shimmer, morph, notification, progress, ripple, marquee, orbit, wave, confetti, " +
   "parallax, kinetic-text, particle-burst, liquid-morph, elastic-collapse, glitch, reveal-3d, gradient-shift, " +
   "elastic-scale, text-scramble, aurora, hologram, prismatic, liquid-metal, neon-flicker, depth-card, " +
-  "glassmorphism, kinetic-ribbon, magnetic-pull, collapse-down, dissolve-out), export (HTML, CSS, JSON, React, Lottie, video, skill), or show a preview. " +
+  "glassmorphism, kinetic-ribbon, magnetic-pull, collapse-down, dissolve-out, data-stream, gravity-drop, " +
+  "chromatic-pulse, breathing-light, magnetic-ripple, counter, text-reveal, blur-reveal, kinetic-typography, " +
+  "split-text, mouse-parallax, long-press), export (HTML, CSS, JSON, React, Lottie, video, skill), or show a preview. " +
   "Tell me what you'd like to do.";
 
 export class MockProvider implements LlmProvider {
