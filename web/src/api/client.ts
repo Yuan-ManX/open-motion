@@ -28,7 +28,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
       /* ignore */
     }
     if (res.status === 401) {
-      msg = "unauthorized — set your API key via the 🔑 button in the toolbar";
+      msg = "unauthorized — set your OPENMOTION_API_KEY to access the backend";
     }
     throw new ApiError(res.status, msg);
   }
@@ -40,4 +40,4 @@ export const apiGet = <T>(path: string): Promise<T> => request<T>("GET", path);
 export const apiPost = <T>(path: string, body?: unknown): Promise<T> => request<T>("POST", path, body);
 export const apiPut = <T>(path: string, body?: unknown): Promise<T> => request<T>("PUT", path, body);
 export const apiPatch = <T>(path: string, body?: unknown): Promise<T> => request<T>("PATCH", path, body);
-export const apiDelete = <T>(path: string): Promise<T> => request<T>("DELETE", path);
+export const apiDelete = <T>(path: string, body?: unknown): Promise<T> => request<T>("DELETE", path, body);
