@@ -279,37 +279,39 @@ const PATTERNS: CompositionPattern[] = [
 
       const tools: ComposedTool[] = [];
 
-      if (has(msg, "snappi", "faster", "quicker")) {
+      // Match comparative forms specifically so base adjectives like "smooth",
+      // "soft", "bouncy", "snappy" are handled by the easing preset intents.
+      if (has(msg, "snappier", "snappi", "faster", "quicker")) {
         tools.push({
           tool: "refine_motion",
           args: { projectId: ctx.projectId, refinement: "snappier" },
           reason: "Make motion snappier",
         });
-      } else if (has(msg, "smooth", "slower", "gentler")) {
+      } else if (has(msg, "smoother", "more smooth", "gentler")) {
         tools.push({
           tool: "refine_motion",
           args: { projectId: ctx.projectId, refinement: "smoother" },
           reason: "Make motion smoother",
         });
-      } else if (has(msg, "dramatic", "bold", "intense")) {
+      } else if (has(msg, "more dramatic", "bolder", "intenser")) {
         tools.push({
           tool: "refine_motion",
           args: { projectId: ctx.projectId, refinement: "more-dramatic" },
           reason: "Make motion more dramatic",
         });
-      } else if (has(msg, "calm", "subtle", "soft")) {
+      } else if (has(msg, "calmer", "subtler", "softer")) {
         tools.push({
           tool: "refine_motion",
           args: { projectId: ctx.projectId, refinement: "calmer" },
           reason: "Make motion calmer",
         });
-      } else if (has(msg, "energetic", "lively", "dynamic")) {
+      } else if (has(msg, "more energetic", "livelier", "more dynamic")) {
         tools.push({
           tool: "refine_motion",
           args: { projectId: ctx.projectId, refinement: "more-energetic" },
           reason: "Make motion more energetic",
         });
-      } else if (has(msg, "bouncy", "springy")) {
+      } else if (has(msg, "bouncier", "springier")) {
         tools.push({
           tool: "refine_motion",
           args: { projectId: ctx.projectId, refinement: "bouncier" },
@@ -326,6 +328,11 @@ const PATTERNS: CompositionPattern[] = [
     name: "export-package",
     match: (msg, _ctx) => {
       if (!has(msg, "export", "download", "generate code")) return null;
+      // Defer to the version-and-export pattern when the user also wants to
+      // save a checkpoint, so both save_version and export run together.
+      if (has(msg, "save version", "checkpoint", "snapshot and export", "version and export")) {
+        return null;
+      }
 
       const tools: ComposedTool[] = [];
 
@@ -512,6 +519,177 @@ const PATTERNS: CompositionPattern[] = [
       }
 
       return null;
+    },
+  },
+
+  // --- Comprehensive analysis composition ---
+  {
+    name: "comprehensive-analysis",
+    match: (msg, ctx) => {
+      if (!has(msg, "analyze everything", "full analysis", "comprehensive analysis", "analyze all", "audit motion", "full audit", "review everything")) return null;
+      if (!ctx.hasComponents) return null;
+
+      return [
+        {
+          tool: "analyze_motion",
+          args: { projectId: ctx.projectId },
+          reason: "Analyze motion quality, timing, and composition",
+        },
+        {
+          tool: "check_accessibility",
+          args: { projectId: ctx.projectId },
+          reason: "Check accessibility and motion safety",
+        },
+        {
+          tool: "check_performance",
+          args: { projectId: ctx.projectId },
+          reason: "Profile runtime performance",
+        },
+        {
+          tool: "analyze_principles",
+          args: { projectId: ctx.projectId },
+          reason: "Analyze against the 12 animation principles",
+        },
+      ];
+    },
+  },
+
+  // --- Adaptive + responsive CSS composition ---
+  {
+    name: "adaptive-responsive",
+    match: (msg, ctx) => {
+      if (!has(msg, "responsive", "adapt for", "adapt to", "mobile", "tablet", "breakpoint")) return null;
+      if (!ctx.hasComponents) return null;
+
+      const tools: ComposedTool[] = [
+        {
+          tool: "adapt_motion",
+          args: { projectId: ctx.projectId },
+          reason: "Adapt motion for the target device and viewport",
+        },
+      ];
+
+      if (has(msg, "css", "media query", "stylesheet")) {
+        tools.push({
+          tool: "generate_responsive_css",
+          args: { projectId: ctx.projectId },
+          reason: "Generate responsive CSS with media queries",
+        });
+      }
+
+      return tools;
+    },
+  },
+
+  // --- Story arc + apply composition ---
+  {
+    name: "story-arc-apply",
+    match: (msg, ctx) => {
+      if (!has(msg, "story arc", "storytelling", "narrative structure", "hero journey")) return null;
+      if (!ctx.hasComponents) return null;
+
+      const genreMap: Record<string, string> = {
+        romance: "romance",
+        comedy: "comedy",
+        mystery: "mystery",
+        fantasy: "fantasy",
+        horror: "horror",
+        documentary: "documentary",
+      };
+
+      let genre: string | null = null;
+      for (const [keyword, g] of Object.entries(genreMap)) {
+        if (msg.includes(keyword)) {
+          genre = g;
+          break;
+        }
+      }
+
+      return [
+        {
+          tool: "create_story_arc",
+          args: { projectId: ctx.projectId, ...(genre ? { genre } : {}) },
+          reason: `Create a ${genre ?? "default"} story arc`,
+        },
+        {
+          tool: "apply_story_plan",
+          args: { projectId: ctx.projectId },
+          reason: "Apply the story plan to align component timing with story beats",
+        },
+      ];
+    },
+  },
+
+  // --- Multimodal generation + layer composition ---
+  {
+    name: "multimodal-generate",
+    match: (msg, _ctx) => {
+      if (!has(msg, "generate", "create")) return null;
+
+      const tools: ComposedTool[] = [];
+
+      if (has(msg, "image", "picture", "photo")) {
+        const promptMatch = msg.match(/(?:image|picture|photo)\s*(?:of|with|showing)?\s*(.+)/);
+        const prompt = promptMatch ? promptMatch[1].trim().slice(0, 200) : "abstract motion design";
+        tools.push({
+          tool: "generate_image",
+          args: { prompt },
+          reason: `Generate an image: ${prompt}`,
+        });
+      } else if (has(msg, "speech", "voice", "narrat", "audio")) {
+        const textMatch = msg.match(/(?:speech|voice|narrat|audio)\s*(?:of|for|saying)?\s*["']?(.+?)["']?$/);
+        const text = textMatch ? textMatch[1].trim().slice(0, 200) : "Welcome to OpenMotion";
+        tools.push({
+          tool: "generate_speech",
+          args: { text },
+          reason: `Generate speech: ${text}`,
+        });
+      } else if (has(msg, "video", "animation clip", "movie")) {
+        const promptMatch = msg.match(/(?:video|clip|movie)\s*(?:of|with|showing)?\s*(.+)/);
+        const prompt = promptMatch ? promptMatch[1].trim().slice(0, 200) : "motion design sequence";
+        tools.push({
+          tool: "generate_video",
+          args: { prompt },
+          reason: `Generate a video: ${prompt}`,
+        });
+      } else if (has(msg, "3d", "model", "mesh")) {
+        const promptMatch = msg.match(/(?:3d|model|mesh)\s*(?:of|with|showing)?\s*(.+)/);
+        const prompt = promptMatch ? promptMatch[1].trim().slice(0, 200) : "geometric shape";
+        tools.push({
+          tool: "generate_3d",
+          args: { prompt },
+          reason: `Generate a 3D model: ${prompt}`,
+        });
+      }
+
+      return tools.length > 0 ? tools : null;
+    },
+  },
+
+  // --- Version + export composition ---
+  {
+    name: "version-and-export",
+    match: (msg, ctx) => {
+      if (!has(msg, "save version", "checkpoint", "snapshot and export", "version and export")) return null;
+      if (!ctx.hasComponents) return null;
+
+      const tools: ComposedTool[] = [
+        {
+          tool: "save_version",
+          args: { projectId: ctx.projectId, label: "checkpoint" },
+          reason: "Save a version checkpoint",
+        },
+      ];
+
+      if (has(msg, "html")) {
+        tools.push({ tool: "export_html", args: { format: "html" }, reason: "Export as HTML" });
+      } else if (has(msg, "react", "component")) {
+        tools.push({ tool: "export_code", args: { format: "react" }, reason: "Export as React component" });
+      } else if (has(msg, "css")) {
+        tools.push({ tool: "export_code", args: { format: "css" }, reason: "Export as CSS" });
+      }
+
+      return tools;
     },
   },
 ];
