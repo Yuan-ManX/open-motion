@@ -13,6 +13,18 @@ export const health = () => apiGet<HealthResponse>("/health");
 
 export const listTemplates = () => apiGet<Template[]>("/templates");
 
+export interface TemplateSearchResult extends Template {
+  score: number;
+  matchedFields: string[];
+}
+
+export const searchTemplates = (q: string, limit?: number) => {
+  const params = new URLSearchParams();
+  params.set("q", q);
+  if (limit) params.set("limit", String(limit));
+  return apiGet<{ results: TemplateSearchResult[]; total: number; query: string }>(`/templates/search?${params.toString()}`);
+};
+
 export const listProjects = () => apiGet<ProjectResponse[]>("/projects");
 export const getProject = (id: string) => apiGet<ProjectResponse>(`/projects/${id}`);
 export const createProject = (opts: { name?: string; templateId?: string }) =>
@@ -48,6 +60,8 @@ export const patchComponent = (projectId: string, componentId: string, patch: Pa
   apiPatch<MotionComponent>(`/projects/${projectId}/components/${componentId}`, patch);
 export const removeComponent = (projectId: string, componentId: string) =>
   apiDelete<void>(`/projects/${projectId}/components/${componentId}`);
+export const batchRemoveComponents = (projectId: string, componentIds: string[]) =>
+  apiDelete<{ removed: number }>(`/projects/${projectId}/components/batch`, { componentIds });
 export const duplicateComponent = (projectId: string, componentId: string) =>
   apiPost<MotionComponent>(`/projects/${projectId}/components/${componentId}/duplicate`, {});
 export const batchUpdateComponents = (
@@ -80,6 +94,70 @@ export const invokeSkill = (id: string, args: { easing?: unknown; durationMs?: n
 
 export const exportHtml = (projectId: string) =>
   apiPost<{ html: string; url: string; filename: string }>(`/projects/${projectId}/export/html`);
+
+// ---------------------------------------------------------------------------
+// Accessibility & Performance reports
+// ---------------------------------------------------------------------------
+
+export interface AccessibilityIssue {
+  severity: "info" | "warning" | "critical";
+  category: "vestibular" | "seizure" | "reduced-motion" | "cognitive";
+  componentId: string | null;
+  componentName: string | null;
+  message: string;
+  remediation: string;
+}
+
+export interface AccessibilityReport {
+  issues: AccessibilityIssue[];
+  score: number;
+  summary: string;
+  stats: {
+    totalComponents: number;
+    vestibularIssues: number;
+    seizureIssues: number;
+    reducedMotionIssues: number;
+    cognitiveIssues: number;
+    criticalCount: number;
+    warningCount: number;
+    infoCount: number;
+    maxSimultaneousAnimations: number;
+    hasInfiniteLoops: boolean;
+    hasFlashingRisk: boolean;
+    hasLargeDisplacement: boolean;
+  };
+}
+
+export interface PerformanceIssue {
+  severity: "info" | "warning" | "critical";
+  componentId: string | null;
+  componentName: string | null;
+  category: string;
+  message: string;
+  suggestion: string;
+}
+
+export interface PerformanceReport {
+  issues: PerformanceIssue[];
+  score: number;
+  summary: string;
+  componentCosts: Array<{
+    componentId: string;
+    componentName: string;
+    cost: number;
+    factors: string[];
+  }>;
+  totalCost: number;
+  frameTimeMs: number;
+  targetFrameMs: number;
+  achieves60fps: boolean;
+}
+
+export const getAccessibilityReport = (projectId: string) =>
+  apiGet<AccessibilityReport>(`/projects/${projectId}/accessibility`);
+
+export const getPerformanceReport = (projectId: string) =>
+  apiGet<PerformanceReport>(`/projects/${projectId}/performance`);
 export const exportVideo = (projectId: string, opts: { format?: string; fps?: number; width?: number; height?: number }) =>
   apiPost<{ jobId: string; status: string }>(`/projects/${projectId}/export/video`, opts);
 export const getVideoJob = (jobId: string) =>
@@ -87,7 +165,7 @@ export const getVideoJob = (jobId: string) =>
 
 export interface CodeExport {
   code: string;
-  language: "css" | "json" | "tsx";
+  language: "css" | "json" | "tsx" | "jsx" | "html";
   filename: string;
 }
 export const exportCss = (projectId: string) =>
@@ -96,8 +174,143 @@ export const exportJson = (projectId: string) =>
   apiGet<CodeExport>(`/projects/${projectId}/export/json`);
 export const exportReact = (projectId: string) =>
   apiGet<CodeExport>(`/projects/${projectId}/export/react`);
+export const exportFramer = (projectId: string) =>
+  apiGet<CodeExport>(`/projects/${projectId}/export/framer`);
 export const exportLottie = (projectId: string, fps?: number) =>
   apiGet<CodeExport>(`/projects/${projectId}/export/lottie${fps ? `?fps=${fps}` : ""}`);
+
+export type TemplateCodeFormat = "react" | "framer" | "html" | "css";
+export interface TemplateCodeExport {
+  code: string;
+  language: string;
+  filename: string;
+}
+export const getTemplateCode = (
+  templateId: string,
+  opts?: { format?: TemplateCodeFormat; color?: string; speed?: number; scale?: number },
+) => {
+  const params = new URLSearchParams();
+  if (opts?.format) params.set("format", opts.format);
+  if (opts?.color) params.set("color", opts.color);
+  if (opts?.speed) params.set("speed", String(opts.speed));
+  if (opts?.scale) params.set("scale", String(opts.scale));
+  const qs = params.toString();
+  return apiGet<TemplateCodeExport>(`/templates/${templateId}/code${qs ? `?${qs}` : ""}`);
+};
+
+// --- Style presets ---
+
+export interface StylePreset {
+  id: string;
+  name: string;
+  description: string;
+  easing: { type: string; name?: string };
+  durationMs: number;
+  iterationCount: number | "infinite";
+  direction: "normal" | "reverse" | "alternate" | "alternate-reverse";
+  tags: string[];
+}
+
+export const listStylePresets = () => apiGet<StylePreset[]>("/style-presets");
+
+// --- Provider & model registry endpoints ---
+
+export interface ModelCapabilities {
+  text: boolean;
+  vision: boolean;
+  audioInput: boolean;
+  audioOutput: boolean;
+  imageGeneration: boolean;
+  videoGeneration: boolean;
+  code: boolean;
+  toolUse: boolean;
+  streaming: boolean;
+  reasoning: boolean;
+  embedding?: boolean;
+}
+
+export interface RegistryModel {
+  id: string;
+  name: string;
+  provider: string;
+  contextWindow: number;
+  capabilities: ModelCapabilities;
+  generationModality: string | null;
+  description: string;
+  available: boolean;
+}
+
+export interface ProviderConfigInfo {
+  type: string;
+  providerName?: string;
+  model: string;
+  baseUrl: string;
+  hasKey: boolean;
+}
+
+export interface ProvidersStatus {
+  mode: string;
+  configured: Array<{ name: string; available: boolean }>;
+  configs: ProviderConfigInfo[];
+}
+
+export interface ProviderKeySpec {
+  envVar: string;
+  label: string;
+  category: string;
+  baseUrl?: string;
+  defaultModel?: string;
+  configured: boolean;
+}
+
+export interface ProviderKeysResponse {
+  specs: ProviderKeySpec[];
+}
+
+export interface ConfigureProvidersResponse {
+  ok: boolean;
+  mode: string;
+  configured: Array<{ name: string; available: boolean }>;
+  keyStatus: Array<{ envVar: string; label: string; category: string; configured: boolean }>;
+}
+
+export const listProviders = () => apiGet<ProvidersStatus>("/providers");
+export const listProviderModels = (provider?: string) =>
+  apiGet<{ models: RegistryModel[] }>(`/providers/models${provider ? `?provider=${provider}` : ""}`);
+export const listProviderKeys = () => apiGet<ProviderKeysResponse>("/providers/keys");
+export const configureProviders = (keys: Record<string, string>) =>
+  apiPost<ConfigureProvidersResponse>("/providers/configure", { keys });
+export const testProvider = (providerName: string) =>
+  apiPost<TestProviderResponse>("/providers/test", { providerName });
+export const setProviderMode = (mode: string) =>
+  apiPost<{ ok: boolean; mode: string; llmProvider: string }>("/providers/mode", { mode });
+
+export interface ProviderHealthEntry {
+  provider: string;
+  model: string;
+  successCount: number;
+  failureCount: number;
+  consecutiveFailures: number;
+  avgLatencyMs: number;
+  circuitOpen: boolean;
+  lastError: string;
+}
+
+export interface ProviderHealthResponse {
+  providers: ProviderHealthEntry[];
+}
+
+export const listProviderHealth = () => apiGet<ProviderHealthResponse>("/providers/health");
+
+export interface TestProviderResponse {
+  ok: boolean;
+  provider: string;
+  model: string;
+  latencyMs: number;
+  tokensOut?: number;
+  response?: string;
+  error?: string;
+}
 
 // --- Agent memory endpoints ---
 
@@ -302,3 +515,37 @@ export interface ProjectInsights {
 
 export const getProjectInsights = (projectId: string) =>
   apiGet<ProjectInsights>(`/projects/${projectId}/insights`);
+
+/* ----------------------------- Catalog endpoints ----------------------------- */
+
+export interface ShaderEffectInfo {
+  id: string;
+  name: string;
+  category: string;
+  description: string;
+  parameters: Record<string, { default: number; min: number; max: number }>;
+}
+
+export interface ChoreographyPatternInfo {
+  id: string;
+  name: string;
+  description: string;
+}
+
+export interface StateMachinePresetInfo {
+  id: string;
+  name: string;
+  description: string;
+  stateCount: number;
+  transitionCount: number;
+  inputCount: number;
+}
+
+export const getShaders = (category?: string) =>
+  apiGet<ShaderEffectInfo[]>(`/shaders${category ? `?category=${category}` : ""}`);
+
+export const getChoreographyPatterns = () =>
+  apiGet<{ patterns: ChoreographyPatternInfo[]; count: number }>("/choreography");
+
+export const getStateMachinePresets = () =>
+  apiGet<{ presets: StateMachinePresetInfo[]; count: number }>("/state-machine-presets");
