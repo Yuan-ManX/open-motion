@@ -393,13 +393,15 @@ export const queryExecutors: Partial<Record<ToolName, Executor>> = {
 
   set_template: (args, ctx) => {
     const templateId = String(args.templateId);
-    // Remove existing components, then materialize the chosen template.
-    for (const c of listComponents(ctx.projectId)) {
-      deleteComponent(ctx.projectId, c.id);
-    }
+    // Instantiate the template first; only remove existing components if
+    // the new template is valid. This prevents data loss when a template
+    // ID is unrecognized.
     const components = instantiateTemplate(templateId, ctx.projectId);
     if (components.length === 0) {
       return { ok: false, summary: `template ${templateId} not found`, specChanged: false };
+    }
+    for (const c of listComponents(ctx.projectId)) {
+      deleteComponent(ctx.projectId, c.id);
     }
     for (const c of components) createComponent(c);
     return {
