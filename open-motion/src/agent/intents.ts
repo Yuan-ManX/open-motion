@@ -305,7 +305,7 @@ const INTENT_PATTERNS: { type: IntentType; match: RegExp }[] = [
   { type: "describe", match: /\b(describe|what.*look|explain|dna|characterize)\b|描述|什么样/i },
   { type: "analysis", match: /\b(analyze|review|critique|quality|is this good|score|insight)\b/i },
   { type: "path", match: /\b(orbit|circle|ellipse|along.*path|trajectory|fly across|move in a)\b/i },
-  { type: "style", match: /\b(playful|energetic|calm|professional|dramatic|minimal|cinematic|glassy|retro|futuristic|organic|mechanical|luxury|style.*preset|style.*project|give it a .* feel|make it .* feel)\b/i },
+  { type: "style", match: /\b(playful|energetic|calm|professional|dramatic|minimal|cinematic|glassy|retro|futuristic|organic|mechanical|luxury|industrial|neon|vintage|athletic|style.*preset|style.*project|give it a .* feel|make it .* feel)\b/i },
   { type: "pattern", match: /\b(patterns?|composition balanced|what.s missing|monoton\w*|balance|coherent)\b/i },
   { type: "color", match: /\b(harmoniz\w*|color scheme|colors work together|palette|color theory|complementary|analogous|triadic|monochrome)\b/i },
   { type: "choreography", match: /\b(choreograph|orchestrat|wave pattern|ripple effect|cascade|canon|converge|spiral|explosion|assembly|breathing|domino|scatter)\b/i },
