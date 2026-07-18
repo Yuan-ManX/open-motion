@@ -10,8 +10,10 @@ import {
   exportProjectCss,
   exportProjectJson,
   exportProjectReact,
+  exportProjectFramer,
   type CodeExport,
 } from "../../export/code.js";
+import { exportProjectLottie, type LottieExport } from "../../export/lottie.js";
 import { packageSkill } from "../../skills/packager.js";
 
 export type ExportVideoInputType = z.infer<typeof ExportVideoInputSchema>;
@@ -52,6 +54,20 @@ export function exportCode(projectId: string, format: "css" | "json" | "react"):
         ? exportProjectJson(projectId)
         : exportProjectReact(projectId);
   if (!result) throw new HttpError(500, "export failed");
+  return result;
+}
+
+export function exportFramer(projectId: string): CodeExport {
+  ensureProjectExists(projectId);
+  const result = exportProjectFramer(projectId);
+  if (!result) throw new HttpError(500, "export failed");
+  return result;
+}
+
+export function exportLottie(projectId: string, fps?: number): LottieExport {
+  ensureProjectExists(projectId);
+  const result = exportProjectLottie(projectId, fps);
+  if (!result) throw new HttpError(500, "lottie export failed");
   return result;
 }
 
