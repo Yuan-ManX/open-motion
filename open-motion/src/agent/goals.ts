@@ -21,18 +21,255 @@ interface PlanStep {
 
 /** Categorize a tool into a high-level goal category. */
 function categorizeTool(tool: string): string {
-  if (tool === "get_motion_spec" || tool === "describe_motion") return "Inspect";
-  if (tool.startsWith("set_") || tool.startsWith("add_") || tool === "batch_update") return "Configure";
-  if (tool === "set_template" || tool === "list_templates") return "Template";
-  if (tool === "compile_grammar" || tool === "parse_motion") return "Parse";
-  if (tool === "set_shader_effect") return "Shader";
-  if (tool === "save_version" || tool === "restore_version") return "Version";
-  if (tool.startsWith("save_token") || tool.startsWith("list_tokens")) return "Token";
-  if (tool.startsWith("export_")) return "Export";
-  if (tool === "preview_url") return "Preview";
-  if (tool === "stagger_components" || tool === "create_variant") return "Compose";
-  if (tool === "analyze_restraint" || tool === "list_recipes") return "Analyze";
-  if (tool === "save_memory" || tool === "recall_memory") return "Memory";
+  // Inspection / query tools
+  if (
+    tool === "get_motion_spec" ||
+    tool === "describe_motion" ||
+    tool === "list_templates" ||
+    tool === "list_scenes" ||
+    tool === "list_states" ||
+    tool === "list_listeners" ||
+    tool === "list_markers" ||
+    tool === "list_clips" ||
+    tool === "list_hierarchy" ||
+    tool === "list_constraints" ||
+    tool === "list_recipes" ||
+    tool === "list_project_recipes" ||
+    tool === "list_brand_packs" ||
+    tool === "list_motion_profiles" ||
+    tool === "list_motion_captures" ||
+    tool === "list_export_presets" ||
+    tool === "list_session_snapshots" ||
+    tool === "list_versions" ||
+    tool === "list_tokens" ||
+    tool === "list_pipelines" ||
+    tool === "list_generated_skills" ||
+    tool === "list_state_machines" ||
+    tool === "list_models" ||
+    tool === "get_motion_profile" ||
+    tool === "get_session_lineage" ||
+    tool === "match_template" ||
+    tool === "find_similar_motion" ||
+    tool === "recommend_export_format"
+  ) {
+    return "Inspect";
+  }
+
+  // Templates
+  if (tool === "set_template") return "Template";
+
+  // Tuning / configuration
+  if (
+    tool.startsWith("set_") ||
+    tool.startsWith("add_") ||
+    tool === "batch_update" ||
+    tool === "remove_component" ||
+    tool === "remove_scene" ||
+    tool === "remove_keyframe" ||
+    tool === "remove_marker" ||
+    tool === "remove_clip" ||
+    tool === "remove_state" ||
+    tool === "remove_listener" ||
+    tool === "remove_constraint" ||
+    tool === "remove_parent" ||
+    tool === "reverse_keyframes" ||
+    tool === "duplicate_component" ||
+    tool === "reorder_components" ||
+    tool === "nudge_component" ||
+    tool === "align_components" ||
+    tool === "select_components" ||
+    tool === "lock_layer" ||
+    tool === "solo_layer" ||
+    tool === "toggle_snap" ||
+    tool === "toggle_auto_keyframe" ||
+    tool === "copy_to_clipboard" ||
+    tool === "paste_from_clipboard"
+  ) {
+    return "Configure";
+  }
+
+  // Composition / choreography
+  if (
+    tool === "stagger_components" ||
+    tool === "choreograph" ||
+    tool === "apply_choreography" ||
+    tool === "blend_motions" ||
+    tool === "interpolate_motion" ||
+    tool === "merge_properties" ||
+    tool === "create_variant" ||
+    tool === "create_precomp" ||
+    tool === "ungroup_precomp"
+  ) {
+    return "Compose";
+  }
+
+  // Presets / recipes / styles / brand packs
+  if (
+    tool === "apply_preset" ||
+    tool === "apply_style" ||
+    tool === "apply_recipe" ||
+    tool === "apply_project_recipe" ||
+    tool === "save_project_recipe" ||
+    tool === "delete_project_recipe" ||
+    tool === "seed_project_recipes" ||
+    tool === "apply_brand_pack" ||
+    tool === "delete_brand_pack" ||
+    tool === "seed_brand_packs" ||
+    tool === "apply_principle" ||
+    tool === "apply_motion_profile" ||
+    tool === "apply_motion_capture" ||
+    tool === "apply_state" ||
+    tool === "apply_story_plan" ||
+    tool === "apply_export_preset"
+  ) {
+    return "Apply";
+  }
+
+  // Analysis
+  if (
+    tool === "analyze_motion" ||
+    tool === "analyze_restraint" ||
+    tool === "analyze_mood" ||
+    tool === "analyze_emotion" ||
+    tool === "analyze_rhythm" ||
+    tool === "analyze_narrative" ||
+    tool === "analyze_pacing" ||
+    tool === "analyze_visual_context" ||
+    tool === "analyze_principles" ||
+    tool === "recognize_pattern" ||
+    tool === "check_accessibility" ||
+    tool === "check_performance" ||
+    tool === "suggest_next" ||
+    tool === "suggest_creative" ||
+    tool === "suggest_motion_profile"
+  ) {
+    return "Analyze";
+  }
+
+  // Storytelling
+  if (
+    tool === "create_beat" ||
+    tool === "update_beat" ||
+    tool === "reorder_beats" ||
+    tool === "delete_beat" ||
+    tool === "create_story_arc" ||
+    tool === "apply_story_plan" ||
+    tool === "export_storyboard"
+  ) {
+    return "Story";
+  }
+
+  // Synthesis / generation
+  if (
+    tool === "synthesize_motion" ||
+    tool === "synthesize_waveform" ||
+    tool === "synthesize_easing" ||
+    tool === "synthesize_code" ||
+    tool === "morph_to_pattern" ||
+    tool === "compile_grammar" ||
+    tool === "parse_motion" ||
+    tool === "generate_image" ||
+    tool === "generate_speech" ||
+    tool === "generate_video" ||
+    tool === "generate_3d" ||
+    tool === "generate_motion_docs" ||
+    tool === "generate_responsive_css"
+  ) {
+    return "Synthesize";
+  }
+
+  // Adaptive / responsive
+  if (tool === "adapt_motion" || tool === "preview_adaptations") {
+    return "Adapt";
+  }
+
+  // State machine
+  if (
+    tool === "capture_state" ||
+    tool === "compose_state_machine" ||
+    tool === "trigger_state_machine" ||
+    tool === "add_transition" ||
+    tool === "add_listener"
+  ) {
+    return "State";
+  }
+
+  // Shader / filter / 3D
+  if (
+    tool === "set_shader_effect" ||
+    tool === "set_filter" ||
+    tool === "set_3d_transform" ||
+    tool === "set_blend_mode" ||
+    tool === "set_adjustment_layer" ||
+    tool === "set_expression"
+  ) {
+    return "Effect";
+  }
+
+  // Versioning
+  if (
+    tool === "save_version" ||
+    tool === "restore_version" ||
+    tool === "delete_version" ||
+    tool === "save_session_snapshot" ||
+    tool === "resume_session_snapshot" ||
+    tool === "delete_session_snapshot"
+  ) {
+    return "Version";
+  }
+
+  // Memory / skills
+  if (
+    tool === "save_memory" ||
+    tool === "recall_memory" ||
+    tool === "export_skill"
+  ) {
+    return "Memory";
+  }
+
+  // Design tokens
+  if (
+    tool === "save_token" ||
+    tool === "update_token" ||
+    tool === "delete_token"
+  ) {
+    return "Token";
+  }
+
+  // Pipelines
+  if (
+    tool === "save_pipeline" ||
+    tool === "run_pipeline" ||
+    tool === "delete_pipeline"
+  ) {
+    return "Pipeline";
+  }
+
+  // Motion profiles / captures
+  if (
+    tool === "set_motion_profile" ||
+    tool === "save_motion_capture" ||
+    tool === "delete_motion_capture" ||
+    tool === "seed_motion_captures"
+  ) {
+    return "Profile";
+  }
+
+  // Mood
+  if (tool === "set_mood") return "Mood";
+
+  // Export
+  if (
+    tool.startsWith("export_") &&
+    tool !== "export_storyboard" &&
+    tool !== "export_skill"
+  ) {
+    return "Export";
+  }
+
+  // Preview
+  if (tool === "preview_url" || tool === "preview_fullscreen") return "Preview";
+
   return "Action";
 }
 
