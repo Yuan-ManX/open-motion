@@ -296,7 +296,7 @@ export function buildPlan(userMessage: string, spec: MotionSpec): Plan {
   }
 
   // Style presets: apply coordinated aesthetic across all components.
-  if (/\b(playful|energetic|calm|professional|dramatic|minimal|cinematic|glassy|retro|futuristic|organic|mechanical|luxury|style)\b/i.test(text)) {
+  if (/\b(playful|energetic|calm|professional|dramatic|minimal|cinematic|glassy|retro|futuristic|organic|mechanical|luxury|industrial|neon|vintage|athletic|style)\b/i.test(text)) {
     steps.push({ tool: "apply_style", description: "Apply a coordinated motion style across all components" });
   }
 
@@ -536,7 +536,7 @@ export function buildPlan(userMessage: string, spec: MotionSpec): Plan {
   }
 
   // Motion recipes: browse or apply.
-  if (/\b(recipe|recipes|gentle entrance|impact reveal|elastic bounce|cinematic fade|data pulse|ambient float|typewriter reveal|magnetic hover|swift dismissal|graceful departure|skeleton shimmer|progress march|toast rise|bar grow|confetti burst)\b/i.test(text)) {
+  if (/\b(recipe|recipes|gentle entrance|impact reveal|elastic bounce|cinematic fade|data pulse|ambient float|typewriter reveal|magnetic hover|swift dismissal|graceful departure|skeleton shimmer|progress march|toast rise|bar grow|confetti burst|error shake|success checkmark|modal open|tab switch|dropdown reveal)\b/i.test(text)) {
     if (/\b(apply|use|try)\b/i.test(text) && firstId) {
       steps.push({ tool: "apply_recipe", description: "Apply a curated motion recipe to the component" });
     } else {
@@ -808,6 +808,47 @@ export function buildPlan(userMessage: string, spec: MotionSpec): Plan {
   // Get spec.
   if (/\b(spec|state|current|status)\b/i.test(text)) {
     steps.push({ tool: "get_motion_spec", description: "Read the current motion spec" });
+  }
+
+  // Media layers: image, video, audio, typewriter text.
+  if (/\b(add|insert|place|drop)\s+(?:an?\s+)?image\b/i.test(userMessage)) {
+    steps.push({ tool: "add_image", description: "Add an image layer to the canvas" });
+  }
+  if (/\b(add|insert|place|drop)\s+(?:a\s+|an\s+)?video\b/i.test(userMessage)) {
+    steps.push({ tool: "add_video", description: "Add a video layer to the canvas" });
+  }
+  if (/\b(add|insert|place)\s+(?:an?\s+)?audio\b/i.test(userMessage)) {
+    steps.push({ tool: "add_audio", description: "Add an audio track to the timeline" });
+  }
+  if (/\b(typewriter|type.?writer)\s+(?:text|effect|animation)\b/i.test(userMessage)) {
+    steps.push({ tool: "add_typewriter_text", description: "Add a typewriter text effect" });
+  }
+
+  // Scene transitions and camera moves.
+  if (/\b(?:add|create|insert)\s+(?:a\s+)?scene\s+transition\b/i.test(userMessage)) {
+    steps.push({ tool: "add_scene_transition", description: "Add a scene transition effect" });
+  }
+  if (/\b(?:camera\s+(?:move|pan|zoom|tilt|dolly|truck|orbit)|pan\s+camera|zoom\s+camera)\b/i.test(userMessage)) {
+    steps.push({ tool: "add_camera_move", description: "Add a camera move to the scene" });
+  }
+
+  // Precompositions and expressions.
+  if (/\b(?:create|make|group.*into)\s+(?:a\s+)?precomp\b/i.test(userMessage)) {
+    steps.push({ tool: "create_precomp", description: "Create a precomposition from selected layers" });
+  }
+  if (/\b(?:ungroup|unprecompose|dissolve)\s+(?:the\s+)?precomp\b/i.test(userMessage)) {
+    steps.push({ tool: "ungroup_precomp", description: "Ungroup a precomposition back into individual layers" });
+  }
+  if (/\b(?:set|add|write|define)\s+(?:an?\s+)?expression\b/i.test(userMessage)) {
+    steps.push({ tool: "set_expression", description: "Set an expression on a property" });
+  }
+  if (/\b(?:set|create|add)\s+(?:an?\s+)?adjustment\s+layer\b/i.test(userMessage)) {
+    steps.push({ tool: "set_adjustment_layer", description: "Create an adjustment layer with a filter" });
+  }
+
+  // Motion profile retrieval.
+  if (/\b(?:get|show|view|read)\s+(?:the\s+)?(?:motion\s+)?profile\b/i.test(userMessage) && !/\b(apply|set|suggest|list)\b/i.test(text)) {
+    steps.push({ tool: "get_motion_profile", description: "Retrieve the motion profile for the selected component" });
   }
 
   // Fallback: classify the intent and produce a generic step.
