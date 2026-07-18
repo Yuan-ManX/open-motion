@@ -12,6 +12,7 @@ import * as api from "../api/endpoints.js";
  * - Shift+R: replay the current animation
  * - Cmd/Ctrl+E: open the export dialog
  * - Cmd/Ctrl+S: save the current project (reload to confirm persistence)
+ * - Cmd/Ctrl+B: toggle the left sidebar
  * - Cmd/Ctrl+D: duplicate the selected component
  * - Cmd/Ctrl+C/V/X: copy/paste/cut component
  * - Cmd/Ctrl+A: select all components
@@ -126,6 +127,13 @@ export function useKeyboard() {
         if (projectId) {
           void useProjectStore.getState().loadProject(projectId);
         }
+        return;
+      }
+      // Cmd/Ctrl+B: toggle the left sidebar
+      if ((e.metaKey || e.ctrlKey) && (e.key === "b" || e.key === "B")) {
+        e.preventDefault();
+        const s = useUiStore.getState();
+        s.setSidebarCollapsed(!s.sidebarCollapsed);
         return;
       }
       // Alt+ArrowUp/Down: navigate between components in the timeline
