@@ -250,7 +250,7 @@ export const SetMotionPathInput = z.object({
 /* --------------------------- Style preset tools --------------------------- */
 export const ApplyStyleInput = z.object({
   projectId: zIdField,
-  styleId: z.enum(["playful", "energetic", "calm", "professional", "dramatic", "minimal"]),
+  styleId: z.enum(["playful", "energetic", "calm", "professional", "dramatic", "minimal", "cinematic", "glassy", "retro", "futuristic", "organic", "mechanical", "luxury"]),
 });
 
 /* ------------------------- Pattern recognition tool ------------------------ */
@@ -397,6 +397,68 @@ export const AddShapeInput = z.object({
   y: z.number().optional(),
   width: z.number().int().positive().optional(),
   height: z.number().int().positive().optional(),
+});
+
+export const AddImageInput = z.object({
+  projectId: zIdField,
+  src: z.string().describe("Image URL or data URI"),
+  name: z.string().optional(),
+  x: z.number().optional(),
+  y: z.number().optional(),
+  width: z.number().int().positive().optional(),
+  height: z.number().int().positive().optional(),
+  fit: z.enum(["cover", "contain", "fill"]).optional(),
+});
+
+export const AddVideoInput = z.object({
+  projectId: zIdField,
+  src: z.string().describe("Video URL or data URI"),
+  name: z.string().optional(),
+  x: z.number().optional(),
+  y: z.number().optional(),
+  width: z.number().int().positive().optional(),
+  height: z.number().int().positive().optional(),
+  muted: z.boolean().optional(),
+  loop: z.boolean().optional(),
+  autoplay: z.boolean().optional(),
+  delayMs: z.number().int().nonnegative().optional(),
+});
+
+export const AddAudioInput = z.object({
+  projectId: zIdField,
+  src: z.string().describe("Audio URL or data URI"),
+  name: z.string().optional(),
+  delayMs: z.number().int().nonnegative().optional(),
+  loop: z.boolean().optional(),
+  muted: z.boolean().optional(),
+});
+
+export const AddTypewriterTextInput = z.object({
+  projectId: zIdField,
+  text: z.string().describe("The full text to reveal character-by-character"),
+  name: z.string().optional(),
+  x: z.number().optional(),
+  y: z.number().optional(),
+  fontSize: z.number().int().positive().optional(),
+  color: z.string().optional(),
+  charDelayMs: z.number().int().positive().optional().describe("Milliseconds per character (default 60)"),
+  cursor: z.boolean().optional().describe("Show a blinking cursor"),
+});
+
+export const AddSceneTransitionInput = z.object({
+  projectId: zIdField,
+  type: z.enum(["dissolve", "wipe-left", "wipe-right", "wipe-up", "wipe-down", "slide-left", "slide-right", "zoom-in", "zoom-out", "flash"]),
+  durationMs: z.number().int().positive().optional(),
+  delayMs: z.number().int().nonnegative().optional(),
+  color: z.string().optional().describe("Transition overlay color (default black)"),
+});
+
+export const AddCameraMoveInput = z.object({
+  projectId: zIdField,
+  type: z.enum(["pan-left", "pan-right", "pan-up", "pan-down", "zoom-in", "zoom-out", "zoom-pan"]),
+  durationMs: z.number().int().positive().optional(),
+  delayMs: z.number().int().nonnegative().optional(),
+  intensity: z.number().min(0.1).max(5).optional().describe("Pan/zoom magnitude (default 1)"),
 });
 
 export const SetBlendModeInput = z.object({
@@ -717,6 +779,34 @@ export const Set3DTransformInput = z.object({
   translateZ: z.number().optional(),
 });
 
+/* --------------------------- Adjustment layer tools --------------------------- */
+export const SetAdjustmentLayerInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  enabled: z.boolean().describe("When true, the component becomes an adjustment layer — its filter effects apply to all layers below via backdrop-filter"),
+});
+
+/* --------------------------- Pre-composition tools --------------------------- */
+export const CreatePrecompInput = z.object({
+  projectId: zIdField,
+  componentIds: z.array(zIdField).min(1).describe("Component IDs to group into a pre-composition"),
+  name: z.string().optional().describe("Optional name for the pre-composition group"),
+});
+
+export const UngroupPrecompInput = z.object({
+  projectId: zIdField,
+  componentIds: z.array(zIdField).min(1).describe("Component IDs to remove from their pre-composition group"),
+});
+
+/* --------------------------- Expression tools --------------------------- */
+export const SetExpressionInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  property: z.string().describe("Property name (e.g. opacity, scale, rotate, translateX)"),
+  expression: z.string().describe("JavaScript expression. Variables: time (ms), index (component order), duration (ms), value (current value). Example: 'Math.sin(time / 500) * 50 + 50'"),
+  enabled: z.boolean().default(true).describe("Enable or disable the expression without deleting it"),
+});
+
 /* --------------------------- Restraint engine tools --------------------------- */
 export const AnalyzeRestraintInput = z.object({
   projectId: zIdField,
@@ -1016,6 +1106,97 @@ export const MergePropertiesInput = z.object({
   applyTo: z.enum(["source", "new"]).default("source"),
 });
 
+/* --------------------------- Intelligence tools --------------------------- */
+export const AnalyzeEmotionInput = z.object({
+  projectId: zIdField,
+});
+export const AnalyzeRhythmInput = z.object({
+  projectId: zIdField,
+});
+export const AnalyzeNarrativeInput = z.object({
+  projectId: zIdField,
+});
+
+/* --------------------------- Adaptive tools --------------------------- */
+export const AdaptMotionInput = z.object({
+  projectId: zIdField,
+  device: z.enum(["desktop", "tablet", "mobile", "tv"]).describe("Target device type"),
+  viewportWidth: z.number().int().min(64).max(4096).describe("Viewport width in pixels"),
+  viewportHeight: z.number().int().min(64).max(4096).describe("Viewport height in pixels"),
+  performance: z.enum(["high", "medium", "low"]).describe("Device performance tier"),
+  accessibility: z.enum(["full", "reduced", "minimal"]).describe("Accessibility motion preference"),
+  connectionSpeed: z.enum(["fast", "slow", "offline"]).describe("Network connection speed"),
+  batteryLevel: z.number().min(0).max(1).default(1).describe("Battery level 0..1 (1 = full)"),
+  apply: z.boolean().default(false).describe("If true, apply the adapted spec to the project; if false, only preview"),
+});
+
+export const PreviewAdaptationsInput = z.object({
+  projectId: zIdField,
+});
+
+export const GenerateResponsiveCssInput = z.object({
+  projectId: zIdField,
+});
+
+/* --------------------------- Synthesis tools --------------------------- */
+export const SynthesizeMotionInput = z.object({
+  projectId: zIdField,
+  pattern: z.enum([
+    "heartbeat", "breathing", "walk-cycle", "bounce-ball", "pendulum",
+    "ocean-wave", "tremor", "fidget", "heartbeat-fast", "shake-violent",
+    "sway-gentle", "orbit-elliptical",
+  ]).describe("Generative motion pattern to synthesize"),
+  durationMs: z.number().int().min(100).max(60000).optional().describe("Duration in ms (uses pattern default if omitted)"),
+  loopCount: z.union([z.number().int().min(1), z.literal("infinite")]).optional().default("infinite").describe("Loop count or 'infinite'"),
+  amplitudeScale: z.number().min(0).max(2).optional().default(1).describe("Amplitude multiplier (0..2, 1 = default)"),
+  speedScale: z.number().min(0.1).max(5).optional().default(1).describe("Speed multiplier (0.1..5, 1 = default)"),
+  componentName: z.string().optional().describe("Name for the generated component"),
+});
+
+export const MorphToPatternInput = z.object({
+  projectId: zIdField,
+  targetPattern: z.enum([
+    "heartbeat", "breathing", "walk-cycle", "bounce-ball", "pendulum",
+    "ocean-wave", "tremor", "fidget", "heartbeat-fast", "shake-violent",
+    "sway-gentle", "orbit-elliptical",
+  ]).describe("Target generative pattern to morph toward"),
+  morphSteps: z.number().int().min(2).max(20).optional().default(5).describe("Number of intermediate morph steps"),
+  durationMs: z.number().int().min(100).max(60000).optional().describe("Target duration in ms"),
+});
+
+export const SynthesizeWaveformInput = z.object({
+  projectId: zIdField,
+  waveform: z.enum(["sine", "square", "triangle", "sawtooth", "noise", "pulse"]).describe("Waveform type"),
+  amplitude: z.number().min(-1000).max(1000).describe("Wave amplitude"),
+  frequency: z.number().min(0.01).max(50).describe("Frequency in Hz (cycles per second)"),
+  phase: z.number().min(0).max(6.283).optional().default(0).describe("Phase offset in radians (0..2π)"),
+  offset: z.number().optional().default(0).describe("DC offset added to the wave"),
+  property: z.enum(["translateX", "translateY", "scale", "scaleX", "scaleY", "rotate", "opacity"]).describe("Property to animate"),
+  durationMs: z.number().int().min(100).max(60000).default(1000).describe("Duration in ms"),
+  loopCount: z.union([z.number().int().min(1), z.literal("infinite")]).optional().default("infinite").describe("Loop count or 'infinite'"),
+  componentName: z.string().optional().describe("Name for the generated component"),
+  keyframeCount: z.number().int().min(4).max(32).optional().default(12).describe("Number of keyframes to generate (4..32)"),
+});
+
+/* --------------------------- Storytelling tools --------------------------- */
+export const CreateStoryArcInput = z.object({
+  projectId: zIdField,
+  genre: z.enum(["hero", "mystery", "romance", "comedy", "thriller", "documentary", "fantasy", "horror"]).describe("Story genre template"),
+  totalDurationMs: z.number().int().min(1000).max(120000).default(10000).describe("Total story duration in ms"),
+});
+
+export const AnalyzePacingInput = z.object({
+  projectId: zIdField,
+  arcId: z.string().optional().describe("Specific arc ID to analyze (uses latest if omitted)"),
+});
+
+export const ApplyStoryPlanInput = z.object({
+  projectId: zIdField,
+  genre: z.enum(["hero", "mystery", "romance", "comedy", "thriller", "documentary", "fantasy", "horror"]).describe("Story genre to apply"),
+  totalDurationMs: z.number().int().min(1000).max(120000).default(10000).describe("Total story duration in ms"),
+  apply: z.boolean().default(false).describe("If true, apply timing changes to components; if false, only preview"),
+});
+
 /* --------------------------- Memory tools --------------------------- */
 export const SaveMemoryInput = z.object({
   projectId: zIdField,
@@ -1101,6 +1282,39 @@ export const DeleteTokenInput = z.object({
   name: z.string().min(1).max(80),
 });
 
+/* --------------------------- Multimodal generation tools --------------------------- */
+export const GenerateImageInput = z.object({
+  prompt: z.string().min(1).max(2000).describe("Text description of the image to generate"),
+  model: z.string().optional().describe("Model: dall-e-3, dall-e-2, stable-diffusion-3, stable-image-ultra"),
+  width: z.number().int().min(64).max(4096).optional(),
+  height: z.number().int().min(64).max(4096).optional(),
+  negativePrompt: z.string().optional().describe("What to exclude from the image"),
+});
+
+export const GenerateSpeechInput = z.object({
+  text: z.string().min(1).max(5000).describe("Text to convert to speech"),
+  model: z.string().optional().describe("Model: tts-1, eleven-multilingual-v2, eleven-turbo-v2"),
+  voiceId: z.string().optional().describe("Voice identifier for the provider"),
+});
+
+export const GenerateVideoInput = z.object({
+  prompt: z.string().min(1).max(2000).describe("Text description of the video to generate"),
+  model: z.string().optional().describe("Model: gen-3-alpha, luma-dream-machine, pika-1.5"),
+  duration: z.number().int().min(1).max(30).optional().describe("Video duration in seconds"),
+  sourceImage: z.string().optional().describe("Source image URL for image-to-video"),
+});
+
+export const Generate3DInput = z.object({
+  prompt: z.string().min(1).max(2000).describe("Text description of the 3D model to generate"),
+  model: z.string().optional().describe("Model: meshy-text-to-3d-v2, tripo-text-to-3d"),
+  sourceImage: z.string().optional().describe("Source image URL for image-to-3d conversion"),
+});
+
+export const ListModelsInput = z.object({
+  provider: z.string().optional().describe("Filter by provider: openai, anthropic, gemini, ollama, stability, elevenlabs, runway, luma, pika, meshy, tripo"),
+  modality: z.string().optional().describe("Filter by modality: text-to-image, text-to-video, text-to-speech, speech-to-text, text-to-3d"),
+});
+
 /** Tool-name → input schema registry. The agent and MCP layer both consume this. */
 export const TOOL_INPUT_SCHEMAS = {
   get_motion_spec: GetMotionSpecInput,
@@ -1158,6 +1372,12 @@ export const TOOL_INPUT_SCHEMAS = {
   select_components: SelectComponentsInput,
   toggle_snap: ToggleSnapInput,
   add_shape: AddShapeInput,
+  add_image: AddImageInput,
+  add_video: AddVideoInput,
+  add_audio: AddAudioInput,
+  add_typewriter_text: AddTypewriterTextInput,
+  add_scene_transition: AddSceneTransitionInput,
+  add_camera_move: AddCameraMoveInput,
   set_blend_mode: SetBlendModeInput,
   set_artboard: SetArtboardInput,
   set_layer_opacity: SetLayerOpacityInput,
@@ -1196,6 +1416,10 @@ export const TOOL_INPUT_SCHEMAS = {
   play_clip: PlayClipInput,
   set_filter: SetFilterInput,
   set_3d_transform: Set3DTransformInput,
+  set_adjustment_layer: SetAdjustmentLayerInput,
+  create_precomp: CreatePrecompInput,
+  ungroup_precomp: UngroupPrecompInput,
+  set_expression: SetExpressionInput,
   analyze_restraint: AnalyzeRestraintInput,
   list_recipes: ListRecipesInput,
   apply_recipe: ApplyRecipeInput,
@@ -1268,6 +1492,23 @@ export const TOOL_INPUT_SCHEMAS = {
   blend_motions: BlendMotionsInput,
   interpolate_motion: InterpolateMotionInput,
   merge_properties: MergePropertiesInput,
+  analyze_emotion: AnalyzeEmotionInput,
+  analyze_rhythm: AnalyzeRhythmInput,
+  analyze_narrative: AnalyzeNarrativeInput,
+  adapt_motion: AdaptMotionInput,
+  preview_adaptations: PreviewAdaptationsInput,
+  generate_responsive_css: GenerateResponsiveCssInput,
+  synthesize_motion: SynthesizeMotionInput,
+  morph_to_pattern: MorphToPatternInput,
+  synthesize_waveform: SynthesizeWaveformInput,
+  create_story_arc: CreateStoryArcInput,
+  analyze_pacing: AnalyzePacingInput,
+  apply_story_plan: ApplyStoryPlanInput,
+  generate_image: GenerateImageInput,
+  generate_speech: GenerateSpeechInput,
+  generate_video: GenerateVideoInput,
+  generate_3d: Generate3DInput,
+  list_models: ListModelsInput,
 } as const;
 
 export type ToolName = keyof typeof TOOL_INPUT_SCHEMAS;
@@ -1284,7 +1525,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   add_layer: "Add a new animatable component (layer) to a project. Returns the new componentId.",
   remove_component: "Remove a component from a project.",
   add_scene: "Add a new scene to a multi-scene project.",
-  set_easing: "Set the easing curve of a component (preset | bezier | spring). Use for 'make it bouncy / smooth / snappy'.",
+  set_easing: "Set the easing curve of a component. 17 presets available: linear, ease, ease-in, ease-out, ease-in-out, ease-in-quad, ease-out-quad, ease-in-out-quad, ease-in-cubic, ease-out-cubic, ease-in-out-cubic, bounce, back, elastic, snappy, smooth, soft. Also supports custom bezier (x1,y1,x2,y2) and spring (stiffness,damping,mass). Use for 'make it bouncy / smooth / snappy / soft' or specific CSS easing names.",
   set_spring: "Convenience: set a spring easing with stiffness, damping, and mass.",
   set_duration: "Set the animation duration in milliseconds. Use for 'slower / faster'.",
   set_delay: "Set the animation delay (start offset) in milliseconds.",
@@ -1311,7 +1552,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   analyze_motion: "Analyze the current motion design for quality, timing, accessibility, and composition issues. Returns a list of insights with severity levels (info/warning/critical) and actionable suggestions. Use when the user asks 'is this good', 'analyze', 'review', or 'critique my motion'.",
   suggest_next: "Generate 3-5 context-aware next-step suggestions based on the current project state. Returns suggestion text and a priority level. Use when the user asks 'what should I do next', 'suggest', or 'ideas'.",
   set_motion_path: "Animate a component along a custom path (line, circle, ellipse, or bezier curve). Generates keyframes for translateX/translateY along the path. Use when the user says 'move in a circle', 'animate along a path', or 'orbit around a point'.",
-  apply_style: "Apply a coordinated motion style preset (playful, energetic, calm, professional, dramatic, minimal) across ALL components. Adjusts easing, duration, loop, and direction for a coherent aesthetic. Use when the user says 'make it playful', 'give it a professional feel', or 'style the whole project'.",
+  apply_style: "Apply a coordinated motion style preset (playful, energetic, calm, professional, dramatic, minimal, cinematic, glassy, retro, futuristic, organic, mechanical, luxury) across ALL components. Adjusts easing, duration, loop, and direction for a coherent aesthetic. Use when the user says 'make it playful', 'give it a professional feel', 'make it cinematic', or 'style the whole project'.",
   recognize_pattern: "Identify motion design patterns and anti-patterns in the project — monotony, incomplete lifecycle, timing uniformity, motion overload, and dominant category. Returns pattern observations with recommendations. Use when the user asks 'what patterns do you see' or 'is the composition balanced'.",
   harmonize_colors: "Apply color theory to adjust component colors for visual harmony. Supports complementary, analogous, triadic, and monochrome schemes. Use when the user says 'harmonize colors', 'make colors work together', or 'apply a color scheme'.",
   choreograph: "Apply a choreographic pattern across all components — cascade (sequential), wave (sine-wave delays), ripple (center-out), canon (offset repetition), converge (all converge to endpoint), spiral (golden-angle distribution with alternating easing), explosion (center-out burst with bounce easing), assembly (edges meet in middle), breathing (synchronized pulse with phase offsets), domino (alternating direction cascade), scatter (reverse explosion — outer first). Sets delays, adjusts durations, and tunes easing/direction per pattern. Use when the user says 'choreograph', 'orchestrate', 'wave pattern', 'ripple effect', 'spiral', 'explosion', 'assembly', 'breathing', 'domino', or 'scatter'.",
@@ -1332,6 +1573,12 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   select_components: "Select multiple components by id, optionally clearing existing selection first. Use when the user says 'select all', 'select multiple', or 'select these layers'.",
   toggle_snap: "Enable or disable snap-to-grid with optional grid size (1-50px). Use when the user says 'turn on snap', 'disable snapping', or 'set grid size to 16'.",
   add_shape: "Add a shape to the canvas — rectangle, circle, text, triangle, star, pentagon, line, or arrow. Optionally set position (x/y) and size (width/height). Use when the user says 'add a rectangle', 'create a star', or 'add an arrow'.",
+  add_image: "Add an image component to the canvas from a URL or data URI. Supports object-fit (cover/contain/fill). Use when the user says 'add an image', 'insert a picture', or 'place a photo'.",
+  add_video: "Add a video component to the canvas from a URL or data URI. Supports muted, loop, and autoplay options. Use when the user says 'add a video', 'embed a clip', or 'place a video'.",
+  add_audio: "Add an audio component for background music or voiceover. Supports delay, loop, and muted options. Use when the user says 'add background music', 'add a voiceover', or 'play a sound'.",
+  add_typewriter_text: "Add text that reveals character-by-character with an optional blinking cursor. Use when the user says 'typewriter effect', 'type on text', or 'reveal text gradually'.",
+  add_scene_transition: "Add a cinematic transition effect between scenes — dissolve, wipe, slide, zoom, or flash. Use when the user says 'add a transition', 'cross-dissolve', or 'wipe to next scene'.",
+  add_camera_move: "Animate a virtual camera movement — pan left/right/up/down, zoom in/out, or combined zoom-pan. Use when the user says 'pan camera', 'zoom in', 'camera movement', or 'dolly shot'.",
   set_blend_mode: "Set a component's CSS blend mode (mixBlendMode). 16 modes: normal, multiply, screen, overlay, darken, lighten, color-dodge, color-burn, hard-light, soft-light, difference, exclusion, hue, saturation, color, luminosity. Use when the user says 'set blend mode to multiply' or 'blend with screen'.",
   set_artboard: "Set the artboard (canvas) dimensions and background color. Width/height in pixels (64-4096). Use when the user says 'set canvas to 800x600', 'make the canvas wider', or 'set background to black'.",
   set_layer_opacity: "Set a layer's opacity (0-1 where 1 is fully opaque). Use when the user says 'set opacity to 50%', 'make it semi-transparent', or 'opacity 0.8'.",
@@ -1370,6 +1617,10 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   play_clip: "Trigger playback of a specific timeline clip. Use for 'play clip', 'trigger segment'.",
   set_filter: "Apply a CSS filter effect (blur, brightness, contrast, hue-rotate, saturate, grayscale, sepia) to a component. Stacks with existing filters.",
   set_3d_transform: "Apply 3D transform properties (perspective, rotateX, rotateY, rotateZ, translateZ) to a component for depth effects.",
+  set_adjustment_layer: "Toggle a component as an adjustment layer — its filter effects apply to all layers below via backdrop-filter. Use when the user says 'adjustment layer', 'affect layers below', or 'apply effect to all layers'.",
+  create_precomp: "Group multiple components into a pre-composition — they share a common parentId so they can be moved and timed as a unit. Use when the user says 'group these', 'pre-comp', 'precompose', or 'nest these layers'.",
+  ungroup_precomp: "Remove components from their pre-composition group by clearing their parentId. Use when the user says 'ungroup', 'unprecompose', or 'extract from comp'.",
+  set_expression: "Set a JavaScript expression on a property. The expression is evaluated each frame with variables: time (ms), index, duration (ms), value. Example: 'Math.sin(time / 500) * 50 + 50' for pulsing opacity. Use when the user says 'expression', 'formula', 'math', 'oscillate', 'pulse', 'wiggle', or writes an equation.",
   analyze_restraint: "Analyze motion density and restraint — calculates how many animations compete for attention simultaneously, identifies easing/duration monotony, and recommends improvements. Returns a restraint score (0-100) with warnings. Use when the user asks 'is this too much', 'analyze restraint', or 'check density'.",
   list_recipes: "Browse the curated motion recipe library. Each recipe carries avoid_when metadata — situations where it should NOT be used. Optionally filter by category or search by query. Returns recipe names, descriptions, restraint costs, and avoidance conditions.",
   apply_recipe: "Apply a curated motion recipe to a component. Recipes include pre-configured easing, keyframes, and timing. The system checks avoid_when conditions before applying. Use when the user says 'apply a recipe', 'use a gentle entrance', or 'try a cinematic fade'.",
@@ -1379,9 +1630,9 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   delete_project_recipe: "Delete a user-saved project recipe by ID. Use when the user says 'delete this recipe', 'remove that preset', or 'clean up my recipes'.",
   seed_project_recipes: "Seed the project with built-in recipe presets (Gentle Entrance, Confident Reveal, Playful Bounce, Ambient Breath, Snappy Click). Use when the user says 'add default recipes', 'seed recipes', or 'give me some starter recipes'.",
   list_brand_packs: "List all motion identity brand packs in the project. Each pack defines duration scale, signature easings, trigger philosophy, loop behavior, stagger timing, and personality traits (energy, formality, playfulness, precision). Use when the user says 'show brand packs', 'what motion styles are available', or 'list motion identities'.",
-  apply_brand_pack: "Apply a brand pack to the project — rewrites all component timing, easing, triggers, and loop behavior to align with the brand's motion identity. Optionally target a single component. Use when the user says 'apply the Minimal Reserve brand', 'make everything Apple-like', or 'use the Playful Dynamic identity'.",
+  apply_brand_pack: "Apply a brand pack to the project — rewrites all component timing, easing, triggers, and loop behavior to align with the brand's motion identity. Optionally target a single component. Use when the user says 'apply the Minimal Reserve brand', 'make everything minimal and refined', or 'use the Playful Dynamic identity'.",
   delete_brand_pack: "Delete a brand pack by ID. Use when the user says 'delete this brand pack', 'remove that motion identity', or 'clean up brand packs'.",
-  seed_brand_packs: "Seed the project with 5 built-in brand pack presets: Minimal Reserve (Apple-keynote), Material Expressive (Google), Playful Dynamic (Nintendo), Cinematic Flow (Stripe), Technical Precision (dashboard). Use when the user says 'add default brand packs', 'seed motion identities', or 'load brand presets'.",
+  seed_brand_packs: "Seed the project with 5 built-in brand pack presets: Minimal Reserve (smooth, formal), Material Expressive (snappy, standardized), Playful Dynamic (spring, energetic), Cinematic Flow (custom bezier, ambient), Technical Precision (linear, mechanical). Use when the user says 'add default brand packs', 'seed motion identities', or 'load brand presets'.",
   set_motion_profile: "Set or update a component's motion personality profile — role (hero/supporting/background/cta/decorative/data/navigation), temperament (bold/subtle/urgent/calm/playful/precise/dramatic/friendly), interaction style (passive/reactive/interactive), visual weight (0-10). Use when the user says 'make this a hero element', 'this is a background component', or 'set this as a CTA'.",
   get_motion_profile: "Get a component's motion profile — returns role, temperament, interaction style, visual weight, and notes. Use when the user says 'what is this component's role', 'check its profile', or 'what personality does this have'.",
   list_motion_profiles: "List all motion profiles in the project. Shows each component's role, temperament, interaction style, and visual weight. Use when the user says 'show all profiles', 'list component roles', or 'what are the personalities'.",
@@ -1413,7 +1664,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   list_generated_skills: "List skills auto-generated by the agent from past successful task sequences. Each skill captures a reusable tool pattern. Use when the user asks 'what have you learned' or 'show me generated skills'.",
   compile_grammar: "Compile a motion grammar expression into motion specs. Supports verbs (fade, slide, bounce, rotate, scale, spin, pulse, flip, shake, glow, float, blur, skew, wiggle, heartbeat, typewriter, drift, swing, drop), directions (in/out/up/down/left/right/cw/ccw), and parameters (duration, easing, loop, delay). Example: 'fade.in(600ms) then slide.up(400ms) with easing(spring)'. Use when the user writes a grammar expression or says 'compile this motion'.",
   parse_motion: "Parse a natural language motion description into a structured motion spec. Extracts easing, duration, keyframes, and properties from descriptions like 'make it bounce in playfully with spring physics'. Use when the user describes a motion in natural language and you need to translate it into a spec.",
-  set_shader_effect: "Apply a WebGL shader effect to a component. Available effects: shader-chromatic (RGB split), shader-glitch (displacement blocks), shader-plasma (animated plasma field), shader-noise (film grain), shader-ripple (concentric distortion), shader-vignette (darkened edges), shader-neon-glow (pulsing neon), shader-pixelate (retro pixels), shader-gradient-shift (animated gradient), shader-invert-pulse (strobe invert). Use when the user says 'shader effect', 'glitch effect', 'neon glow', 'chromatic aberration', or 'plasma'.",
+  set_shader_effect: "Apply a WebGL shader effect to a component. 36 effects available across distortion (chromatic, glitch, warp, swirl, ripple), color (plasma, gradient-shift, invert-pulse, color-panels, heatmap, liquid-metal), noise (noise, perlin, simplex, voronoi, dithering, grain-gradient), light (neon-glow, vignette, aurora, vortex, god-rays, gem-smoke), pattern (mesh-gradient, dot-orbit, dot-grid, waves, metaballs, pulsing-border, halftone-dots, halftone-cmyk), and filter (pixelate, smoke-ring, paper-texture, fluted-glass, water) categories. Use when the user says 'shader effect', 'glitch effect', 'neon glow', 'chromatic aberration', 'plasma', 'pixelate', 'vignette', 'aurora', 'vortex', 'warp', 'swirl', 'waves', 'perlin', 'voronoi', 'metaballs', 'heatmap', 'liquid metal', 'halftone', 'dithering', 'paper texture', 'fluted glass', or 'water'.",
   save_version: "Capture the current project state as a named version snapshot. Use before risky spec-changing operations so the user can roll back. Also use when the user says 'save a version', 'snapshot this', or 'save current state'.",
   list_versions: "List all saved version snapshots for a project, newest first. Use when the user asks 'show versions', 'what versions exist', or 'version history'.",
   restore_version: "Restore a project to a previously captured version snapshot — replaces all current components with the snapshot contents. Use when the user says 'restore version', 'roll back', 'go back to', or 'revert to snapshot'.",
@@ -1422,7 +1673,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   list_tokens: "List all design tokens for a project, optionally filtered by category. Use when the user asks 'show tokens', 'what tokens exist', or 'list durations'.",
   update_token: "Update the value or description of an existing design token. Use when the user says 'change the fast token to 300ms' or 'update the brand color'.",
   delete_token: "Delete a design token by name. Use when the user says 'remove token' or 'delete the slow duration'.",
-  export_lottie: "Export the project as a Lottie JSON animation file (industry-standard format for web/mobile animation). Optional fps parameter (default 60). Use when the user says 'export as lottie', 'lottie file', or 'export for after effects'.",
+  export_lottie: "Export the project as a Lottie JSON animation file (industry-standard format for web/mobile animation). Optional fps parameter (default 60). Use when the user says 'export as lottie', 'lottie file', or 'export for animation tools'.",
   save_pipeline: "Save a named sequence of tool calls as a reusable pipeline that can be replayed later on any project. Each step has a tool name and args. Use when the user says 'save this as a pipeline', 'record these steps', or 'make a reusable workflow'.",
   list_pipelines: "List all saved tool pipelines for the project. Use when the user asks 'show pipelines', 'what workflows exist', or 'list saved sequences'.",
   run_pipeline: "Replay a saved pipeline by id — executes each step's tool call in sequence on the current project. Use when the user says 'run pipeline', 'replay workflow', or 'apply the bounce-then-fade sequence'.",
@@ -1432,14 +1683,31 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   suggest_creative: "Generate creative, context-aware next-step suggestions based on the project's mood, energy, rhythm, diversity, and restraint. Includes surprise ideas (shader accents, motion paths, 3D transforms, variants, choreography). Set surprise=true for unexpected but aesthetically valid ideas. Use when the user asks 'surprise me', 'creative ideas', 'what would make this better', or 'any suggestions'.",
   analyze_visual_context: "Analyze the canvas as a spatial layout — visual balance (centroid vs canvas center), spacing consistency (gap variance), hierarchy (size distribution and z-order), color palette distribution, overlap detection, and alignment (rows/columns/grid). Returns a composite visual quality score (0-100) with actionable insights and suggestions. Use when the user asks 'is the layout balanced', 'check the composition', 'visual review', 'how does the canvas look', or 'analyze the visual layout'.",
   synthesize_code: "Generate standalone, copy-pasteable animation code from a natural language description. Parses the description for motion verb (fade, slide, bounce, rotate, scale, pulse, shake, flip, float, glow, heartbeat, drop, swing, wiggle), easing, duration, loop, and direction, then renders code in the requested format: css (@keyframes + class), react (component using Web Animations API), html (standalone file), or vanilla (element.animate() snippet). Unlike export_code (which serializes the current project), synthesize_code generates fresh code from a description alone. Use when the user says 'generate code for a bounce animation', 'give me the CSS for a smooth fade', 'write a React component for a pulsing effect', or 'create animation code'.",
-  compose_state_machine: "Compose a Rive-inspired state machine with named states, typed inputs (boolean/number/trigger), and timed transitions. Builds from a preset (hover-press, toggle-on-off, loading-sequence, carousel, tab-switch) or a custom definition. States map to component visibility snapshots; transitions define how inputs move the machine between states. The machine is stored in the project tokens. Use when the user says 'create a state machine', 'add a hover/press interaction', 'make a toggle', 'build a loading flow', 'create a carousel', or 'add tab navigation'.",
+  compose_state_machine: "Compose an OpenMotion-native state machine with named states, typed inputs (boolean/number/trigger), and timed transitions. Builds from a preset (hover-press, toggle-on-off, loading-sequence, carousel, tab-switch) or a custom definition. States map to component visibility snapshots; transitions define how inputs move the machine between states. The machine is stored in the project tokens. Use when the user says 'create a state machine', 'add a hover/press interaction', 'make a toggle', 'build a loading flow', 'create a carousel', or 'add tab navigation'.",
   list_state_machines: "List all state machines stored in the project tokens, showing their states, transitions, inputs, and current state. Use when the user says 'list state machines', 'show state machines', or 'what state machines do I have'.",
   trigger_state_machine: "Transition a state machine to a named target state. Applies the target state's component visibility and style configuration. Use when the user says 'switch to the hover state', 'go to the loading state', 'trigger the success state', or 'transition to the on state'.",
-  analyze_principles: "Analyze a motion component (or all components) against Disney's 12 principles of animation: squash & stretch, anticipation, staging, slow in/slow out, arcs, secondary action, timing, exaggeration, solid drawing, appeal, follow through, overlapping action. Returns per-principle scores (0-100), present/missing status, and actionable suggestions. Use when the user says 'check animation principles', 'analyze motion quality', 'what principles are missing', or 'score this animation'.",
+  analyze_principles: "Analyze a motion component (or all components) against the 12 fundamental principles of animation: squash & stretch, anticipation, staging, slow in/slow out, arcs, secondary action, timing, exaggeration, solid drawing, appeal, follow through, overlapping action. Returns per-principle scores (0-100), present/missing status, and actionable suggestions. Use when the user says 'check animation principles', 'analyze motion quality', 'what principles are missing', or 'score this animation'.",
   apply_principle: "Apply a specific animation principle to a component, modifying its keyframes and easing. Principles: squash_stretch (adds scaleX/scaleY deformation), anticipation (adds pre-action keyframe), slow_in_out (fixes linear easing), follow_through (adds settling oscillation), exaggeration (amplifies values), arcs (adds perpendicular translation), secondary_action (adds opacity/shadow), overlapping_action (adds lagging secondary property), solid_drawing (adds 3D rotation). Use when the user says 'add anticipation', 'apply squash and stretch', 'add follow through', 'make it more exaggerated', or 'fix the easing'.",
   synthesize_easing: "Synthesize a custom easing curve from a semantic description. Maps natural language adjectives (weighty, featherlight, snappy, dramatic, playful, elegant, organic, mechanical, bouncy, heavy, light) to precise cubic-bezier control points or spring physics parameters. Returns the easing config and CSS cubic-bezier() string. Use when the user says 'make it feel weighty', 'I want a feather-light easing', 'give me a dramatic curve', or 'synthesize a playful easing'.",
   apply_choreography: "Apply a choreography pattern to orchestrate multiple components with coordinated timing. Patterns: cascade (waterfall delay), call_response (first group then second), unison (all simultaneous), counterpoint (opposite directions), wave (sine-phase offset), canon (musical round), stagger_grid (diagonal sweep), ripple_out (center expands outward). Returns per-component delay and duration assignments. Use when the user says 'cascade these animations', 'make them animate in a wave', 'create a call and response', 'stagger them in a grid', or 'ripple from center'.",
   blend_motions: "Blend two components' motions at a given ratio (0 = source A, 1 = source B, 0.5 = midpoint). Interpolates keyframe values, easing curves, duration, and delay. Creates a new component or overwrites the source. Use when the user says 'blend these two motions', 'cross-fade between A and B', 'create a hybrid of these two', or 'mix these animations at 30%'.",
   interpolate_motion: "Generate N intermediate motion steps between two components, creating a smooth transition sequence. Returns blend results at each ratio from 0 to 1. Use when the user says 'interpolate between these', 'create 5 steps between A and B', 'generate intermediate motions', or 'tween from A to B'.",
   merge_properties: "Merge animated properties from two components into one. Properties unique to each source are combined; conflicting properties are resolved by preferring the source with a keyframe at that offset. Use when the user says 'merge the properties', 'combine animations from A and B', 'layer these motions together', or 'union the keyframes'.",
+  analyze_emotion: "Analyze the emotional impact of the motion composition — maps each animation event to an emotional beat (anticipation, surprise, delight, tension, release, curiosity, satisfaction, urgency, calm, joy, trust). Returns the emotional journey timeline, dominant emotion, emotional arc (flat, rising, falling, peaked, oscillating), and peak intensity. Use when the user says 'how does this feel', 'what emotion does this convey', 'analyze the emotion', or 'emotional impact'.",
+  analyze_rhythm: "Analyze the visual rhythm of the motion composition — detects beats from keyframe events, estimates tempo (BPM), classifies rhythm type (steady, syncopated, rubato, accelerando, decelerando, chaotic), and identifies rhythmic conflicts. Returns the beat timeline, regularity score, groove score, and conflict list. Use when the user says 'analyze the rhythm', 'what is the tempo', 'is the rhythm steady', 'check the beat', or 'rhythm analysis'.",
+  analyze_narrative: "Analyze the narrative coherence of the motion composition — divides the timeline into 5 acts (setup, rising, climax, falling, resolution), checks for missing acts, scores pacing and coherence, and generates suggestions for improving the story arc. Use when the user says 'does this tell a story', 'analyze the narrative', 'what is the story arc', 'is the pacing good', or 'narrative analysis'.",
+  adapt_motion: "Adapt the motion for a target device and context — scales duration, delay, keyframe density, easing complexity, and loop behavior based on viewport size, performance tier, accessibility preference, connection speed, and battery level. Returns the adapted spec, a list of changes with reasons, and a reduction level. Use when the user says 'adapt for mobile', 'make it work on tablet', 'responsive motion', 'optimize for low performance', or 'reduce motion for accessibility'.",
+  preview_adaptations: "Preview how the motion adapts across all responsive breakpoints (desktop, tablet, mobile, small) — returns change counts and estimated load for each breakpoint so you can see the adaptation impact before applying. Use when the user says 'preview adaptations', 'how will this look on mobile', 'what changes on tablet', or 'responsive preview'.",
+  generate_responsive_css: "Generate responsive CSS with @media queries for all breakpoints — includes desktop, tablet, mobile styles with scaled durations and delays, plus prefers-reduced-motion support. Returns ready-to-use CSS string. Use when the user says 'generate responsive CSS', 'export responsive styles', 'CSS for mobile', or 'responsive CSS'.",
+  synthesize_motion: "Synthesize a motion component from a generative pattern — produces mathematically-generated keyframes from waveform functions (sine, square, triangle, sawtooth, pulse, noise). 12 patterns: heartbeat (double-pulse scale), heartbeat-fast (rapid urgency), breathing (slow scale+opacity), walk-cycle (vertical bob + rotation), bounce-ball (gravity triangle wave), pendulum (rotational oscillation), ocean-wave (dual-axis fluid), tremor (high-freq micro-shake), fidget (restless micro-movements), shake-violent (sharp alternating), sway-gentle (calm rocking), orbit-elliptical (circular path). Each pattern maps to waveform parameters, animated properties, and a default duration. Amplitude and speed scales let you fine-tune intensity. Returns a fully-formed component ready to add. Use when the user says 'synthesize a heartbeat', 'generate a breathing animation', 'create a pendulum', 'make a walk cycle', 'generate a tremor', or 'synthesize motion'.",
+  morph_to_pattern: "Morph the existing motion toward a generative pattern over N intermediate steps — produces a smooth transition sequence from the current motion to the target pattern. Each step blends keyframe values, easing, and duration at an increasing ratio (0 = source, 1 = target). Returns morphed components at each step. Use when the user says 'morph to a heartbeat', 'transition into a breathing pattern', 'morph this into a bounce', or 'gradually become a pendulum'.",
+  synthesize_waveform: "Synthesize a custom waveform-driven motion — define an arbitrary waveform (sine, square, triangle, sawtooth, noise, pulse) with amplitude, frequency, phase, and offset, applied to a specific property (translateX, translateY, scale, rotate, opacity). Generates keyframeCount keyframes (4..32) sampling the waveform across the duration. Returns a fully-formed component. Use when the user says 'sine wave on translateY', 'square wave on opacity', 'triangle wave on rotate', 'custom waveform', 'generate a 2Hz sine wave', or 'sawtooth animation'.",
+  create_story_arc: "Create a story arc from a genre template — maps narrative structure onto the motion timeline with beats, emotional tones, and intensity levels. 8 genres: hero (Hero's Journey), mystery (Mystery Unfolding), romance (Romantic Arc), comedy (Comedic Rhythm), thriller (Thriller Escalation), documentary (Documentary Flow), fantasy (Fantasy Quest), horror (Horror Descent). Each genre defines 5 acts (setup, rising, climax, falling, resolution) with weights, intensity curves, and emotional tones. Returns the full arc with beats, transitions, component assignments, and pacing analysis. Use when the user says 'create a story arc', 'hero journey', 'build a thriller structure', 'romance arc', 'comedy timing', or 'documentary flow'.",
+  analyze_pacing: "Analyze the pacing of a story arc — extracts the tempo curve (BPM per beat), identifies slow and fast segments, checks climax position, and generates recommendations for improving the dramatic rhythm. Returns an overall pacing score (0-100). Use when the user says 'analyze the pacing', 'is the pacing good', 'check the rhythm of the story', 'tempo analysis', or 'pacing review'.",
+  apply_story_plan: "Apply a storytelling plan to the motion spec — aligns component delays to beat starts and scales durations by beat intensity (high intensity = faster motion). Maps each component to a story role (protagonist, supporting, introduction, background) based on which beats it overlaps. Set apply=true to write changes to the project; otherwise returns a preview of what would change. Use when the user says 'apply the story plan', 'align to story beats', 'time components to the arc', or 'apply the hero journey timing'.",
+  generate_image: "Generate an image from a text prompt using configured providers (DALL-E 3, Stable Diffusion 3). Returns the image URL. Use when the user says 'generate an image', 'create a picture', 'draw', 'make a visual', or 'render an image'.",
+  generate_speech: "Convert text to natural-sounding speech using configured providers (OpenAI TTS, ElevenLabs). Returns audio data. Use when the user says 'generate speech', 'read this aloud', 'text to speech', 'narrate', or 'voice this text'.",
+  generate_video: "Generate a video from a text prompt or animate a static image using configured providers (Runway Gen-3, Luma Dream Machine, Pika). Returns the video URL. Use when the user says 'generate a video', 'create a clip', 'animate this', 'make a movie', or 'produce a video sequence'.",
+  generate_3d: "Generate a 3D model from a text prompt or convert a 2D image to 3D using configured providers (Meshy, Tripo). Returns the model URL (GLB format). Use when the user says 'generate a 3D model', 'create 3D', 'make a mesh', 'text to 3D', or 'convert image to 3D'.",
+  list_models: "List all available AI models in the registry, optionally filtered by provider or modality. Shows model capabilities (text, vision, audio, image generation, video generation, code, tool use, reasoning) and context windows. Use when the user says 'what models are available', 'list models', 'show providers', or 'which LLMs can I use'.",
 };
