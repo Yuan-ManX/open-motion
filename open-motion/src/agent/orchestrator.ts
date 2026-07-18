@@ -305,6 +305,7 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
 
     let anySpecChanged = false;
     let lastSpecTool: string | null = null;
+    let lastSuccessfulTool: string | null = null;
     let lastComponentId: string | undefined;
     const failedTools: string[] = [];
     for (const call of toolCalls) {
@@ -356,6 +357,12 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
           lastComponentId = data.componentId;
         }
       }
+      // Track the last successful tool regardless of spec change so proactive
+      // suggestions can fire for analysis, generation, and other non-mutating
+      // tools (e.g., generate_image, analyze_principles, describe_motion).
+      if (result.ok) {
+        lastSuccessfulTool = call.tool;
+      }
       if (!result.ok) failedTools.push(call.tool);
     }
 
@@ -393,6 +400,22 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
           onEvent({ type: "proactive_suggestion", suggestions });
         }
       }
+    } else if (lastSuccessfulTool) {
+      // Non-spec-changing tools (analysis, generation, documentation) still
+      // benefit from proactive follow-up suggestions. Emit them against the
+      // current spec so the user gets a contextual next step.
+      const fresh = getProjectSpec(projectId);
+      if (fresh) {
+        const suggestions = suggestProactive({
+          spec: fresh,
+          lastTool: lastSuccessfulTool,
+          lastToolOk: !failedTools.includes(lastSuccessfulTool),
+          lastComponentId,
+        });
+        if (suggestions.length > 0) {
+          onEvent({ type: "proactive_suggestion", suggestions });
+        }
+      }
     }
     // Loop back: re-assemble context (system prompt now reflects the new spec).
   }
@@ -407,10 +430,19 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
 /**
  * Self-reflection engine — analyzes failed tool calls and produces a
  * correction suggestion. Rule-based so it works in mock mode.
+ *
+ * The reflection layer does three things:
+ *   1. Pattern-matches the error summary against known failure shapes and
+ *      emits a targeted recovery suggestion.
+ *   2. Inspects which tool failed and emits a tool-specific hint (e.g., if
+ *      set_easing failed, list the valid easing preset names).
+ *   3. Detects retry loops — when the same tool has failed twice in the
+ *      session, it suggests switching to an alternative approach instead of
+ *      retrying the same call.
  */
 function reflectOnFailures(
   failedTools: string[],
-  _allCalls: LlmToolCall[],
+  allCalls: LlmToolCall[],
   allResults: ToolResult[],
 ): { text: string; suggestion: string } {
   const lastFailed = allResults.filter((r) => !r.ok).slice(-1)[0];
@@ -438,6 +470,46 @@ function reflectOnFailures(
       text: `Tool failed: "${summary}". The input could not be parsed.`,
       suggestion: "Try a simpler expression or check the grammar syntax (e.g., fade.in(600ms) then slide.up(400ms)).",
     },
+    {
+      test: /timeout|timed out/i,
+      text: `Tool failed: "${summary}". The operation timed out.`,
+      suggestion: "Retry the operation — if it continues to time out, simplify the request or reduce the scope.",
+    },
+    {
+      test: /permission|forbidden|unauthorized/i,
+      text: `Tool failed: "${summary}". Permission denied.`,
+      suggestion: "Check that the API key has the required permissions, then retry.",
+    },
+    {
+      test: /rate limit|too many requests|429/i,
+      text: `Tool failed: "${summary}". Rate limit exceeded.`,
+      suggestion: "Wait a moment before retrying — the provider is throttling requests.",
+    },
+    {
+      test: /unsupported|not supported/i,
+      text: `Tool failed: "${summary}". The feature is not supported.`,
+      suggestion: "Use an alternative approach — check available tools with list_templates or get_motion_spec.",
+    },
+    {
+      test: /out of range|below minimum|above maximum|exceeds/i,
+      text: `Tool failed: "${summary}". A numeric argument was out of the allowed range.`,
+      suggestion: "Check the allowed ranges in the tool schema and retry with a value inside the bounds.",
+    },
+    {
+      test: /circular|cycle|self.?parent/i,
+      text: `Tool failed: "${summary}". A circular reference was detected.`,
+      suggestion: "Avoid nesting a component under its own descendant — restructure the hierarchy first.",
+    },
+    {
+      test: /empty|no components|nothing to/i,
+      text: `Tool failed: "${summary}". The project has no components to operate on.`,
+      suggestion: "Add a layer with add_layer or apply a template with set_template before retrying.",
+    },
+    {
+      test: /missing.*argument|required.*field|argument.*missing/i,
+      text: `Tool failed: "${summary}". A required argument was missing.`,
+      suggestion: "Re-issue the call with all required fields populated — check the tool schema for details.",
+    },
   ];
 
   for (const p of patterns) {
@@ -446,10 +518,65 @@ function reflectOnFailures(
     }
   }
 
+  // Tool-specific recovery hints: when a known tool fails, suggest the
+  // canonical recovery action for that tool family.
+  const failedTool = failedTools[failedTools.length - 1];
+  const toolHint = toolSpecificHint(failedTool);
+  if (toolHint) {
+    return {
+      text: `${failedTools.length} tool(s) failed: ${failedTools.join(", ")}. Last error: "${summary}".`,
+      suggestion: toolHint,
+    };
+  }
+
+  // Retry-loop detection: if the same tool has failed 2+ times in this
+  // session, recommend switching to an alternative approach instead of
+  // retrying the same call.
+  const failCounts = new Map<string, number>();
+  for (const t of failedTools) failCounts.set(t, (failCounts.get(t) ?? 0) + 1);
+  const repeated = [...failCounts.entries()].find(([, n]) => n >= 2);
+  if (repeated) {
+    return {
+      text: `${repeated[0]} has failed ${repeated[1]} times this session — retrying is unlikely to succeed.`,
+      suggestion: `Switch to an alternative approach for ${repeated[0]}. Consider get_motion_spec to re-ground, or ask the user for clarification.`,
+    };
+  }
+
   return {
     text: `${failedTools.length} tool(s) failed: ${failedTools.join(", ")}. Last error: "${summary}".`,
     suggestion: "Call get_motion_spec to inspect the current state and adjust the approach.",
   };
+}
+
+/**
+ * Tool-specific recovery hints. When a tool fails, the canonical recovery
+ * action varies by tool family — this map gives the agent a targeted next
+ * step instead of a generic "inspect state" suggestion.
+ */
+function toolSpecificHint(tool: string): string | null {
+  const hints: Record<string, string> = {
+    set_easing: "Valid easing presets: linear, ease, ease-in, ease-out, ease-in-out, ease-in-quad, ease-out-quad, ease-in-out-quad, ease-in-cubic, ease-out-cubic, ease-in-out-cubic, bounce, back, elastic, snappy, smooth, soft. Or use set_spring / set_custom_bezier for custom curves.",
+    set_template: "Call list_templates to see available template IDs, then retry with a valid ID.",
+    apply_preset: "Valid presets: shake, wiggle, float, glow, heartbeat, typewriter. Check the spelling and retry.",
+    apply_style: "Valid style presets: playful, energetic, calm, professional, dramatic, minimal, cinematic, glassy, retro, futuristic, organic, mechanical, luxury.",
+    apply_recipe: "Call the recipes endpoint to list available recipe IDs, then retry with a valid ID.",
+    apply_choreography: "Valid choreography patterns: cascade, wave, ripple, canon, converge, spiral, explosion, assembly, breathing, domino, scatter.",
+    set_shader_effect: "Call the shaders endpoint to list available shader effect IDs, then retry with a valid ID.",
+    apply_brand_pack: "Call list_brand_packs to see available brand pack IDs, or seed_brand_packs to create defaults first.",
+    apply_motion_profile: "Call list_motion_profiles to see available profile IDs, or suggest_motion_profile to generate one.",
+    apply_motion_capture: "Call list_motion_captures to see available capture IDs, or seed_motion_captures to create defaults first.",
+    capture_state: "Ensure at least one component exists before capturing a state.",
+    apply_state: "Call list_states to see captured state IDs, then retry with a valid ID.",
+    add_transition: "Both source and target states must exist before adding a transition — call list_states to verify.",
+    set_parent: "The parent component must exist and must not be a descendant of the child — check list_hierarchy for the current tree.",
+    add_constraint: "Both components must exist before linking — call get_motion_spec to verify IDs.",
+    restore_version: "Call list_versions to see available version IDs, then retry with a valid ID.",
+    run_pipeline: "Call list_pipelines to see available pipeline IDs, then retry with a valid ID.",
+    compile_grammar: "Check the grammar syntax — valid verbs include fade, slide, scale, rotate, spin. Use 'then' to sequence.",
+    parse_motion: "Ensure the grammar expression is compiled first with compile_grammar.",
+    synthesize_code: "Specify a valid format: html, css, or react.",
+  };
+  return hints[tool] ?? null;
 }
 
 /**
@@ -460,7 +587,7 @@ function reflectOnFailures(
 function autoExtractMemory(projectId: string, message: string): void {
   const lower = message.toLowerCase();
 
-  // Detect style preferences
+  // Detect style preferences — covers all 13 style presets
   const stylePrefs: Record<string, string> = {
     "professional": "prefers professional tone",
     "playful": "prefers playful tone",
@@ -468,6 +595,13 @@ function autoExtractMemory(projectId: string, message: string): void {
     "dramatic": "prefers dramatic motion",
     "calm": "prefers calm/soft motion",
     "energetic": "prefers energetic motion",
+    "cinematic": "prefers cinematic motion",
+    "glassy": "prefers glassy aesthetic",
+    "retro": "prefers retro aesthetic",
+    "futuristic": "prefers futuristic aesthetic",
+    "organic": "prefers organic motion",
+    "mechanical": "prefers mechanical motion",
+    "luxury": "prefers luxury aesthetic",
     "bouncy": "prefers bouncy/spring physics",
     "smooth": "prefers smooth easing",
     "snappy": "prefers snappy/crisp timing",
@@ -475,6 +609,20 @@ function autoExtractMemory(projectId: string, message: string): void {
   for (const [keyword, pref] of Object.entries(stylePrefs)) {
     if (lower.includes(keyword)) {
       remember(projectId, "style-preference", pref, ["preference", "style"], 0.8);
+    }
+  }
+
+  // Detect easing preferences
+  const easingPrefs: Record<string, string> = {
+    "elastic": "prefers elastic easing",
+    "soft": "prefers soft easing",
+    "back": "prefers back/overshoot easing",
+    "ease-in": "prefers ease-in acceleration",
+    "ease-out": "prefers ease-out deceleration",
+  };
+  for (const [keyword, pref] of Object.entries(easingPrefs)) {
+    if (lower.includes(keyword)) {
+      remember(projectId, "easing-preference", pref, ["preference", "easing"], 0.7);
     }
   }
 
@@ -489,5 +637,41 @@ function autoExtractMemory(projectId: string, message: string): void {
   // Detect loop preferences
   if (lower.includes("loop") || lower.includes("repeat") || lower.includes("infinite")) {
     remember(projectId, "loop-preference", "comfortable with looping animations", ["preference", "loop"], 0.5);
+  }
+
+  // Detect direction preferences
+  if (lower.includes("reverse") || lower.includes("backward")) {
+    remember(projectId, "direction-preference", "prefers reverse playback", ["preference", "direction"], 0.5);
+  }
+  if (lower.includes("alternate")) {
+    remember(projectId, "direction-preference", "prefers alternate direction", ["preference", "direction"], 0.5);
+  }
+
+  // Detect choreography preferences
+  const choreoPrefs: Record<string, string> = {
+    "cascade": "prefers cascade choreography",
+    "wave": "prefers wave choreography",
+    "ripple": "prefers ripple choreography",
+    "spiral": "prefers spiral choreography",
+    "domino": "prefers domino choreography",
+  };
+  for (const [keyword, pref] of Object.entries(choreoPrefs)) {
+    if (lower.includes(keyword)) {
+      remember(projectId, "choreography-preference", pref, ["preference", "choreography"], 0.6);
+    }
+  }
+
+  // Detect export format preferences
+  const exportPrefs: Record<string, string> = {
+    "export html": "prefers HTML export",
+    "export video": "prefers video export",
+    "export react": "prefers React export",
+    "export lottie": "prefers Lottie export",
+    "export code": "prefers code export",
+  };
+  for (const [keyword, pref] of Object.entries(exportPrefs)) {
+    if (lower.includes(keyword)) {
+      remember(projectId, "export-preference", pref, ["preference", "export"], 0.7);
+    }
   }
 }
