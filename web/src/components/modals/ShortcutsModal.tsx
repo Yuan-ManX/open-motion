@@ -11,6 +11,7 @@ const SHORTCUTS: { group: string; items: Shortcut[] }[] = [
     items: [
       { keys: "⌘ K", action: "Open command palette" },
       { keys: "⌘ S", action: "Save project (reload to confirm)" },
+      { keys: "⌘ B", action: "Toggle left sidebar" },
       { keys: "⌘ Z", action: "Undo last change" },
       { keys: "⌘ ⇧ Z", action: "Redo" },
       { keys: "⌘ Y", action: "Redo (alternate)" },
