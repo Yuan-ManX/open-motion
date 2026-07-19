@@ -46,7 +46,7 @@ export const ChatRequestSchema = z.object({
 
 /** Typed SSE event frames for the chat stream. */
 export const ChatEventSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("meta"), provider: z.enum(["mock", "openai"]) }),
+  z.object({ type: z.literal("meta"), provider: z.string() }),
   z.object({ type: z.literal("token"), delta: z.string() }),
   z.object({ type: z.literal("thinking"), text: z.string(), analysis: z.string().default(""), constraints: z.array(z.string()).default([]), options: z.array(z.object({ approach: z.string(), tradeoffs: z.string() })).default([]), chosenApproach: z.string().default("") }),
   z.object({ type: z.literal("reasoning"), text: z.string() }),
