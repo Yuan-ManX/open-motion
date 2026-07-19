@@ -90,7 +90,7 @@ function buildFilterString(values: ParsedFilters): string {
 }
 
 /**
- * Effects panel — After Effects-style filter controls with live sliders.
+ * Effects panel — professional filter controls with live sliders.
  * Applies CSS filter effects to the selected component in real time.
  * Supports adjustment layer mode via backdrop-filter (affects all layers below).
  */
