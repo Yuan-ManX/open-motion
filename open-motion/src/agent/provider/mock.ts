@@ -22,12 +22,16 @@ function extractState(messages: ChatOptions["messages"]): ParsedState {
   };
 }
 
-/** Parse a duration-like value: "500ms", "1.5s", "2 seconds" → ms. */
+/** Parse a duration-like value: "500ms", "1.5s", "2 seconds", "500毫秒", "2秒" → ms. */
 function parseDuration(text: string, fallback: number): number {
   const ms = text.match(/(\d+(?:\.\d+)?)\s*ms\b/);
   if (ms) return Math.round(Number(ms[1]));
+  const cnMs = text.match(/(\d+(?:\.\d+)?)\s*毫秒/);
+  if (cnMs) return Math.round(Number(cnMs[1]));
   const s = text.match(/(\d+(?:\.\d+)?)\s*s(?:ec(?:ond)?s?)?\b/i);
   if (s) return Math.round(Number(s[1]) * 1000);
+  const cnS = text.match(/(\d+(?:\.\d+)?)\s*秒/);
+  if (cnS) return Math.round(Number(cnS[1]) * 1000);
   const bare = text.match(/\b(\d{3,5})\s*(?:duration|long)?\b/i);
   if (bare) return Number(bare[1]);
   return fallback;
@@ -84,6 +88,21 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     return true;
   };
 
+  // Auto-create a default component when the project is empty so property-tuning
+  // intents (color, duration, easing, etc.) work on fresh projects. Returns the
+  // first component ID if one exists, or "__last__" to target the just-created
+  // component (resolved by the orchestrator after set_template executes).
+  let autoCreated = false;
+  function ensureComponent(): string {
+    if (state.firstComponentId) return state.firstComponentId;
+    if (!autoCreated) {
+      push("set_template", { templateId: "tpl-fade-in" },
+        "Created a default fade-in component to apply your change.");
+      autoCreated = true;
+    }
+    return "__last__";
+  }
+
   // --- Create animation / layer by name (runs first so names like "bounce"
   // resolve to a template instead of no-op'ing the easing intent below) ---
   let createdFromName = false;
@@ -116,6 +135,17 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
   if (createRaw && /^(a|an|the)$/i.test(createRaw)) {
     createRaw = null;
   }
+  // Guard: when the name matches an animation preset (shake, wiggle, float, glow,
+  // heartbeat, typewriter), skip the create handler so apply_preset can handle it.
+  if (createRaw && /\b(shake|wiggle|float|glow|heartbeat|type[\s-]?writer)\b/i.test(createRaw)) {
+    createRaw = null;
+  }
+  // Guard: when the name matches an AE-style effect/operation (motion blur,
+  // null object, trim path, repeater, echo, time remap, drop shadow, etc.),
+  // skip the create handler so dedicated intent handlers below can fire.
+  if (createRaw && /\b(motion[\s-]?blur|null(?:[\s-]?object)?|trim[\s-]?path|repeater|echo|time[\s-]?remap|drop[\s-]?shadow|outer[\s-]?glow|inner[\s-]?shadow|layer[\s-]?effect|trail|afterimage|freeze(?:[\s-]?frame)?|null|mask|track[\s-]?matte|alpha[\s-]?matte|luma[\s-]?matte|posterize|stop[\s-]?motion|text[\s-]?animator|character[\s-]?by[\s-]?character|word[\s-]?by[\s-]?word|hold[\s-]?keyframe|roving[\s-]?keyframe|polygon|star|shape[\s-]?layer|gradient[\s-]?(?:fill|stroke)|wiggle|jitter|tremble|particle|emitter|burst|sparks|snow|confetti|camera|3d[\s-]?camera|multi[\s-]?plane|parallax|dolly|audio[\s-]?reactive|beat[\s-]?detect|music[\s-]?sync|sound[\s-]?reactive|puppet|mesh[\s-]?warp|liquid[\s-]?effect|organic[\s-]?deform)\b/i.test(createRaw)) {
+    createRaw = null;
+  }
   if (createRaw) {
     const resolved = resolveTemplateId(createRaw);
     if (resolved) {
@@ -134,25 +164,24 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
   if (!wantsTemplate && !createdFromName) {
     for (const e of EASING_INTENTS) {
       if (e.match.test(userText)) {
-        push("set_easing", state.firstComponentId
-          ? { componentId: state.firstComponentId, easing: { type: "preset", name: e.preset } }
-          : null, e.reply);
+        const cid = ensureComponent();
+        push("set_easing", { componentId: cid, easing: { type: "preset", name: e.preset } }, e.reply);
         break;
       }
     }
   }
 
   // --- Spring physics: "spring with stiffness 200, damping 15" ---
-  if (/\bspring\b|弹簧/i.test(userText) && state.firstComponentId) {
+  if (/\bspring\b|弹簧/i.test(userText)) {
     const stiffM = userText.match(/stiffness\s*(\d+)/i);
     const dampM = userText.match(/damping\s*(\d+)/i);
     const massM = userText.match(/mass\s*(\d+(?:\.\d+)?)/i);
     const stiffness = stiffM ? Number(stiffM[1]) : 180;
     const damping = dampM ? Number(dampM[1]) : 14;
     const mass = massM ? Number(massM[1]) : 1;
-    push("set_spring", state.firstComponentId
-      ? { componentId: state.firstComponentId, stiffness, damping, mass }
-      : null, `Tuned spring physics: stiffness ${stiffness}, damping ${damping}, mass ${mass}.`);
+    const cid = ensureComponent();
+    push("set_spring", { componentId: cid, stiffness, damping, mass },
+      `Tuned spring physics: stiffness ${stiffness}, damping ${damping}, mass ${mass}.`);
   }
 
   // --- Global timing (project-level duration, takes priority over component duration) ---
@@ -167,31 +196,40 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
 
   // --- Duration: slower/faster/specific ---
   if (!globalTimingMatched) {
-    if (/\b(slower|slow|more time)\b|慢|更慢/i.test(userText) && state.firstComponentId) {
-      push("set_duration", { componentId: state.firstComponentId, durationMs: 1800 }, "Slowed it down to 1.8s.");
-    } else if (/\b(faster|quicker|quick|speed up)\b|快|更快/i.test(userText) && state.firstComponentId) {
-      push("set_duration", { componentId: state.firstComponentId, durationMs: 400 }, "Sped it up to 400ms.");
-    } else if (/\b(\d+)\s*ms\b|\b(\d+(?:\.\d+)?)\s*s\b/i.test(userText) && /\b(duration|long|lasts?)\b/i.test(userText) && state.firstComponentId) {
+    if (/\b(slower|slow|more time)\b|慢|更慢/i.test(userText)) {
+      const cid = ensureComponent();
+      push("set_duration", { componentId: cid, durationMs: 1800 }, "Slowed it down to 1.8s.");
+    } else if (/\b(faster|quicker|quick|speed up)\b|快|更快/i.test(userText)) {
+      const cid = ensureComponent();
+      push("set_duration", { componentId: cid, durationMs: 400 }, "Sped it up to 400ms.");
+    } else if (/\b(\d+)\s*ms\b|\b(\d+(?:\.\d+)?)\s*s(?:ec(?:ond)?s?)?\b|时长.*\d|时长.*秒|\d+\s*毫秒|\d+\s*秒/i.test(userText) && !/\bdelay\b|延迟/i.test(userText)) {
       const ms = parseDuration(userText, 800);
-      push("set_duration", { componentId: state.firstComponentId, durationMs: ms }, `Set duration to ${ms}ms.`);
+      const cid = ensureComponent();
+      push("set_duration", { componentId: cid, durationMs: ms }, `Set duration to ${ms}ms.`);
     }
   }
 
   // --- Delay ---
-  if (/\bdelay\b|延迟/i.test(userText) && state.firstComponentId) {
+  if (/\bdelay\b|延迟/i.test(userText)) {
     const ms = parseDuration(userText, 200);
-    push("set_delay", { componentId: state.firstComponentId, delayMs: ms }, `Added a ${ms}ms delay before it starts.`);
+    const cid = ensureComponent();
+    push("set_delay", { componentId: cid, delayMs: ms }, `Added a ${ms}ms delay before it starts.`);
   }
 
   // --- Loop (with optional direction) ---
-  if (/\b(loop|repeat|forever)\b|循环|重复/i.test(userText) && state.firstComponentId) {
+  // Guard: skip when the user clearly means an AE-style repeater (pattern
+  // duplication) rather than iteration count — that is handled by a dedicated
+  // add_repeater intent further below.
+  if (/\b(loop|repeat|forever)\b|循环|重复/i.test(userText)
+      && !/\b(?:repeater|repeat\s+this|repeat\s+in\s+(?:a\s+)?(?:radial|circular|grid|pattern|linear)|copies|instances|tile|cascade)\b/i.test(userText)) {
     const count = parseRepeatCount(userText);
     // Parse optional direction from phrases like "loop with alternate direction".
     // Order longer alternatives (alternate-reverse) before shorter ones (alternate)
     // so the regex engine captures the full compound direction token.
     const dirM = userText.match(/\b(normal|reverse|alternate-reverse|alternate)\b/i);
     const direction = dirM ? dirM[1].toLowerCase() : undefined;
-    const args: Record<string, unknown> = { componentId: state.firstComponentId, iterationCount: count };
+    const cid = ensureComponent();
+    const args: Record<string, unknown> = { componentId: cid, iterationCount: count };
     if (direction) args.direction = direction;
     push("set_loop", args,
       count === "infinite"
@@ -202,31 +240,52 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
   // --- Direction-only change (uses batch_update for a single component).
   // projectId is injected by the tool executor from the session context, so
   // we omit it here — matching the convention used by set_easing/set_loop. ---
-  if (/\b(direction|play.*backward|play.*reverse|alternate.*direction|reverse.*direction)\b/i.test(userText)
-      && !/\b(loop|repeat|forever)\b/i.test(userText)
-      && state.firstComponentId) {
+  if (/\b(direction|play.*backward|play.*reverse|alternate.*direction|reverse.*direction|reverse.*animation|reverse.*motion|reverse.*play|reverse.*it)\b/i.test(userText)
+      && !/\b(loop|repeat|forever)\b/i.test(userText)) {
     const dirM = userText.match(/\b(normal|reverse|alternate-reverse|alternate)\b/i);
     const direction = dirM ? dirM[1].toLowerCase() : "reverse";
+    const cid = ensureComponent();
     push("batch_update",
-      { componentIds: [state.firstComponentId], direction },
+      { componentIds: [cid], direction },
       `Set animation direction to ${direction}.`);
   }
 
   // --- Fill mode ---
-  const fillM = userText.match(/\b(fill\s*mode|fillmode)\s*(forwards|backwards|both|none)\b/i);
-  if (fillM && state.firstComponentId) {
-    push("set_fill_mode", { componentId: state.firstComponentId, fillMode: fillM[1].toLowerCase() },
-      `Set fill mode to ${fillM[1].toLowerCase()}.`);
+  const fillM = userText.match(/\b(fill\s*mode|fillmode)\s*(?:to\s+)?(forwards|backwards|both|none)\b/i);
+  if (fillM) {
+    const fillMode = fillM[2].toLowerCase();
+    const cid = ensureComponent();
+    push("set_fill_mode", { componentId: cid, fillMode },
+      `Set fill mode to ${fillMode}.`);
   }
 
   // --- Colors (text + background) ---
-  for (const c of COLOR_MAP) {
-    if (c.match.test(userText)) {
-      const isBg = /\b(background|bg|fill)\b|背景/i.test(userText);
-      push("set_color", state.firstComponentId
-        ? { componentId: state.firstComponentId, color: c.hex, target: isBg ? "background" : "text" }
-        : null, `Changed ${isBg ? "background" : "text"} color to ${c.name}.`);
-      break;
+  // Hex colors (#rgb, #rrggbb, #rrggbbaa) and functional notations (rgb()/hsl())
+  // take precedence over named colors so explicit values are honoured exactly.
+  const hexM = userText.match(/#([0-9a-fA-F]{3,8})\b/);
+  const rgbM = !hexM ? userText.match(/rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*(?:,\s*([\d.]+)\s*)?\)/i) : null;
+  const hslM = !hexM && !rgbM ? userText.match(/hsla?\(\s*(\d{1,3})\s*,\s*(\d{1,3})%?\s*,\s*(\d{1,3})%?\s*(?:,\s*([\d.]+)\s*)?\)/i) : null;
+  const explicitColor = hexM
+    ? `#${hexM[1]}`
+    : rgbM
+      ? `rgb(${rgbM[1]}, ${rgbM[2]}, ${rgbM[3]})`
+      : hslM
+        ? `hsl(${hslM[1]}, ${hslM[2]}%, ${hslM[3]}%)`
+        : null;
+  if (explicitColor) {
+    const isBg = /\b(background|bg|fill)\b|背景/i.test(userText);
+    const cid = ensureComponent();
+    push("set_color", { componentId: cid, color: explicitColor, target: isBg ? "background" : "text" },
+      `Changed ${isBg ? "background" : "text"} color to ${explicitColor}.`);
+  } else {
+    for (const c of COLOR_MAP) {
+      if (c.match.test(userText)) {
+        const isBg = /\b(background|bg|fill)\b|背景/i.test(userText);
+        const cid = ensureComponent();
+        push("set_color", { componentId: cid, color: c.hex, target: isBg ? "background" : "text" },
+          `Changed ${isBg ? "background" : "text"} color to ${c.name}.`);
+        break;
+      }
     }
   }
 
@@ -307,6 +366,26 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     push("add_scene", { name: nameM ? nameM[1] : "Scene 1" }, `Added a new scene${nameM ? ` called ${nameM[1]}` : ""}.`);
   }
 
+  // --- Scene transitions ---
+  if (/\b(?:add|create|insert)\s+(?:a\s+)?scene\s+transition\b|\b(?:add|create|insert)\s+(?:a\s+)?(?:fade|slide|wipe|dissolve|zoom|push|morph|flip)?\s*transition\s*(?:between|across|to|from)\s+scenes?\b|过渡|转场/i.test(userText)) {
+    const typeM = userText.match(/\b(fade|slide|wipe|dissolve|zoom|push|morph|flip)\b/i);
+    const type = typeM ? typeM[1].toLowerCase() : "fade";
+    const durM = userText.match(/(\d+)\s*(?:ms|millisecond|s\b)/);
+    const durationMs = durM ? (durM[0].includes("s") && !durM[0].includes("ms") ? Number(durM[1]) * 1000 : Number(durM[1])) : 500;
+    push("add_scene_transition", { type, durationMs },
+      `Added a ${type} scene transition (${durationMs}ms).`);
+  }
+
+  // --- Camera moves ---
+  if (/\b(?:camera\s+(?:move|pan|zoom|tilt|dolly|truck|orbit)|pan\s+camera|zoom\s+camera)\b|摄像机|镜头移动/i.test(userText)) {
+    const typeM = userText.match(/\b(pan|zoom|tilt|dolly|truck|orbit|shake|follow)\b/i);
+    const type = typeM ? typeM[1].toLowerCase() : "pan";
+    const durM = userText.match(/(\d+)\s*(?:ms|millisecond|s\b)/);
+    const durationMs = durM ? (durM[0].includes("s") && !durM[0].includes("ms") ? Number(durM[1]) * 1000 : Number(durM[1])) : 1000;
+    push("add_camera_move", { type, durationMs, intensity: 0.6 },
+      `Added a ${type} camera move (${durationMs}ms).`);
+  }
+
   // --- Remove component ---
   if (/\b(remove|delete|drop)\s+(layer|element|component|this)\b|删除(?:图层|元素)/i.test(userText) && state.firstComponentId) {
     push("remove_component", { componentId: state.firstComponentId }, "Removed the selected layer.");
@@ -318,7 +397,7 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
   }
 
   // --- Template ---
-  const tplM = userText.match(/\b(?:use|apply|switch to)\s+(?:the\s+)?([\w\s-]+?)\s+template\b|使用\s*([\w\s-]+?)\s*模板/i);
+  const tplM = userText.match(/\b(?:use|apply|switch to|start with|begin with|try)\s+(?:the\s+)?([\w\s-]+?)\s+template\b|使用\s*([\w\s-]+?)\s*模板/i);
   if (tplM) {
     const raw = (tplM[1] || tplM[2] || "").trim();
     const resolved = resolveTemplateId(raw);
@@ -330,11 +409,12 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
   }
 
   // --- Apply preset (shake, wiggle, float, glow, heartbeat, typewriter) ---
-  const presetM = userText.match(/\b(?:apply|use)\s+(?:the\s+)?(shake|wiggle|float|glow|heartbeat|type[\s-]?writer)\s+(?:preset|effect|animation)?\b/i);
-  if (presetM && state.firstComponentId) {
+  const presetM = userText.match(/\b(?:apply|use|add)\s+(?:a\s+|an\s+|the\s+)?(shake|wiggle|float|glow|heartbeat|type[\s-]?writer)\s+(?:preset|effect|animation)?\b/i);
+  if (presetM) {
     const name = resolvePresetName(presetM[1]);
     if (name) {
-      push("apply_preset", { componentId: state.firstComponentId, preset: name },
+      const cid = ensureComponent();
+      push("apply_preset", { componentId: cid, preset: name },
         `Applied the ${name} preset.`);
     }
   }
@@ -380,11 +460,11 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
   }
 
   // --- Export code ---
-  if (/(\bexport\b|导出).*\b(css|样式)\b/i.test(userText)) {
+  if (/(?:\bexport\b|\bgenerate\b|导出|生成).*\b(css|样式)\b/i.test(userText)) {
     push("export_code", { format: "css" }, "Exported the animation as CSS code.");
-  } else if (/(\bexport\b|导出).*\b(json)\b/i.test(userText)) {
+  } else if (/(?:\bexport\b|\bgenerate\b|导出|生成).*\b(json)\b/i.test(userText)) {
     push("export_code", { format: "json" }, "Exported the MotionSpec as JSON.");
-  } else if (/(\bexport\b|导出).*\b(react|tsx|component)\b/i.test(userText)) {
+  } else if (/(?:\bexport\b|\bgenerate\b|导出|生成).*\b(react|tsx|component)\b/i.test(userText)) {
     push("export_code", { format: "react" }, "Exported the animation as a React component.");
   }
 
@@ -427,20 +507,28 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     push("suggest_next", {}, "Here are some context-aware suggestions for what to do next.");
   }
 
-  // --- Set motion path (orbit, circle, ellipse, line, bezier) ---
-  if (/\b(orbit|circle|ellipse|along.*path|trajectory|fly across|move in a)\b/i.test(userText) && state.firstComponentId) {
-    const pathType = /\bellipse\b/i.test(userText) ? "ellipse"
-      : /\bcircle\b|orbit/i.test(userText) ? "circle"
-      : /\bbezier|curve\b/i.test(userText) ? "bezier"
-      : "line";
-    const args: Record<string, unknown> = { componentId: state.firstComponentId, pathType };
-    if (pathType === "circle" || pathType === "ellipse") {
-      args.centerX = 0;
-      args.centerY = 0;
-      args.radiusX = pathType === "ellipse" ? 150 : 100;
-      if (pathType === "ellipse") args.radiusY = 80;
+  // --- Set motion path (orbit, circle, ellipse, line, bezier, SVG path syntax) ---
+  if (/\b(orbit|circle|ellipse|along.*path|trajectory|fly across|move in a|motion\s+path|path\s*[:=])\b/i.test(userText) && state.firstComponentId) {
+    // Detect explicit SVG path data (M/L/Q/C/Z commands with coordinates).
+    const svgPathM = userText.match(/(?:path\s*[:=]\s*)?([MLCQZmlcqz][\d\s,.\-+eE]+)/);
+    if (svgPathM) {
+      push("set_motion_path",
+        { componentId: state.firstComponentId, pathType: "bezier", svgPath: svgPathM[1].trim() },
+        `Set the component on a custom SVG motion path: ${svgPathM[1].trim()}.`);
+    } else {
+      const pathType = /\bellipse\b/i.test(userText) ? "ellipse"
+        : /\bcircle\b|orbit/i.test(userText) ? "circle"
+        : /\bbezier|curve\b/i.test(userText) ? "bezier"
+        : "line";
+      const args: Record<string, unknown> = { componentId: state.firstComponentId, pathType };
+      if (pathType === "circle" || pathType === "ellipse") {
+        args.centerX = 0;
+        args.centerY = 0;
+        args.radiusX = pathType === "ellipse" ? 150 : 100;
+        if (pathType === "ellipse") args.radiusY = 80;
+      }
+      push("set_motion_path", args, `Set the component on a ${pathType} path.`);
     }
-    push("set_motion_path", args, `Set the component on a ${pathType} path.`);
   }
 
   // --- List scenes ---
@@ -455,7 +543,10 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
   }
 
   // --- Stagger components ---
-  if (/\b(stagger|cascade|sequence|one by one|sequential)\b|错开|依次|逐个/i.test(userText)) {
+  // Guard: when the user clearly means per-character text animation (text
+  // animator context), defer to the dedicated add_text_animator intent.
+  if (/\b(stagger|cascade|sequence|one by one|sequential)\b|错开|依次|逐个/i.test(userText)
+      && !/\b(?:text|character|word|char)\b/i.test(userText)) {
     const stepM = userText.match(/(\d+(?:\.\d+)?)\s*(ms|s)?/);
     let stepMs = 100;
     if (stepM) {
@@ -640,8 +731,10 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
   }
 
   // --- Style presets: apply coordinated aesthetic across all components ---
-  const styleM = userText.match(/\b(playful|energetic|calm|professional|dramatic|minimal|cinematic|glassy|retro|futuristic|organic|mechanical|luxury)\b/i);
-  if (styleM && state.firstComponentId) {
+  const styleM = userText.match(/\b(playful|energetic|calm|professional|dramatic|minimal|cinematic|glassy|retro|futuristic|organic|mechanical|luxury|industrial|neon|vintage|athletic)\b/i);
+  if (styleM) {
+    // Auto-create a component on empty projects so style application has a target.
+    ensureComponent();
     push("apply_style", { styleId: styleM[1].toLowerCase() },
       `Applied the ${styleM[1].toLowerCase()} style across all components for a coherent feel.`);
   }
@@ -746,9 +839,10 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
   }
 
   // --- Canvas view control ---
-  if (/\b(zoom\s*(in|out)|fit.*screen|frame.*select|reset.*view|pan\s*canvas)\b/i.test(userText)) {
+  // Accept "zoom to fit", "fit to screen", "zoom in/out", "reset view", etc.
+  if (/\b(zoom\s*(in|out|to\s*fit)|fit\s*(?:to\s*)?(?:screen|view)|frame.*select|reset.*view|pan\s*canvas)\b/i.test(userText)) {
     const args: Record<string, unknown> = {};
-    if (/\bfit.*screen|reset.*view\b/i.test(userText)) args.fit = true;
+    if (/\bfit\b/i.test(userText) || /\breset.*view\b/i.test(userText)) args.fit = true;
     const zoomM = userText.match(/zoom\s*(?:to)?\s*(\d+(?:\.\d+)?)\s*%?/i);
     if (zoomM) args.zoom = Number(zoomM[1]) / 100;
     if (/\bzoom\s*in\b/i.test(userText) && !zoomM) args.zoom = 1.5;
@@ -841,6 +935,28 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
       `Added a ${shape} shape to the canvas.`);
   }
 
+  // --- Add image / video / audio media layers ---
+  if (/\b(?:add|insert|place|drop)\s+(?:an?\s+)?image\b|添加.*图片/i.test(userText)) {
+    const srcM = userText.match(/(?:src|url|from)\s*[:=]?\s*(\S+)/i);
+    push("add_image", { src: srcM ? srcM[1] : "https://example.com/image.png", alt: "Image" },
+      "Added an image layer to the canvas.");
+  }
+  if (/\b(?:add|insert|place|drop)\s+(?:a\s+|an\s+)?video\b|添加.*视频/i.test(userText)) {
+    const srcM = userText.match(/(?:src|url|from)\s*[:=]?\s*(\S+)/i);
+    push("add_video", { src: srcM ? srcM[1] : "https://example.com/video.mp4", autoplay: false, muted: true },
+      "Added a video layer to the canvas.");
+  }
+  if (/\b(?:add|insert|place)\s+(?:an?\s+)?audio\b|添加.*音频|添加.*音乐/i.test(userText)) {
+    const srcM = userText.match(/(?:src|url|from)\s*[:=]?\s*(\S+)/i);
+    push("add_audio", { src: srcM ? srcM[1] : "https://example.com/audio.mp3", autoplay: false, loop: false },
+      "Added an audio track to the timeline.");
+  }
+  if (/\b(?:typewriter|type.?writer)\s+(?:text|effect|animation)\b|打字机/i.test(userText)) {
+    const textM = userText.match(/(?:text|saying|reading)\s*["']([^"']+)["']/i);
+    push("add_typewriter_text", { text: textM ? textM[1] : "Typewriter text", speedMs: 80 },
+      "Added a typewriter text effect.");
+  }
+
   // --- Set blend mode ---
   const blendM = userText.match(/\b(?:set\s+)?(?:blend\s+mode|mix.*blend|blend\s+with)\s+(?:to\s+)?(normal|multiply|screen|overlay|darken|lighten|color.?dodge|color.?burn|hard.?light|soft.?light|difference|exclusion|hue|saturation|color|luminosity)\b/i);
   if (blendM && state.firstComponentId) {
@@ -884,7 +1000,8 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
   }
 
   // --- Rulers ---
-  if (/\b(ruler|toggle.*ruler|show.*ruler|hide.*ruler)\b/i.test(userText)) {
+  // Accept both singular "ruler" and plural "rulers".
+  if (/\b(rulers?|toggle.*rulers?|show.*rulers?|hide.*rulers?)\b/i.test(userText)) {
     const show = !/\b(hide|off|disable)\b/i.test(userText);
     push("set_rulers", { show },
       show ? "Showing canvas rulers." : "Hiding canvas rulers.");
@@ -954,7 +1071,7 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
   }
 
   // --- Add transition ---
-  if (/\b(add transition|connect states|transition from)\b/i.test(userText)) {
+  if (/\b(add\s+(?:a\s+)?transition|connect states|transition from)\b/i.test(userText)) {
     const trigM = userText.match(/\b(on click|on hover|on load|manual)\b/i);
     const triggerMap: Record<string, string> = {
       "on click": "onClick",
@@ -1089,8 +1206,12 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
         `Added a ${ctype} constraint linking the two layers.`);
     }
   }
-  if (/\b(list|show).*(constraint)\b/i.test(userText)) {
+  if (/\b(list|show).*(constraints?)\b/i.test(userText)) {
     push("list_constraints", {}, "Here are all constraints in the project.");
+  }
+  if (/\b(remove|delete|clear)\s+(?:the\s+)?(?:constraint|pin)\b|删除.*约束/i.test(userText)) {
+    push("remove_constraint", { componentId: state.firstComponentId ?? "", targetId: state.secondComponentId ?? "" },
+      "Removed the constraint between the selected layers.");
   }
 
   // --- Timeline clips ---
@@ -1098,11 +1219,15 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     push("add_clip", { name: "Clip 1", startMs: 0, endMs: 1000 },
       "Created a new timeline clip from 0ms to 1000ms.");
   }
-  if (/\b(list|show).*(clip)\b/i.test(userText)) {
+  if (/\b(list|show).*(clips?)\b/i.test(userText)) {
     push("list_clips", {}, "Here are all timeline clips.");
   }
-  if (/\bplay.*(clip)\b/i.test(userText)) {
+  if (/\bplay.*(clips?)\b/i.test(userText)) {
     push("play_clip", { clipId: "clip_demo" }, "Playing the timeline clip.");
+  }
+  if (/\b(remove|delete|clear)\s+(?:the\s+)?(?:clip|segment)\b|删除.*剪辑/i.test(userText)) {
+    push("remove_clip", { clipId: "clip_demo" },
+      "Removed the timeline clip.");
   }
 
   // --- CSS filters / shader effects ---
@@ -1130,6 +1255,449 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     }, "Applied a 3D transform to the layer.");
   }
 
+  // --- AE-inspired: Motion Blur ---
+  // Recognises "enable motion blur", "add motion blur", "turn on motion blur",
+  // "blur the motion", "motion blur the layer", and "streak".
+  if (/\b(?:enable|add|turn\s+on|apply|use)\s+(?:a\s+)?(?:motion[\s-]?blur|streak)|motion[\s-]?blur\b/i.test(userText)) {
+    const target = ensureComponent();
+    // Allow intensity overrides like "heavy motion blur" / "subtle motion blur".
+    let intensity = 4;
+    if (/\b(?:heavy|strong|extreme|max(?:imum)?)\b/i.test(userText)) intensity = 10;
+    else if (/\b(?:subtle|light|gentle|min(?:imal)?)\b/i.test(userText)) intensity = 2;
+    let shutterAngle: number | undefined;
+    if (/\b360\b/.test(userText)) shutterAngle = 360;
+    else if (/\b180\b/.test(userText)) shutterAngle = 180;
+    else if (/\b45\b/.test(userText)) shutterAngle = 45;
+    push("enable_motion_blur", {
+      componentId: target,
+      intensity,
+      ...(shutterAngle != null ? { shutterAngle } : {}),
+      enabled: true,
+    }, `Enabled motion blur on the layer (intensity=${intensity}px${shutterAngle != null ? `, shutter=${shutterAngle}°` : ""}).`);
+  } else if (/\b(?:disable|turn\s+off|remove)\s+(?:the\s+)?(?:motion[\s-]?blur|streak)\b/i.test(userText) && state.firstComponentId) {
+    push("enable_motion_blur", { componentId: state.firstComponentId, enabled: false },
+      "Disabled motion blur on the layer.");
+  }
+
+  // --- AE-inspired: Null Object ---
+  // Recognises "create/add a null object", "add a null", "invisible controller".
+  if (/\b(?:create|add|make|insert)\s+(?:a\s+|an\s+)?null(?:[\s-]?object)?\b|invisible\s+controller\b/i.test(userText)) {
+    const nameM = userText.match(/(?:called|named)\s*["']?(\w+)/i);
+    const posM = userText.match(/\bat\s*\(?\s*(-?\d+)\s*,\s*(-?\d+)\s*\)?/i);
+    push("add_null_object", {
+      ...(nameM ? { name: nameM[1] } : {}),
+      ...(posM ? { x: Number(posM[1]), y: Number(posM[2]) } : {}),
+    }, `Created a null object${nameM ? ` called ${nameM[1]}` : ""}${posM ? ` at (${posM[1]}, ${posM[2]})` : ""} — parent other layers to it.`);
+  }
+
+  // --- AE-inspired: Trim Path ---
+  // Recognises "trim the path", "trim path", "draw on path", "write-on path",
+  // "reveal the path", "stroke draw".
+  if (/\b(?:trim(?:[\s-]?path)?|draw[\s-]on|write[\s-]?on[\s-]?path|reveal[\s-]?the[\s-]?path|stroke[\s-]?draw)\b/i.test(userText)) {
+    const target = ensureComponent();
+    const startM = userText.match(/\bstart\s*(\d+(?:\.\d+)?)\s*%/i);
+    const endM = userText.match(/\bend\s*(\d+(?:\.\d+)?)\s*%/i);
+    const offsetM = userText.match(/\boffset\s*(-?\d+(?:\.\d+)?)\s*(?:°|deg)?/i);
+    push("trim_path", {
+      componentId: target,
+      start: startM ? Number(startM[1]) : 0,
+      end: endM ? Number(endM[1]) : 100,
+      offset: offsetM ? Number(offsetM[1]) : 0,
+      animate: !/\b(?:static|no[\s-]?animate|fixed)\b/i.test(userText),
+    }, `Trim-path reveal on the layer (start=${startM ? startM[1] : 0}%, end=${endM ? endM[1] : 100}%).`);
+  }
+
+  // --- AE-inspired: Repeater ---
+  // Recognises "repeat this", "repeater", "duplicate in a grid", "tile this",
+  // "cascade copies", "make a pattern".
+  if (/\b(?:repeat(?:er)?|duplicate\s+in\s+(?:a\s+)?(?:grid|pattern|cascade)|tile\s+this|make\s+(?:a\s+)?pattern|cascade\s+copies)\b/i.test(userText) && state.firstComponentId) {
+    const copiesM = userText.match(/\b(\d+)\s*(?:copies|times|instances)\b/i);
+    const copies = copiesM ? Math.max(1, Number(copiesM[1])) : 5;
+    // Detect grid vs radial vs linear from phrasing.
+    const isRadial = /\b(?:radial|circular|around|orbit)\b/i.test(userText);
+    const isLinear = /\b(?:linear|horizontal|vertical|grid|tile)\b/i.test(userText);
+    const offset = isRadial
+      ? { x: 0, y: 0, rotate: 360 / copies, scale: 1 }
+      : isLinear && /vertical/i.test(userText)
+      ? { x: 0, y: 30, rotate: 0, scale: 1 }
+      : { x: 30, y: 0, rotate: 0, scale: 1 };
+    push("add_repeater", {
+      componentId: state.firstComponentId,
+      copies,
+      offset,
+      decay: 0.15,
+    }, `Created a ${isRadial ? "radial" : isLinear ? "linear" : "default"} repeater with ${copies} copies.`);
+  }
+
+  // --- AE-inspired: Echo / Motion Trail ---
+  // Recognises "echo", "motion trail", "afterimage", "tracer", "tail effect",
+  // "trail".
+  if (/\b(?:echo|motion[\s-]?trail|afterimage|tracer|tail[\s-]?effect|trail)\b/i.test(userText) && state.firstComponentId) {
+    const copiesM = userText.match(/\b(\d+)\s*(?:echoes|trails|copies)\b/i);
+    const delayM = userText.match(/\b(\d+)\s*ms\b/i);
+    push("add_echo", {
+      componentId: state.firstComponentId,
+      copies: copiesM ? Number(copiesM[1]) : 4,
+      delayMs: delayM ? Number(delayM[1]) : 80,
+      decay: 0.25,
+      scaleDecay: 0,
+    }, `Added ${copiesM ? copiesM[1] : 4} motion-trail echoes (delay=${delayM ? delayM[1] : 80}ms).`);
+  }
+
+  // --- AE-inspired: Time Remap ---
+  // Recognises "time remap", "remap time", "slow this layer", "speed up this
+  // layer", "freeze this", "reverse playback", "freeze frame".
+  if (/\b(?:time[\s-]?remap|remap\s+time|slow\s+(?:this|the|down)|speed\s+up\s+(?:this|the)|freeze\s+(?:this|the|frame)|reverse\s+(?:playback|this)|play\s+backwards)\b/i.test(userText) && state.firstComponentId) {
+    let rate = 1;
+    if (/\b(?:freeze|paused?)\b/i.test(userText)) rate = 0;
+    else if (/\b(?:reverse|backwards?)\b/i.test(userText)) rate = -1;
+    else if (/\b(?:slow|half)\b/i.test(userText)) rate = 0.5;
+    else if (/\b(?:speed\s+up|fast|double|2x)\b/i.test(userText)) rate = 2;
+    const freezeAtM = userText.match(/\bat\s*(\d+)\s*ms/i);
+    push("set_time_remap", {
+      componentId: state.firstComponentId,
+      rate,
+      ...(freezeAtM ? { freezeAtMs: Number(freezeAtM[1]) } : {}),
+      reverseDirection: rate < 0,
+    }, `Time-remapped the layer → rate=${rate}×${freezeAtM ? ` (freeze at ${freezeAtM[1]}ms)` : ""}.`);
+  }
+
+  // --- AE-inspired: Layer Effects ---
+  // Recognises "drop shadow", "add a shadow", "glow effect", "outer glow",
+  // "inner shadow", "add stroke", "add a stroke outline", "outline the layer".
+  if (/\b(?:drop[\s-]?shadow|add\s+(?:a\s+)?shadow|glow\s+effect|outer\s+glow|inner\s+glow|inner\s+shadow|add\s+(?:a\s+)?stroke|stroke\s+outline|outline\b|outline\s+(?:the\s+)?layer|layer\s+effect)\b/i.test(userText)) {
+    const target = ensureComponent();
+    let effect: "drop-shadow" | "inner-shadow" | "outer-glow" | "inner-glow" | "stroke" = "drop-shadow";
+    if (/\binner\s+shadow\b/i.test(userText)) effect = "inner-shadow";
+    else if (/\bouter\s+glow\b/i.test(userText)) effect = "outer-glow";
+    else if (/\binner\s+glow\b/i.test(userText)) effect = "inner-glow";
+    else if (/\bstroke|outline\b/i.test(userText)) effect = "stroke";
+    else if (/\bglow\b/i.test(userText)) effect = "outer-glow";
+    // Detect color from the message.
+    const colorM = COLOR_MAP.find((c) => c.match.test(userText));
+    const color = colorM ? colorM.hex : "#000000";
+    push("add_layer_effect", {
+      componentId: target,
+      effect,
+      color,
+      distance: 4,
+      blur: 6,
+      opacity: effect === "stroke" ? 1 : 0.5,
+      spread: effect === "stroke" ? 2 : 0,
+    }, `Added ${effect} layer effect (color=${color}).`);
+  }
+
+  // --- AE-inspired: Mask System ---
+  // Recognises "add a mask", "mask this layer", "add a subtract mask",
+  // "add an inverted mask", "add an ellipse mask with feather".
+  if (/\b(?:add|create|make|apply|put)\s+(?:a\s+|an\s+)?(?:[a-z]+\s+)?mask\b|mask\s+(?:this|the|a)\s+layer\b|mask\s+this\b/i.test(userText)) {
+    const target = ensureComponent();
+    let shape: "rectangle" | "ellipse" | "path" = "rectangle";
+    if (/\b(?:ellipse|circle|oval|round)\b/i.test(userText)) shape = "ellipse";
+    else if (/\b(?:path|pen|custom)\b/i.test(userText)) shape = "path";
+    let mode: "add" | "subtract" | "intersect" | "difference" | "lighten" | "darken" = "add";
+    if (/\bsubtract\b/i.test(userText)) mode = "subtract";
+    else if (/\bintersect\b/i.test(userText)) mode = "intersect";
+    else if (/\bdifference\b/i.test(userText)) mode = "difference";
+    else if (/\bdarken\b/i.test(userText)) mode = "darken";
+    else if (/\blighten\b/i.test(userText)) mode = "lighten";
+    const featherM = userText.match(/\bfeather\s*(\d+(?:\.\d+)?)\s*px\b/i);
+    const inverted = /\binverted?\b|invert\s+(?:the\s+)?mask\b/i.test(userText);
+    push("add_mask", {
+      componentId: target,
+      shape,
+      mode,
+      ...(featherM ? { feather: Number(featherM[1]) } : {}),
+      inverted,
+    }, `Added ${shape} mask (mode=${mode}${featherM ? `, feather=${featherM[1]}px` : ""}${inverted ? ", inverted" : ""}).`);
+  } else if (/\b(?:change|set|make)\s+(?:the\s+)?mask\s+(?:mode\s+)?(?:to\s+)?(subtract|intersect|difference|lighten|darken|add)\b/i.test(userText) && state.firstComponentId) {
+    const modeM = userText.match(/\b(subtract|intersect|difference|lighten|darken|add)\b/i);
+    push("set_mask_mode", {
+      componentId: state.firstComponentId,
+      maskIndex: 0,
+      mode: modeM ? (modeM[1] as "subtract" | "intersect" | "difference" | "lighten" | "darken" | "add") : "subtract",
+    }, `Changed mask 0 mode to ${modeM?.[1] ?? "subtract"}.`);
+  } else if (/\b(?:feather|soften)\s+(?:the\s+)?mask\b/i.test(userText) && state.firstComponentId) {
+    const featherM = userText.match(/\b(\d+(?:\.\d+)?)\s*px\b/i);
+    push("set_mask_mode", {
+      componentId: state.firstComponentId,
+      maskIndex: 0,
+      mode: "add",
+      feather: featherM ? Number(featherM[1]) : 10,
+    }, `Feathered mask 0 by ${featherM?.[1] ?? 10}px.`);
+  }
+
+  // --- AE-inspired: Track Matte ---
+  // Recognises "track matte", "alpha matte", "luma matte", "use as mask".
+  if (/\b(?:track[\s-]?matte|alpha[\s-]?matte|luma[\s-]?matte|use\s+as\s+mask|reveal\s+through)\b/i.test(userText) && state.firstComponentId) {
+    const mode = /\bluma\b/i.test(userText)
+      ? (/\binvert/i.test(userText) ? "luma-inverted" : "luma")
+      : (/\binvert/i.test(userText) ? "alpha-inverted" : "alpha");
+    // If a second component exists, use it as the matte; otherwise create one.
+    const otherComponents = state.componentIds.filter((id) => id !== state.firstComponentId);
+    const matteId = otherComponents[0] ?? state.firstComponentId;
+    push("set_track_matte", {
+      componentId: state.firstComponentId,
+      matteComponentId: matteId,
+      mode,
+    }, `Set ${mode} track matte using ${matteId === state.firstComponentId ? "the same layer (will need a separate matte)" : "another layer"}.`);
+  }
+
+  // --- AE-inspired: Shape Layers v2 ---
+  // Recognises "add a rectangle", "draw a circle", "create a polygon", "make a star", "draw a path".
+  // Guard: skip when the user clearly means a mask (mask keyword present) —
+  // the dedicated add_mask intent handles that case.
+  if (/\b(?:add|create|make|draw|insert)\s+(?:a\s+|an\s+)?(?:shape\s+)?(rectangle|ellipse|circle|polygon|star|line|path)\b/i.test(userText)
+      && !/\bmask\b/i.test(userText)) {
+    const shapeM = userText.match(/\b(rectangle|ellipse|circle|polygon|star|line|path)\b/i);
+    if (shapeM) {
+      const shapeRaw = shapeM[1].toLowerCase();
+      const shape = (shapeRaw === "circle" ? "ellipse" : shapeRaw) as "rectangle" | "ellipse" | "polygon" | "star" | "line" | "path";
+      const fillM = COLOR_MAP.find((c) => c.match.test(userText));
+      const sidesM = userText.match(/\b(\d+)\s*sides\b/i);
+      const pointsM = userText.match(/\b(\d+)\s*points\b/i);
+      const wM = userText.match(/\b(\d+)\s*(?:px)?\s*(?:wide|width)\b/i);
+      const hM = userText.match(/\b(\d+)\s*(?:px)?\s*(?:tall|height)\b/i);
+      const strokeM = userText.match(/\bstroke\s+(?:in\s+)?(\w+)/i);
+      const strokeWidthM = userText.match(/\b(\d+)\s*px\s+stroke\b/i);
+      push("create_shape_layer", {
+        shape,
+        ...(fillM ? { fill: fillM.hex } : {}),
+        ...(sidesM ? { sides: Number(sidesM[1]) } : {}),
+        ...(pointsM ? { points: Number(pointsM[1]) } : {}),
+        ...(wM ? { width: Number(wM[1]) } : {}),
+        ...(hM ? { height: Number(hM[1]) } : {}),
+        ...(strokeM ? { stroke: strokeM[1] } : {}),
+        ...(strokeWidthM ? { strokeWidth: Number(strokeWidthM[1]) } : {}),
+      }, `Created ${shape} shape layer${fillM ? ` filled ${fillM.hex}` : ""}.`);
+    }
+  }
+
+  // --- AE-inspired: Posterize Time ---
+  // Recognises "posterize time", "stop motion", "low fps", "stepped animation".
+  if (/\b(?:posterize\s+time|stop[\s-]?motion|low[\s-]?fps|stepped\s+animation|stutter|choppy\s+frames?)\b/i.test(userText)) {
+    const target = ensureComponent();
+    const fpsM = userText.match(/\b(\d+)\s*(?:fps|frames?)\b/i);
+    const fps = fpsM ? Number(fpsM[1]) : 12;
+    push("posterize_time", {
+      componentId: target,
+      fps,
+      enabled: true,
+    }, `Posterized to ${fps} fps (stop-motion look).`);
+  }
+
+  // --- AE-inspired: Text Animator ---
+  // Recognises "text animator", "per character animation", "word by word", "stagger text".
+  if (/\b(?:text[\s-]?animator|per[\s-]?character|character[\s-]?by[\s-]?character|word[\s-]?by[\s-]?word|stagger\s+text|range\s+selector)\b/i.test(userText)) {
+    const target = ensureComponent();
+    let property: "position" | "scale" | "rotation" | "opacity" | "color" = "opacity";
+    if (/\brotation|rotate|spin\b/i.test(userText)) property = "rotation";
+    else if (/\bscale|zoom|size\b/i.test(userText)) property = "scale";
+    else if (/\bposition|move|x|y\b/i.test(userText)) property = "position";
+    else if (/\bcolor\b/i.test(userText)) property = "color";
+    const unit = /\bword\b/i.test(userText) ? "word" : "character";
+    const staggerM = userText.match(/\b(\d+)\s*ms\b/i);
+    push("add_text_animator", {
+      componentId: target,
+      property,
+      unit,
+      staggerMs: staggerM ? Number(staggerM[1]) : 40,
+      valueDelta: property === "opacity" ? 1 : property === "rotation" ? 360 : property === "scale" ? 0.5 : 20,
+    }, `Added ${property} text animator (${unit} unit, stagger=${staggerM ? staggerM[1] : 40}ms).`);
+  }
+
+  // --- AE-inspired: Keyframe Interpolation ---
+  // Recognises "hold keyframe", "roving keyframe", "auto bezier", "smooth keyframe".
+  if (/\b(?:hold\s+keyframe|freeze\s+frame|roving\s+keyframe|auto[\s-]?bezier|smooth\s+keyframe|continuous\s+interpolation|linear\s+keyframe)\b/i.test(userText) && state.firstComponentId) {
+    let interpolation: "linear" | "bezier" | "hold" | "auto-bezier" | "continuous" = "linear";
+    if (/\bhold|freeze\b/i.test(userText)) interpolation = "hold";
+    else if (/\broving\b/i.test(userText)) interpolation = "linear";
+    else if (/\bauto[\s-]?bezier\b/i.test(userText)) interpolation = "auto-bezier";
+    else if (/\bsmooth|continuous\b/i.test(userText)) interpolation = "continuous";
+    else if (/\bbezier\b/i.test(userText)) interpolation = "bezier";
+    const roving = /\broving\b/i.test(userText);
+    push("set_keyframe_interpolation", {
+      componentId: state.firstComponentId,
+      keyframeIndex: 0,
+      interpolation,
+      roving,
+    }, `Set keyframe 0 → ${interpolation}${roving ? " (roving)" : ""}.`);
+  }
+
+  // --- Precompositions ---
+  if (/\b(?:create|make|group.*into)\s+(?:a\s+)?precomp\b|预合成/i.test(userText) && state.firstComponentId) {
+    const nameM = userText.match(/(?:called|named)\s*["']?(\w+)/i);
+    push("create_precomp", { name: nameM ? nameM[1] : "Precomp 1", componentIds: state.componentIds.length > 0 ? state.componentIds : [state.firstComponentId] },
+      `Created a precomposition${nameM ? ` called ${nameM[1]}` : ""} from the selected layers.`);
+  }
+  if (/\b(?:ungroup|unprecompose|dissolve)\s+(?:the\s+)?precomp\b|解散预合成/i.test(userText)) {
+    push("ungroup_precomp", { precompId: "precomp_demo" },
+      "Ungrouped the precomposition back into individual layers.");
+  }
+
+  // --- Expressions ---
+  if (/\b(?:set|add|write|define)\s+(?:an?\s+)?expression\b|表达式/i.test(userText) && state.firstComponentId) {
+    const exprM = userText.match(/(?:expression|expr)\s*[:=]?\s*["']([^"']+)["']/i);
+    const propertyM = userText.match(/\b(opacity|rotation|scale|position|x|y|width|height)\b/i);
+    push("set_expression", {
+      componentId: state.firstComponentId,
+      property: propertyM ? propertyM[1].toLowerCase() : "opacity",
+      expression: exprM ? exprM[1] : "time * 100",
+    }, `Set an expression on the ${propertyM ? propertyM[1].toLowerCase() : "opacity"} property.`);
+  }
+
+  // --- Gradient fill / stroke (AE-inspired) ---
+  // Guard: skip when the user means a shader-style "gradient shift" effect —
+  // those are handled by the shader handler further below.
+  if (!/\bgradient[\s-]?shift\b/i.test(userText) && state.firstComponentId) {
+    if (/\b(?:gradient|linear[\s-]?gradient|radial[\s-]?gradient|color[\s-]?sweep|rainbow)\s+(?:fill|background|bg)\b|gradient[\s-]?fill\b/i.test(userText)) {
+      const type = /\bradial\b/i.test(userText) ? "radial" : "linear";
+      const angleM = userText.match(/\b(\d+)\s*(?:deg|°|degree)/i);
+      const stops: Array<{ color: string; position: number }> = [];
+      const hexes = Array.from(userText.matchAll(/#([0-9a-fA-F]{3,6})/g)).map((m) => `#${m[1]}`);
+      if (hexes.length >= 2) {
+        hexes.forEach((c, i) => stops.push({ color: c, position: (i / (hexes.length - 1)) * 100 }));
+      } else {
+        stops.push({ color: "#ff0080", position: 0 }, { color: "#7928ca", position: 100 });
+      }
+      push("set_gradient_fill", {
+        componentId: state.firstComponentId,
+        type,
+        angle: angleM ? Number(angleM[1]) : 90,
+        stops,
+      }, `Applied ${type} gradient fill (${stops.length} stops${angleM ? `, ${angleM[1]}°` : ""}).`);
+    } else if (/\bgradient[\s-]?(?:stroke|border|outline)\b/i.test(userText)) {
+      const widthM = userText.match(/(\d+)\s*px/);
+      const hexes = Array.from(userText.matchAll(/#([0-9a-fA-F]{3,6})/g)).map((m) => `#${m[1]}`);
+      const stops: Array<{ color: string; position: number }> = (hexes.length >= 2 ? hexes : ["#00ffff", "#ff00ff"]).map((c, i, arr) => ({
+        color: c, position: (i / (arr.length - 1)) * 100,
+      }));
+      push("set_gradient_stroke", {
+        componentId: state.firstComponentId,
+        type: /\bradial\b/i.test(userText) ? "radial" : "linear",
+        width: widthM ? Number(widthM[1]) : 2,
+        stops,
+      }, `Applied gradient stroke (${widthM ? widthM[1] + "px" : "2px"}, ${stops.length} stops).`);
+    }
+  }
+
+  // --- Wiggle / jitter (AE-inspired) ---
+  // Pre-samples pseudo-random fluctuation into keyframes; no runtime needed.
+  if (/\b(?:wiggle|jitter|tremble|add\s+noise\s+to\s+(?:the\s+)?motion|random\s+motion)\b/i.test(userText) && state.firstComponentId) {
+    const freqM = userText.match(/(?:freq|frequency|hz)\s*(\d+(?:\.\d+)?)/i);
+    const ampM = userText.match(/(?:amp|amplitude|by)\s*(\d+(?:\.\d+)?)/i);
+    const propM = userText.match(/\b(translateX|translateY|rotate|scale|opacity|skewX|skewY|x|y|rotation)\b/i);
+    let property: "translateX" | "translateY" | "rotate" | "scale" | "opacity" | "skewX" | "skewY" = "translateX";
+    if (propM) {
+      const p = propM[1].toLowerCase();
+      if (p === "x") property = "translateX";
+      else if (p === "y") property = "translateY";
+      else if (p === "rotation") property = "rotate";
+      else if (["translateX","translateY","rotate","scale","opacity","skewX","skewY"].includes(p)) property = p as typeof property;
+    }
+    push("apply_wiggle", {
+      componentId: state.firstComponentId,
+      property,
+      frequency: freqM ? Number(freqM[1]) : 2,
+      amplitude: ampM ? Number(ampM[1]) : 20,
+      octaves: 2,
+      seed: 1,
+      sampleCount: 24,
+    }, `Wiggled ${property} (freq=${freqM ? freqM[1] : "2"}Hz, amp=${ampM ? ampM[1] : "20"}).`);
+  }
+
+  // --- Particle emitter (AE-inspired) ---
+  if (/\b(?:particle[s]?|emitter|spawn\s+particle[s]?|burst|fire\s+particle[s]?|sparks?|snow|confetti)\b/i.test(userText)) {
+    const rateM = userText.match(/(?:rate|per\s+sec)\s*(\d+)/i);
+    const lifeM = userText.match(/(?:life|lifespan)\s*(\d+)/i);
+    const gravM = userText.match(/(?:gravity|grav)\s*(-?\d+)/i);
+    const hexes = Array.from(userText.matchAll(/#([0-9a-fA-F]{3,6})/g)).map((m) => `#${m[1]}`);
+    push("add_particle_emitter", {
+      name: "Particle Emitter",
+      rate: rateM ? Number(rateM[1]) : 20,
+      lifespan: lifeM ? Number(lifeM[1]) : 1500,
+      gravity: gravM ? Number(gravM[1]) : 80,
+      startColor: hexes[0] ?? "#ffffff",
+      endColor: hexes[1] ?? "#ff0080",
+    }, `Created particle emitter (rate=${rateM ? rateM[1] : "20"}/s, life=${lifeM ? lifeM[1] : "1500"}ms).`);
+  }
+
+  // --- 3D camera (AE-inspired) ---
+  // Guard: skip when the user means a pre-baked camera MOVE (pan/zoom/dolly
+  // move) — those are handled by the existing add_camera_move handler.
+  if (!/\bcamera\s+(?:move|pan|zoom|tilt|dolly|truck|orbit)\b|pan\s+camera|zoom\s+camera/i.test(userText)) {
+    if (/\b(?:add|create|set\s+up)\s+(?:a\s+)?(?:3d\s+)?camera\b|3d[\s-]?camera|multi[\s-]?plane|parallax\s+camera/i.test(userText)) {
+      const zM = userText.match(/\b(?:z|depth|distance)\s*(\d+)/i);
+      const focalM = userText.match(/(?:focal|mm)\s*(\d+)/i);
+      push("add_camera", {
+        positionZ: zM ? Number(zM[1]) : 400,
+        focalLength: focalM ? Number(focalM[1]) : 50,
+      }, `Added 3D camera (z=${zM ? zM[1] : "400"}, focal=${focalM ? focalM[1] : "50"}mm).`);
+    } else if (/\b(?:move|pan|tilt|dolly|truck|orbit)\s+(?:the\s+)?camera\b|dolly\s+(?:in|out)\b/i.test(userText)) {
+      // Update camera transform — positional move.
+      const xM = userText.match(/\bx\s*(-?\d+)/i);
+      const yM = userText.match(/\by\s*(-?\d+)/i);
+      const zM = userText.match(/\bz\s*(-?\d+)/i);
+      if (xM || yM || zM) {
+        push("set_camera_transform", {
+          ...(xM ? { positionX: Number(xM[1]) } : {}),
+          ...(yM ? { positionY: Number(yM[1]) } : {}),
+          ...(zM ? { positionZ: Number(zM[1]) } : {}),
+        }, `Moved camera to (${xM ? xM[1] : "0"}, ${yM ? yM[1] : "0"}, ${zM ? zM[1] : "0"}).`);
+      }
+    }
+  }
+
+  // --- Audio reactive (AE-inspired) ---
+  if (/\b(?:audio[\s-]?reactive|react\s+to\s+audio|drive\s+(?:this|it|scale|rotation|opacity|position)\s+with\s+(?:audio|bass|treble|mid|music|sound)|beat\s+detect(?:ion)?|music\s+sync|sound\s+reactive|drive\s+(?:scale|rotation|opacity|position)\s+with\s+(?:bass|treble|mid))\b/i.test(userText) && state.firstComponentId) {
+    const propM = userText.match(/\b(opacity|scale|translateX|translateY|rotate|backgroundColor|color)\b/i);
+    const bandM = userText.match(/\b(bass|mid|treble|overall)\b/i);
+    // The audio component ID is the second component (heuristic) — the user
+    // would typically select a target + an audio track.
+    push("bind_audio_to_property", {
+      componentId: state.firstComponentId,
+      audioComponentId: state.secondComponentId ?? state.firstComponentId,
+      property: propM ? propM[1] : "scale",
+      band: bandM ? bandM[1] : "overall",
+    }, `Bound ${propM ? propM[1] : "scale"} to audio (${bandM ? bandM[1] : "overall"} band).`);
+  } else if (/\b(?:unblind|stop|remove|detach)\s+(?:audio[\s-]?reactive|audio\s+binding|audio)\b/i.test(userText) && state.firstComponentId) {
+    push("unbind_audio", { componentId: state.firstComponentId }, "Removed audio binding.");
+  }
+
+  // --- Puppet pin & mesh warp (AE-inspired) ---
+  if (state.firstComponentId) {
+    if (/\b(?:puppet\s+pin|add\s+pin|deformation\s+pin|puppet\s+tool)\b/i.test(userText)) {
+      const xM = userText.match(/\bx\s*(\d+)/i);
+      const yM = userText.match(/\by\s*(\d+)/i);
+      push("add_puppet_pin", {
+        componentId: state.firstComponentId,
+        x: xM ? Number(xM[1]) : 50,
+        y: yM ? Number(yM[1]) : 50,
+      }, `Added puppet pin at (${xM ? xM[1] : "50"}, ${yM ? yM[1] : "50"}).`);
+    }
+    if (!/\b(?:remove|undo|delete|clear)\b/i.test(userText) && /\b(?:mesh\s+warp|puppet\s+warp|warp\s+(?:the\s+)?(?:layer|this)|distort|liquid\s+effect|ripple\s+the\s+layer|organic\s+deform)\b/i.test(userText)) {
+      const turbM = userText.match(/(?:turbulence|turb|amount)\s*(\d+(?:\.\d+)?)/i);
+      const scaleM = userText.match(/(?:scale|size)\s*(\d+)/i);
+      push("apply_mesh_warp", {
+        componentId: state.firstComponentId,
+        turbulence: turbM ? Number(turbM[1]) : 0.05,
+        scale: scaleM ? Number(scaleM[1]) : 20,
+      }, `Applied mesh warp (turbulence=${turbM ? turbM[1] : "0.05"}, scale=${scaleM ? scaleM[1] : "20"}).`);
+    } else if (/\b(?:remove\s+(?:mesh\s+)?warp|undo\s+(?:the\s+)?(?:mesh\s+)?warp|remove\s+distortion|straighten\s+layer)\b/i.test(userText)) {
+      push("remove_mesh_warp", { componentId: state.firstComponentId }, "Removed mesh warp.");
+    }
+  }
+
+  // --- Adjustment layers ---
+  if (/\b(?:set|create|add)\s+(?:an?\s+)?adjustment\s+layer\b|调整层/i.test(userText)) {
+    const filterM = userText.match(/\b(blur|brightness|contrast|hue.?rotate|saturate|grayscale|sepia)\b/i);
+    push("set_adjustment_layer", {
+      componentId: state.firstComponentId ?? "",
+      filter: filterM ? filterM[1].toLowerCase().replace(/\s/g, "-") : "blur",
+      value: filterM && /blur/i.test(filterM[1]) ? "4px" : "1.2",
+    }, `Created an adjustment layer with ${filterM ? filterM[1].toLowerCase() : "blur"} filter.`);
+  }
+
   // --- Restraint analysis ---
   if (/\b(too much|too many|restraint|density|overwhelm\w*|clutter\w*|visual noise|competing for attention|is this too busy)\b/i.test(userText)) {
     push("analyze_restraint", {}, "Analyzed motion density — here's the restraint score and recommendations.");
@@ -1141,10 +1709,11 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     push("list_recipes", catM ? { category: catM[1].toLowerCase() } : {},
       catM ? `Here are the ${catM[1].toLowerCase()} recipes available.` : "Here are all available motion recipes with their avoidance conditions.");
   }
-  if (/\b(apply|use|try)\s+(?:the\s+)?([\w\s-]+?)\s+recipe\b|apply.*recipe/i.test(userText) && state.firstComponentId) {
+  if (/\b(apply|use|try)\s+(?:the\s+)?([\w\s-]+?)\s+recipe\b|apply.*recipe/i.test(userText)) {
     const recipeNameM = userText.match(/(?:apply|use|try)\s+(?:the\s+)?([\w\s-]+?)\s+recipe/i);
     const recipeId = recipeNameM ? `recipe-${recipeNameM[1].trim().toLowerCase().replace(/\s+/g, "-")}` : "recipe-gentle-entrance";
-    push("apply_recipe", { componentId: state.firstComponentId, recipeId },
+    const cid = ensureComponent();
+    push("apply_recipe", { componentId: cid, recipeId },
       `Applied the recipe to the component.`);
   }
 
@@ -1227,6 +1796,10 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     push("apply_motion_profile", { componentId: state.firstComponentId },
       "Applied the motion profile to the component's motion parameters.");
   }
+  if (/\b(get|show|view|read)\s+(?:the\s+)?(?:motion\s+)?profile\b|查看.*档案/i.test(userText) && state.firstComponentId) {
+    push("get_motion_profile", { componentId: state.firstComponentId },
+      "Retrieved the motion profile for the selected component.");
+  }
 
   // --- Motion captures: save, list, apply, seed, delete ---
   if (/\b(seed.*captures?|example.*captures?|example.*path|captures?.*example)/i.test(userText)) {
@@ -1237,7 +1810,7 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     push("list_motion_captures", {},
       "Here are your saved motion captures with sample counts and durations.");
   }
-  if (/\b(save.*captures?|record.*cursor|record.*path|captures?.*gesture|captures?.*trajectory|draw.*path|draw.*motion)/i.test(userText)) {
+  if (/\b(save.*captures?|record.*cursor|record.*path|captures?.*gesture|captures?.*trajectory|draw.*path|draw.*motion|save.*motion.*profile|save.*as.*profile)/i.test(userText)) {
     // Generate a synthetic sine-wave capture as the recorded trajectory.
     const samples: Array<{ t: number; x: number; y: number }> = [];
     for (let i = 0; i <= 24; i++) {
@@ -1246,8 +1819,10 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
       const y = Math.sin((i / 24) * Math.PI * 3) * 60;
       samples.push({ t, x, y });
     }
+    // Accept "called" or "named" to extract the profile/capture name.
+    const namedM = userText.match(/(?:called|named)\s+["']?([a-z0-9_-]+)["']?/i);
     const nameM = userText.match(/(?:save|record|capture|draw)\s+(?:the\s+|this\s+|a\s+)?(.+)/i);
-    const name = nameM ? nameM[1].trim().slice(0, 60) : "Recorded Path";
+    const name = namedM ? namedM[1] : (nameM ? nameM[1].trim().slice(0, 60) : "Recorded Path");
     push("save_motion_capture", { name, samples, normalize: true, smoothing: 1 },
       `Saved cursor trajectory as "${name}" with ${samples.length} samples over 1800ms.`);
   }
@@ -1335,13 +1910,16 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
   }
 
   // --- Accessibility check ---
-  if (/\b(check.*accessibility|accessibility.*check|is.*safe|vestibular|seizure.*risk|flashing.*risk|strobing|reduced.*motion|WCAG|a11y|motion.*safety|safe.*motion|accessibility)/i.test(userText)) {
+  if (/\b(check.*accessibility|accessibility.*check|is.*safe|vestibular|seizure.*risk|flashing.*risk|strobing|reduced.*motion|WCAG|a11y|motion.*safety|safe.*motion|accessibility|accessible|is.*accessible)/i.test(userText)) {
     push("check_accessibility", {},
       "Accessibility report: 2 warnings (large displacement on hero, infinite loop without reduced-motion alternative), 1 info (inconsistent timing). Score: 76/100. Remediation: reduce hero translation, add reduced-motion media query, and align timing to 400ms/800ms tiers.");
   }
 
   // --- Performance check ---
-  if (/\b(check.*performance|performance.*check|frame.*budget|is.*performant|fps|jank|optimize.*performance|performance.*issue|perf.*check|render.*cost|animation.*cost)/i.test(userText)) {
+  // Guard: skip when the user clearly means posterize-time (stop-motion /
+  // stepped animation) — handled by the dedicated posterize_time intent.
+  if (/\b(check.*performance|performance.*check|frame.*budget|is.*performant|fps|jank|optimize.*performance|performance.*issue|perf.*check|render.*cost|animation.*cost)/i.test(userText)
+      && !/\b(?:posterize|stop[\s-]?motion|stepped\s+animation|stutter|choppy)\b/i.test(userText)) {
     push("check_performance", {},
       "Performance report: estimated 12.3ms/frame (within 16ms budget). 1 warning — 'Hero' animates layout property 'top' (use transform instead). Paint cost: 6 (box-shadow blur). 3 composite animations, 0 simultaneous overload.");
   }
@@ -1395,8 +1973,10 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
   }
 
   // --- Motion grammar compilation ---
-  if (/\b(grammar|compile.*motion)\b/i.test(userText) && state.firstComponentId) {
-    const sourceM = userText.match(/grammar[:\s]+(.+)/i);
+  // Accept "compile: ...", "grammar: ...", or "compile motion ..."
+  // Note: \b is placed per-alternative so "compile:" can match (colon is non-word).
+  if (/\b(?:grammar\b|compile.*motion\b|compile\s*:)/i.test(userText) && state.firstComponentId) {
+    const sourceM = userText.match(/(?:grammar|compile)\s*[:\s]+(.+)/i);
     const source = sourceM ? sourceM[1].trim() : "fade.in(600ms) then slide.up(400ms) with easing(spring)";
     push("compile_grammar", { componentId: state.firstComponentId, source },
       `Compiled grammar expression: "${source.slice(0, 60)}"`);
@@ -1479,7 +2059,8 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     push("save_version", { label },
       `Captured version "${label}" — the project state is now restorable.`);
   }
-  if (/\b(list|show|view)\s+(?:versions?|snapshots?|history)\b/i.test(userText)) {
+  // Allow an optional "all" between the verb and noun (e.g. "list all versions").
+  if (/\b(list|show|view)\s+(?:all\s+)?(?:versions?|snapshots?|history)\b/i.test(userText)) {
     push("list_versions", {},
       "Here are all saved version snapshots for this project.");
   }
@@ -1507,7 +2088,8 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     push("save_token", { name, category, value },
       `Saved design token "${name}" (${category}) = ${value}.`);
   }
-  if (/\b(list|show|view)\s+(?:tokens?|design\s+tokens?)\b/i.test(userText)) {
+  // Allow an optional "all" between the verb and noun (e.g. "list all tokens").
+  if (/\b(list|show|view)\s+(?:all\s+)?(?:tokens?|design\s+tokens?)\b/i.test(userText)) {
     push("list_tokens", {},
       "Here are all the design tokens for this project.");
   }
@@ -1526,8 +2108,10 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
       `Deleted token "${name}".`);
   }
 
-  // --- Tool pipelines: save, list, run, delete reusable sequences ---
-  if (/\b(save|record|create)\s+(?:a\s+)?(?:pipeline|workflow|sequence|macro)\b/i.test(userText)) {
+  // Tool pipelines: save, list, run, delete reusable sequences.
+  // Accept "save/record/create a pipeline" and "save this as a pipeline" phrasings.
+  if (/\b(save|record|create)\s+(?:a\s+|an\s+|the\s+)?(?:pipeline|workflow|sequence|macro)\b/i.test(userText)
+      || /\b(save|record)\s+(?:this|it|that)\s+as\s+(?:a\s+|an\s+)?(?:pipeline|workflow|sequence|macro)\b/i.test(userText)) {
     const nameMatch = userText.match(/(?:called|named)\s+["']?([a-z0-9-]+)["']?/i);
     const name = nameMatch ? nameMatch[1] : "custom-pipeline";
     push("save_pipeline", {
@@ -1540,7 +2124,8 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
       tags: ["reusable"],
     }, `Saved pipeline "${name}" with 2 step(s).`);
   }
-  if (/\b(list|show|view)\s+(?:pipelines?|workflows?|sequences?|macros?)\b/i.test(userText)) {
+  // Allow an optional "all" between the verb and noun (e.g. "list all pipelines").
+  if (/\b(list|show|view)\s+(?:all\s+)?(?:pipelines?|workflows?|sequences?|macros?)\b/i.test(userText)) {
     push("list_pipelines", {}, "Here are all the saved tool pipelines for this project.");
   }
   if (/\b(run|replay|apply|execute)\s+(?:a\s+)?(?:pipeline|workflow|sequence|macro)\b/i.test(userText)) {
@@ -1561,14 +2146,23 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
   if (/\b(what|which)\s+(?:feeling|emotion|mood|vibe)\b/i.test(userText) || /\b(analyze|describe)\s+(?:the\s+)?(?:mood|emotion|feeling|vibe)\b/i.test(userText)) {
     push("analyze_mood", {}, "The motion conveys a playful, energetic mood with high energy and a steady rhythm.");
   }
-  const moodMatch = userText.match(/\b(make|set|give|apply)\s+(?:it|everything|this|all)?\s*(?:feel|vibe|mood)?\s*(premium|playful|calm|energetic|dramatic|minimal|confident|gentle|urgent|nostalgic)\b/i);
+  // Mood intelligence: match "make it feel more premium", "give it a nostalgic vibe", etc.
+  // Allow optional intensifiers (more, very, really) and articles (a, an) before the mood word.
+  const MOOD_WORDS = "premium|playful|calm|energetic|dramatic|minimal|confident|gentle|urgent|nostalgic";
+  const moodMatch = userText.match(new RegExp(`\\b(?:make|set|give|apply)\\s+(?:(?:it|everything|this|all)\\s+)?(?:(?:a|an)\\s+)?(?:(?:feel|vibe|mood)\\s+(?:to\\s+|more\\s+|very\\s+|really\\s+|quite\\s+)?)?(${MOOD_WORDS})\\b`, "i"))
+    || userText.match(new RegExp(`\\b(?:make|set|give|apply)\\s+(?:the\\s+)?(?:mood|vibe|feeling)\\s+(?:to\\s+)?(${MOOD_WORDS})\\b`, "i"))
+    || userText.match(new RegExp(`\\b(?:make|set|give|apply)\\s+(?:(?:it|everything|this|all)\\s+)?(?:a\\s+|an\\s+)?(${MOOD_WORDS})\\s+(?:vibe|feel|feeling|mood)\\b`, "i"));
   if (moodMatch) {
-    push("set_mood", { mood: moodMatch[2].toLowerCase(), scope: "project" },
-      `Applied ${moodMatch[2].toLowerCase()} mood to all components — easing, duration, and direction adjusted for a ${moodMatch[2].toLowerCase()} aesthetic.`);
+    const mood = moodMatch[1].toLowerCase();
+    push("set_mood", { mood, scope: "project" },
+      `Applied ${mood} mood to all components — easing, duration, and direction adjusted for a ${mood} aesthetic.`);
   }
 
   // --- Creative suggestions ---
-  if (/\b(surprise|creative|inspire)\s*(?:me\s+)?/i.test(userText) || /\bwhat\s+(?:should|could|would|can)\s+i\b/i.test(userText)) {
+  // Accept "surprise me", "creative ideas", "what should I do", "what would make this better"
+  if (/\b(surprise|creative|inspire)\s*(?:me\s+)?/i.test(userText)
+      || /\bwhat\s+(?:should|could|would|can)\s+i\b/i.test(userText)
+      || /\b(?:what\s+would\s+make|how\s+(?:can|to|do)\s+i\s+improve|how\s+to\s+improve|make\s+this\s+better|improve\s+this)\b/i.test(userText)) {
     const wantsSurprise = /\bsurprise\b/i.test(userText);
     push("suggest_creative", { surprise: wantsSurprise },
       wantsSurprise
@@ -1605,10 +2199,26 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     const tabSwitch = /\b(tab.*switch|tab.*navigation|tabs? state)\b/i.test(userText);
     const listSm = /\b(list|show|what)\b.*\bstate.*machines?\b/i.test(userText);
     const triggerState = /\b(trigger|switch|transition|go to|change to)\b.*\bstate\b/i.test(userText) && !hoverPress && !toggle && !loadingFlow && !carouselSm && !tabSwitch;
+    // Custom state machine: "create a state machine with N states: idle, hover, active"
+    const customSmM = userText.match(/\b(?:create|compose|build|make|design)\s+(?:a\s+|an\s+)?state\s+machine\s+(?:with\s+)?(?:(\d+)\s+)?states?\s*[:\-]?\s*([a-z][\w\s,-]+)/i);
+    const customSm = !!customSmM && !listSm;
 
     if (listSm) {
       push("list_state_machines", {},
         "Here are the state machines in this project — each has states, transitions, and inputs.");
+    } else if (customSm && customSmM) {
+      // Parse the comma-separated state names after the colon/keyword.
+      const rawStates = customSmM[2]
+        .split(/[,]|\band\b/i)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0 && !/^(state|states)$/i.test(s))
+        .slice(0, 12);
+      const states = rawStates.length > 0 ? rawStates : ["idle", "active"];
+      const nameM = userText.match(/(?:called|named)\s+["']?([a-z0-9-]+)["']?/i);
+      const smName = nameM ? nameM[1] : `Custom ${states.length}-State`;
+      push("compose_state_machine",
+        { name: smName, presetId: "custom", componentIds: [], states },
+        `Composed a custom state machine "${smName}" with ${states.length} state(s): ${states.join(", ")}.`);
     } else if (hoverPress) {
       push("compose_state_machine", { name: "Hover Press", presetId: "hover-press", componentIds: [] },
         "Composed a hover-press state machine with idle, hover, and pressed states — driven by isHovered and isPressed inputs.");
@@ -1682,7 +2292,7 @@ const FALLBACK_REPLY =
   "stagger components (cascade, sequence, one by one), " +
   "match template (find closest fit), create variant (try different easing/duration), " +
   "apply presets (shake, wiggle, float, glow, heartbeat, typewriter), " +
-  "apply style presets (playful, energetic, calm, professional, dramatic, minimal, cinematic, glassy, retro, futuristic, organic, mechanical, luxury) across all components, " +
+  "apply style presets (playful, energetic, calm, professional, dramatic, minimal, cinematic, glassy, retro, futuristic, organic, mechanical, luxury, industrial, neon, vintage, athletic) across all components, " +
   "recognize patterns (easing monotony, timing uniformity, incomplete lifecycle, motion overload), " +
   "harmonize colors (complementary, analogous, triadic, monochrome), " +
   "choreograph components (cascade, wave, ripple, canon, converge, spiral, explosion, assembly, breathing, domino, scatter), " +
