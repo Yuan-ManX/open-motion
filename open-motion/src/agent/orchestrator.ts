@@ -149,6 +149,7 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
 
       // Execute the composed tools sequentially, resolving __last__ placeholder
       const composedCalls = composedToToolCalls(composition.tools);
+      let composedSpecChanged = false;
       for (let i = 0; i < composedCalls.length; i++) {
         const call = composedCalls[i];
         // Resolve __last__ to the most recently created component
@@ -174,6 +175,7 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
         }
         allToolCalls.push(call);
         allToolResults.push(result);
+        if (result.specChanged) composedSpecChanged = true;
 
         if (goalTree) {
           const gid = startToolGoal(goalTree, call.tool);
@@ -198,6 +200,12 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
             summary: result.summary,
           });
         }
+      }
+
+      // Emit spec_update so the frontend canvas refreshes after composed tools.
+      if (composedSpecChanged) {
+        const fresh = getProjectSpec(projectId);
+        if (fresh) onEvent({ type: "spec_update", components: fresh.components, project: fresh.project });
       }
 
       // Generate session summary for the composed execution
@@ -309,6 +317,21 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
     let lastComponentId: string | undefined;
     const failedTools: string[] = [];
     for (const call of toolCalls) {
+      // Resolve __last__ placeholder to the most recently created component.
+      // This lets providers chain create + property-tuning calls (e.g.,
+      // set_template followed by set_color targeting the new component).
+      const callArgs = call.args as Record<string, unknown> | null;
+      if (callArgs && typeof callArgs === "object" && callArgs.componentId === "__last__") {
+        const freshSpec = getProjectSpec(projectId);
+        const lastComponent = freshSpec?.components[freshSpec.components.length - 1];
+        if (lastComponent) {
+          call.args = { ...callArgs, componentId: lastComponent.id };
+        } else {
+          // No component exists yet — skip this tool call gracefully.
+          logger.warn("__last__ placeholder could not resolve — no component exists", { tool: call.tool });
+          continue;
+        }
+      }
       // Link this tool call to its corresponding goal so progress is visible.
       const activeGoalId = goalTree ? startToolGoal(goalTree, call.tool) : null;
       if (goalTree && activeGoalId) {
