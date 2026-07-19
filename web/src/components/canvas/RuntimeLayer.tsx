@@ -106,7 +106,7 @@ export function RuntimeLayer({ node, className }: RuntimeLayerProps) {
         return seedState / 0xffffffff;
       };
       // Pre-compute a wiggle table so wiggle(freq, amp) is consistent across
-      // frames and matches AE's deterministic behavior.
+      // frames and ensures deterministic behavior.
       const wiggleTable = new Float32Array(2048);
       for (let i = 0; i < wiggleTable.length; i++) wiggleTable[i] = rng() * 2 - 1;
       const wiggle = (freq: number, amp: number) => {
