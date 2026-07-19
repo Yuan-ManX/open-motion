@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { useProjectStore } from "../../store/projectStore.js";
 import { useUiStore } from "../../store/uiStore.js";
+import { useChatStore } from "../../store/chatStore.js";
 import { renderSpec } from "../../motion/cssRenderer.js";
 import * as api from "../../api/endpoints.js";
 import type { Keyframe } from "@openmotion/shared";
@@ -11,6 +12,8 @@ import { CanvasMinimap } from "./CanvasMinimap.js";
 import { MultiSelectGizmo } from "./MultiSelectGizmo.js";
 import { MotionPathOverlay } from "./MotionPathOverlay.js";
 import { PerformanceMonitor } from "./PerformanceMonitor.js";
+import { CanvasEmptyState } from "./CanvasEmptyState.js";
+import { RuntimeLayer } from "./RuntimeLayer.js";
 
 const MIN_DIM = 64;
 const MAX_DIM = 4096;
@@ -37,6 +40,7 @@ function keyframeOpacity(kf: Keyframe): number {
 export function MotionCanvas() {
   const components = useProjectStore((s) => s.components);
   const loading = useProjectStore((s) => s.loading);
+  const isStreaming = useChatStore((s) => s.isStreaming);
   const projectId = useProjectStore((s) => s.projectId);
   const project = useProjectStore((s) => s.project);
   const loadProject = useProjectStore((s) => s.loadProject);
@@ -75,6 +79,7 @@ export function MotionCanvas() {
   const setShowMotionPaths = useUiStore((s) => s.setShowMotionPaths);
   const showPerformanceMonitor = useUiStore((s) => s.showPerformanceMonitor);
   const setShowPerformanceMonitor = useUiStore((s) => s.setShowPerformanceMonitor);
+  const fitToScreenTrigger = useUiStore((s) => s.fitToScreenTrigger);
   const marqueeRef = useRef<{ startX: number; startY: number } | null>(null);
   const CANVAS_W = canvasSize.width;
   const CANVAS_H = canvasSize.height;
@@ -92,8 +97,37 @@ export function MotionCanvas() {
 
   const { css, nodes } = useMemo(
     () => renderSpec(visibleComponents, playbackSpeed),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [visibleComponents, replayKey, playbackSpeed],
   );
+
+  // 3D camera: when project tokens carry a camera config, apply perspective
+  // + perspective-origin to the canvas viewport. Layers with translateZ in
+  // their transform automatically receive parallax via CSS 3D.
+  const cameraStyle = useMemo<React.CSSProperties>(() => {
+    const raw = project?.tokens?.camera;
+    if (typeof raw !== "string") return {};
+    try {
+      const cam = JSON.parse(raw) as {
+        positionX: number; positionY: number; positionZ: number;
+        focalLength: number; rotateX?: number; rotateY?: number; rotateZ?: number;
+      };
+      // Perspective distance scales with camera Z and focal length. Higher
+      // focal length = more zoomed-in feel (smaller perspective distance).
+      const perspective = Math.max(100, cam.positionZ * (50 / Math.max(20, cam.focalLength)));
+      const style: React.CSSProperties = {
+        perspective: `${perspective}px`,
+        perspectiveOrigin: `${50 + (cam.positionX / 10)}% ${50 + (cam.positionY / 10)}%`,
+        transformStyle: "preserve-3d",
+      };
+      if (cam.rotateX || cam.rotateY || cam.rotateZ) {
+        style.transform = `rotateX(${cam.rotateX ?? 0}deg) rotateY(${cam.rotateY ?? 0}deg) rotateZ(${cam.rotateZ ?? 0}deg)`;
+      }
+      return style;
+    } catch {
+      return {};
+    }
+  }, [project?.tokens?.camera]);
 
   // Parse listeners from project tokens
   const listeners = useMemo(() => {
@@ -192,6 +226,11 @@ export function MotionCanvas() {
     setCanvasZoom(scale);
     setCanvasPan({ x: 0, y: 0 });
   }, [selectedId, components, CANVAS_W, CANVAS_H, setCanvasZoom, setCanvasPan, fitToScreen]);
+
+  // Auto-fit canvas to center generated content after AI generation.
+  useEffect(() => {
+    if (fitToScreenTrigger > 0) fitToScreen();
+  }, [fitToScreenTrigger, fitToScreen]);
 
   // Pan + marquee handlers
   const onCanvasMouseDown = useCallback((e: React.MouseEvent) => {
@@ -447,6 +486,28 @@ export function MotionCanvas() {
         onWheel={onWheel}
       >
         <style>{css}</style>
+        {isStreaming && (
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 2,
+              background: "linear-gradient(90deg, transparent, var(--text), transparent)",
+              backgroundSize: "200% 100%",
+              animation: "om-agent-scan 1.5s linear infinite",
+              zIndex: 100,
+              pointerEvents: "none",
+            }}
+          />
+        )}
+        <style>{`
+          @keyframes om-agent-scan {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+          }
+        `}</style>
         <AlignmentToolbar />
         {/* Marquee selection rectangle */}
         {marqueeRect && marqueeRect.w > 0 && (
@@ -466,11 +527,7 @@ export function MotionCanvas() {
           </div>
         )}
         {!loading && nodes.length === 0 && (
-          <div className="text-center fade-in-up">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl border border-edge flex items-center justify-center text-gray-600 text-2xl bg-panel2">◇</div>
-            <p className="text-gray-400 text-sm font-medium">No components yet</p>
-            <p className="text-gray-600 text-xs mt-1">Pick a template or ask the agent to add one.</p>
-          </div>
+          <CanvasEmptyState />
         )}
         <div
           key={replayKey}
@@ -492,7 +549,7 @@ export function MotionCanvas() {
           <div className="absolute top-0 bottom-0 -left-5 flex items-center text-[9px] text-gray-600 font-mono" style={{ writingMode: "vertical-rl" }}>{CANVAS_H}px</div>
 
           {/* Rendered components */}
-          <div className="absolute inset-0">
+          <div className="absolute inset-0" style={cameraStyle}>
             {nodes.map((node) => {
               const Tag = node.tag as keyof JSX.IntrinsicElements;
               const isSelected = selectedIds.has(node.componentId);
@@ -501,6 +558,18 @@ export function MotionCanvas() {
               const findListener = (evt: string) => compListeners.find((l) => l.eventType === evt);
               const isMediaTag = node.tag === "img" || node.tag === "video" || node.tag === "audio";
               const isVoidTag = node.tag === "img" || node.tag === "input" || node.tag === "br" || node.tag === "hr";
+              // JS-driven layers (particle emitters, audio bindings, live
+              // expressions) delegate to <RuntimeLayer> instead of a plain
+              // tag — the runtime owns the RAF loop and DOM mutations.
+              if (node.runtime) {
+                return (
+                  <RuntimeLayer
+                    key={node.componentId}
+                    node={node}
+                    className={`${node.className} ${isSelected ? "selection-outline" : ""}`}
+                  />
+                );
+              }
               const mediaProps = isMediaTag ? {
                 src: node.src ?? undefined,
                 poster: node.poster ?? undefined,
@@ -547,6 +616,7 @@ export function MotionCanvas() {
                     key={node.componentId}
                     className={`${node.className} ${isLocked ? "cursor-not-allowed" : "cursor-pointer"} ${isSelected ? "selection-outline" : ""}`}
                     data-om-name={node.name}
+                    data-om-component-id={node.componentId}
                     style={isLocked ? { opacity: 0.5 } : undefined}
                     {...mediaProps}
                     {...eventHandlers}
@@ -558,6 +628,7 @@ export function MotionCanvas() {
                   key={node.componentId}
                   className={`${node.className} ${isLocked ? "cursor-not-allowed" : "cursor-pointer"} ${isSelected ? "selection-outline" : ""}`}
                   data-om-name={node.name}
+                  data-om-component-id={node.componentId}
                   style={isLocked ? { opacity: 0.5 } : undefined}
                   {...mediaProps}
                   {...eventHandlers}
