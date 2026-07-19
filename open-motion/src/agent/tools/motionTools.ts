@@ -117,6 +117,87 @@ function fail(summary: string): ToolResult {
   return { ok: false, summary, specChanged: false };
 }
 
+/** Apply alpha opacity to a hex color, returning an rgba() string. Accepts
+ *  3- or 6-digit hex. Falls back to passing through unknown color tokens. */
+function hexWithOpacity(color: string, opacity: number): string {
+  const hex = color.startsWith("#") ? color.slice(1) : color;
+  if (/^[0-9a-fA-F]{6}$/.test(hex)) {
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+  }
+  if (/^[0-9a-fA-F]{3}$/.test(hex)) {
+    const r = parseInt(hex[0] + hex[0], 16);
+    const g = parseInt(hex[1] + hex[1], 16);
+    const b = parseInt(hex[2] + hex[2], 16);
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+  }
+  // Pass through named colors / non-hex strings — caller can pre-convert.
+  return color;
+}
+
+interface MaskEntry {
+  shape: "rectangle" | "ellipse" | "path";
+  mode: "add" | "subtract" | "intersect" | "difference" | "lighten" | "darken";
+  x: number; y: number; width: number; height: number;
+  path?: string;
+  feather: number; expansion: number; inverted: boolean;
+  name: string; enabled: boolean;
+}
+
+interface TextAnimatorEntry {
+  property: "position" | "scale" | "rotation" | "opacity" | "color";
+  rangeStart: number; rangeEnd: number;
+  unit: "character" | "word";
+  offset: number; valueDelta: number; staggerMs: number; easing: string;
+  enabled: boolean;
+}
+
+/** Read the mask list from a component's style._masks token. */
+function getMasks(comp: MotionComponent): MaskEntry[] {
+  const raw = (comp.style as Record<string, string | number>)._masks;
+  if (typeof raw !== "string") return [];
+  try { return JSON.parse(raw) as MaskEntry[]; } catch { return []; }
+}
+
+/** Read the text animator list from a component's style._textAnimators token. */
+function getTextAnimators(comp: MotionComponent): TextAnimatorEntry[] {
+  const raw = (comp.style as Record<string, string | number>)._textAnimators;
+  if (typeof raw !== "string") return [];
+  try { return JSON.parse(raw) as TextAnimatorEntry[]; } catch { return []; }
+}
+
+/** Build a CSS polygon() clip-path for a regular N-gon inscribed in the
+ *  element's bounding box. */
+function buildPolygonClipPath(sides: number): string {
+  const n = Math.max(3, Math.min(20, sides));
+  const pts: string[] = [];
+  for (let i = 0; i < n; i++) {
+    const angle = (i * 2 * Math.PI) / n - Math.PI / 2;
+    const x = 50 + 50 * Math.cos(angle);
+    const y = 50 + 50 * Math.sin(angle);
+    pts.push(`${x.toFixed(2)}% ${y.toFixed(2)}%`);
+  }
+  return `polygon(${pts.join(", ")})`;
+}
+
+/** Build a CSS polygon() clip-path for an N-pointed star with the given
+ *  inner-radius ratio (0-1 of outer radius). */
+function buildStarClipPath(points: number, innerRadius: number): string {
+  const n = Math.max(3, Math.min(20, points));
+  const inner = Math.max(0.05, Math.min(0.95, innerRadius));
+  const pts: string[] = [];
+  for (let i = 0; i < n * 2; i++) {
+    const r = i % 2 === 0 ? 1 : inner;
+    const angle = (i * Math.PI) / n - Math.PI / 2;
+    const x = 50 + 50 * r * Math.cos(angle);
+    const y = 50 + 50 * r * Math.sin(angle);
+    pts.push(`${x.toFixed(2)}% ${y.toFixed(2)}%`);
+  }
+  return `polygon(${pts.join(", ")})`;
+}
+
 type Executor = (args: Record<string, unknown>, ctx: ToolContext) => ToolResult | Promise<ToolResult>;
 
 export const motionExecutors: Partial<Record<ToolName, Executor>> = {
@@ -2199,6 +2280,616 @@ export const motionExecutors: Partial<Record<ToolName, Executor>> = {
     return ok(`removed ${count} component(s) from pre-composition`);
   },
 
+  enable_motion_blur: (args, ctx) => {
+    const componentId = String(args.componentId);
+    const comp = getComponent(ctx.projectId, componentId);
+    if (!comp) return fail(`component ${componentId} not found`);
+    const style = { ...comp.style } as Record<string, string | number>;
+    const enabled = Boolean(args.enabled);
+    if (enabled) {
+      const intensity = Number(args.intensity ?? 4);
+      const shutterAngle = Number(args.shutterAngle ?? 180);
+      // Approximate shutter-angle-weighted motion blur via CSS filter blur.
+      // The renderer also picks up these tokens to add will-change hints and
+      // a per-frame streak filter during fast-motion segments.
+      style._motionBlur = "1";
+      style._motionBlurIntensity = String(intensity);
+      style._motionBlurShutter = String(shutterAngle);
+      style.willChange = "transform, filter";
+    } else {
+      delete style._motionBlur;
+      delete style._motionBlurIntensity;
+      delete style._motionBlurShutter;
+      delete style.willChange;
+    }
+    patchComponent(ctx.projectId, componentId, { style });
+    return ok(
+      enabled
+        ? `Enabled motion blur on "${comp.name}" (intensity=${args.intensity ?? 4}px, shutter=${args.shutterAngle ?? 180}°).`
+        : `Disabled motion blur on "${comp.name}".`,
+    );
+  },
+
+  add_null_object: (args, ctx) => {
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const existing = listComponents(ctx.projectId);
+    const idx = existing.length + 1;
+    const name = String(args.name ?? `Null ${idx}`);
+    const x = Number(args.x ?? 0);
+    const y = Number(args.y ?? 0);
+    const ts = now();
+    // Null object: fully transparent, zero-sized, non-interactive marker.
+    // Children parented to it inherit its transform but it never paints.
+    const d = draft(name, {
+      durationMs: 0,
+      fillMode: "none",
+      easing: { type: "preset", name: "linear" },
+      style: {
+        width: 0,
+        height: 0,
+        opacity: 0,
+        pointerEvents: "none",
+        left: x,
+        top: y,
+        background: "transparent",
+        _nullObject: "1",
+      },
+    });
+    const component: MotionComponent = {
+      ...d,
+      id: createId("c_"),
+      projectId: ctx.projectId,
+      playState: "paused",
+      orderIndex: existing.length,
+      templateId: null,
+      createdAt: ts,
+      updatedAt: ts,
+    };
+    createComponent(component);
+    return ok(
+      `Created null object "${name}" (${component.id}) at (${x}, ${y}) — parent other layers to it to drive them as a group.`,
+      true,
+      { componentId: component.id, name, x, y },
+    );
+  },
+
+  trim_path: (args, ctx) => {
+    const componentId = String(args.componentId);
+    const comp = getComponent(ctx.projectId, componentId);
+    if (!comp) return fail(`component ${componentId} not found`);
+    const start = Math.max(0, Math.min(100, Number(args.start ?? 0)));
+    const end = Math.max(0, Math.min(100, Number(args.end ?? 100)));
+    const offset = Number(args.offset ?? 0);
+    const animate = Boolean(args.animate ?? true);
+    const style = { ...comp.style } as Record<string, string | number>;
+    // CSS stroke-dasharray works on SVG-like paths and on elements with
+    // border-style. We treat the layer as a path that gets progressively
+    // revealed. dashLength is a sensible default (the rendered diagonal).
+    const width = Number(style.width ?? 100);
+    const height = Number(style.height ?? 100);
+    const pathLength = Math.max(width, height) * 2 + Math.min(width, height) * 2;
+    const visibleLen = (pathLength * (end - start)) / 100;
+    const startOffset = (pathLength * start) / 100;
+    style._trimPath = "1";
+    style._trimStart = start;
+    style._trimEnd = end;
+    style._trimOffset = offset;
+    style._trimAnimate = animate ? "1" : "0";
+    style._trimPathLength = pathLength;
+    // Surface as inline stroke props so the renderer can pick them up.
+    style.strokeDasharray = `${visibleLen} ${pathLength - visibleLen}`;
+    style.strokeDashoffset = String(-startOffset);
+    if (animate) {
+      // Build a keyframe pair that animates the dashoffset from full-hidden
+      // to fully-revealed across the component duration, unless keyframes
+      // already exist (we don't clobber existing authored animation).
+      if (comp.keyframes.length === 0) {
+        const kfs: Keyframe[] = [
+          {
+            offset: 0,
+            properties: { opacity: 1 },
+            easing: { type: "preset", name: "linear" },
+          },
+          {
+            offset: 1,
+            properties: { opacity: 1 },
+            easing: { type: "preset", name: "linear" },
+          },
+        ];
+        patchComponent(ctx.projectId, componentId, {
+          style,
+          keyframes: kfs,
+          durationMs: comp.durationMs < 200 ? 1200 : comp.durationMs,
+        });
+        return ok(
+          `Trim-path reveal on "${comp.name}" from ${start}% to ${end}% (offset ${offset}°), animated across ${comp.durationMs < 200 ? 1200 : comp.durationMs}ms.`,
+        );
+      }
+    }
+    patchComponent(ctx.projectId, componentId, { style });
+    return ok(
+      `Trim-path set on "${comp.name}" — visible ${start}% to ${end}% (offset ${offset}°), animate=${animate}.`,
+    );
+  },
+
+  add_repeater: (args, ctx) => {
+    const componentId = String(args.componentId);
+    const source = getComponent(ctx.projectId, componentId);
+    if (!source) return fail(`component ${componentId} not found`);
+    const copies = Math.max(1, Math.min(50, Number(args.copies ?? 5)));
+    const offset = (args.offset ?? { x: 20, y: 0, rotate: 0, scale: 1 }) as {
+      x: number; y: number; rotate: number; scale: number;
+    };
+    const decay = Math.max(0, Math.min(1, Number(args.decay ?? 0.15)));
+    const existing = listComponents(ctx.projectId);
+    const baseOrder = source.orderIndex;
+    const createdIds: string[] = [];
+    let cursorX = Number(source.style?.left ?? 0);
+    let cursorY = Number(source.style?.top ?? 0);
+    let cursorRotate = 0;
+    let cursorScale = 1;
+    for (let i = 1; i <= copies; i++) {
+      cursorX += offset.x;
+      cursorY += offset.y;
+      cursorRotate += offset.rotate;
+      cursorScale *= offset.scale;
+      const opacity = Math.max(0, 1 - decay * i);
+      const newStyle = {
+        ...(source.style as Record<string, string | number>),
+        left: cursorX,
+        top: cursorY,
+        rotate: cursorRotate,
+        scale: cursorScale,
+        opacity,
+        _repeaterSource: componentId,
+        _repeaterIndex: i,
+      };
+      const ts = now();
+      const d = draft(`${source.name} Repeat ${i}`, {
+        durationMs: source.durationMs,
+        delayMs: source.delayMs + i * 30,
+        iterationCount: source.iterationCount,
+        direction: source.direction,
+        fillMode: source.fillMode,
+        trigger: source.trigger,
+        easing: source.easing,
+        keyframes: source.keyframes,
+        style: newStyle,
+        sceneId: source.sceneId ?? undefined,
+      });
+      const clone: MotionComponent = {
+        ...d,
+        id: createId("c_"),
+        projectId: ctx.projectId,
+        playState: source.playState,
+        orderIndex: baseOrder + i,
+        parentId: source.parentId,
+        templateId: null,
+        createdAt: ts,
+        updatedAt: ts,
+      };
+      createComponent(clone);
+      createdIds.push(clone.id);
+    }
+    return ok(
+      `Repeated "${source.name}" ${copies}× (offset x=${offset.x}, y=${offset.y}, rot=${offset.rotate}°, scale=${offset.scale}, decay=${decay}). Created ${createdIds.length} copies.`,
+      true,
+      { sourceId: componentId, copies: createdIds.length, createdIds },
+    );
+  },
+
+  add_echo: (args, ctx) => {
+    const componentId = String(args.componentId);
+    const source = getComponent(ctx.projectId, componentId);
+    if (!source) return fail(`component ${componentId} not found`);
+    const copies = Math.max(1, Math.min(20, Number(args.copies ?? 4)));
+    const delayMs = Math.max(10, Number(args.delayMs ?? 80));
+    const decay = Math.max(0, Math.min(1, Number(args.decay ?? 0.25)));
+    const scaleDecay = Math.max(0, Math.min(1, Number(args.scaleDecay ?? 0)));
+    const baseOrder = source.orderIndex;
+    const createdIds: string[] = [];
+    for (let i = 1; i <= copies; i++) {
+      const opacity = Math.max(0, 1 - decay * i);
+      const scale = 1 - scaleDecay * i;
+      const newStyle = {
+        ...(source.style as Record<string, string | number>),
+        opacity,
+        scale: Math.max(0.01, scale),
+        _echoSource: componentId,
+        _echoIndex: i,
+        zIndex: -i,
+      };
+      const ts = now();
+      const d = draft(`${source.name} Echo ${i}`, {
+        durationMs: source.durationMs,
+        delayMs: source.delayMs + i * delayMs,
+        iterationCount: source.iterationCount,
+        direction: source.direction,
+        fillMode: source.fillMode,
+        trigger: source.trigger,
+        easing: source.easing,
+        keyframes: source.keyframes,
+        style: newStyle,
+        sceneId: source.sceneId ?? undefined,
+      });
+      const clone: MotionComponent = {
+        ...d,
+        id: createId("c_"),
+        projectId: ctx.projectId,
+        playState: source.playState,
+        orderIndex: baseOrder - i,
+        parentId: source.parentId,
+        templateId: null,
+        createdAt: ts,
+        updatedAt: ts,
+      };
+      createComponent(clone);
+      createdIds.push(clone.id);
+    }
+    return ok(
+      `Added ${copies} motion-trail echoes to "${source.name}" (delay=${delayMs}ms, decay=${decay}, scaleDecay=${scaleDecay}).`,
+      true,
+      { sourceId: componentId, copies: createdIds.length, createdIds },
+    );
+  },
+
+  set_time_remap: (args, ctx) => {
+    const componentId = String(args.componentId);
+    const comp = getComponent(ctx.projectId, componentId);
+    if (!comp) return fail(`component ${componentId} not found`);
+    const rate = Number(args.rate);
+    const reverseDirection = Boolean(args.reverseDirection ?? false);
+    const freezeAtMs = args.freezeAtMs != null ? Number(args.freezeAtMs) : undefined;
+    const style = { ...comp.style } as Record<string, string | number>;
+    if (rate === 0) {
+      // Freeze the layer: pause and (optionally) jump to a specific time.
+      style._timeRemap = "freeze";
+      if (freezeAtMs != null) style._timeRemapFreezeAt = String(freezeAtMs);
+      patchComponent(ctx.projectId, componentId, { style, playState: "paused" });
+      return ok(
+        `Time-remapped "${comp.name}" → FROZEN${freezeAtMs != null ? ` at ${freezeAtMs}ms` : ""}.`,
+      );
+    }
+    // Apply rate by inversely scaling the durationMs and tag for renderer.
+    const newDuration = Math.max(50, Math.round(comp.durationMs / Math.abs(rate)));
+    const isReverse = reverseDirection || rate < 0;
+    style._timeRemap = String(rate);
+    style._timeRemapRate = String(rate);
+    patchComponent(ctx.projectId, componentId, {
+      style,
+      durationMs: newDuration,
+      direction: isReverse ? "reverse" : "normal",
+      playState: "running",
+    });
+    return ok(
+      `Time-remapped "${comp.name}" → rate=${rate}× (duration ${comp.durationMs}ms → ${newDuration}ms, direction=${isReverse ? "reverse" : "normal"}).`,
+    );
+  },
+
+  add_layer_effect: (args, ctx) => {
+    const componentId = String(args.componentId);
+    const comp = getComponent(ctx.projectId, componentId);
+    if (!comp) return fail(`component ${componentId} not found`);
+    const effect = String(args.effect) as "drop-shadow" | "inner-shadow" | "outer-glow" | "inner-glow" | "stroke";
+    const color = String(args.color ?? "#000000");
+    const distance = Number(args.distance ?? 4);
+    const blur = Number(args.blur ?? 6);
+    const opacity = Math.max(0, Math.min(1, Number(args.opacity ?? 0.5)));
+    const spread = Number(args.spread ?? 0);
+    const style = { ...comp.style } as Record<string, string | number>;
+    // Build a CSS box-shadow string for the requested effect. Stacks with
+    // any existing box-shadow.
+    const existingShadow = typeof style.boxShadow === "string" ? style.boxShadow : "";
+    const parts: string[] = existingShadow ? [existingShadow] : [];
+    const insetPrefix = effect === "inner-shadow" || effect === "inner-glow" ? "inset " : "";
+    const resolvedColor = effect === "outer-glow" || effect === "inner-glow"
+      ? hexWithOpacity(color, opacity)
+      : hexWithOpacity(color, opacity);
+    if (effect === "stroke") {
+      // Outline via box-shadow: 0 0 0 spread color (no offset, no blur).
+      parts.push(`${insetPrefix}0 0 0 ${spread}px ${resolvedColor}`);
+    } else if (effect === "drop-shadow" || effect === "inner-shadow") {
+      parts.push(`${insetPrefix}${distance}px ${distance}px ${blur}px ${spread}px ${resolvedColor}`);
+    } else {
+      // outer-glow / inner-glow: symmetric blur.
+      parts.push(`${insetPrefix}0 0 ${blur}px ${spread}px ${resolvedColor}`);
+    }
+    style.boxShadow = parts.join(", ");
+    // Tag for the renderer so it knows effects are authored.
+    const effectsList = typeof style._layerEffects === "string"
+      ? (JSON.parse(style._layerEffects) as string[])
+      : [];
+    effectsList.push(effect);
+    style._layerEffects = JSON.stringify(effectsList);
+    patchComponent(ctx.projectId, componentId, { style });
+    return ok(
+      `Added ${effect} layer effect to "${comp.name}" (color=${color}, distance=${distance}, blur=${blur}, opacity=${opacity}, spread=${spread}).`,
+    );
+  },
+
+  add_mask: (args, ctx) => {
+    const componentId = String(args.componentId);
+    const comp = getComponent(ctx.projectId, componentId);
+    if (!comp) return fail(`component ${componentId} not found`);
+    const shape = String(args.shape ?? "rectangle") as "rectangle" | "ellipse" | "path";
+    const mode = String(args.mode ?? "add") as "add" | "subtract" | "intersect" | "difference" | "lighten" | "darken";
+    const x = Number(args.x ?? 0);
+    const y = Number(args.y ?? 0);
+    const w = Number(args.width ?? 100);
+    const h = Number(args.height ?? 100);
+    const path = args.path ? String(args.path) : undefined;
+    const feather = Math.max(0, Number(args.feather ?? 0));
+    const expansion = Number(args.expansion ?? 0);
+    const inverted = Boolean(args.inverted ?? false);
+    const name = args.name ? String(args.name) : `Mask ${Date.now().toString(36).slice(-4)}`;
+    const style = { ...comp.style } as Record<string, string | number>;
+    // Masks are stored as a JSON array on _masks so the renderer can emit
+    // proper SVG/CSS mask definitions. Each entry carries shape geometry,
+    // blend mode, feather, expansion, and inversion.
+    const masks = typeof style._masks === "string"
+      ? (JSON.parse(style._masks) as Array<Record<string, unknown>>)
+      : [];
+    masks.push({
+      id: `mask_${Date.now().toString(36)}_${masks.length}`,
+      name,
+      shape,
+      mode,
+      x,
+      y,
+      width: w,
+      height: h,
+      ...(path ? { path } : {}),
+      feather,
+      expansion,
+      inverted,
+    });
+    style._masks = JSON.stringify(masks);
+    patchComponent(ctx.projectId, componentId, { style });
+    return ok(
+      `Added ${shape} mask "${name}" (mode=${mode}, feather=${feather}px, expansion=${expansion}px, inverted=${inverted}) to "${comp.name}". Total masks: ${masks.length}.`,
+      true,
+      { maskCount: masks.length },
+    );
+  },
+
+  set_mask_mode: (args, ctx) => {
+    const componentId = String(args.componentId);
+    const comp = getComponent(ctx.projectId, componentId);
+    if (!comp) return fail(`component ${componentId} not found`);
+    const idx = Math.max(0, Number(args.maskIndex ?? 0));
+    const mode = String(args.mode) as "add" | "subtract" | "intersect" | "difference" | "lighten" | "darken";
+    const style = { ...comp.style } as Record<string, string | number>;
+    const masks = typeof style._masks === "string"
+      ? (JSON.parse(style._masks) as Array<Record<string, unknown>>)
+      : [];
+    if (idx >= masks.length) return fail(`mask index ${idx} out of range (have ${masks.length})`);
+    masks[idx] = { ...masks[idx], mode };
+    if (args.inverted != null) masks[idx].inverted = Boolean(args.inverted);
+    if (args.feather != null) masks[idx].feather = Number(args.feather);
+    if (args.expansion != null) masks[idx].expansion = Number(args.expansion);
+    style._masks = JSON.stringify(masks);
+    patchComponent(ctx.projectId, componentId, { style });
+    return ok(`Updated mask ${idx} on "${comp.name}" → mode=${mode}.`);
+  },
+
+  set_track_matte: (args, ctx) => {
+    const componentId = String(args.componentId);
+    const matteId = String(args.matteComponentId);
+    const comp = getComponent(ctx.projectId, componentId);
+    const matte = getComponent(ctx.projectId, matteId);
+    if (!comp) return fail(`component ${componentId} not found`);
+    if (!matte) return fail(`matte component ${matteId} not found`);
+    const mode = String(args.mode ?? "alpha") as "alpha" | "alpha-inverted" | "luma" | "luma-inverted";
+    const style = { ...comp.style } as Record<string, string | number>;
+    // Store track matte reference; the renderer resolves the matte layer's
+    // alpha/luma channel into a CSS mask-image.
+    style._trackMatte = JSON.stringify({ matteId, mode });
+    patchComponent(ctx.projectId, componentId, { style });
+    return ok(
+      `Set "${matte.name}" as ${mode} track matte for "${comp.name}". The matte layer's ${mode.startsWith("luma") ? "brightness" : "transparency"} now controls the target's visibility.`,
+    );
+  },
+
+  create_shape_layer: (args, ctx) => {
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const shape = String(args.shape) as "rectangle" | "ellipse" | "polygon" | "star" | "line" | "path";
+    const name = args.name ? String(args.name) : shape.charAt(0).toUpperCase() + shape.slice(1);
+    const x = Number(args.x ?? 40);
+    const y = Number(args.y ?? 40);
+    const w = Number(args.width ?? 120);
+    const h = Number(args.height ?? 120);
+    const sides = Math.max(3, Math.min(20, Number(args.sides ?? 5)));
+    const points = Math.max(3, Math.min(20, Number(args.points ?? 5)));
+    const innerRadius = args.innerRadius != null ? Number(args.innerRadius) : 0.5;
+    const path = args.path ? String(args.path) : undefined;
+    const fill = String(args.fill ?? "#e5e5e5");
+    const stroke = args.stroke ? String(args.stroke) : undefined;
+    const strokeWidth = Math.max(0, Number(args.strokeWidth ?? 0));
+    const cornerRadius = Math.max(0, Number(args.cornerRadius ?? 0));
+    const rotation = Number(args.rotation ?? 0);
+    const existing = listComponents(ctx.projectId);
+    const ts = now();
+    const style: Record<string, string | number> = {
+      position: "absolute",
+      left: x,
+      top: y,
+      width: w,
+      height: h,
+      backgroundColor: fill,
+      transform: `rotate(${rotation}deg)`,
+      _shapeType: shape,
+    };
+    if (stroke && strokeWidth > 0) {
+      style.border = `${strokeWidth}px solid ${stroke}`;
+    }
+    if (shape === "rectangle" && cornerRadius > 0) {
+      style.borderRadius = `${cornerRadius}px`;
+    } else if (shape === "ellipse") {
+      style.borderRadius = "50%";
+    } else if (shape === "polygon") {
+      style.clipPath = buildPolygonClipPath(sides);
+    } else if (shape === "star") {
+      style.clipPath = buildStarClipPath(points, innerRadius);
+    } else if (shape === "line") {
+      style.height = Math.max(strokeWidth, 2);
+      style.backgroundColor = stroke ?? fill;
+    } else if (shape === "path" && path) {
+      // For path shapes, store the SVG path data — the renderer can emit
+      // an inline SVG with stroke + fill for full vector fidelity.
+      style._svgPath = path;
+      style._svgFill = fill;
+      if (stroke) style._svgStroke = stroke;
+      if (strokeWidth > 0) style._svgStrokeWidth = String(strokeWidth);
+      style.backgroundColor = "transparent";
+    }
+    const d = draft(name, { style, sceneId: undefined });
+    const component: MotionComponent = {
+      ...d,
+      id: createId("c_"),
+      projectId: ctx.projectId,
+      playState: "running",
+      orderIndex: existing.length,
+      templateId: null,
+      createdAt: ts,
+      updatedAt: ts,
+    };
+    createComponent(component);
+    return ok(
+      `Created ${shape} shape layer "${name}" (${w}×${h} at ${x},${y})${stroke ? ` with ${strokeWidth}px stroke` : ""}.`,
+      true,
+      { componentId: component.id, shape, name },
+    );
+  },
+
+  posterize_time: (args, ctx) => {
+    const componentId = String(args.componentId);
+    const comp = getComponent(ctx.projectId, componentId);
+    if (!comp) return fail(`component ${componentId} not found`);
+    const fps = Math.max(1, Math.min(60, Number(args.fps)));
+    const enabled = Boolean(args.enabled ?? true);
+    const style = { ...comp.style } as Record<string, string | number>;
+    if (enabled) {
+      // CSS steps(N) quantizes time into N discrete jumps per iteration.
+      // step-start = jump immediately at each step boundary (AE Hold-style).
+      const frameCount = Math.max(1, Math.round((comp.durationMs / 1000) * fps));
+      style._posterizeTime = String(fps);
+      style._posterizeFrames = String(frameCount);
+      // Override timing function with steps — preserves user easing config
+      // in _origTimingFunction for later restoration.
+      if (!style._origTimingFunction) {
+        style._origTimingFunction = JSON.stringify(comp.easing);
+      }
+      patchComponent(ctx.projectId, componentId, {
+        style,
+        easing: { type: "preset", name: "linear" },
+      });
+      return ok(
+        `Posterized "${comp.name}" to ${fps} fps (${frameCount} discrete frames over ${comp.durationMs}ms). Animation will step in ${frameCount} increments.`,
+      );
+    }
+    // Restore original timing function if it was saved.
+    const orig = style._origTimingFunction;
+    if (typeof orig === "string") {
+      try {
+        const easing = JSON.parse(orig);
+        delete style._posterizeTime;
+        delete style._posterizeFrames;
+        delete style._origTimingFunction;
+        patchComponent(ctx.projectId, componentId, { style, easing });
+        return ok(`Disabled posterize on "${comp.name}" — restored original easing.`);
+      } catch { /* fall through */ }
+    }
+    delete style._posterizeTime;
+    delete style._posterizeFrames;
+    delete style._origTimingFunction;
+    patchComponent(ctx.projectId, componentId, { style });
+    return ok(`Disabled posterize on "${comp.name}".`);
+  },
+
+  add_text_animator: (args, ctx) => {
+    const componentId = String(args.componentId);
+    const comp = getComponent(ctx.projectId, componentId);
+    if (!comp) return fail(`component ${componentId} not found`);
+    const property = String(args.property ?? "opacity") as "position" | "scale" | "rotation" | "opacity" | "color";
+    const rangeStart = Math.max(0, Math.min(100, Number(args.rangeStart ?? 0)));
+    const rangeEnd = Math.max(0, Math.min(100, Number(args.rangeEnd ?? 100)));
+    const unit = String(args.unit ?? "character") as "character" | "word";
+    const offset = Number(args.offset ?? 0);
+    const valueDelta = Number(args.valueDelta ?? 1);
+    const staggerMs = Math.max(0, Number(args.staggerMs ?? 40));
+    const easing = String(args.easing ?? "ease-out");
+    const style = { ...comp.style } as Record<string, string | number>;
+    // Store the text animator config — the renderer splits _content into
+    // per-unit spans and applies staggered animation delays based on this.
+    const animators = typeof style._textAnimators === "string"
+      ? (JSON.parse(style._textAnimators) as Array<Record<string, unknown>>)
+      : [];
+    animators.push({
+      id: `ta_${Date.now().toString(36)}_${animators.length}`,
+      property,
+      rangeStart,
+      rangeEnd,
+      unit,
+      offset,
+      valueDelta,
+      staggerMs,
+      easing,
+    });
+    style._textAnimators = JSON.stringify(animators);
+    patchComponent(ctx.projectId, componentId, { style });
+    return ok(
+      `Added ${property} text animator to "${comp.name}" (range ${rangeStart}-${rangeEnd}%, unit=${unit}, stagger=${staggerMs}ms, delta=${valueDelta}). Total animators: ${animators.length}.`,
+      true,
+      { animatorCount: animators.length },
+    );
+  },
+
+  set_keyframe_interpolation: (args, ctx) => {
+    const componentId = String(args.componentId);
+    const comp = getComponent(ctx.projectId, componentId);
+    if (!comp) return fail(`component ${componentId} not found`);
+    const idx = Math.max(0, Number(args.keyframeIndex));
+    const interpolation = String(args.interpolation) as "linear" | "bezier" | "hold" | "auto-bezier" | "continuous";
+    const roving = args.roving != null ? Boolean(args.roving) : undefined;
+    if (idx >= comp.keyframes.length) {
+      return fail(`keyframe index ${idx} out of range (have ${comp.keyframes.length})`);
+    }
+    const keyframes = [...comp.keyframes];
+    const kf = { ...keyframes[idx] };
+    // Set the easing for the segment LEAVING this keyframe.
+    if (interpolation === "hold") {
+      // Hold keyframe: use steps(1, jump-none) which freezes the value
+      // until the next keyframe.
+      kf.easing = { type: "preset", name: "linear" } as Easing;
+    } else if (interpolation === "linear") {
+      kf.easing = { type: "preset", name: "linear" } as Easing;
+    } else if (interpolation === "bezier") {
+      kf.easing = { type: "bezier", p1: [0.42, 0], p2: [0.58, 1] } as Easing;
+    } else if (interpolation === "auto-bezier" || interpolation === "continuous") {
+      // Auto-bezier: smooth S-curve.
+      kf.easing = { type: "bezier", p1: [0.25, 0.1], p2: [0.25, 1] } as Easing;
+    }
+    keyframes[idx] = kf;
+    // Mark roving status in the keyframe metadata (stored on style).
+    if (roving != null) {
+      const style = { ...comp.style } as Record<string, string | number>;
+      const rovingMap = typeof style._rovingKeyframes === "string"
+        ? (JSON.parse(style._rovingKeyframes) as Record<string, boolean>)
+        : {};
+      if (roving) rovingMap[String(idx)] = true;
+      else delete rovingMap[String(idx)];
+      style._rovingKeyframes = JSON.stringify(rovingMap);
+      patchComponent(ctx.projectId, componentId, { keyframes, style });
+    } else {
+      patchComponent(ctx.projectId, componentId, { keyframes });
+    }
+    return ok(
+      `Set keyframe ${idx} on "${comp.name}" → interpolation=${interpolation}${roving != null ? `, roving=${roving}` : ""}.`,
+    );
+  },
+
   set_expression: (args, ctx) => {
     const componentId = String(args.componentId);
     const comp = getComponent(ctx.projectId, componentId);
@@ -2215,6 +2906,317 @@ export const motionExecutors: Partial<Record<ToolName, Executor>> = {
     }
     patchComponent(ctx.projectId, componentId, { style });
     return ok(`expression on "${comp.name}".${prop}: ${args.enabled ? "enabled" : "disabled"} — ${String(args.expression)}`);
+  },
+
+  /* --------------------------- Gradient tools --------------------------- */
+  set_gradient_fill: (args, ctx) => {
+    const componentId = String(args.componentId);
+    const comp = getComponent(ctx.projectId, componentId);
+    if (!comp) return fail(`component ${componentId} not found`);
+    const type = String(args.type ?? "linear") as "linear" | "radial";
+    const angle = Number(args.angle ?? 90);
+    const stops = Array.isArray(args.stops) ? args.stops : [];
+    if (stops.length < 2) return fail("gradient requires at least 2 stops");
+    const style = { ...comp.style } as Record<string, string | number>;
+    style._gradientFill = JSON.stringify({
+      type, angle,
+      stops: stops.map((s: { color: unknown; position?: unknown }) => ({
+        color: String(s.color),
+        position: Number(s.position ?? 0),
+      })),
+      cx: args.cx != null ? Number(args.cx) : 50,
+      cy: args.cy != null ? Number(args.cy) : 50,
+      radius: args.radius != null ? Number(args.radius) : 50,
+    });
+    // Remove a flat backgroundColor so the gradient shows through.
+    delete style.backgroundColor;
+    patchComponent(ctx.projectId, componentId, { style });
+    return ok(`Applied ${type} gradient fill to "${comp.name}" (${stops.length} stops, angle=${angle}°).`);
+  },
+
+  set_gradient_stroke: (args, ctx) => {
+    const componentId = String(args.componentId);
+    const comp = getComponent(ctx.projectId, componentId);
+    if (!comp) return fail(`component ${componentId} not found`);
+    const type = String(args.type ?? "linear") as "linear" | "radial";
+    const angle = Number(args.angle ?? 90);
+    const width = Math.max(0, Number(args.width ?? 2));
+    const stops = Array.isArray(args.stops) ? args.stops : [];
+    if (stops.length < 2) return fail("gradient stroke requires at least 2 stops");
+    const style = { ...comp.style } as Record<string, string | number>;
+    style._gradientStroke = JSON.stringify({
+      type, angle, width,
+      stops: stops.map((s: { color: unknown; position?: unknown }) => ({
+        color: String(s.color),
+        position: Number(s.position ?? 0),
+      })),
+    });
+    patchComponent(ctx.projectId, componentId, { style });
+    return ok(`Applied ${type} gradient stroke to "${comp.name}" (${width}px, ${stops.length} stops).`);
+  },
+
+  /* --------------------------- Wiggle tool --------------------------- */
+  apply_wiggle: (args, ctx) => {
+    const componentId = String(args.componentId);
+    const comp = getComponent(ctx.projectId, componentId);
+    if (!comp) return fail(`component ${componentId} not found`);
+    const property = String(args.property ?? "translateX") as
+      | "translateX" | "translateY" | "rotate" | "scale" | "opacity" | "skewX" | "skewY";
+    const frequency = Math.max(0.1, Number(args.frequency ?? 2));
+    const amplitude = Number(args.amplitude ?? 20);
+    const octaves = Math.max(1, Math.min(6, Number(args.octaves ?? 2)));
+    const seed = Number(args.seed ?? 1);
+    const durationMs = args.durationMs != null ? Number(args.durationMs) : comp.durationMs;
+    const sampleCount = Math.max(8, Math.min(120, Number(args.sampleCount ?? 24)));
+
+    // Deterministic value-noise wiggle. Multiple octaves are summed with
+    // amplitude halving per octave (fractal Brownian motion style).
+    function hash(i: number): number {
+      const x = Math.sin(i * 127.1 + seed * 311.7) * 43758.5453;
+      return x - Math.floor(x);
+    }
+    function lerp(a: number, b: number, t: number): number { return a + (b - a) * t; }
+    function smooth(t: number): number { return t * t * (3 - 2 * t); }
+    function valueNoise(t: number, freq: number): number {
+      const scaled = t * freq;
+      const i = Math.floor(scaled);
+      const f = scaled - i;
+      return lerp(hash(i), hash(i + 1), smooth(f));
+    }
+    function fbm(t: number): number {
+      let sum = 0;
+      let amp = 1;
+      let max = 0;
+      for (let o = 0; o < octaves; o++) {
+        sum += valueNoise(t, frequency * Math.pow(2, o)) * amp;
+        max += amp;
+        amp *= 0.5;
+      }
+      return sum / max; // 0..1
+    }
+
+    const keyframes: Keyframe[] = [];
+    const baseValue = (comp.keyframes[0]?.properties as Record<string, number>)?.[property] ?? 0;
+    for (let i = 0; i < sampleCount; i++) {
+      const offset = i / (sampleCount - 1);
+      const t = (offset * durationMs) / 1000;
+      const n = fbm(t) * 2 - 1; // -1..1
+      const delta = n * amplitude;
+      const properties = { [property]: baseValue + delta } as Record<string, number>;
+      keyframes.push({
+        offset,
+        properties,
+        easing: { type: "preset", name: "linear" },
+      });
+    }
+    patchComponent(ctx.projectId, componentId, { keyframes });
+    return ok(
+      `Wiggled "${comp.name}".${property} — ${sampleCount} keyframes over ${durationMs}ms (freq=${frequency}Hz, amp=${amplitude}, octaves=${octaves}, seed=${seed}).`,
+      true,
+      { keyframeCount: keyframes.length, property, frequency, amplitude },
+    );
+  },
+
+  /* --------------------------- Particle emitter --------------------------- */
+  add_particle_emitter: (args, ctx) => {
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const name = args.name ? String(args.name) : "Particle Emitter";
+    const x = Number(args.x ?? 50);
+    const y = Number(args.y ?? 50);
+    const w = Number(args.width ?? 400);
+    const h = Number(args.height ?? 300);
+    const config = {
+      rate: Number(args.rate ?? 20),
+      lifespan: Number(args.lifespan ?? 1500),
+      gravity: Number(args.gravity ?? 80),
+      spread: Number(args.spread ?? 60),
+      speed: Number(args.speed ?? 120),
+      startColor: String(args.startColor ?? "#ffffff"),
+      endColor: String(args.endColor ?? "#ff0080"),
+      startSize: Number(args.startSize ?? 6),
+      endSize: Number(args.endSize ?? 0),
+      startOpacity: Number(args.startOpacity ?? 1),
+      endOpacity: Number(args.endOpacity ?? 0),
+      blendMode: String(args.blendMode ?? "lighter"),
+      emitterX: x,
+      emitterY: y,
+    };
+    const existing = listComponents(ctx.projectId);
+    const ts = now();
+    const d = draft(name, {
+      durationMs: 4000,
+      iterationCount: "infinite" as const,
+    });
+    const component: MotionComponent = {
+      ...d,
+      id: createId("c_"),
+      projectId: ctx.projectId,
+      playState: "running",
+      orderIndex: existing.length,
+      templateId: null,
+      createdAt: ts,
+      updatedAt: ts,
+      style: {
+        position: "absolute",
+        left: `${x}%`,
+        top: `${y}%`,
+        width: w,
+        height: h,
+        _particleConfig: JSON.stringify(config),
+        _tag: "canvas",
+        pointerEvents: "none",
+      } as Record<string, string | number>,
+    };
+    createComponent(component);
+    return ok(
+      `Created particle emitter "${name}" (${w}×${h} at ${x}%,${y}%) — rate=${config.rate}/s, lifespan=${config.lifespan}ms, gravity=${config.gravity}, spread=${config.spread}°.`,
+      true,
+      { componentId: component.id, name, config },
+    );
+  },
+
+  /* --------------------------- 3D camera --------------------------- */
+  add_camera: (args, ctx) => {
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const camera = {
+      positionX: Number(args.positionX ?? 0),
+      positionY: Number(args.positionY ?? 0),
+      positionZ: Number(args.positionZ ?? 400),
+      focalLength: Number(args.focalLength ?? 50),
+      depthOfField: Number(args.depthOfField ?? 0),
+      rotateX: Number(args.rotateX ?? 0),
+      rotateY: Number(args.rotateY ?? 0),
+      rotateZ: Number(args.rotateZ ?? 0),
+      name: args.name ? String(args.name) : "Camera",
+    };
+    // tokens is Record<string, string | number> — serialize complex values
+    // to JSON strings. cssRenderer parses them back at render time.
+    const tokens = { ...(project.tokens ?? {}) } as Record<string, string | number>;
+    tokens.camera = JSON.stringify(camera);
+    updateProject(ctx.projectId, { tokens });
+    return ok(
+      `Added 3D camera "${camera.name}" — pos=(${camera.positionX},${camera.positionY},${camera.positionZ}), focal=${camera.focalLength}mm, DOF=${camera.depthOfField}.`,
+      true,
+      { camera },
+    );
+  },
+
+  set_camera_transform: (args, ctx) => {
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const tokens = { ...(project.tokens ?? {}) } as Record<string, string | number>;
+    let existing: Record<string, number> = {};
+    if (typeof tokens.camera === "string") {
+      try { existing = JSON.parse(tokens.camera) as Record<string, number>; } catch { existing = {}; }
+    }
+    const updated: Record<string, number> = { ...existing };
+    for (const k of ["positionX", "positionY", "positionZ", "focalLength", "depthOfField", "rotateX", "rotateY", "rotateZ"]) {
+      if (args[k] != null) updated[k] = Number(args[k]);
+    }
+    tokens.camera = JSON.stringify(updated);
+    updateProject(ctx.projectId, { tokens });
+    return ok(
+      `Updated camera transform — pos=(${updated.positionX ?? 0},${updated.positionY ?? 0},${updated.positionZ ?? 0}), focal=${updated.focalLength ?? 50}mm, DOF=${updated.depthOfField ?? 0}.`,
+      true,
+      { camera: updated },
+    );
+  },
+
+  /* --------------------------- Audio reactive --------------------------- */
+  bind_audio_to_property: (args, ctx) => {
+    const componentId = String(args.componentId);
+    const comp = getComponent(ctx.projectId, componentId);
+    if (!comp) return fail(`component ${componentId} not found`);
+    const audioComponentId = String(args.audioComponentId);
+    const audioComp = getComponent(ctx.projectId, audioComponentId);
+    if (!audioComp) return fail(`audio component ${audioComponentId} not found`);
+    const property = String(args.property ?? "scale");
+    const band = String(args.band ?? "overall");
+    const binding = {
+      audioComponentId,
+      property,
+      band,
+      min: Number(args.min ?? 0),
+      max: Number(args.max ?? 1),
+      smoothing: Number(args.smoothing ?? 0.7),
+    };
+    const style = { ...comp.style } as Record<string, string | number>;
+    style._audioBinding = JSON.stringify(binding);
+    patchComponent(ctx.projectId, componentId, { style });
+    return ok(
+      `Bound "${comp.name}".${property} to audio "${audioComp.name}" (${band} band, range ${binding.min}→${binding.max}, smoothing=${binding.smoothing}).`,
+      true,
+      { binding },
+    );
+  },
+
+  unbind_audio: (args, ctx) => {
+    const componentId = String(args.componentId);
+    const comp = getComponent(ctx.projectId, componentId);
+    if (!comp) return fail(`component ${componentId} not found`);
+    const style = { ...comp.style } as Record<string, string | number>;
+    if (typeof style._audioBinding !== "string") {
+      return ok(`"${comp.name}" had no audio binding.`);
+    }
+    delete style._audioBinding;
+    patchComponent(ctx.projectId, componentId, { style });
+    return ok(`Removed audio binding from "${comp.name}".`);
+  },
+
+  /* --------------------------- Puppet pin & mesh warp --------------------------- */
+  add_puppet_pin: (args, ctx) => {
+    const componentId = String(args.componentId);
+    const comp = getComponent(ctx.projectId, componentId);
+    if (!comp) return fail(`component ${componentId} not found`);
+    const x = Number(args.x);
+    const y = Number(args.y);
+    const name = args.name ? String(args.name) : `Pin ${(Math.random() * 1000).toFixed(0)}`;
+    const style = { ...comp.style } as Record<string, string | number>;
+    let pins: Array<{ x: number; y: number; name: string }> = [];
+    if (typeof style._puppetPins === "string") {
+      try { pins = JSON.parse(style._puppetPins); } catch { pins = []; }
+    }
+    pins.push({ x, y, name });
+    style._puppetPins = JSON.stringify(pins);
+    patchComponent(ctx.projectId, componentId, { style });
+    return ok(`Added puppet pin "${name}" to "${comp.name}" at (${x}, ${y}). Total pins: ${pins.length}.`);
+  },
+
+  apply_mesh_warp: (args, ctx) => {
+    const componentId = String(args.componentId);
+    const comp = getComponent(ctx.projectId, componentId);
+    if (!comp) return fail(`component ${componentId} not found`);
+    const config = {
+      turbulence: Math.max(0, Math.min(1, Number(args.turbulence ?? 0.05))),
+      scale: Math.max(1, Number(args.scale ?? 20)),
+      octaves: Math.max(1, Math.min(4, Number(args.octaves ?? 2))),
+      animated: Boolean(args.animated ?? true),
+      speed: Number(args.speed ?? 0.2),
+      seed: Number(args.seed ?? 1),
+    };
+    const style = { ...comp.style } as Record<string, string | number>;
+    style._meshWarp = JSON.stringify(config);
+    patchComponent(ctx.projectId, componentId, { style });
+    return ok(
+      `Applied mesh warp to "${comp.name}" — turbulence=${config.turbulence}, scale=${config.scale}px, octaves=${config.octaves}, animated=${config.animated}.`,
+      true,
+      { config },
+    );
+  },
+
+  remove_mesh_warp: (args, ctx) => {
+    const componentId = String(args.componentId);
+    const comp = getComponent(ctx.projectId, componentId);
+    if (!comp) return fail(`component ${componentId} not found`);
+    const style = { ...comp.style } as Record<string, string | number>;
+    if (typeof style._meshWarp !== "string") {
+      return ok(`"${comp.name}" had no mesh warp.`);
+    }
+    delete style._meshWarp;
+    patchComponent(ctx.projectId, componentId, { style });
+    return ok(`Removed mesh warp from "${comp.name}".`);
   },
 
   analyze_restraint: (_args, ctx) => {
