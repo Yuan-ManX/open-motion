@@ -31,7 +31,7 @@ chatRouter.post(
       await chatStream(
         projectId,
         message,
-        (providerName) => sse.send({ type: "meta", provider: providerName as "mock" | "openai" }),
+        (providerName) => sse.send({ type: "meta", provider: providerName }),
         (event: ChatEvent) => {
           if (event.type === "done" || event.type === "error") {
             sse.send(event);
