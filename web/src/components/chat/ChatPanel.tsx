@@ -137,6 +137,7 @@ export function ChatPanel() {
   const goal = useChatStore((s) => s.goal);
   const proactiveSuggestions = useChatStore((s) => s.proactiveSuggestions);
   const sessionSummary = useChatStore((s) => s.sessionSummary);
+  const provider = useChatStore((s) => s.provider);
   const error = useChatStore((s) => s.error);
   const send = useChatStore((s) => s.send);
   const regenerate = useChatStore((s) => s.regenerate);
@@ -570,6 +571,9 @@ export function ChatPanel() {
             <span className="w-1.5 h-1.5 rounded-full bg-white/60 animate-pulse" style={{ animationDelay: "0.15s" }} />
             <span className="w-1.5 h-1.5 rounded-full bg-white/60 animate-pulse" style={{ animationDelay: "0.3s" }} />
             <span className="ml-1">thinking</span>
+            {provider === "mock" && (
+              <span className="ml-2 text-[10px] uppercase tracking-wider text-gray-500 border border-gray-700 rounded px-1 py-0.5">sim</span>
+            )}
           </div>
         )}
 
