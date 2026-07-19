@@ -8,6 +8,7 @@ import { SkillsPanel } from "../inspector/SkillsPanel.js";
 import { StateMachinePanel } from "../inspector/StateMachinePanel.js";
 import { MemoryPanel } from "../inspector/MemoryPanel.js";
 import { VersionHistoryPanel } from "../inspector/VersionHistoryPanel.js";
+import { GenerationHistory } from "../inspector/GenerationHistory.js";
 import { NodeGraphPanel } from "../inspector/NodeGraphPanel.js";
 import { CodeMirrorPanel } from "../inspector/CodeMirrorPanel.js";
 import { ShaderStudioPanel } from "../inspector/ShaderStudioPanel.js";
@@ -319,7 +320,14 @@ export function RightPanel() {
         ) : tab === "memory" ? (
           <MemoryPanel projectId={projectId} />
         ) : tab === "versions" ? (
-          <VersionHistoryPanel projectId={projectId} />
+          <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+            <div style={{ flex: "0 0 auto", maxHeight: "45%", overflow: "hidden", borderBottom: "1px solid var(--border)" }}>
+              <GenerationHistory />
+            </div>
+            <div style={{ flex: 1, overflow: "auto" }}>
+              <VersionHistoryPanel projectId={projectId} />
+            </div>
+          </div>
         ) : (
           <ComponentInspector />
         )}
