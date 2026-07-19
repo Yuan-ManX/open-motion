@@ -3,7 +3,7 @@ import { easingToCss, isTransformProperty } from "@openmotion/shared";
 
 const RESERVED_STYLE_KEYS = new Set([
   "_content", "_tag", "_label", "_src", "_poster", "_loop", "_muted", "_autoplay", "_controls",
-  // AE-inspired effect metadata tokens — stored on style for renderer/tool
+  // Effect metadata tokens — stored on style for renderer/tool
   // coordination but never emitted as CSS properties themselves.
   "_motionBlur", "_motionBlurIntensity", "_motionBlurShutter",
   "_nullObject",
@@ -137,7 +137,7 @@ export interface RenderedSpec {
   css: string;
   nodes: RenderedNode[];
   /** Inline SVG defs block (hidden) containing mask/filter/gradient
-   *  definitions emitted by AE-inspired tools. Empty string when no defs. */
+   *  definitions emitted by effect tools. Empty string when no defs. */
   svgDefs?: string;
   /** CSS declarations to apply to the canvas viewport container (e.g.
    *  perspective + perspective-origin for 3D camera). Empty when no camera. */
@@ -428,7 +428,7 @@ export function renderSpec(components: MotionComponent[], speed = 1): RenderedSp
     });
   }
 
-  // SVG defs (mask/filter/gradient definitions emitted by AE-inspired tools)
+  // SVG defs (mask/filter/gradient definitions emitted by effect tools)
   // are prepended as a hidden <svg> block so url(#id) references resolve.
   const svgDefsBlock = svgDefs.length > 0
     ? `<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>${svgDefs.join("")}</defs></svg>`
