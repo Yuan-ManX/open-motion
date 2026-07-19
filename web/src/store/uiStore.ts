@@ -51,6 +51,8 @@ interface UiState {
   isPlaying: boolean;
   /** Custom track display order — overrides default delayMs sort when non-empty. */
   trackOrder: string[];
+  /** Counter incremented each time the canvas should auto-fit (e.g., after a generation). */
+  fitToScreenTrigger: number;
 
   selectComponent: (id: string | null) => void;
   setExportOpen: (open: boolean) => void;
@@ -98,6 +100,7 @@ interface UiState {
   setRightPanelCollapsed: (collapsed: boolean) => void;
   setIsPlaying: (playing: boolean) => void;
   setTrackOrder: (order: string[]) => void;
+  triggerFitToScreen: () => void;
 }
 
 export const useUiStore = create<UiState>((set, get) => ({
@@ -143,6 +146,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   rightPanelCollapsed: false,
   isPlaying: false,
   trackOrder: [],
+  fitToScreenTrigger: 0,
 
   selectComponent: (id) => set({ selectedComponentId: id, selectedIds: id ? new Set([id]) : new Set() }),
   setExportOpen: (open) => set({ exportOpen: open }),
@@ -214,4 +218,5 @@ export const useUiStore = create<UiState>((set, get) => ({
   setRightPanelCollapsed: (collapsed) => set({ rightPanelCollapsed: collapsed }),
   setIsPlaying: (playing) => set({ isPlaying: playing }),
   setTrackOrder: (order) => set({ trackOrder: order }),
+  triggerFitToScreen: () => set((s) => ({ fitToScreenTrigger: s.fitToScreenTrigger + 1 })),
 }));
