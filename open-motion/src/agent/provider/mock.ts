@@ -1688,6 +1688,242 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     }
   }
 
+  // --- 3D lighting system ---
+  if (/\b(?:add|create|insert)\s+(?:an?\s+)?(?:3d\s+)?(?:light|spotlight|spot\s+light|point\s+light|sun\s+light|directional\s+light|ambient\s+light)\b|灯光|聚光灯/i.test(userText)) {
+    const typeM = userText.match(/\b(parallel|directional|point|omni|spot|spotlight|ambient|fill|sun)\b/i);
+    const typeMap: Record<string, string> = { parallel: "parallel", directional: "parallel", sun: "parallel", point: "point", omni: "point", spot: "spot", spotlight: "spot", ambient: "ambient", fill: "ambient" };
+    const type = typeM ? (typeMap[typeM[1].toLowerCase()] ?? "parallel") : "parallel";
+    const colorM = userText.match(/#([0-9a-f]{3,6})/i);
+    const intensityM = userText.match(/(?:intensity|bright)\s*(\d+(?:\.\d+)?)/i);
+    const xM = userText.match(/\bx\s*(-?\d+)/i);
+    const yM = userText.match(/\by\s*(-?\d+)/i);
+    const zM = userText.match(/\bz\s*(-?\d+)/i);
+    const angleM = userText.match(/(?:cone|angle)\s*(\d+)/i);
+    push("add_light", {
+      type,
+      positionX: xM ? Number(xM[1]) : 0,
+      positionY: yM ? Number(yM[1]) : 0,
+      positionZ: zM ? Number(zM[1]) : 500,
+      color: colorM ? `#${colorM[1]}` : "#ffffff",
+      intensity: intensityM ? Number(intensityM[1]) : 1,
+      ...(angleM ? { coneAngle: Number(angleM[1]) } : {}),
+      castShadow: /\bshadow\b/i.test(userText),
+    }, `Added a ${type} light${colorM ? ` (#${colorM[1]})` : ""} at (${xM ? xM[1] : "0"}, ${yM ? yM[1] : "0"}, ${zM ? zM[1] : "500"}).`);
+  }
+  if (/\b(?:move|reposition|aim|rotate|repoin)\s+(?:the\s+)?light\b|移动灯光/i.test(userText) && state.firstComponentId) {
+    const xM = userText.match(/\bx\s*(-?\d+)/i);
+    const yM = userText.match(/\by\s*(-?\d+)/i);
+    const zM = userText.match(/\bz\s*(-?\d+)/i);
+    push("set_light_transform", {
+      lightId: "light_1",
+      positionX: xM ? Number(xM[1]) : 0,
+      positionY: yM ? Number(yM[1]) : 0,
+      positionZ: zM ? Number(zM[1]) : 500,
+    }, `Moved the light to (${xM ? xM[1] : "0"}, ${yM ? yM[1] : "0"}, ${zM ? zM[1] : "500"}).`);
+  }
+  if (/\b(?:change|set|adjust)\s+(?:the\s+)?light'?s?\s+(?:color|intensity|brightness|cone|falloff|shadow)|dim\s+(?:the\s+)?light|brighten\s+(?:the\s+)?light|light\s+color|light\s+intensity\b/i.test(userText) && state.firstComponentId) {
+    const colorM = userText.match(/#([0-9a-f]{3,6})/i);
+    const intensityM = userText.match(/(?:intensity|bright|dim)\s*(\d+(?:\.\d+)?)/i);
+    push("set_light_properties", {
+      lightId: "light_1",
+      ...(colorM ? { color: `#${colorM[1]}` } : {}),
+      ...(intensityM ? { intensity: Number(intensityM[1]) } : {}),
+      ...(/\bshadow\b/i.test(userText) ? { castShadow: true } : {}),
+    }, `Updated light properties${colorM ? ` (color #${colorM[1]})` : ""}${intensityM ? ` (intensity ${intensityM[1]})` : ""}.`);
+  }
+  if (/\b(?:remove|delete|turn\s+off)\s+(?:the\s+)?(?:3d\s+)?light\b|删除灯光/i.test(userText)) {
+    push("remove_light", { lightId: "light_1" }, "Removed the light.");
+  }
+  if (/\b(?:cast|enable|add)\s+(?:a\s+)?shadow|shadow\s+(?:under|behind|on)\b|投射阴影/i.test(userText) && state.firstComponentId) {
+    const opacityM = userText.match(/(?:opacity|alpha)\s*(\d+(?:\.\d+)?)/i);
+    const blurM = userText.match(/(?:blur|softness)\s*(\d+)/i);
+    push("cast_shadow", {
+      componentId: state.firstComponentId,
+      enabled: true,
+      shadowOpacity: opacityM ? Number(opacityM[1]) : 0.5,
+      shadowBlur: blurM ? Number(blurM[1]) : 8,
+    }, `Enabled shadow casting (opacity ${opacityM ? opacityM[1] : "0.5"}, blur ${blurM ? blurM[1] : "8"}px).`);
+  }
+  if (/\b(?:depth\s+of\s+field|dof|focus\s+blur|bokeh|defocus\s+(?:background|back)|背景虚化|景深)\b/i.test(userText)) {
+    const focusM = userText.match(/(?:focus|distance)\s*(\d+)/i);
+    const apertureM = userText.match(/(?:aperture|f-stop)\s*(\d+(?:\.\d+)?)/i);
+    push("set_camera_dof", {
+      enabled: true,
+      focusDistance: focusM ? Number(focusM[1]) : 500,
+      aperture: apertureM ? Number(apertureM[1]) : 0.3,
+    }, `Enabled depth-of-field (focus distance ${focusM ? focusM[1] : "500"}, aperture ${apertureM ? apertureM[1] : "0.3"}).`);
+  }
+
+  // --- Advanced color correction ---
+  if (/\blevels\b|色阶/i.test(userText) && state.firstComponentId) {
+    const inBlackM = userText.match(/(?:input\s+black|black\s+point)\s*(\d+)/i);
+    const inWhiteM = userText.match(/(?:input\s+white|white\s+point)\s*(\d+)/i);
+    const gammaM = userText.match(/gamma\s*(\d+(?:\.\d+)?)/i);
+    push("set_levels", {
+      componentId: state.firstComponentId,
+      inputBlack: inBlackM ? Number(inBlackM[1]) : 0,
+      inputWhite: inWhiteM ? Number(inWhiteM[1]) : 255,
+      gamma: gammaM ? Number(gammaM[1]) : 1,
+    }, `Applied levels (input black ${inBlackM ? inBlackM[1] : "0"}, white ${inWhiteM ? inWhiteM[1] : "255"}, gamma ${gammaM ? gammaM[1] : "1"}).`);
+  }
+  if (/\bcurves?\b|曲线/i.test(userText) && state.firstComponentId) {
+    push("set_curves", {
+      componentId: state.firstComponentId,
+      channel: "rgb",
+      points: [{ x: 0, y: 0 }, { x: 128, y: 140 }, { x: 255, y: 255 }],
+    }, "Applied an S-curve to boost contrast in the midtones.");
+  }
+  if (/\bcolor\s+balance\b|色彩平衡/i.test(userText) && state.firstComponentId) {
+    push("set_color_balance", {
+      componentId: state.firstComponentId,
+      shadowRed: 10,
+      midtoneGreen: 5,
+      highlightBlue: -8,
+    }, "Applied color balance — warmed shadows, cooled highlights.");
+  }
+  if (/\b(?:hue\s*saturation|hue[-\s]?sat|hsl|色相|饱和度)\b/i.test(userText) && state.firstComponentId) {
+    const hueM = userText.match(/(?:hue|shift)\s*(-?\d+)/i);
+    const satM = userText.match(/(?:sat(?:uration)?|饱和)\s*(-?\d+)/i);
+    push("set_hue_saturation", {
+      componentId: state.firstComponentId,
+      hueShift: hueM ? Number(hueM[1]) : 0,
+      saturation: satM ? Number(satM[1]) : 30,
+    }, `Applied hue/saturation (hue ${hueM ? hueM[1] : "0"}, saturation ${satM ? satM[1] : "+30"}).`);
+  }
+  if (/\bvibrance\b|自然饱和度/i.test(userText) && state.firstComponentId) {
+    const vM = userText.match(/vibrance\s*(-?\d+)/i);
+    push("set_vibrance", {
+      componentId: state.firstComponentId,
+      vibrance: vM ? Number(vM[1]) : 40,
+    }, `Applied vibrance ${vM ? vM[1] : "+40"} — selectively boosted less-saturated colors.`);
+  }
+  if (/\bexposure\b|曝光/i.test(userText) && state.firstComponentId) {
+    const eM = userText.match(/(?:exposure|ev)\s*(-?\d+(?:\.\d+)?)/i);
+    push("set_exposure", {
+      componentId: state.firstComponentId,
+      exposure: eM ? Number(eM[1]) : 1,
+    }, `Adjusted exposure ${eM ? eM[1] : "+1"} stop${eM ? "" : " (brightened)"}.`);
+  }
+  if (/\b(?:shadow\s*highlight|shadow\/highlight|recover\s+shadows|fix\s+highlights)\b|阴影高光/i.test(userText) && state.firstComponentId) {
+    const sM = userText.match(/(?:shadow|阴影)\s*(\d+)/i);
+    const hM = userText.match(/(?:highlight|高光)\s*(\d+)/i);
+    push("set_shadow_highlight", {
+      componentId: state.firstComponentId,
+      shadowAmount: sM ? Number(sM[1]) : 30,
+      highlightAmount: hM ? Number(hM[1]) : 20,
+    }, `Recovered shadows ${sM ? sM[1] : "30"} and highlights ${hM ? hM[1] : "20"}.`);
+  }
+  if (/\bselective\s+color\b|可选颜色/i.test(userText) && state.firstComponentId) {
+    const targetM = userText.match(/\b(reds|yellows|greens|cyans|blues|magentas|whites|neutrals|blacks)\b/i);
+    push("set_selective_color", {
+      componentId: state.firstComponentId,
+      target: targetM ? targetM[1].toLowerCase() : "reds",
+      cyan: 15,
+      magenta: -10,
+    }, `Applied selective color to ${targetM ? targetM[1].toLowerCase() : "reds"}.`);
+  }
+
+  // --- Path operations & booleans ---
+  if (/\b(?:offset|inset|outset|expand|shrink)\s+(?:the\s+)?path\b|offset\s+path|偏移路径/i.test(userText) && state.firstComponentId) {
+    const amountM = userText.match(/(?:offset|amount|by)\s*(-?\d+)/i);
+    push("offset_path", {
+      componentId: state.firstComponentId,
+      amount: amountM ? Number(amountM[1]) : 10,
+    }, `Offset the path by ${amountM ? amountM[1] : "10"}px.`);
+  }
+  if (/\b(?:pucker|bloat|inflate|starburst|deflate)\b|膨胀收缩/i.test(userText) && state.firstComponentId) {
+    const amountM = userText.match(/(?:amount|by)\s*(-?\d+)/i);
+    const isPucker = /\bpucker|deflate\b/i.test(userText);
+    push("pucker_bloat", {
+      componentId: state.firstComponentId,
+      amount: amountM ? Number(amountM[1]) * (isPucker ? -1 : 1) : (isPucker ? -50 : 50),
+    }, `Applied ${isPucker ? "pucker" : "bloat"} (${amountM ? amountM[1] : "50"}).`);
+  }
+  if (/\b(?:round|soften|fillet)\s+(?:the\s+)?corners|rounded\s+(?:corners|edges)\b|圆角/i.test(userText) && state.firstComponentId) {
+    const radiusM = userText.match(/(?:radius|by)\s*(\d+)/i);
+    push("round_corners", {
+      componentId: state.firstComponentId,
+      radius: radiusM ? Number(radiusM[1]) : 12,
+    }, `Rounded corners with radius ${radiusM ? radiusM[1] : "12"}px.`);
+  }
+  if (/\b(?:zig[-\s]?zag|sawtooth|crenellate|ridges)\b|锯齿/i.test(userText) && state.firstComponentId) {
+    const sizeM = userText.match(/(?:size|amplitude)\s*(\d+)/i);
+    const ridgesM = userText.match(/(?:ridges|count)\s*(\d+)/i);
+    push("zig_zag", {
+      componentId: state.firstComponentId,
+      size: sizeM ? Number(sizeM[1]) : 10,
+      ridges: ridgesM ? Number(ridgesM[1]) : 6,
+    }, `Applied zig-zag (size ${sizeM ? sizeM[1] : "10"}, ridges ${ridgesM ? ridgesM[1] : "6"}).`);
+  }
+  if (/\b(?:twist|spiral|swirl|tornado)\b|扭曲/i.test(userText) && state.firstComponentId) {
+    const angleM = userText.match(/(?:angle|by)\s*(-?\d+)/i);
+    push("twist_path", {
+      componentId: state.firstComponentId,
+      angle: angleM ? Number(angleM[1]) : 180,
+    }, `Twisted path by ${angleM ? angleM[1] : "180"} degrees.`);
+  }
+  if (/\b(?:merge|combine|union|subtract|intersect|exclude)\s+(?:these\s+)?paths|merge\s+paths\b|合并路径/i.test(userText) && state.firstComponentId) {
+    const modeM = userText.match(/\b(merge|add|subtract|intersect|exclude)\b/i);
+    push("merge_paths", {
+      componentId: state.firstComponentId,
+      mode: modeM ? modeM[1].toLowerCase() : "merge",
+      sourcePathIds: state.componentIds.slice(0, 2),
+    }, `Merged paths (${modeM ? modeM[1].toLowerCase() : "merge"}).`);
+  }
+  if (/\b(?:boolean|union|subtract|intersect|xor)\s+(?:these\s+)?(?:shapes|components|layers)\b|shape\s+boolean|布尔/i.test(userText) && state.firstComponentId && state.secondComponentId) {
+    const opM = userText.match(/\b(union|subtract|intersect|exclude)\b/i);
+    push("shape_boolean", {
+      operation: opM ? opM[1].toLowerCase() : "union",
+      targetComponentId: state.firstComponentId,
+      sourceComponentId: state.secondComponentId,
+    }, `Applied ${opM ? opM[1].toLowerCase() : "union"} between the two components.`);
+  }
+  if (/\b(?:multi\s+trim|multiple\s+trim|trim\s+segments|multi-segment\s+trim)\b|多段修剪/i.test(userText) && state.firstComponentId) {
+    push("trim_path_multiple", {
+      componentId: state.firstComponentId,
+      segments: [
+        { start: 0, end: 40, offset: 0 },
+        { start: 50, end: 90, offset: 0 },
+      ],
+    }, "Applied multi-segment trim — two draw-on ranges.");
+  }
+
+  // --- Data-driven animation ---
+  if (/\b(?:load|import|add)\s+(?:a\s+)?data\s+source|load\s+(?:a\s+)?(?:json|csv)(?:\s+file)?|import\s+(?:a\s+)?(?:json|csv)(?:\s+file)?|data\s+source\b|加载数据/i.test(userText)) {
+    const nameM = userText.match(/(?:called|named)\s+["']?([a-z0-9_-]+)["']?/i);
+    const formatM = userText.match(/\b(json|csv)\b/i);
+    push("load_data_source", {
+      name: nameM ? nameM[1] : "data_1",
+      format: formatM ? formatM[1].toLowerCase() : "json",
+      data: formatM && formatM[1].toLowerCase() === "csv" ? "label,value\nA,10\nB,25\nC,18" : '[{"label":"A","value":10},{"label":"B","value":25},{"label":"C","value":18}]',
+    }, `Loaded data source "${nameM ? nameM[1] : "data_1"}" (${formatM ? formatM[1].toLowerCase() : "json"} format).`);
+  }
+  if (/\b(?:list|show)\s+(?:the\s+)?data\s+sources|what\s+data\s+is\s+loaded\b/i.test(userText)) {
+    push("list_data_sources", {}, "Listed all loaded data sources.");
+  }
+  if (/\b(?:bind|drive|animate\s+from|connect\s+to)\s+(?:[a-z]+\s+)?(?:this\s+)?(?:property\s+)?(?:to\s+|with\s+|from\s+)?(?:\w+\s+)*?(?:data|csv|json|column)\b|数据驱动/i.test(userText) && state.firstComponentId) {
+    const columnM = userText.match(/(?:column|field)\s+["']?([a-z_][a-z0-9_]*)["']?/i);
+    const propM = userText.match(/\b(translateX|translateY|scale|rotate|opacity|width|height)\b/i);
+    push("bind_property_to_data", {
+      componentId: state.firstComponentId,
+      dataSourceName: "data_1",
+      column: columnM ? columnM[1] : "value",
+      property: propM ? propM[1].toLowerCase() : "translateY",
+    }, `Bound ${propM ? propM[1].toLowerCase() : "translateY"} to data column "${columnM ? columnM[1] : "value"}".`);
+  }
+  if (/\b(?:unbind|detach|remove\s+data\s+binding)\b|解绑数据/i.test(userText) && state.firstComponentId) {
+    push("unbind_data", { componentId: state.firstComponentId }, "Removed data binding.");
+  }
+  if (/\b(?:bar|line|pie|scatter|area)\s+chart|chart\s+from\s+(?:data|csv|json)|data\s+visualization|visualize\s+(?:this\s+)?data\b|图表|数据可视化/i.test(userText)) {
+    const typeM = userText.match(/\b(bar|line|pie|scatter|area)\s+chart\b/i);
+    push("data_driven_chart", {
+      dataSourceName: "data_1",
+      chartType: typeM ? typeM[1].toLowerCase() : "bar",
+      xColumn: "label",
+      yColumn: "value",
+    }, `Generated a ${typeM ? typeM[1].toLowerCase() : "bar"} chart from data source "data_1".`);
+  }
+
   // --- Adjustment layers ---
   if (/\b(?:set|create|add)\s+(?:an?\s+)?adjustment\s+layer\b|调整层/i.test(userText)) {
     const filterM = userText.match(/\b(blur|brightness|contrast|hue.?rotate|saturate|grayscale|sepia)\b/i);
