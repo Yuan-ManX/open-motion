@@ -1095,6 +1095,256 @@ export const RemoveMeshWarpInput = z.object({
   componentId: zIdField,
 });
 
+/* --------------------------- 3D lighting system --------------------------- */
+export const AddLightInput = z.object({
+  projectId: zIdField,
+  type: z.enum(["parallel", "point", "spot", "ambient"]).describe("Light type: parallel (directional sun), point (omni), spot (cone), ambient (fill)"),
+  name: z.string().optional(),
+  positionX: z.number().default(0).describe("Light X position in 3D space"),
+  positionY: z.number().default(0).describe("Light Y position in 3D space"),
+  positionZ: z.number().default(500).describe("Light Z position (positive = in front of canvas)"),
+  targetX: z.number().default(0).optional().describe("Target X for parallel/spot lights (where light points)"),
+  targetY: z.number().default(0).optional().describe("Target Y for parallel/spot lights"),
+  targetZ: z.number().default(0).optional().describe("Target Z for parallel/spot lights"),
+  color: z.string().regex(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i).default("#ffffff").describe("Light color as hex"),
+  intensity: z.number().min(0).max(2).default(1).describe("Light intensity 0-2 (1 = normal)"),
+  coneAngle: z.number().min(1).max(180).optional().describe("Cone angle in degrees for spot lights"),
+  coneFeather: z.number().min(0).max(100).optional().describe("Cone edge softness 0-100 for spot lights"),
+  castShadow: z.boolean().default(false).describe("Whether this light casts shadows onto 3D layers"),
+});
+
+export const SetLightTransformInput = z.object({
+  projectId: zIdField,
+  lightId: zIdField,
+  positionX: z.number().optional(),
+  positionY: z.number().optional(),
+  positionZ: z.number().optional(),
+  targetX: z.number().optional(),
+  targetY: z.number().optional(),
+  targetZ: z.number().optional(),
+});
+
+export const SetLightPropertiesInput = z.object({
+  projectId: zIdField,
+  lightId: zIdField,
+  color: z.string().regex(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i).optional(),
+  intensity: z.number().min(0).max(2).optional(),
+  coneAngle: z.number().min(1).max(180).optional(),
+  coneFeather: z.number().min(0).max(100).optional(),
+  castShadow: z.boolean().optional(),
+  falloff: z.number().min(0).max(1).optional().describe("Distance falloff 0-1 (0 = no falloff, 1 = strong)"),
+});
+
+export const RemoveLightInput = z.object({
+  projectId: zIdField,
+  lightId: zIdField,
+});
+
+export const CastShadowInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  enabled: z.boolean().default(true).describe("Enable shadow casting for this layer"),
+  shadowOpacity: z.number().min(0).max(1).default(0.5).describe("Shadow opacity 0-1"),
+  shadowBlur: z.number().min(0).max(50).default(8).describe("Shadow blur in px (softness)"),
+  shadowOffsetX: z.number().default(4).describe("Shadow X offset in px"),
+  shadowOffsetY: z.number().default(4).describe("Shadow Y offset in px"),
+});
+
+export const SetCameraDOFInput = z.object({
+  projectId: zIdField,
+  enabled: z.boolean().default(true).describe("Enable depth-of-field blur"),
+  focusDistance: z.number().min(0).default(500).describe("Distance from camera in focus (px in Z)"),
+  aperture: z.number().min(0).max(1).default(0.3).describe("Aperture size 0-1 (larger = more blur)"),
+  blurAmount: z.number().min(0).max(20).default(4).describe("Maximum blur radius in px"),
+});
+
+/* --------------------------- Advanced color correction --------------------------- */
+export const SetLevelsInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  inputBlack: z.number().min(0).max(254).default(0).describe("Input black point 0-254"),
+  inputWhite: z.number().min(1).max(255).default(255).describe("Input white point 1-255"),
+  gamma: z.number().min(0.1).max(9.9).default(1).describe("Gamma 0.1-9.9 (1 = no change)"),
+  outputBlack: z.number().min(0).max(254).default(0).describe("Output black point 0-254"),
+  outputWhite: z.number().min(1).max(255).default(255).describe("Output white point 1-255"),
+  channel: z.enum(["rgb", "red", "green", "blue"]).default("rgb").describe("Which channel to adjust"),
+});
+
+export const SetCurvesInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  channel: z.enum(["rgb", "red", "green", "blue"]).default("rgb"),
+  points: z.array(z.object({
+    x: z.number().min(0).max(255).describe("Input value 0-255"),
+    y: z.number().min(0).max(255).describe("Output value 0-255"),
+  })).min(2).max(16).describe("Curve control points (interpolated as smooth bezier)"),
+});
+
+export const SetColorBalanceInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  shadowRed: z.number().min(-100).max(100).default(0).describe("Shadow red/cyan offset -100..100"),
+  shadowGreen: z.number().min(-100).max(100).default(0),
+  shadowBlue: z.number().min(-100).max(100).default(0),
+  midtoneRed: z.number().min(-100).max(100).default(0),
+  midtoneGreen: z.number().min(-100).max(100).default(0),
+  midtoneBlue: z.number().min(-100).max(100).default(0),
+  highlightRed: z.number().min(-100).max(100).default(0),
+  highlightGreen: z.number().min(-100).max(100).default(0),
+  highlightBlue: z.number().min(-100).max(100).default(0),
+});
+
+export const SetHueSaturationInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  hueShift: z.number().min(-180).max(180).default(0).describe("Hue shift in degrees -180..180"),
+  saturation: z.number().min(-100).max(100).default(0).describe("Saturation -100..100"),
+  lightness: z.number().min(-100).max(100).default(0).describe("Lightness -100..100"),
+  channel: z.enum(["master", "red", "yellow", "green", "cyan", "blue", "magenta"]).default("master").describe("Color range to affect"),
+});
+
+export const SetVibranceInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  vibrance: z.number().min(-100).max(100).default(0).describe("Vibrance -100..100 (selectively boosts less-saturated colors)"),
+});
+
+export const SetExposureInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  exposure: z.number().min(-20).max(20).default(0).describe("Exposure in stops -20..20"),
+  offset: z.number().min(-0.5).max(0.5).default(0).describe("Shadow offset -0.5..0.5"),
+  gammaCorrection: z.number().min(0.1).max(9.9).default(1).describe("Gamma correction 0.1-9.9"),
+});
+
+export const SetShadowHighlightInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  shadowAmount: z.number().min(0).max(100).default(0).describe("Shadow amount 0-100"),
+  shadowTonalWidth: z.number().min(0).max(100).default(50),
+  shadowRadius: z.number().min(0).max(100).default(30),
+  highlightAmount: z.number().min(0).max(100).default(0).describe("Highlight amount 0-100"),
+  highlightTonalWidth: z.number().min(0).max(100).default(50),
+  highlightRadius: z.number().min(0).max(100).default(30),
+});
+
+export const SetSelectiveColorInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  target: z.enum(["reds", "yellows", "greens", "cyans", "blues", "magentas", "whites", "neutrals", "blacks"]).describe("Target color range"),
+  cyan: z.number().min(-100).max(100).default(0),
+  magenta: z.number().min(-100).max(100).default(0),
+  yellow: z.number().min(-100).max(100).default(0),
+  black: z.number().min(-100).max(100).default(0),
+  method: z.enum(["relative", "absolute"]).default("relative"),
+});
+
+/* --------------------------- Path operations & booleans --------------------------- */
+export const OffsetPathInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  amount: z.number().describe("Offset in px (positive = expand outward, negative = shrink inward)"),
+  miterLimit: z.number().min(1).max(20).default(4).describe("Miter limit for sharp corners"),
+  lineJoin: z.enum(["miter", "round", "bevel"]).default("round"),
+});
+
+export const PuckerBloatInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  amount: z.number().min(-100).max(100).describe("Amount -100..100 (negative = pucker inward, positive = bloat outward)"),
+});
+
+export const RoundCornersInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  radius: z.number().min(0).max(200).describe("Corner radius in px"),
+});
+
+export const ZigZagInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  size: z.number().min(0).max(100).default(10).describe("Zig-zag amplitude in px"),
+  ridges: z.number().min(1).max(50).default(6).describe("Number of ridges per segment"),
+  points: z.enum(["corner", "smooth"]).default("smooth"),
+});
+
+export const TwistPathInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  angle: z.number().min(-720).max(720).describe("Twist angle in degrees (-720..720)"),
+  centerX: z.number().optional().describe("Twist center X (default = layer center)"),
+  centerY: z.number().optional().describe("Twist center Y"),
+});
+
+export const MergePathsInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  mode: z.enum(["merge", "add", "subtract", "intersect", "exclude"]).describe("Merge mode: merge (union), add, subtract, intersect, exclude"),
+  sourcePathIds: z.array(zIdField).min(2).max(8).describe("Path IDs within the layer to merge"),
+  resultName: z.string().optional(),
+});
+
+export const ShapeBooleanInput = z.object({
+  projectId: zIdField,
+  operation: z.enum(["union", "subtract", "intersect", "exclude"]).describe("Boolean operation"),
+  targetComponentId: zIdField.describe("Base component"),
+  sourceComponentId: zIdField.describe("Component to combine with the base"),
+  createNew: z.boolean().default(false).describe("If true, create a new component; otherwise modify target in place"),
+});
+
+export const TrimPathMultipleInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  segments: z.array(z.object({
+    start: z.number().min(0).max(100).describe("Start percentage 0-100"),
+    end: z.number().min(0).max(100).describe("End percentage 0-100"),
+    offset: z.number().default(0).describe("Offset in percentage"),
+  })).min(1).max(8).describe("Multiple trim segments"),
+  reverse: z.boolean().default(false),
+});
+
+/* --------------------------- Data-driven animation --------------------------- */
+export const LoadDataSourceInput = z.object({
+  projectId: zIdField,
+  name: z.string().min(1).max(80).describe("Data source name (unique within project)"),
+  format: z.enum(["json", "csv"]).default("json").describe("Data format"),
+  data: z.string().describe("Inline data payload (JSON string or CSV text)"),
+});
+
+export const ListDataSourcesInput = z.object({
+  projectId: zIdField,
+});
+
+export const BindPropertyToDataInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  dataSourceName: zIdField,
+  column: z.string().describe("Column/field name in the data source"),
+  property: z.enum(["translateX", "translateY", "scale", "rotate", "opacity", "width", "height", "backgroundColor"]).describe("Property to drive"),
+  mapping: z.enum(["linear", "logarithmic", "quantize"]).default("linear").describe("Value mapping method"),
+  rangeMin: z.number().optional().describe("Output range minimum"),
+  rangeMax: z.number().optional().describe("Output range maximum"),
+  sampleInterval: z.number().int().positive().default(50).describe("Sample interval in ms (data point spacing)"),
+});
+
+export const UnbindDataInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  property: z.enum(["translateX", "translateY", "scale", "rotate", "opacity", "width", "height", "backgroundColor"]).optional().describe("Property to unbind (omit for all)"),
+});
+
+export const DataDrivenChartInput = z.object({
+  projectId: zIdField,
+  dataSourceName: zIdField,
+  chartType: z.enum(["bar", "line", "pie", "scatter", "area"]).describe("Chart type"),
+  xColumn: z.string().describe("X-axis column"),
+  yColumn: z.string().describe("Y-axis column (or value column for bar/pie)"),
+  name: z.string().optional(),
+  animated: z.boolean().default(true).describe("Animate chart on enter (build-up)"),
+  durationMs: z.number().int().positive().default(1200).describe("Animation duration in ms"),
+  color: z.string().regex(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i).optional().describe("Series color"),
+});
+
 /* --------------------------- Restraint engine tools --------------------------- */
 export const AnalyzeRestraintInput = z.object({
   projectId: zIdField,
@@ -1733,6 +1983,33 @@ export const TOOL_INPUT_SCHEMAS = {
   add_puppet_pin: AddPuppetPinInput,
   apply_mesh_warp: ApplyMeshWarpInput,
   remove_mesh_warp: RemoveMeshWarpInput,
+  add_light: AddLightInput,
+  set_light_transform: SetLightTransformInput,
+  set_light_properties: SetLightPropertiesInput,
+  remove_light: RemoveLightInput,
+  cast_shadow: CastShadowInput,
+  set_camera_dof: SetCameraDOFInput,
+  set_levels: SetLevelsInput,
+  set_curves: SetCurvesInput,
+  set_color_balance: SetColorBalanceInput,
+  set_hue_saturation: SetHueSaturationInput,
+  set_vibrance: SetVibranceInput,
+  set_exposure: SetExposureInput,
+  set_shadow_highlight: SetShadowHighlightInput,
+  set_selective_color: SetSelectiveColorInput,
+  offset_path: OffsetPathInput,
+  pucker_bloat: PuckerBloatInput,
+  round_corners: RoundCornersInput,
+  zig_zag: ZigZagInput,
+  twist_path: TwistPathInput,
+  merge_paths: MergePathsInput,
+  shape_boolean: ShapeBooleanInput,
+  trim_path_multiple: TrimPathMultipleInput,
+  load_data_source: LoadDataSourceInput,
+  list_data_sources: ListDataSourcesInput,
+  bind_property_to_data: BindPropertyToDataInput,
+  unbind_data: UnbindDataInput,
+  data_driven_chart: DataDrivenChartInput,
   analyze_restraint: AnalyzeRestraintInput,
   list_recipes: ListRecipesInput,
   apply_recipe: ApplyRecipeInput,
@@ -1959,6 +2236,33 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   add_puppet_pin: "Add a puppet pin to a layer at a local (x, y) position. Pins are stored and used by the mesh warp deformation. Use when the user says 'puppet pin', 'add pin', 'deformation pin', or 'puppet tool'.",
   apply_mesh_warp: "Apply SVG turbulence-based mesh warp to a layer — organic distortion using feTurbulence + feDisplacementMap. Tunable turbulence, scale, octaves, animation speed, and seed. Use when the user says 'mesh warp', 'puppet warp', 'warp the layer', 'distort', 'liquid effect', 'ripple the layer', or 'organic deformation'.",
   remove_mesh_warp: "Remove mesh warp (turbulence displacement filter) from a layer. Use when the user says 'remove warp', 'undo mesh warp', 'remove distortion', or 'straighten layer'.",
+  add_light: "Add a 3D light source to the project — parallel (directional sun light), point (omni light), spot (cone with angle and feather), or ambient (fill light). Specify position in 3D space, color, intensity, and optional shadow casting. Lights affect 3D layers based on their translateZ depth. Use when the user says 'add light', 'spotlight', 'point light', 'sun light', 'directional light', or 'ambient light'.",
+  set_light_transform: "Update a 3D light's position and target. Use when the user says 'move the light', 'reposition light', 'aim the light', or 'rotate the spotlight'.",
+  set_light_properties: "Update a 3D light's color, intensity, cone angle, cone feather, falloff, or shadow casting. Use when the user says 'change light color', 'dim the light', 'brighten the light', 'soften the spotlight edge', or 'enable shadows'.",
+  remove_light: "Remove a 3D light from the project by ID. Use when the user says 'delete light', 'remove light', or 'turn off that light source'.",
+  cast_shadow: "Configure per-layer shadow casting — enable shadow casting, set opacity, blur, and offset for the shadow projected by 3D lights onto this layer. Use when the user says 'cast shadow', 'enable shadow', 'soften the shadow', or 'shadow under this layer'.",
+  set_camera_dof: "Configure depth-of-field blur on the project's 3D camera — focus distance, aperture (blur amount), and max blur radius. Layers farther from the focus distance blur more. Use when the user says 'depth of field', 'DOF', 'focus blur', 'background blur', 'bokeh', or 'defocus background'.",
+  set_levels: "Apply professional levels adjustment — input black/white points, gamma, output black/white points. Per-channel (RGB/red/green/blue) or master. Implemented via SVG feComponentTransfer. Use when the user says 'levels', 'adjust black point', 'set white point', 'fix contrast', or 'gamma adjustment'.",
+  set_curves: "Apply RGB curves adjustment — 2-16 control points interpolated as smooth bezier, per-channel (RGB/red/green/blue). Implemented via SVG feComponentTransfer table. Use when the user says 'curves', 'RGB curve', 'color curve', 'lift the shadows', or 'lower the highlights'.",
+  set_color_balance: "Apply color balance across tonal ranges — separate red/green/blue offsets for shadows, midtones, and highlights. Use when the user says 'color balance', 'warm up the shadows', 'cool the highlights', or 'shift midtone color'.",
+  set_hue_saturation: "Apply hue/saturation/lightness adjustment — hue shift in degrees, saturation -100..100, lightness -100..100. Optional color range targeting (master/red/yellow/green/cyan/blue/magenta). Use when the user says 'hue saturation', 'shift hue', 'boost saturation', 'desaturate', 'shift colors', or 'colorize'.",
+  set_vibrance: "Apply vibrance — selectively boosts less-saturated colors while protecting skin tones, unlike plain saturation. -100..100. Use when the user says 'vibrance', 'pop the colors', 'make colors richer', or 'subtle saturation boost'.",
+  set_exposure: "Apply exposure adjustment in stops (-20..20), with shadow offset and gamma correction. Use when the user says 'exposure', 'overexpose', 'underexpose', 'brighten exposure', or 'fix exposure'.",
+  set_shadow_highlight: "Apply shadow/highlight recovery — bring out detail in shadows and recover blown highlights, with tonal width and radius controls. Use when the user says 'recover shadows', 'fix highlights', 'shadow highlight', 'bring out shadow detail', or 'recover blown highlights'.",
+  set_selective_color: "Apply selective color adjustment — target specific color ranges (reds/yellows/greens/cyans/blues/magentas/whites/neutrals/blacks) with CMYK sliders, relative or absolute method. Use when the user says 'selective color', 'tweak just the reds', 'shift only the blues', or 'target specific colors'.",
+  offset_path: "Offset a layer's SVG path inward or outward by a pixel amount — expand or shrink the shape while preserving its form. Miter limit and line join (miter/round/bevel) control corner behavior. Use when the user says 'offset path', 'inset path', 'expand path', 'outset path', or 'grow the shape'.",
+  pucker_bloat: "Apply pucker (inward) or bloat (outward) deformation to a layer's path — vertices pull toward (pucker) or push away from (bloat) the centroid, creating starburst or inflated effects. -100..100. Use when the user says 'pucker', 'bloat', 'inflate the shape', 'starburst the path', or 'suck the shape inward'.",
+  round_corners: "Round all corners of a layer's path to a given radius in px. Sharp angles become smooth arcs. Use when the user says 'round corners', 'soften the corners', 'rounded edges', or 'fillet the path'.",
+  zig_zag: "Apply zig-zag deformation to a layer's path — adds uniform ridges along edges with adjustable size (px) and ridge count, corner or smooth points. Use when the user says 'zig zag', 'sawtooth edge', 'ridges on the path', 'crenellate', or 'wavy edge'.",
+  twist_path: "Apply twist deformation to a layer's path — rotates vertices around a center based on their distance from it, creating spiral/tornado effects. Angle in degrees (-720..720). Use when the user says 'twist', 'spiral the path', 'tornado effect', 'swirl the shape', or 'rotate the edges'.",
+  merge_paths: "Merge multiple SVG paths within a layer using boolean operations — merge (union), add, subtract, intersect, or exclude. Combines 2-8 paths into one result. Use when the user says 'merge paths', 'combine paths', 'union these paths', 'subtract path', or 'intersect paths'.",
+  shape_boolean: "Apply boolean operations between two components — union (combine), subtract (cut), intersect (overlap only), exclude (XOR). Optionally create a new component or modify the target in place. Use when the user says 'boolean', 'union shapes', 'subtract shape', 'cut shape from another', 'intersect shapes', or 'XOR shapes'.",
+  trim_path_multiple: "Apply multiple trim-path segments to a single layer — each segment has its own start/end percentages and offset. Stacks to create multi-stroke draw-on effects. Use when the user says 'multi trim', 'multiple trim segments', 'draw on in segments', or 'trim different parts of the path'.",
+  load_data_source: "Load a data source (JSON or CSV format) into the project for data-driven animation. The data becomes bindable to component properties. Use when the user says 'load data', 'import CSV', 'add JSON data', 'data source', or 'bind to data'.",
+  list_data_sources: "List all data sources loaded into the project with their formats, row counts, and column names. Use when the user says 'show data sources', 'what data is loaded', or 'list datasets'.",
+  bind_property_to_data: "Bind a component property (translateX, translateY, scale, rotate, opacity, width, height, backgroundColor) to a column in a loaded data source. Mapping options: linear, logarithmic, quantize. Optional output range and sample interval. Use when the user says 'bind to data', 'drive this with data', 'data drive this property', or 'animate from CSV column'.",
+  unbind_data: "Remove a data binding from a component property (or all bindings if property omitted). Use when the user says 'unbind data', 'remove data binding', 'stop data driving', or 'detach from data'.",
+  data_driven_chart: "Generate an animated chart component from a loaded data source — bar, line, pie, scatter, or area chart types. Reads X and Y columns, optional series color, animation duration, and enter animation. Use when the user says 'bar chart from data', 'line chart', 'pie chart', 'data visualization', 'chart from CSV', or 'visualize this data'.",
   analyze_restraint: "Analyze motion density and restraint — calculates how many animations compete for attention simultaneously, identifies easing/duration monotony, and recommends improvements. Returns a restraint score (0-100) with warnings. Use when the user asks 'is this too much', 'analyze restraint', or 'check density'.",
   list_recipes: "Browse the curated motion recipe library. Each recipe carries avoid_when metadata — situations where it should NOT be used. Optionally filter by category or search by query. Returns recipe names, descriptions, restraint costs, and avoidance conditions.",
   apply_recipe: "Apply a curated motion recipe to a component. Recipes include pre-configured easing, keyframes, and timing. The system checks avoid_when conditions before applying. Use when the user says 'apply a recipe', 'use a gentle entrance', or 'try a cinematic fade'.",
