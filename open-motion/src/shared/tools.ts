@@ -798,6 +798,164 @@ export const UngroupPrecompInput = z.object({
   componentIds: z.array(zIdField).min(1).describe("Component IDs to remove from their pre-composition group"),
 });
 
+/* --------------------------- Motion blur tools --------------------------- */
+export const EnableMotionBlurInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  intensity: z.number().min(0).max(20).default(4).describe("Blur radius in pixels applied while the layer is animating. Higher = more streaking."),
+  shutterAngle: z.number().min(0).max(360).default(180).describe("Simulated shutter angle in degrees — 180 is the cinematic default, 360 yields long streaks, 45 yields crisp motion."),
+  enabled: z.boolean().default(true).describe("Toggle motion blur on or off without removing configuration."),
+});
+
+/* --------------------------- Null object tools --------------------------- */
+export const AddNullObjectInput = z.object({
+  projectId: zIdField,
+  name: z.string().optional().describe("Optional name for the null object. Defaults to 'Null N'."),
+  x: z.number().optional().describe("Initial X position in pixels."),
+  y: z.number().optional().describe("Initial Y position in pixels."),
+});
+
+/* --------------------------- Trim path tools --------------------------- */
+export const TrimPathInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  start: z.number().min(0).max(100).default(0).describe("Start percentage of the path to reveal (0-100)."),
+  end: z.number().min(0).max(100).default(100).describe("End percentage of the path to reveal (0-100)."),
+  offset: z.number().default(0).describe("Rotation offset in degrees for the trim start point."),
+  animate: z.boolean().default(true).describe("When true, animates the trim reveal across the component's duration."),
+});
+
+/* --------------------------- Repeater tools --------------------------- */
+export const AddRepeaterInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  copies: z.number().int().min(1).max(50).default(5).describe("Number of duplicate instances to generate."),
+  offset: z.object({
+    x: z.number().default(20).describe("Horizontal pixel offset between copies."),
+    y: z.number().default(0).describe("Vertical pixel offset between copies."),
+    rotate: z.number().default(0).describe("Rotation offset in degrees between copies."),
+    scale: z.number().default(1).describe("Scale multiplier between copies (1 = uniform, 0.9 = shrinking)."),
+  }).default({ x: 20, y: 0, rotate: 0, scale: 1 }),
+  decay: z.number().min(0).max(1).default(0.15).describe("Opacity decay per copy (0 = none, 0.2 = each copy 20% more transparent)."),
+});
+
+/* --------------------------- Echo effect tools --------------------------- */
+export const AddEchoInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  copies: z.number().int().min(1).max(20).default(4).describe("Number of trailing echo copies."),
+  delayMs: z.number().int().positive().default(80).describe("Delay between each echo in milliseconds."),
+  decay: z.number().min(0).max(1).default(0.25).describe("Opacity decay per echo (0 = no fade, 0.5 = halving each step)."),
+  scaleDecay: z.number().min(0).max(1).default(0).describe("Optional scale shrink per echo (0 = none, 0.1 = each echo 10% smaller)."),
+});
+
+/* --------------------------- Time remap tools --------------------------- */
+export const SetTimeRemapInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  rate: z.number().describe("Playback rate multiplier. 1 = normal, 2 = double speed, 0.5 = half speed, 0 = freeze, -1 = reverse."),
+  freezeAtMs: z.number().optional().describe("When set and rate is 0, freezes the layer at this timestamp instead of the start."),
+  reverseDirection: z.boolean().default(false).describe("When true, forces reverse playback regardless of rate sign."),
+});
+
+/* --------------------------- Layer effect tools --------------------------- */
+export const AddLayerEffectInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  effect: z.enum(["drop-shadow", "inner-shadow", "outer-glow", "inner-glow", "stroke"]),
+  color: z.string().default("#000000").describe("Effect color as hex (e.g. #ff0000) or CSS color name."),
+  distance: z.number().default(4).describe("Distance/offset in pixels for shadow/glow effects."),
+  blur: z.number().default(6).describe("Blur radius in pixels for the effect."),
+  opacity: z.number().min(0).max(1).default(0.5).describe("Effect opacity (0-1)."),
+  spread: z.number().default(0).describe("Spread/size in pixels for stroke or grow effects."),
+});
+
+/* --------------------------- Mask tools --------------------------- */
+export const AddMaskInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  shape: z.enum(["rectangle", "ellipse", "path"]).default("rectangle").describe("Mask shape type."),
+  mode: z.enum(["add", "subtract", "intersect", "difference", "lighten", "darken"]).default("add").describe("Mask blend mode — professional mask operations."),
+  x: z.number().default(0).describe("Mask X offset in pixels."),
+  y: z.number().default(0).describe("Mask Y offset in pixels."),
+  width: z.number().default(100).describe("Mask width in pixels (rectangle/ellipse)."),
+  height: z.number().default(100).describe("Mask height in pixels (rectangle/ellipse)."),
+  path: z.string().optional().describe("SVG path data when shape='path' (e.g. 'M 0 0 L 100 0 L 100 100 Z')."),
+  feather: z.number().default(0).describe("Feather (blur) radius in pixels for soft mask edges."),
+  expansion: z.number().default(0).describe("Expansion in pixels — grows or shrinks the mask shape."),
+  inverted: z.boolean().default(false).describe("When true, inverts the mask region."),
+  name: z.string().optional().describe("Optional mask name."),
+});
+
+export const SetMaskModeInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  maskIndex: z.number().int().nonnegative().default(0).describe("Index of the mask to modify (0 = first mask)."),
+  mode: z.enum(["add", "subtract", "intersect", "difference", "lighten", "darken"]).describe("New mask blend mode."),
+  inverted: z.boolean().optional().describe("Optionally toggle inversion."),
+  feather: z.number().optional().describe("Optionally set feather radius in pixels."),
+  expansion: z.number().optional().describe("Optionally set expansion in pixels."),
+});
+
+/* --------------------------- Track matte tools --------------------------- */
+export const SetTrackMatteInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  matteComponentId: zIdField.describe("ID of the layer to use as the matte (mask source)."),
+  mode: z.enum(["alpha", "alpha-inverted", "luma", "luma-inverted"]).default("alpha").describe("Track matte mode — alpha uses transparency, luma uses brightness."),
+});
+
+/* --------------------------- Shape layer v2 tools --------------------------- */
+export const CreateShapeLayerInput = z.object({
+  projectId: zIdField,
+  name: z.string().optional().describe("Layer name. Defaults to the shape type."),
+  shape: z.enum(["rectangle", "ellipse", "polygon", "star", "line", "path"]).describe("Shape primitive type."),
+  x: z.number().default(40).describe("X position in pixels."),
+  y: z.number().default(40).describe("Y position in pixels."),
+  width: z.number().default(120).describe("Width in pixels."),
+  height: z.number().default(120).describe("Height in pixels."),
+  sides: z.number().int().min(3).max(20).default(5).describe("Number of sides for polygon/star shapes."),
+  points: z.number().int().min(3).max(20).default(5).describe("Number of points for star shapes."),
+  innerRadius: z.number().optional().describe("Inner radius for star shapes (0-1 of outer radius)."),
+  path: z.string().optional().describe("SVG path data when shape='path'."),
+  fill: z.string().default("#e5e5e5").describe("Fill color as hex or CSS color."),
+  stroke: z.string().optional().describe("Stroke (outline) color as hex or CSS color."),
+  strokeWidth: z.number().default(0).describe("Stroke width in pixels. 0 = no stroke."),
+  cornerRadius: z.number().default(0).describe("Corner radius in pixels for rectangles."),
+  rotation: z.number().default(0).describe("Initial rotation in degrees."),
+});
+
+/* --------------------------- Posterize time tools --------------------------- */
+export const PosterizeTimeInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  fps: z.number().int().min(1).max(60).describe("Target frame rate. The layer's animation will be quantized to this rate (e.g. 12 = stop-motion look, 24 = cinematic)."),
+  enabled: z.boolean().default(true).describe("Toggle posterize on/off without losing the configured rate."),
+});
+
+/* --------------------------- Text animator tools --------------------------- */
+export const AddTextAnimatorInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  property: z.enum(["position", "scale", "rotation", "opacity", "color"]).default("opacity").describe("Property to animate per character/word."),
+  rangeStart: z.number().min(0).max(100).default(0).describe("Range selector start percentage (0-100 of the text)."),
+  rangeEnd: z.number().min(0).max(100).default(100).describe("Range selector end percentage (0-100 of the text)."),
+  unit: z.enum(["character", "word"]).default("character").describe("Selector unit — per-character or per-word."),
+  offset: z.number().default(0).describe("Selector offset — animates the range across the text over time."),
+  valueDelta: z.number().default(1).describe("Magnitude of the property change at the range center. For opacity: 0-1 (1 = full reveal). For rotation: degrees. For position: pixels. For scale: multiplier delta."),
+  staggerMs: z.number().int().min(0).default(40).describe("Per-unit stagger in milliseconds — adds a delay between each character/word."),
+  easing: z.string().default("ease-out").describe("CSS easing for the per-unit animation."),
+});
+
+/* --------------------------- Keyframe interpolation tools --------------------------- */
+export const SetKeyframeInterpolationInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  keyframeIndex: z.number().int().nonnegative().describe("Index of the keyframe to modify."),
+  interpolation: z.enum(["linear", "bezier", "hold", "auto-bezier", "continuous"]).describe("Interpolation type for the segment LEAVING this keyframe. 'hold' freezes the value until the next keyframe."),
+  roving: z.boolean().optional().describe("When true, marks this keyframe as roving — its time is auto-adjusted to maintain constant velocity across segments."),
+});
+
 /* --------------------------- Expression tools --------------------------- */
 export const SetExpressionInput = z.object({
   projectId: zIdField,
@@ -805,6 +963,136 @@ export const SetExpressionInput = z.object({
   property: z.string().describe("Property name (e.g. opacity, scale, rotate, translateX)"),
   expression: z.string().describe("JavaScript expression. Variables: time (ms), index (component order), duration (ms), value (current value). Example: 'Math.sin(time / 500) * 50 + 50'"),
   enabled: z.boolean().default(true).describe("Enable or disable the expression without deleting it"),
+});
+
+/* --------------------------- Gradient tools --------------------------- */
+export const SetGradientFillInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  type: z.enum(["linear", "radial"]).default("linear"),
+  angle: z.number().default(90).describe("Rotation in degrees for linear gradients (0 = top-to-bottom, 90 = left-to-right)"),
+  stops: z.array(z.object({
+    color: z.string().describe("Hex color, e.g. #ff0080"),
+    position: z.number().min(0).max(100).default(0).describe("Stop position as percentage 0-100"),
+  })).min(2).max(8),
+  cx: z.number().optional().describe("Radial center X as percentage 0-100 (radial only)"),
+  cy: z.number().optional().describe("Radial center Y as percentage 0-100 (radial only)"),
+  radius: z.number().optional().describe("Radial radius as percentage 0-100 (radial only)"),
+});
+
+export const SetGradientStrokeInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  type: z.enum(["linear", "radial"]).default("linear"),
+  angle: z.number().default(90),
+  width: z.number().default(2).describe("Stroke width in px"),
+  stops: z.array(z.object({
+    color: z.string(),
+    position: z.number().min(0).max(100).default(0),
+  })).min(2).max(8),
+});
+
+/* --------------------------- Wiggle tool --------------------------- */
+export const ApplyWiggleInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  property: z.enum(["translateX", "translateY", "rotate", "scale", "opacity", "skewX", "skewY"]).default("translateX"),
+  frequency: z.number().min(0.1).default(2).describe("Oscillations per second (Hz)"),
+  amplitude: z.number().default(20).describe("Peak deviation from current value (in property units)"),
+  octaves: z.number().int().min(1).max(6).default(2).describe("Number of noise octaves stacked for richness"),
+  seed: z.number().int().default(1).describe("Deterministic seed so the same params produce the same wiggle"),
+  durationMs: z.number().int().positive().optional().describe("Total duration to sample; defaults to the component duration"),
+  sampleCount: z.number().int().min(8).max(120).default(24).describe("Number of keyframes to sample"),
+});
+
+/* --------------------------- Particle emitter --------------------------- */
+export const AddParticleEmitterInput = z.object({
+  projectId: zIdField,
+  name: z.string().optional(),
+  x: z.number().default(50).describe("Emitter X position as percentage of canvas width"),
+  y: z.number().default(50).describe("Emitter Y position as percentage of canvas height"),
+  width: z.number().default(400).describe("Canvas layer width in px"),
+  height: z.number().default(300).describe("Canvas layer height in px"),
+  rate: z.number().default(20).describe("Particles emitted per second"),
+  lifespan: z.number().default(1500).describe("Particle lifetime in ms"),
+  gravity: z.number().default(80).describe("Downward acceleration in px/s^2"),
+  spread: z.number().default(60).describe("Emission angle spread in degrees (0 = straight up)"),
+  speed: z.number().default(120).describe("Initial particle speed in px/s"),
+  startColor: z.string().default("#ffffff"),
+  endColor: z.string().default("#ff0080"),
+  startSize: z.number().default(6),
+  endSize: z.number().default(0),
+  startOpacity: z.number().min(0).max(1).default(1),
+  endOpacity: z.number().min(0).max(1).default(0),
+  blendMode: z.enum(["normal", "screen", "lighter", "add"]).default("lighter"),
+});
+
+/* --------------------------- 3D camera --------------------------- */
+export const AddCameraInput = z.object({
+  projectId: zIdField,
+  name: z.string().optional(),
+  positionX: z.number().default(0).describe("Camera X offset from canvas center"),
+  positionY: z.number().default(0),
+  positionZ: z.number().default(400).describe("Camera Z distance from canvas plane (higher = farther)"),
+  focalLength: z.number().default(50).describe("Camera focal length in mm (35-85 typical)"),
+  depthOfField: z.number().default(0).describe("DOF amount 0-1; 0 disables, higher intensifies blur with distance"),
+  rotateX: z.number().default(0),
+  rotateY: z.number().default(0),
+  rotateZ: z.number().default(0),
+});
+
+export const SetCameraTransformInput = z.object({
+  projectId: zIdField,
+  positionX: z.number().optional(),
+  positionY: z.number().optional(),
+  positionZ: z.number().optional(),
+  focalLength: z.number().optional(),
+  depthOfField: z.number().optional(),
+  rotateX: z.number().optional(),
+  rotateY: z.number().optional(),
+  rotateZ: z.number().optional(),
+});
+
+/* --------------------------- Audio reactive --------------------------- */
+export const BindAudioToPropertyInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  audioComponentId: zIdField.describe("ID of the audio component whose signal drives the property"),
+  property: z.enum(["opacity", "scale", "translateX", "translateY", "rotate", "backgroundColor"]).default("scale"),
+  band: z.enum(["bass", "mid", "treble", "overall"]).default("overall").describe("Frequency band to react to"),
+  min: z.number().default(0).describe("Output value when audio is silent"),
+  max: z.number().default(1).describe("Output value when audio peaks"),
+  smoothing: z.number().min(0).max(0.99).default(0.7).describe("Temporal smoothing 0-0.99 (higher = smoother)"),
+});
+
+export const UnbindAudioInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+});
+
+/* --------------------------- Puppet pin & mesh warp --------------------------- */
+export const AddPuppetPinInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  x: z.number().describe("Pin X position within the layer (px, layer-local)"),
+  y: z.number().describe("Pin Y position within the layer (px, layer-local)"),
+  name: z.string().optional(),
+});
+
+export const ApplyMeshWarpInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  turbulence: z.number().default(0.05).describe("Turbulence amount 0-1 (higher = more distortion)"),
+  scale: z.number().default(20).describe("Noise scale in px (smaller = finer ripples)"),
+  octaves: z.number().int().min(1).max(4).default(2),
+  animated: z.boolean().default(true).describe("Animate the noise over time"),
+  speed: z.number().default(0.2).describe("Animation speed when animated=true"),
+  seed: z.number().int().default(1),
+});
+
+export const RemoveMeshWarpInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
 });
 
 /* --------------------------- Restraint engine tools --------------------------- */
@@ -1419,7 +1707,32 @@ export const TOOL_INPUT_SCHEMAS = {
   set_adjustment_layer: SetAdjustmentLayerInput,
   create_precomp: CreatePrecompInput,
   ungroup_precomp: UngroupPrecompInput,
+  enable_motion_blur: EnableMotionBlurInput,
+  add_null_object: AddNullObjectInput,
+  trim_path: TrimPathInput,
+  add_repeater: AddRepeaterInput,
+  add_echo: AddEchoInput,
+  set_time_remap: SetTimeRemapInput,
+  add_layer_effect: AddLayerEffectInput,
+  add_mask: AddMaskInput,
+  set_mask_mode: SetMaskModeInput,
+  set_track_matte: SetTrackMatteInput,
+  create_shape_layer: CreateShapeLayerInput,
+  posterize_time: PosterizeTimeInput,
+  add_text_animator: AddTextAnimatorInput,
+  set_keyframe_interpolation: SetKeyframeInterpolationInput,
   set_expression: SetExpressionInput,
+  set_gradient_fill: SetGradientFillInput,
+  set_gradient_stroke: SetGradientStrokeInput,
+  apply_wiggle: ApplyWiggleInput,
+  add_particle_emitter: AddParticleEmitterInput,
+  add_camera: AddCameraInput,
+  set_camera_transform: SetCameraTransformInput,
+  bind_audio_to_property: BindAudioToPropertyInput,
+  unbind_audio: UnbindAudioInput,
+  add_puppet_pin: AddPuppetPinInput,
+  apply_mesh_warp: ApplyMeshWarpInput,
+  remove_mesh_warp: RemoveMeshWarpInput,
   analyze_restraint: AnalyzeRestraintInput,
   list_recipes: ListRecipesInput,
   apply_recipe: ApplyRecipeInput,
@@ -1620,7 +1933,32 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   set_adjustment_layer: "Toggle a component as an adjustment layer — its filter effects apply to all layers below via backdrop-filter. Use when the user says 'adjustment layer', 'affect layers below', or 'apply effect to all layers'.",
   create_precomp: "Group multiple components into a pre-composition — they share a common parentId so they can be moved and timed as a unit. Use when the user says 'group these', 'pre-comp', 'precompose', or 'nest these layers'.",
   ungroup_precomp: "Remove components from their pre-composition group by clearing their parentId. Use when the user says 'ungroup', 'unprecompose', or 'extract from comp'.",
+  enable_motion_blur: "Enable velocity-driven motion blur on a layer — applies a CSS blur filter while the layer is animating, simulating the streaking that occurs when a real camera shutter captures fast motion. Tunable with intensity and shutter angle. Use when the user says 'motion blur', 'enable motion blur', 'add motion blur', 'blur the motion', or 'streak'.",
+  add_null_object: "Create a null object — an invisible controller layer (zero size, fully transparent, non-interactive) that can serve as a parent for other layers. Use for organizing hierarchies and driving multiple layers from one transform. Use when the user says 'null object', 'add a null', 'create null', or 'invisible controller'.",
+  trim_path: "Animate a trim-path reveal on a layer — draws the layer's outline progressively using stroke-dasharray/stroke-dashoffset. Use for path-drawing effects, line-write-on, and SVG-style reveals. Use when the user says 'trim path', 'trim the path', 'draw on', 'write-on path', 'reveal the path', or 'stroke draw'.",
+  add_repeater: "Duplicate a layer N times with a transform offset (x/y/rotate/scale) and opacity decay between copies — generates grid, radial, or cascade patterns. Use when the user says 'repeater', 'repeat this', 'duplicate in a grid', 'make a pattern', 'tile this', or 'cascade copies'.",
+  add_echo: "Create motion-trail echoes of a layer — N delayed copies with fading opacity (and optional scale shrink) that trail the original during animation. Use when the user says 'echo', 'motion trail', 'afterimage', 'tracer', 'tail effect', or 'trail'.",
+  set_time_remap: "Set per-layer time remapping — controls the playback rate of a single layer independently of the timeline. rate=2 doubles speed, 0.5 halves, 0 freezes (optionally at a specific ms), -1 reverses. Use when the user says 'time remap', 'remap time', 'slow this layer', 'speed up this layer', 'freeze this', 'reverse playback', or 'freeze frame'.",
+  add_layer_effect: "Add a CSS-based layer effect: drop-shadow, inner-shadow (via inset box-shadow), outer-glow, inner-glow, or stroke (outline). Use when the user says 'drop shadow', 'add a shadow', 'glow effect', 'outer glow', 'inner shadow', 'add stroke', 'outline the layer', or 'layer effect'.",
+  add_mask: "Add a vector mask to a layer — rectangle, ellipse, or SVG path — with professional mask blend modes (add, subtract, intersect, difference, lighten, darken), feather (soft edges), expansion, and inversion. Masks non-destructively clip the layer's visible region. Use when the user says 'mask', 'add a mask', 'mask this layer', 'clip the layer', 'reveal only', 'subtract mask', or 'intersect mask'.",
+  set_mask_mode: "Modify an existing mask's blend mode, feather, expansion, or inversion. Use when the user says 'change mask mode', 'make mask subtract', 'feather the mask', 'soften the mask edge', 'invert the mask', or 'expand the mask'.",
+  set_track_matte: "Use one layer as a track matte for another — alpha matte (transparency-based) or luma matte (brightness-based), with optional inversion. The matte layer's shape controls the visibility of the target layer. Use when the user says 'track matte', 'alpha matte', 'luma matte', 'use as mask', 'matte this layer', or 'reveal through'.",
+  create_shape_layer: "Create a vector shape layer — rectangle, ellipse, polygon, star, line, or custom SVG path — with full control over fill, stroke (color and width), corner radius, and rotation. Use when the user says 'shape layer', 'add a rectangle', 'draw a circle', 'create a polygon', 'make a star', 'add a line', or 'draw a path'.",
+  posterize_time: "Posterize a layer's time — quantizes its animation to a target frame rate for stop-motion, low-FPS, or stepped looks (e.g. 12fps = stop-motion, 24fps = cinematic). Implemented via CSS steps() timing. Use when the user says 'posterize time', 'low fps', 'stop motion', 'stepped animation', 'stutter', or 'choppy frames'.",
+  add_text_animator: "Add a per-character or per-word text animator with a range selector — animates properties (position, scale, rotation, opacity, color) across a percentage range of the text with stagger. Use when the user says 'text animator', 'per character animation', 'character-by-character', 'word by word', 'typewriter', 'stagger text', or 'range selector'.",
+  set_keyframe_interpolation: "Set the interpolation type for a keyframe — linear, bezier, hold (freeze value until next keyframe), auto-bezier (auto-smoothed), or continuous. Optionally mark as roving (time auto-adjusts for constant velocity). Use when the user says 'hold keyframe', 'freeze frame', 'roving keyframe', 'auto bezier', 'smooth keyframe', 'continuous interpolation', or 'linear keyframe'.",
   set_expression: "Set a JavaScript expression on a property. The expression is evaluated each frame with variables: time (ms), index, duration (ms), value. Example: 'Math.sin(time / 500) * 50 + 50' for pulsing opacity. Use when the user says 'expression', 'formula', 'math', 'oscillate', 'pulse', 'wiggle', or writes an equation.",
+  set_gradient_fill: "Apply a linear or radial gradient fill to a layer. Specify 2-8 color stops with positions and an angle (linear) or center/radius (radial). Use when the user says 'gradient fill', 'linear gradient', 'radial gradient', 'color sweep', 'rainbow fill', or 'gradient background'.",
+  set_gradient_stroke: "Apply a gradient stroke (border) to a layer with 2-8 color stops. Use when the user says 'gradient stroke', 'gradient border', 'gradient outline', or 'color stroke'.",
+  apply_wiggle: "Apply organic wiggle to a property — pseudo-random fluctuation pre-sampled into keyframes. Specify frequency (Hz), amplitude, octaves, and seed for deterministic noise. Use when the user says 'wiggle', 'jitter', 'shake randomly', 'add noise to motion', 'random motion', or 'tremble'.",
+  add_particle_emitter: "Create a Canvas2D-based particle emitter layer — emits particles at a rate, with lifespan, gravity, spread, speed, and start/end color/size/opacity. Renders as a JS-driven <canvas> overlay. Use when the user says 'particle', 'emitter', 'spawn particles', 'fire particles', 'burst', 'confetti', 'sparks', or 'snow'.",
+  add_camera: "Add a 3D camera to the project that drives multi-plane parallax for layers with translateZ. Specify position (X/Y/Z), focal length, optional depth-of-field, and rotation. Layers with non-zero translateZ shift in screen-space based on camera position. Use when the user says '3d camera', 'add camera', 'multi-plane', 'parallax camera', 'dolly', or 'z-depth'.",
+  set_camera_transform: "Update the project camera's position, focal length, depth-of-field, or rotation. Use when the user says 'move the camera', 'zoom camera', 'dolly in', 'pan camera', or 'tilt camera'.",
+  bind_audio_to_property: "Bind a target property (opacity, scale, translateX, translateY, rotate, backgroundColor) to an audio component's frequency band (bass, mid, treble, overall). The property value is driven by the audio level via Web Audio AnalyserNode. Use when the user says 'audio reactive', 'react to audio', 'drive with audio', 'beat detection', 'music sync', or 'sound reactive'.",
+  unbind_audio: "Remove an audio-reactive binding from a layer. Use when the user says 'stop audio reactive', 'unbind audio', 'remove audio binding', or 'detach audio'.",
+  add_puppet_pin: "Add a puppet pin to a layer at a local (x, y) position. Pins are stored and used by the mesh warp deformation. Use when the user says 'puppet pin', 'add pin', 'deformation pin', or 'puppet tool'.",
+  apply_mesh_warp: "Apply SVG turbulence-based mesh warp to a layer — organic distortion using feTurbulence + feDisplacementMap. Tunable turbulence, scale, octaves, animation speed, and seed. Use when the user says 'mesh warp', 'puppet warp', 'warp the layer', 'distort', 'liquid effect', 'ripple the layer', or 'organic deformation'.",
+  remove_mesh_warp: "Remove mesh warp (turbulence displacement filter) from a layer. Use when the user says 'remove warp', 'undo mesh warp', 'remove distortion', or 'straighten layer'.",
   analyze_restraint: "Analyze motion density and restraint — calculates how many animations compete for attention simultaneously, identifies easing/duration monotony, and recommends improvements. Returns a restraint score (0-100) with warnings. Use when the user asks 'is this too much', 'analyze restraint', or 'check density'.",
   list_recipes: "Browse the curated motion recipe library. Each recipe carries avoid_when metadata — situations where it should NOT be used. Optionally filter by category or search by query. Returns recipe names, descriptions, restraint costs, and avoidance conditions.",
   apply_recipe: "Apply a curated motion recipe to a component. Recipes include pre-configured easing, keyframes, and timing. The system checks avoid_when conditions before applying. Use when the user says 'apply a recipe', 'use a gentle entrance', or 'try a cinematic fade'.",
