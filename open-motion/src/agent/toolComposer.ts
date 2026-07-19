@@ -70,6 +70,13 @@ const PATTERNS: CompositionPattern[] = [
   {
     name: "template-with-easing",
     match: (msg, ctx) => {
+      // Skip when the user is asking to save/capture/export rather than
+      // create a new template — keywords like "bounce" can appear in saved
+      // names (e.g. "save as a profile called bounce-profile") and would
+      // otherwise hijack the request.
+      if (has(msg, "save", "capture", "export", "record", "as a profile", "as a pipeline", "as a recipe")) {
+        return null;
+      }
       // Must mention a template type and an easing style.
       // Compound keywords (e.g. "fade out") are listed BEFORE their
       // single-word counterparts (e.g. "fade") so that the longer match
@@ -217,6 +224,18 @@ const PATTERNS: CompositionPattern[] = [
         return null;
       }
       if (!ctx.hasComponents) return null;
+      // Guard: when the user clearly means per-character text animation
+      // (text animator context), defer to the dedicated add_text_animator
+      // intent in the mock provider — don't hijack as component stagger.
+      if (/\b(?:text|character|word|char)\b/i.test(msg)) return null;
+      // Guard: when the user mentions a single-layer ripple/wave effect
+      // (mesh warp, liquid distortion), defer to the dedicated apply_mesh_warp
+      // intent in the mock provider — "ripple the layer" is a layer effect,
+      // not a multi-layer choreography pattern.
+      if (/\b(?:warp|distort|liquid|organic|mesh|puppet|turbulence)\b/i.test(msg)) return null;
+      // Guard: "ripple/wave + layer/this/it" patterns target a single layer,
+      // not a multi-component choreography.
+      if (/\b(?:ripple|wave)\s+(?:the\s+)?(?:layer|this|it|element|component)\b/i.test(msg)) return null;
 
       const stepMs = extractNumber(msg, /(\d+)\s*ms\s*(?:step|stagger|delay)/) ?? 150;
 
@@ -388,6 +407,13 @@ const PATTERNS: CompositionPattern[] = [
         return null;
       }
       if (!ctx.hasComponents) return null;
+      // Guard: when the user clearly means posterize-time (stop-motion /
+      // stepped animation), defer to the dedicated posterize_time intent.
+      if (/\b(?:posterize|stop[\s-]?motion|stepped\s+animation|stutter|choppy)\b/i.test(msg)) return null;
+      // Guard: when the user clearly means adding a particle emitter
+      // (which often mentions "rate" or "burst"), defer to the dedicated
+      // add_particle_emitter intent in the mock provider.
+      if (/\b(?:particle|emitter|spawn|burst|sparks|snow|confetti)\b/i.test(msg)) return null;
       return [
         {
           tool: "check_performance",
@@ -461,6 +487,11 @@ const PATTERNS: CompositionPattern[] = [
     match: (msg, ctx) => {
       if (!has(msg, "loop", "repeat", "forever", "infinite")) return null;
       if (!ctx.hasComponents) return null;
+      // Guard: when the user clearly means an AE-style repeater (pattern
+      // duplication with copies/instances/tile/cascade), defer to the
+      // dedicated add_repeater intent in the mock provider — don't hijack
+      // the message as a loop-iteration request.
+      if (/\b(?:repeater|repeat\s+this|repeat\s+in\s+(?:a\s+)?(?:radial|circular|grid|pattern|linear)|\d+\s*(?:copies|instances)|tile\s+this|cascade\s+copies)\b/i.test(msg)) return null;
 
       const countMatch = msg.match(/(\d+)\s*(?:times?|loops?|repeats?)/);
       const iterationCount: number | "infinite" = countMatch ? parseInt(countMatch[1], 10) : "infinite";
@@ -471,13 +502,50 @@ const PATTERNS: CompositionPattern[] = [
       else if (has(msg, "alternate")) direction = "alternate";
       else if (has(msg, "reverse")) direction = "reverse";
 
-      return [
+      const tools: ComposedTool[] = [
         {
           tool: "set_loop",
           args: { projectId: ctx.projectId, componentId: "__last__", iterationCount, direction },
           reason: `Set loop to ${iterationCount === "infinite" ? "infinite" : iterationCount + "x"} with ${direction} direction`,
         },
       ];
+
+      // When the same message also mentions an easing style, compose a
+      // set_easing call so compound requests like "apply elastic easing and
+      // loop forever" produce both tool calls in a single round-trip.
+      if (has(msg, "elastic")) {
+        tools.unshift({
+          tool: "set_easing",
+          args: { projectId: ctx.projectId, componentId: "__last__", easing: { type: "preset", name: "elastic" } },
+          reason: "Apply elastic easing before looping",
+        });
+      } else if (has(msg, "bouncy", "bounce")) {
+        tools.unshift({
+          tool: "set_easing",
+          args: { projectId: ctx.projectId, componentId: "__last__", easing: { type: "preset", name: "bounce" } },
+          reason: "Apply bounce easing before looping",
+        });
+      } else if (has(msg, "smooth", "smoothly")) {
+        tools.unshift({
+          tool: "set_easing",
+          args: { projectId: ctx.projectId, componentId: "__last__", easing: { type: "preset", name: "smooth" } },
+          reason: "Apply smooth easing before looping",
+        });
+      } else if (has(msg, "snappy", "sharp")) {
+        tools.unshift({
+          tool: "set_easing",
+          args: { projectId: ctx.projectId, componentId: "__last__", easing: { type: "preset", name: "snappy" } },
+          reason: "Apply snappy easing before looping",
+        });
+      } else if (has(msg, "soft", "gentle")) {
+        tools.unshift({
+          tool: "set_easing",
+          args: { projectId: ctx.projectId, componentId: "__last__", easing: { type: "preset", name: "soft" } },
+          reason: "Apply soft easing before looping",
+        });
+      }
+
+      return tools;
     },
   },
 
