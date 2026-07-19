@@ -487,7 +487,7 @@ const PATTERNS: CompositionPattern[] = [
     match: (msg, ctx) => {
       if (!has(msg, "loop", "repeat", "forever", "infinite")) return null;
       if (!ctx.hasComponents) return null;
-      // Guard: when the user clearly means an AE-style repeater (pattern
+      // Guard: when the user clearly means a pattern repeater (pattern
       // duplication with copies/instances/tile/cascade), defer to the
       // dedicated add_repeater intent in the mock provider — don't hijack
       // the message as a loop-iteration request.
