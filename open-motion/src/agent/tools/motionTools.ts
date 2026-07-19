@@ -2772,7 +2772,7 @@ export const motionExecutors: Partial<Record<ToolName, Executor>> = {
     const style = { ...comp.style } as Record<string, string | number>;
     if (enabled) {
       // CSS steps(N) quantizes time into N discrete jumps per iteration.
-      // step-start = jump immediately at each step boundary (AE Hold-style).
+      // step-start = jump immediately at each step boundary (Hold-style).
       const frameCount = Math.max(1, Math.round((comp.durationMs / 1000) * fps));
       style._posterizeTime = String(fps);
       style._posterizeFrames = String(frameCount);
