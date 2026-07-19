@@ -8,12 +8,14 @@ const RESERVED_STYLE_KEYS = new Set([
   "_motionBlur", "_motionBlurIntensity", "_motionBlurShutter",
   "_nullObject",
   "_trimPath", "_trimStart", "_trimEnd", "_trimOffset", "_trimAnimate", "_trimPathLength",
+  "_trimPathMultiple",
   "_repeaterSource", "_repeaterIndex",
   "_echoSource", "_echoIndex",
   "_timeRemap", "_timeRemapRate", "_timeRemapFreezeAt",
   "_layerEffects",
   "_masks", "_trackMatte",
   "_shapeType", "_svgPath", "_svgFill", "_svgStroke", "_svgStrokeWidth",
+  "_pathOp", "_pathOpAmount", "_pathOpParams",
   "_posterizeFps",
   "_textAnimators",
   "_gradientFill", "_gradientStroke",
@@ -21,6 +23,15 @@ const RESERVED_STYLE_KEYS = new Set([
   "_audioBinding",
   "_puppetPins", "_meshWarp",
   "_compId", "_compName",
+  // 3D lighting system tokens.
+  "_lightId", "_lightType", "_lightColor", "_lightIntensity", "_lightCone",
+  "_castShadow", "_shadowOpacity", "_shadowBlur", "_shadowOffsetX", "_shadowOffsetY",
+  "_cameraDOF", "_dofFocusDistance", "_dofAperture", "_dofBlurAmount",
+  // Advanced color correction tokens (rendered as SVG feComponentTransfer chains).
+  "_levels", "_curves", "_colorBalance", "_hueSaturation", "_vibrance",
+  "_exposure", "_shadowHighlight", "_selectiveColor",
+  // Data-driven animation tokens.
+  "_dataBinding", "_dataSourceName", "_dataColumn", "_dataMapping",
 ]);
 
 /** Check whether a style key is a private metadata token (underscore-prefixed)
