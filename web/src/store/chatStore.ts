@@ -6,6 +6,7 @@ import { listMessages, clearMessages, createComponent, patchComponent } from "..
 import { useProjectStore } from "./projectStore.js";
 import { useUiStore } from "./uiStore.js";
 import { useClipboardStore } from "./clipboardStore.js";
+import { useGenerationStore } from "./generationStore.js";
 
 export interface ToolActivity {
   callId: string;
@@ -83,6 +84,8 @@ interface ChatState {
   sessionSummary: SessionSummary | null;
   error: string | null;
   abortController: AbortController | null;
+  // Active provider for the current stream (e.g. "mock", "openai", "router").
+  provider: string | null;
 
   loadMessages: (projectId: string) => Promise<void>;
   send: (projectId: string, text: string) => void;
@@ -107,6 +110,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   sessionSummary: null,
   error: null,
   abortController: null,
+  provider: null,
 
   loadMessages: async (projectId) => {
     if (get().isStreaming) return;
@@ -146,6 +150,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       sessionSummary: null,
       error: null,
     });
+    useGenerationStore.getState().startGeneration(text);
 
     const controller = streamChat(
       projectId,
@@ -202,6 +207,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
               ],
               activeStepIndex: activeStep,
             });
+            useGenerationStore.getState().recordToolCall(event.tool);
             break;
           }
           case "tool_result": {
@@ -307,7 +313,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
             }
             break;
           }
-          case "spec_update":
+          case "spec_update": {
+            // Track which components existed before the update so we can
+            // auto-select newly created ones for immediate editing.
+            const prevIds = new Set(useProjectStore.getState().components.map((c) => c.id));
             useProjectStore.getState().applySpecUpdate(event.components, event.project);
             if (event.project?.tokens) {
               const t = event.project.tokens;
@@ -315,12 +324,28 @@ export const useChatStore = create<ChatState>((set, get) => ({
               const h = Number(t.artboardHeight) || 0;
               if (w && h) useUiStore.getState().setCanvasSize({ width: w, height: h });
             }
+            // Auto-select the first newly created component so the user can
+            // immediately edit it without manually finding it on the canvas.
+            const newComp = event.components.find((c: { id: string }) => !prevIds.has(c.id));
+            if (newComp) {
+              useUiStore.getState().selectComponent((newComp as { id: string }).id);
+            }
+            // Auto-fit the canvas so generated content is centered for editing.
+            useUiStore.getState().triggerFitToScreen();
+            // Commit generation record with the resulting component IDs.
+            useGenerationStore.getState().commitGeneration(
+              event.components.map((c: { id: string }) => c.id),
+              event.components.length,
+            );
             break;
+          }
           case "proactive_suggestion":
             set({ proactiveSuggestions: event.suggestions });
             break;
           case "session_summary":
             set({ sessionSummary: event.summary });
+            // Attach the session summary to the most recent generation.
+            useGenerationStore.getState().updateLastGeneration({ summary: event.summary });
             break;
           case "done": {
             const assistantMsg: Message = {
@@ -351,6 +376,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             set({ isStreaming: false, streamingTokens: "", plan: null, completedStepIndices: [], activeStepIndex: -1, reasoningText: "", thinking: null, reflection: null, goal: null, proactiveSuggestions: [], error: event.message, abortController: null });
             break;
           case "meta":
+            set({ provider: event.provider });
             break;
         }
       },
