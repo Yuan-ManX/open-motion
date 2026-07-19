@@ -140,7 +140,7 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
   if (createRaw && /\b(shake|wiggle|float|glow|heartbeat|type[\s-]?writer)\b/i.test(createRaw)) {
     createRaw = null;
   }
-  // Guard: when the name matches an AE-style effect/operation (motion blur,
+  // Guard: when the name matches a professional effect/operation (motion blur,
   // null object, trim path, repeater, echo, time remap, drop shadow, etc.),
   // skip the create handler so dedicated intent handlers below can fire.
   if (createRaw && /\b(motion[\s-]?blur|null(?:[\s-]?object)?|trim[\s-]?path|repeater|echo|time[\s-]?remap|drop[\s-]?shadow|outer[\s-]?glow|inner[\s-]?shadow|layer[\s-]?effect|trail|afterimage|freeze(?:[\s-]?frame)?|null|mask|track[\s-]?matte|alpha[\s-]?matte|luma[\s-]?matte|posterize|stop[\s-]?motion|text[\s-]?animator|character[\s-]?by[\s-]?character|word[\s-]?by[\s-]?word|hold[\s-]?keyframe|roving[\s-]?keyframe|polygon|star|shape[\s-]?layer|gradient[\s-]?(?:fill|stroke)|wiggle|jitter|tremble|particle|emitter|burst|sparks|snow|confetti|camera|3d[\s-]?camera|multi[\s-]?plane|parallax|dolly|audio[\s-]?reactive|beat[\s-]?detect|music[\s-]?sync|sound[\s-]?reactive|puppet|mesh[\s-]?warp|liquid[\s-]?effect|organic[\s-]?deform)\b/i.test(createRaw)) {
@@ -217,7 +217,7 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
   }
 
   // --- Loop (with optional direction) ---
-  // Guard: skip when the user clearly means an AE-style repeater (pattern
+  // Guard: skip when the user clearly means a pattern repeater (pattern
   // duplication) rather than iteration count — that is handled by a dedicated
   // add_repeater intent further below.
   if (/\b(loop|repeat|forever)\b|循环|重复/i.test(userText)
@@ -1255,7 +1255,7 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     }, "Applied a 3D transform to the layer.");
   }
 
-  // --- AE-inspired: Motion Blur ---
+  // ---Motion Blur ---
   // Recognises "enable motion blur", "add motion blur", "turn on motion blur",
   // "blur the motion", "motion blur the layer", and "streak".
   if (/\b(?:enable|add|turn\s+on|apply|use)\s+(?:a\s+)?(?:motion[\s-]?blur|streak)|motion[\s-]?blur\b/i.test(userText)) {
@@ -1279,7 +1279,7 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
       "Disabled motion blur on the layer.");
   }
 
-  // --- AE-inspired: Null Object ---
+  // ---Null Object ---
   // Recognises "create/add a null object", "add a null", "invisible controller".
   if (/\b(?:create|add|make|insert)\s+(?:a\s+|an\s+)?null(?:[\s-]?object)?\b|invisible\s+controller\b/i.test(userText)) {
     const nameM = userText.match(/(?:called|named)\s*["']?(\w+)/i);
@@ -1290,7 +1290,7 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     }, `Created a null object${nameM ? ` called ${nameM[1]}` : ""}${posM ? ` at (${posM[1]}, ${posM[2]})` : ""} — parent other layers to it.`);
   }
 
-  // --- AE-inspired: Trim Path ---
+  // ---Trim Path ---
   // Recognises "trim the path", "trim path", "draw on path", "write-on path",
   // "reveal the path", "stroke draw".
   if (/\b(?:trim(?:[\s-]?path)?|draw[\s-]on|write[\s-]?on[\s-]?path|reveal[\s-]?the[\s-]?path|stroke[\s-]?draw)\b/i.test(userText)) {
@@ -1307,7 +1307,7 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     }, `Trim-path reveal on the layer (start=${startM ? startM[1] : 0}%, end=${endM ? endM[1] : 100}%).`);
   }
 
-  // --- AE-inspired: Repeater ---
+  // ---Repeater ---
   // Recognises "repeat this", "repeater", "duplicate in a grid", "tile this",
   // "cascade copies", "make a pattern".
   if (/\b(?:repeat(?:er)?|duplicate\s+in\s+(?:a\s+)?(?:grid|pattern|cascade)|tile\s+this|make\s+(?:a\s+)?pattern|cascade\s+copies)\b/i.test(userText) && state.firstComponentId) {
@@ -1329,7 +1329,7 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     }, `Created a ${isRadial ? "radial" : isLinear ? "linear" : "default"} repeater with ${copies} copies.`);
   }
 
-  // --- AE-inspired: Echo / Motion Trail ---
+  // ---Echo / Motion Trail ---
   // Recognises "echo", "motion trail", "afterimage", "tracer", "tail effect",
   // "trail".
   if (/\b(?:echo|motion[\s-]?trail|afterimage|tracer|tail[\s-]?effect|trail)\b/i.test(userText) && state.firstComponentId) {
@@ -1344,7 +1344,7 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     }, `Added ${copiesM ? copiesM[1] : 4} motion-trail echoes (delay=${delayM ? delayM[1] : 80}ms).`);
   }
 
-  // --- AE-inspired: Time Remap ---
+  // ---Time Remap ---
   // Recognises "time remap", "remap time", "slow this layer", "speed up this
   // layer", "freeze this", "reverse playback", "freeze frame".
   if (/\b(?:time[\s-]?remap|remap\s+time|slow\s+(?:this|the|down)|speed\s+up\s+(?:this|the)|freeze\s+(?:this|the|frame)|reverse\s+(?:playback|this)|play\s+backwards)\b/i.test(userText) && state.firstComponentId) {
@@ -1362,7 +1362,7 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     }, `Time-remapped the layer → rate=${rate}×${freezeAtM ? ` (freeze at ${freezeAtM[1]}ms)` : ""}.`);
   }
 
-  // --- AE-inspired: Layer Effects ---
+  // ---Layer Effects ---
   // Recognises "drop shadow", "add a shadow", "glow effect", "outer glow",
   // "inner shadow", "add stroke", "add a stroke outline", "outline the layer".
   if (/\b(?:drop[\s-]?shadow|add\s+(?:a\s+)?shadow|glow\s+effect|outer\s+glow|inner\s+glow|inner\s+shadow|add\s+(?:a\s+)?stroke|stroke\s+outline|outline\b|outline\s+(?:the\s+)?layer|layer\s+effect)\b/i.test(userText)) {
@@ -1387,7 +1387,7 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     }, `Added ${effect} layer effect (color=${color}).`);
   }
 
-  // --- AE-inspired: Mask System ---
+  // ---Mask System ---
   // Recognises "add a mask", "mask this layer", "add a subtract mask",
   // "add an inverted mask", "add an ellipse mask with feather".
   if (/\b(?:add|create|make|apply|put)\s+(?:a\s+|an\s+)?(?:[a-z]+\s+)?mask\b|mask\s+(?:this|the|a)\s+layer\b|mask\s+this\b/i.test(userText)) {
@@ -1427,7 +1427,7 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     }, `Feathered mask 0 by ${featherM?.[1] ?? 10}px.`);
   }
 
-  // --- AE-inspired: Track Matte ---
+  // ---Track Matte ---
   // Recognises "track matte", "alpha matte", "luma matte", "use as mask".
   if (/\b(?:track[\s-]?matte|alpha[\s-]?matte|luma[\s-]?matte|use\s+as\s+mask|reveal\s+through)\b/i.test(userText) && state.firstComponentId) {
     const mode = /\bluma\b/i.test(userText)
@@ -1443,7 +1443,7 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     }, `Set ${mode} track matte using ${matteId === state.firstComponentId ? "the same layer (will need a separate matte)" : "another layer"}.`);
   }
 
-  // --- AE-inspired: Shape Layers v2 ---
+  // ---Shape Layers v2 ---
   // Recognises "add a rectangle", "draw a circle", "create a polygon", "make a star", "draw a path".
   // Guard: skip when the user clearly means a mask (mask keyword present) —
   // the dedicated add_mask intent handles that case.
@@ -1473,7 +1473,7 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     }
   }
 
-  // --- AE-inspired: Posterize Time ---
+  // ---Posterize Time ---
   // Recognises "posterize time", "stop motion", "low fps", "stepped animation".
   if (/\b(?:posterize\s+time|stop[\s-]?motion|low[\s-]?fps|stepped\s+animation|stutter|choppy\s+frames?)\b/i.test(userText)) {
     const target = ensureComponent();
@@ -1486,7 +1486,7 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     }, `Posterized to ${fps} fps (stop-motion look).`);
   }
 
-  // --- AE-inspired: Text Animator ---
+  // ---Text Animator ---
   // Recognises "text animator", "per character animation", "word by word", "stagger text".
   if (/\b(?:text[\s-]?animator|per[\s-]?character|character[\s-]?by[\s-]?character|word[\s-]?by[\s-]?word|stagger\s+text|range\s+selector)\b/i.test(userText)) {
     const target = ensureComponent();
@@ -1506,7 +1506,7 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     }, `Added ${property} text animator (${unit} unit, stagger=${staggerM ? staggerM[1] : 40}ms).`);
   }
 
-  // --- AE-inspired: Keyframe Interpolation ---
+  // ---Keyframe Interpolation ---
   // Recognises "hold keyframe", "roving keyframe", "auto bezier", "smooth keyframe".
   if (/\b(?:hold\s+keyframe|freeze\s+frame|roving\s+keyframe|auto[\s-]?bezier|smooth\s+keyframe|continuous\s+interpolation|linear\s+keyframe)\b/i.test(userText) && state.firstComponentId) {
     let interpolation: "linear" | "bezier" | "hold" | "auto-bezier" | "continuous" = "linear";
@@ -1546,7 +1546,7 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     }, `Set an expression on the ${propertyM ? propertyM[1].toLowerCase() : "opacity"} property.`);
   }
 
-  // --- Gradient fill / stroke (AE-inspired) ---
+  // --- Gradient fill / stroke ---
   // Guard: skip when the user means a shader-style "gradient shift" effect —
   // those are handled by the shader handler further below.
   if (!/\bgradient[\s-]?shift\b/i.test(userText) && state.firstComponentId) {
@@ -1581,7 +1581,7 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     }
   }
 
-  // --- Wiggle / jitter (AE-inspired) ---
+  // --- Wiggle / jitter ---
   // Pre-samples pseudo-random fluctuation into keyframes; no runtime needed.
   if (/\b(?:wiggle|jitter|tremble|add\s+noise\s+to\s+(?:the\s+)?motion|random\s+motion)\b/i.test(userText) && state.firstComponentId) {
     const freqM = userText.match(/(?:freq|frequency|hz)\s*(\d+(?:\.\d+)?)/i);
@@ -1606,7 +1606,7 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     }, `Wiggled ${property} (freq=${freqM ? freqM[1] : "2"}Hz, amp=${ampM ? ampM[1] : "20"}).`);
   }
 
-  // --- Particle emitter (AE-inspired) ---
+  // --- Particle emitter ---
   if (/\b(?:particle[s]?|emitter|spawn\s+particle[s]?|burst|fire\s+particle[s]?|sparks?|snow|confetti)\b/i.test(userText)) {
     const rateM = userText.match(/(?:rate|per\s+sec)\s*(\d+)/i);
     const lifeM = userText.match(/(?:life|lifespan)\s*(\d+)/i);
@@ -1622,7 +1622,7 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     }, `Created particle emitter (rate=${rateM ? rateM[1] : "20"}/s, life=${lifeM ? lifeM[1] : "1500"}ms).`);
   }
 
-  // --- 3D camera (AE-inspired) ---
+  // --- 3D camera ---
   // Guard: skip when the user means a pre-baked camera MOVE (pan/zoom/dolly
   // move) — those are handled by the existing add_camera_move handler.
   if (!/\bcamera\s+(?:move|pan|zoom|tilt|dolly|truck|orbit)\b|pan\s+camera|zoom\s+camera/i.test(userText)) {
@@ -1648,7 +1648,7 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     }
   }
 
-  // --- Audio reactive (AE-inspired) ---
+  // --- Audio reactive ---
   if (/\b(?:audio[\s-]?reactive|react\s+to\s+audio|drive\s+(?:this|it|scale|rotation|opacity|position)\s+with\s+(?:audio|bass|treble|mid|music|sound)|beat\s+detect(?:ion)?|music\s+sync|sound\s+reactive|drive\s+(?:scale|rotation|opacity|position)\s+with\s+(?:bass|treble|mid))\b/i.test(userText) && state.firstComponentId) {
     const propM = userText.match(/\b(opacity|scale|translateX|translateY|rotate|backgroundColor|color)\b/i);
     const bandM = userText.match(/\b(bass|mid|treble|overall)\b/i);
@@ -1664,7 +1664,7 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     push("unbind_audio", { componentId: state.firstComponentId }, "Removed audio binding.");
   }
 
-  // --- Puppet pin & mesh warp (AE-inspired) ---
+  // --- Puppet pin & mesh warp ---
   if (state.firstComponentId) {
     if (/\b(?:puppet\s+pin|add\s+pin|deformation\s+pin|puppet\s+tool)\b/i.test(userText)) {
       const xM = userText.match(/\bx\s*(\d+)/i);
