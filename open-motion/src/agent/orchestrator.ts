@@ -3,7 +3,7 @@ import type { ChatOptions, ChatResult, LlmProvider, LlmToolCall } from "./provid
 import { OpenAIProviderError } from "./provider/openai.js";
 import { assembleAgentContext } from "./context.js";
 import { buildToolSpecs } from "./tools/schema.js";
-import { executeTool, type ToolResult } from "./tools/registry.js";
+import { executeTool, type ToolContext, type ToolResult } from "./tools/registry.js";
 import { addMemory, listMemory, restoreMemory, compressMemory } from "./memory/store.js";
 import { buildPlan } from "./planner.js";
 import { think } from "./reasoning.js";
@@ -22,9 +22,31 @@ import { suggestProactive } from "./proactiveEngine.js";
 import { recordToolExecution, isToolUnreliable } from "./analytics.js";
 import { generateSessionSummary } from "./sessionSummary.js";
 import { composeTools, composedToToolCalls } from "./toolComposer.js";
+import { capture, isSpecMutating } from "./checkpointManager.js";
+import { runPreHooks, runPostHooks } from "./pluginHooks.js";
+import {
+  createParentBudget,
+  consume,
+  mayExtendForConsolidation,
+  describeBudget,
+  type IterationBudget,
+} from "./iterationBudget.js";
+import {
+  shouldUsePlanMode,
+  composeStructuredPlan,
+  initPlanExecution,
+  completeAction,
+  failAction,
+  planProgress,
+  isPlanFinished,
+  type PlanExecutionState,
+  type StructuredPlan,
+  type PlanAction,
+} from "./planExecutor.js";
+import { setPlanState, clearPlanState } from "./tools/agentTools.js";
 import { logger } from "../utils/logger.js";
 
-const MAX_ITERATIONS = 8;
+const MAX_ITERATIONS = 12;
 
 export interface OrchestrateOptions {
   projectId: string;
@@ -82,6 +104,209 @@ async function chatWithRetry(
 }
 
 /**
+ * Execute a tool with full guardrail wrapping:
+ *   1. Capture a checkpoint if the tool is spec-mutating (so we can undo).
+ *   2. Run pre-hooks (validation, veto, arg patching).
+ *   3. Execute the tool via the standard registry.
+ *   4. Run post-hooks (side effects, metrics).
+ *   5. Emit checkpoint / hook_warning events to the UI.
+ *
+ * Returns the tool result plus any warnings emitted by hooks. If a hook
+ * vetoes the call, returns a synthetic failed result with the veto reason.
+ */
+async function executeToolWithGuardrails(
+  tool: string,
+  args: Record<string, unknown>,
+  ctx: ToolContext,
+  onEvent: (event: ChatEvent) => void,
+): Promise<{ result: ToolResult; warnings: string[]; checkpointId?: string }> {
+  const warnings: string[] = [];
+  let checkpointId: string | undefined;
+
+  // 1. Checkpoint capture for spec-mutating tools.
+  if (isSpecMutating(tool)) {
+    const cp = capture(ctx.projectId, tool);
+    if (cp) {
+      checkpointId = cp.id;
+      onEvent({
+        type: "checkpoint",
+        checkpointId: cp.id,
+        triggerTool: tool,
+        componentCount: cp.componentCount,
+        label: cp.label,
+      });
+    }
+  }
+
+  // 2. Pre-hooks: validate, patch args, or veto.
+  const pre = await runPreHooks({
+    projectId: ctx.projectId,
+    tool: tool as never,
+    args,
+  });
+  if (pre.warnings.length > 0) {
+    warnings.push(...pre.warnings);
+    onEvent({ type: "hook_warning", warnings: pre.warnings, tool });
+  }
+  if (pre.veto) {
+    return {
+      result: {
+        ok: false,
+        summary: `vetoed by guardrail: ${pre.reason ?? "unknown reason"}`,
+        specChanged: false,
+      },
+      warnings,
+      checkpointId,
+    };
+  }
+
+  // 3. Execute the tool with (possibly patched) args.
+  const result = await executeTool(tool as never, pre.args, ctx);
+
+  // 4. Post-hooks: side effects only.
+  await runPostHooks(
+    { projectId: ctx.projectId, tool: tool as never, args: pre.args },
+    result,
+  );
+
+  return { result, warnings, checkpointId };
+}
+
+/**
+ * Execute a structured plan: walk each action, run its tool calls, and emit
+ * plan_progress events as actions complete. Returns when all actions are done
+ * or the user requests cancellation.
+ */
+async function executeStructuredPlan(
+  plan: StructuredPlan,
+  ctx: ToolContext,
+  onEvent: (event: ChatEvent) => void,
+  allToolCalls: LlmToolCall[],
+  allToolResults: ToolResult[],
+  goalTree: GoalTree | null,
+): Promise<{ componentCountDelta: number; anySpecChanged: boolean }> {
+  const state: PlanExecutionState = initPlanExecution(plan);
+  // Surface the plan state to the LLM via the cancel_plan / get_plan_state tools.
+  setPlanState(ctx.projectId, {
+    planSummary: plan.summary,
+    currentActionIndex: -1,
+    completed: 0,
+    failed: 0,
+    total: plan.actions.length,
+    cancelRequested: false,
+  });
+
+  let anySpecChanged = false;
+  const componentCountBefore =
+    getProjectSpec(ctx.projectId)?.components.length ?? 0;
+
+  for (let i = 0; i < plan.actions.length; i++) {
+    if (state.cancelRequested) break;
+    const action = plan.actions[i];
+    state.currentActionIndex = i;
+
+    let actionOk = true;
+    for (const call of action.toolCalls) {
+      if (state.cancelRequested) break;
+      const callId = `plan_${action.id}_${call.tool}`;
+      onEvent({ type: "tool_call", tool: call.tool, args: call.args, callId });
+
+      const activeGoalId = goalTree ? startToolGoal(goalTree, call.tool) : null;
+      if (goalTree && activeGoalId) {
+        onEvent({ type: "goal", root: serializeGoal(goalTree) });
+      }
+
+      const toolStart = Date.now();
+      const { result } = await executeToolWithGuardrails(
+        call.tool as string,
+        call.args,
+        ctx,
+        onEvent,
+      );
+      const toolDurationMs = Date.now() - toolStart;
+      recordToolExecution(ctx.projectId, call.tool, result.ok, toolDurationMs);
+
+      allToolCalls.push({ tool: call.tool, args: call.args, callId });
+      allToolResults.push(result);
+
+      if (goalTree && activeGoalId) {
+        if (result.ok) completeToolGoal(goalTree, activeGoalId);
+        onEvent({ type: "goal", root: serializeGoal(goalTree) });
+      }
+
+      onEvent({
+        type: "tool_result",
+        callId,
+        tool: call.tool,
+        result: result.data ?? null,
+        summary: result.summary,
+      });
+      addMemory(ctx.projectId, {
+        role: "tool",
+        content: result.summary,
+        toolCallId: callId,
+        toolName: call.tool,
+      });
+      addMessage(ctx.projectId, {
+        role: "tool",
+        content: result.summary,
+        toolCallId: callId,
+        toolName: call.tool,
+      });
+
+      if (result.specChanged) anySpecChanged = true;
+      if (!result.ok) actionOk = false;
+    }
+
+    if (actionOk) {
+      completeAction(state, action.id);
+    } else {
+      failAction(state, action.id);
+    }
+
+    // Update shared plan state for cancel_plan / get_plan_state tools.
+    setPlanState(ctx.projectId, {
+      planSummary: plan.summary,
+      currentActionIndex: i,
+      completed: state.completedActionIds.size,
+      failed: state.failedActionIds.size,
+      total: plan.actions.length,
+      cancelRequested: state.cancelRequested,
+    });
+
+    onEvent({
+      type: "plan_progress",
+      actionId: action.id,
+      actionType: action.type,
+      description: action.description,
+      completed: state.completedActionIds.size,
+      total: plan.actions.length,
+    });
+
+    // Emit spec_update after each spec-mutating action so the canvas refreshes.
+    if (action.mutatesSpec && anySpecChanged) {
+      const fresh = getProjectSpec(ctx.projectId);
+      if (fresh) {
+        onEvent({
+          type: "spec_update",
+          components: fresh.components,
+          project: fresh.project,
+        });
+      }
+    }
+  }
+
+  clearPlanState(ctx.projectId);
+
+  const componentCountAfter =
+    getProjectSpec(ctx.projectId)?.components.length ?? componentCountBefore;
+  return {
+    componentCountDelta: componentCountAfter - componentCountBefore,
+    anySpecChanged,
+  };
+}
+
+/**
  * The conversation heart: prompt the provider, execute any tool calls, feed
  * results back, and repeat until the provider returns a plain reply. Each
  * spec-mutating tool batch emits a spec_update so the live canvas refreshes.
@@ -135,6 +360,84 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
   const allToolResults: ToolResult[] = [];
   const componentCountBefore = initialSpec?.components.length ?? 0;
 
+  // Plan-then-Execute routing: for complex multi-step requests, decompose into
+  // typed actions and execute them sequentially with reviewable progress and
+  // cancel support. This runs BEFORE the composition pre-pass so complex
+  // multi-action requests get the full plan treatment (reviewable, cancellable)
+  // instead of being shortcut by composition.
+  if (initialSpec && shouldUsePlanMode(userMessage, initialSpec)) {
+    const structuredPlan = composeStructuredPlan(userMessage, initialSpec);
+    if (structuredPlan.totalToolCalls > 0) {
+      logger.info("plan-then-execute mode", {
+        actions: structuredPlan.actions.length,
+        toolCalls: structuredPlan.totalToolCalls,
+        mutatesSpec: structuredPlan.mutatesSpec,
+      });
+      onEvent({
+        type: "plan_state",
+        planSummary: structuredPlan.summary,
+        currentActionIndex: -1,
+        completed: 0,
+        failed: 0,
+        total: structuredPlan.actions.length,
+        cancelRequested: false,
+      });
+
+      const planResult = await executeStructuredPlan(
+        structuredPlan,
+        { projectId },
+        onEvent,
+        allToolCalls,
+        allToolResults,
+        goalTree,
+      );
+
+      const freshSpec = getProjectSpec(projectId);
+      const componentCountAfter = freshSpec?.components.length ?? componentCountBefore;
+
+      if (planResult.anySpecChanged && freshSpec) {
+        onEvent({
+          type: "spec_update",
+          components: freshSpec.components,
+          project: freshSpec.project,
+        });
+        const suggestions = suggestProactive({
+          spec: freshSpec,
+          lastTool: structuredPlan.actions[structuredPlan.actions.length - 1]?.toolCalls[0]?.tool ?? null,
+          lastToolOk: true,
+          lastComponentId: undefined,
+        });
+        if (suggestions.length > 0) {
+          onEvent({ type: "proactive_suggestion", suggestions });
+        }
+      }
+
+      // Self-learning: extract a skill from the executed plan.
+      if (allToolCalls.length >= 2) {
+        const skill = extractSkill(userMessage, allToolCalls, allToolResults, projectId);
+        if (skill) {
+          logger.info("generated skill from plan execution", { skillId: skill.id, skillName: skill.name });
+        }
+      }
+
+      const summaryText = structuredPlan.summary;
+      addMemory(projectId, { role: "assistant", content: summaryText });
+      addMessage(projectId, { role: "assistant", content: summaryText });
+
+      const summary = generateSessionSummary({
+        userMessage,
+        toolCalls: allToolCalls,
+        toolResults: allToolResults,
+        goalTree,
+        componentCountBefore,
+        componentCountAfter,
+      });
+      onEvent({ type: "session_summary", summary });
+      onEvent({ type: "done", message: summaryText, tokensIn: 0, tokensOut: 0 });
+      return;
+    }
+  }
+
   // Tool composition pre-pass: if the user's message matches a known
   // compound pattern (e.g., "add a bouncy fade with 200ms delay"),
   // synthesize the tool calls directly without an LLM round-trip.
@@ -167,7 +470,7 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
 
         onEvent({ type: "tool_call", tool: call.tool, args: call.args, callId: call.callId });
         const toolStart = Date.now();
-        const result = await executeTool(call.tool, call.args, { projectId });
+        const { result } = await executeToolWithGuardrails(call.tool as string, call.args as Record<string, unknown>, { projectId }, onEvent);
         const toolDurationMs = Date.now() - toolStart;
         recordToolExecution(projectId, call.tool, result.ok, toolDurationMs);
         if (isToolUnreliable(projectId, call.tool)) {
@@ -232,7 +535,23 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
     }
   }
 
-  for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
+  // Standard ReAct loop with bounded iteration budget.
+  const budget = createParentBudget(MAX_ITERATIONS);
+  onEvent({
+    type: "budget",
+    label: budget.label,
+    consumed: budget.consumed,
+    initial: budget.initial,
+    remaining: budget.remaining,
+  });
+
+  while (consume(budget)) {
+    // Allow one consolidation iteration when the budget is exhausted but
+    // spec-changing progress has been made — prevents mid-edit termination.
+    if (budget.remaining === 0 && !mayExtendForConsolidation(budget, allToolResults.some((r) => r.specChanged))) {
+      break;
+    }
+    const iter = budget.consumed - 1;
     // Pass userMessage on first iteration so persistent memory can be retrieved
     const ctx = assembleAgentContext(projectId, iter === 0 ? userMessage : undefined);
     if (!ctx) {
@@ -343,7 +662,7 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
         logger.warn("tool is currently unreliable — recent failures detected", { tool: call.tool });
       }
       const toolStart = Date.now();
-      const result = await executeTool(call.tool, call.args, { projectId });
+      const { result } = await executeToolWithGuardrails(call.tool as string, call.args as Record<string, unknown>, { projectId }, onEvent);
       const toolDurationMs = Date.now() - toolStart;
       // Record analytics for observability and recovery heuristics
       recordToolExecution(projectId, call.tool, result.ok, toolDurationMs);
@@ -441,11 +760,19 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
       }
     }
     // Loop back: re-assemble context (system prompt now reflects the new spec).
+    onEvent({
+      type: "budget",
+      label: budget.label,
+      consumed: budget.consumed,
+      initial: budget.initial,
+      remaining: budget.remaining,
+    });
   }
 
+  logger.warn("agent budget exhausted", { budget: describeBudget(budget) });
   onEvent({
     type: "error",
-    message: "agent exceeded its tool-call budget without a final reply",
+    message: `agent exceeded its tool-call budget (${budget.consumed}/${budget.initial} iterations) without a final reply`,
     recoverable: true,
   });
 }
