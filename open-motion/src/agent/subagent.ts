@@ -281,8 +281,12 @@ export function pickBestResult(
  */
 export function shouldDelegate(message: string): boolean {
   const lower = message.toLowerCase();
+  // "compare X vs Y" / "compare X and Y" — direct comparison always delegates.
+  if (/\bcompare\b.*\b(?:vs\.?|versus|or|and)\b/i.test(lower)) {
+    return true;
+  }
+  // "explore alternatives" / "try different approaches" — needs both verbs.
   if (/\b(explore|try|compare|alternative|variation|option|approach)\b/i.test(lower)) {
-    // "explore 3 alternatives" / "try different approaches" / "compare X vs Y"
     if (/\b(alternative|variation|option|approach|different|several|multiple)\b/i.test(lower)) {
       return true;
     }
