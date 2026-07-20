@@ -122,6 +122,57 @@ export const ChatEventSchema = z.discriminatedUnion("type", [
     tokensOut: z.number().default(0),
   }),
   z.object({ type: z.literal("error"), message: z.string(), recoverable: z.boolean().default(true) }),
+  z.object({
+    type: z.literal("checkpoint"),
+    checkpointId: z.string(),
+    triggerTool: z.string(),
+    componentCount: z.number(),
+    label: z.string(),
+  }),
+  z.object({
+    type: z.literal("hook_warning"),
+    warnings: z.array(z.string()),
+    tool: z.string(),
+  }),
+  z.object({
+    type: z.literal("plan_progress"),
+    actionId: z.string(),
+    actionType: z.string(),
+    description: z.string(),
+    completed: z.number(),
+    total: z.number(),
+  }),
+  z.object({
+    type: z.literal("plan_state"),
+    planSummary: z.string(),
+    currentActionIndex: z.number(),
+    completed: z.number(),
+    failed: z.number(),
+    total: z.number(),
+    cancelRequested: z.boolean(),
+  }),
+  z.object({
+    type: z.literal("budget"),
+    label: z.string(),
+    consumed: z.number(),
+    initial: z.number(),
+    remaining: z.number(),
+  }),
+  z.object({
+    type: z.literal("subagent_started"),
+    goal: z.string(),
+    toolCount: z.number(),
+    maxIterations: z.number(),
+  }),
+  z.object({
+    type: z.literal("subagent_completed"),
+    goal: z.string(),
+    allSucceeded: z.boolean(),
+    specChanged: z.boolean(),
+    durationMs: z.number(),
+    iterationsUsed: z.number(),
+    summary: z.string(),
+  }),
 ]);
 export type ChatEvent = z.infer<typeof ChatEventSchema>;
 
