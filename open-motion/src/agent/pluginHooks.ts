@@ -191,6 +191,64 @@ registerHook({
   },
 });
 
+/**
+ * Restraint budget guardrail: warns when the project's motion budget is
+ * running low, and blocks new loud effects when the budget is exhausted.
+ *
+ * This hook lazily imports the budget module and project service to avoid
+ * circular dependencies at module load time.
+ */
+const LOUD_TOOLS = new Set([
+  "add_particle_emitter",
+  "add_snow_effect",
+  "add_rain_effect",
+  "add_bubbles_effect",
+  "add_star_field",
+  "add_confetti_burst",
+  "apply_preset",
+  "apply_recipe",
+  "apply_style",
+  "apply_brand_pack",
+  "apply_motion_profile",
+  "apply_motion_capture",
+  "set_loop",
+  "set_loop_expression",
+]);
+
+registerHook({
+  name: "builtin.restraint-budget",
+  pre: async ({ projectId, tool, args }) => {
+    if (!LOUD_TOOLS.has(tool)) return;
+    // Lazy import to avoid circular dependency at module load.
+    const { readBudget, canAfford } = await import("../motion/restraintBudget.js");
+    const { getProjectWithSpec } = await import("../server/services/projectService.js");
+    try {
+      const project = getProjectWithSpec(projectId);
+      if (!project || !project.spec) return;
+      const tokens = project.spec.project.tokens ?? {};
+      const budget = readBudget(tokens);
+      // Estimate cost: loud tools cost ~2 by default, more for particle systems.
+      let estimatedCost = 2;
+      if (tool.startsWith("add_")) estimatedCost = 3;
+      if (/particle|confetti|snow|rain|bubble|star/.test(tool)) estimatedCost = 4;
+      const check = canAfford(estimatedCost, tokens);
+      if (!check.affordable) {
+        return {
+          veto: true,
+          reason: `Restraint budget exhausted (${budget.spent}/${budget.ceiling} ${budget.tier}). Remove existing effects or upgrade to a higher tier before adding more.`,
+        };
+      }
+      if (check.remaining <= budget.ceiling * 0.2) {
+        return {
+          warning: `Restraint budget running low: ${check.remaining} points remaining (${budget.tier} tier).`,
+        };
+      }
+    } catch {
+      // Project or budget not available — fail open (don't block the tool).
+    }
+  },
+});
+
 /** Reset all hooks (used by tests). */
 export function resetHooks(): void {
   hooks.length = 0;
@@ -250,6 +308,37 @@ export function resetHooks(): void {
       }
       if (Object.keys(patched).length === 0) return;
       return { patchedArgs: patched, warning: warnings.join(" ") };
+    },
+  });
+  registerHook({
+    name: "builtin.restraint-budget",
+    pre: async ({ projectId, tool }) => {
+      if (!LOUD_TOOLS.has(tool)) return;
+      const { readBudget, canAfford } = await import("../motion/restraintBudget.js");
+      const { getProjectWithSpec } = await import("../server/services/projectService.js");
+      try {
+        const project = getProjectWithSpec(projectId);
+        if (!project || !project.spec) return;
+        const tokens = project.spec.project.tokens ?? {};
+        const budget = readBudget(tokens);
+        let estimatedCost = 2;
+        if (tool.startsWith("add_")) estimatedCost = 3;
+        if (/particle|confetti|snow|rain|bubble|star/.test(tool)) estimatedCost = 4;
+        const check = canAfford(estimatedCost, tokens);
+        if (!check.affordable) {
+          return {
+            veto: true,
+            reason: `Restraint budget exhausted (${budget.spent}/${budget.ceiling} ${budget.tier}). Remove existing effects or upgrade to a higher tier before adding more.`,
+          };
+        }
+        if (check.remaining <= budget.ceiling * 0.2) {
+          return {
+            warning: `Restraint budget running low: ${check.remaining} points remaining (${budget.tier} tier).`,
+          };
+        }
+      } catch {
+        // Project or budget not available — fail open.
+      }
     },
   });
 }
