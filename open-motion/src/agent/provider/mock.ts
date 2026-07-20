@@ -1924,6 +1924,441 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     }, `Generated a ${typeM ? typeM[1].toLowerCase() : "bar"} chart from data source "data_1".`);
   }
 
+  // --- Effects & filters library ---
+  if (/\bgaussian\s+blur|\bdefocus\b|\bsoften\s+(?:the\s+)?(?:layer|this)|模糊/i.test(userText) && state.firstComponentId) {
+    const radiusM = userText.match(/(?:radius|amount)\s*(\d+(?:\.\d+)?)/i);
+    push("apply_gaussian_blur", {
+      componentId: state.firstComponentId,
+      radius: radiusM ? Number(radiusM[1]) : 8,
+    }, `Applied Gaussian blur (radius ${radiusM ? radiusM[1] : "8"}px).`);
+  }
+  if (/\bdirectional\s+blur|horizontal\s+blur|vertical\s+blur|\bstreak\s+(?:this|the\s+layer)/i.test(userText) && state.firstComponentId) {
+    const angleM = userText.match(/(?:angle|direction)\s*(\d+(?:\.\d+)?)/i);
+    const lenM = userText.match(/(?:length|amount)\s*(\d+(?:\.\d+)?)/i);
+    push("apply_directional_blur", {
+      componentId: state.firstComponentId,
+      angle: angleM ? Number(angleM[1]) : 0,
+      length: lenM ? Number(lenM[1]) : 20,
+    }, `Applied directional blur (angle ${angleM ? angleM[1] : "0"}°, length ${lenM ? lenM[1] : "20"}px).`);
+  }
+  if (/\bradial\s+blur|zoom\s+blur|spin\s+blur|rotational\s+blur|径向模糊/i.test(userText) && state.firstComponentId) {
+    push("apply_radial_blur", {
+      componentId: state.firstComponentId,
+      amount: 15,
+      spin: /\bspin\b/i.test(userText),
+    }, `Applied radial blur (${/\bspin\b/i.test(userText) ? "spin" : "zoom"} mode).`);
+  }
+  if (/\bsharpen\b|\bunsharp\b|锐化/i.test(userText) && state.firstComponentId) {
+    const amtM = userText.match(/(?:amount|strength)\s*(\d+(?:\.\d+)?)/i);
+    push("apply_sharpen", {
+      componentId: state.firstComponentId,
+      amount: amtM ? Number(amtM[1]) : 50,
+    }, `Applied sharpen (amount ${amtM ? amtM[1] : "50"}).`);
+  }
+  if (/\bwave\s+warp|wavy\s+distortion|波浪扭曲/i.test(userText) && state.firstComponentId) {
+    const heightM = userText.match(/(?:height|amplitude)\s*(\d+(?:\.\d+)?)/i);
+    push("apply_wave_warp", {
+      componentId: state.firstComponentId,
+      waveHeight: heightM ? Number(heightM[1]) : 20,
+    }, `Applied wave warp (amplitude ${heightM ? heightM[1] : "20"}px).`);
+  }
+  if (/\bapply\s+ripple|add\s+ripple\s+distortion|circular\s+ripple|涟漪/i.test(userText) && state.firstComponentId) {
+    push("apply_ripple", {
+      componentId: state.firstComponentId,
+    }, `Applied circular ripple distortion.`);
+  }
+  if (/\bbulge\b|\bpinch\b|\bspherize\b|膨胀|收缩/i.test(userText) && state.firstComponentId) {
+    const isPinch = /\bpinch\b|收缩/i.test(userText);
+    push("apply_bulge", {
+      componentId: state.firstComponentId,
+      height: isPinch ? -50 : 50,
+    }, `Applied ${isPinch ? "pinch" : "bulge"} distortion.`);
+  }
+  if (/\bstylized\s+glow|\bmake\s+(?:it|this)\s+glow|\bglow\s+effect\s+with\b|\bglow\s+threshold|发光/i.test(userText) && state.firstComponentId) {
+    const colorM = userText.match(/#([0-9a-f]{3,6})/i);
+    push("apply_glow", {
+      componentId: state.firstComponentId,
+      ...(colorM ? { color: `#${colorM[1]}` } : {}),
+    }, `Applied stylized glow${colorM ? ` (tint #${colorM[1]})` : ""}.`);
+  }
+  if (/\bmosaic\b|马赛克/i.test(userText) && state.firstComponentId) {
+    const sizeM = userText.match(/(?:size|block)\s*(\d+)/i);
+    push("apply_mosaic", {
+      componentId: state.firstComponentId,
+      blockSize: sizeM ? Number(sizeM[1]) : 10,
+    }, `Applied mosaic (block ${sizeM ? sizeM[1] : "10"}px).`);
+  }
+  if (/\bfind\s+edges\b|edge\s+detection|描边/i.test(userText) && state.firstComponentId) {
+    push("apply_find_edges", {
+      componentId: state.firstComponentId,
+    }, `Applied find edges.`);
+  }
+  if (/\blens\s+flare\b|光晕/i.test(userText) && state.firstComponentId) {
+    push("apply_lens_flare", {
+      componentId: state.firstComponentId,
+    }, `Applied lens flare.`);
+  }
+  if (/\b4-color\s+gradient|four\s+color\s+gradient|gradient\s+corners|多色渐变/i.test(userText) && state.firstComponentId) {
+    push("apply_four_color_gradient", {
+      componentId: state.firstComponentId,
+    }, `Applied 4-color gradient fill.`);
+  }
+
+  // --- Expression engine & animation assistants ---
+  if (/\bremove\s+expression|delete\s+expression|clear\s+expression|删除表达式/i.test(userText) && state.firstComponentId) {
+    const propM = userText.match(/\b(translateX|translateY|scale|rotate|opacity|width|height)\b/i);
+    push("remove_expression", {
+      componentId: state.firstComponentId,
+      property: propM ? propM[1].toLowerCase() : "rotate",
+    }, `Removed expression from ${propM ? propM[1].toLowerCase() : "rotate"}.`);
+  }
+  if (/\bloop\s+(?:the\s+)?(?:rotation|position|scale|opacity|this\s+property|this)|pingpong\s+(?:this|the)|cycle\s+loop|loop\s+this\s+property|循环/i.test(userText) && state.firstComponentId) {
+    const modeM = userText.match(/\b(cycle|pingpong|offset|continue)\b/i);
+    const propM = userText.match(/\b(rotation|rotate|position|translateX|translateY|scale|opacity)\b/i);
+    const propMap: Record<string, string> = { rotation: "rotate", rotate: "rotate", position: "translateY", translateX: "translateX", translateY: "translateY", scale: "scale", opacity: "opacity" };
+    push("set_loop_expression", {
+      componentId: state.firstComponentId,
+      property: propM ? (propMap[propM[1].toLowerCase()] ?? "rotate") : "rotate",
+      mode: modeM ? modeM[1].toLowerCase() : "cycle",
+    }, `Applied ${modeM ? modeM[1].toLowerCase() : "cycle"} loop expression to ${propM ? propM[1].toLowerCase() : "rotation"}.`);
+  }
+  if (/\bsequence\s+(?:these\s+)?(?:layers|components)|cascade\s+(?:them|these|the\s+layers)|stagger\s+(?:the\s+)?layers|序列图层/i.test(userText)) {
+    const staggerM = userText.match(/(?:stagger|offset)\s*(\d+)/i);
+    push("sequence_layers", {
+      staggerMs: staggerM ? Number(staggerM[1]) : 200,
+    }, `Sequenced layers with ${staggerM ? staggerM[1] : "200"}ms stagger.`);
+  }
+  if (/\bexponential\s+scale|smooth\s+zoom|exponential\s+zoom|指数缩放/i.test(userText) && state.firstComponentId) {
+    const fromM = userText.match(/(?:from|start)\s*(\d+(?:\.\d+)?)/i);
+    const toM = userText.match(/(?:to|end)\s*(\d+(?:\.\d+)?)/i);
+    push("exponential_scale", {
+      componentId: state.firstComponentId,
+      fromScale: fromM ? Number(fromM[1]) : 1,
+      toScale: toM ? Number(toM[1]) : 2,
+    }, `Applied exponential scale (${fromM ? fromM[1] : "1"} → ${toM ? toM[1] : "2"}).`);
+  }
+  if (/\bsmooth\s+keyframes|smooth\s+this\s+animation|reduce\s+jitter|平滑关键帧/i.test(userText) && state.firstComponentId) {
+    push("smooth_keyframes", {
+      componentId: state.firstComponentId,
+    }, `Smoothed keyframes.`);
+  }
+  if (/\bwiggle\s+keyframes|add\s+wiggle\s+to\s+keyframes|generate\s+wiggle\s+keyframes|摆动关键帧/i.test(userText) && state.firstComponentId) {
+    const freqM = userText.match(/(?:freq|frequency)\s*(\d+(?:\.\d+)?)/i);
+    const ampM = userText.match(/(?:amp|amplitude)\s*(\d+(?:\.\d+)?)/i);
+    push("wiggle_keyframes", {
+      componentId: state.firstComponentId,
+      frequency: freqM ? Number(freqM[1]) : 2,
+      amplitude: ampM ? Number(ampM[1]) : 20,
+    }, `Generated wiggle keyframes (freq ${freqM ? freqM[1] : "2"}, amp ${ampM ? ampM[1] : "20"}).`);
+  }
+  if (/\baudio\s+to\s+keyframes|drive\s+this\s+from\s+audio|audio\s+amplitude\s+to\s+keyframes|音频转关键帧/i.test(userText) && state.firstComponentId) {
+    push("audio_to_keyframes", {
+      componentId: state.firstComponentId,
+      audioSourceId: state.secondComponentId ?? state.firstComponentId,
+    }, `Converted audio amplitude to keyframes.`);
+  }
+
+  // --- Type animation system ---
+  if (/\brange\s+selector|select\s+first\s+\d+\s*%|text\s+range|范围选择器/i.test(userText) && state.firstComponentId) {
+    const startM = userText.match(/start\s*(\d+)/i);
+    const endM = userText.match(/end\s*(\d+)/i);
+    push("set_range_selector", {
+      componentId: state.firstComponentId,
+      start: startM ? Number(startM[1]) : 0,
+      end: endM ? Number(endM[1]) : 100,
+    }, `Set range selector (${startM ? startM[1] : "0"}% - ${endM ? endM[1] : "100"}%).`);
+  }
+  if (/\btext\s+wiggler|wiggle\s+the\s+text|jitter\s+the\s+characters|文字摆动/i.test(userText) && state.firstComponentId) {
+    push("set_text_wiggler", {
+      componentId: state.firstComponentId,
+    }, `Applied text wiggler to characters.`);
+  }
+  if (/\btext\s+on\s+path|put\s+text\s+on\s+(?:the\s+)?(?:curve|path)|flow\s+text\s+along\s+path|路径文字/i.test(userText) && state.firstComponentId) {
+    push("text_on_path", {
+      componentId: state.firstComponentId,
+      pathId: state.secondComponentId ?? state.firstComponentId,
+    }, `Placed text on path.`);
+  }
+  if (/\bvertical\s+text|stack\s+text\s+vertically|竖排文字/i.test(userText) && state.firstComponentId) {
+    push("set_vertical_text", {
+      componentId: state.firstComponentId,
+    }, `Switched text to vertical layout.`);
+  }
+  if (/\bkerning|letter\s+spacing|letter\s+tracking|tighten\s+the\s+text|loosen\s+the\s+text|字距/i.test(userText) && state.firstComponentId) {
+    const tM = userText.match(/(?:tracking|kerning|spacing)\s*(-?\d+(?:\.\d+)?)/i);
+    push("set_kerning", {
+      componentId: state.firstComponentId,
+      tracking: tM ? Number(tM[1]) : 0,
+    }, `Set kerning (${tM ? tM[1] : "0"}px tracking).`);
+  }
+  if (/\bleading|line\s+height|adjust\s+line\s+spacing|行距/i.test(userText) && state.firstComponentId) {
+    const lM = userText.match(/(?:leading|lineHeight|height)\s*(\d+(?:\.\d+)?)/i);
+    push("set_leading", {
+      componentId: state.firstComponentId,
+      lineHeight: lM ? Number(lM[1]) : 1.2,
+    }, `Set leading (lineHeight ${lM ? lM[1] : "1.2"}).`);
+  }
+  if (/\bper\s+character\s+transform|character\s+by\s+character|stagger\s+the\s+characters|逐字符变换/i.test(userText) && state.firstComponentId) {
+    push("per_character_transform", {
+      componentId: state.firstComponentId,
+    }, `Applied per-character transform.`);
+  }
+  if (/\btext\s+animator|animate\s+color\s+per\s+character|fade\s+in\s+characters|文字动画器/i.test(userText) && state.firstComponentId) {
+    const animM = userText.match(/\b(position|scale|rotation|opacity|color|tracking)\b/i);
+    push("set_text_animator", {
+      componentId: state.firstComponentId,
+      animator: animM ? (animM[1].toLowerCase() === "color" ? "fillColor" : animM[1].toLowerCase()) : "opacity",
+    }, `Applied text animator (${animM ? animM[1].toLowerCase() : "opacity"}).`);
+  }
+
+  // --- Motion tracking & stabilization ---
+  if (/\btrack\s+(?:this\s+)?point|motion\s+track\s+(?:this\s+)?point|track\s+a\s+point|跟踪点/i.test(userText) && state.firstComponentId) {
+    const xM = userText.match(/\bx\s*(\d+)/i);
+    const yM = userText.match(/\by\s*(\d+)/i);
+    push("track_point", {
+      componentId: state.firstComponentId,
+      pointX: xM ? Number(xM[1]) : 0,
+      pointY: yM ? Number(yM[1]) : 0,
+    }, `Tracked point (${xM ? xM[1] : "0"}, ${yM ? yM[1] : "0"}).`);
+  }
+  if (/\bcamera\s+tracker|track\s+the\s+camera|3d\s+solve|solve\s+camera|摄像器解算/i.test(userText) && state.firstComponentId) {
+    push("track_camera", {
+      componentId: state.firstComponentId,
+    }, `Ran camera tracker.`);
+  }
+  if (/\bstabilize\s+this|warp\s+stabilizer|smooth\s+camera\s+shake|稳定/i.test(userText) && state.firstComponentId) {
+    const smoothM = userText.match(/(?:smooth|smoothness)\s*(\d+)/i);
+    push("warp_stabilizer", {
+      componentId: state.firstComponentId,
+      smoothness: smoothM ? Number(smoothM[1]) : 50,
+    }, `Applied warp stabilizer (smoothness ${smoothM ? smoothM[1] : "50"}).`);
+  }
+  if (/\bapply\s+track\s+to\s+layer|use\s+the\s+track\s+on\s+this|apply\s+tracking\s+data|应用跟踪/i.test(userText) && state.firstComponentId) {
+    push("apply_track_to_layer", {
+      componentId: state.firstComponentId,
+      trackName: "track_1",
+    }, `Applied track data to layer.`);
+  }
+  if (/\bedit\s+motion\s+path|redraw\s+the\s+path|change\s+the\s+motion\s+path|运动路径/i.test(userText) && state.firstComponentId) {
+    push("edit_motion_path", {
+      componentId: state.firstComponentId,
+      points: [
+        { x: 0, y: 0 },
+        { x: 100, y: 50 },
+        { x: 200, y: 0 },
+      ],
+    }, `Edited motion path (3 control points).`);
+  }
+  if (/\bauto\s+orient|orient\s+along\s+path|face\s+direction\s+of\s+motion|沿路径定向/i.test(userText) && state.firstComponentId) {
+    push("auto_orient_path", {
+      componentId: state.firstComponentId,
+    }, `Enabled auto-orient along motion path.`);
+  }
+
+  // --- Compositing & blending ---
+  // Careful: plain "blend mode" is handled by set_blend_mode above; this
+  // handler targets the advanced blending panel (fill opacity, knockout,
+  // Blend If ranges, per-channel inclusion).
+  if (/\b(?:advanced\s+blending|fill\s+opacity|knockout|blend\s+if)\b/i.test(userText) && state.firstComponentId) {
+    const fillOpacityM = userText.match(/fill\s+opacity\s*(\d+(?:\.\d+)?)/i);
+    push("set_advanced_blending", {
+      componentId: state.firstComponentId,
+      ...(fillOpacityM ? { fillOpacity: Number(fillOpacityM[1]) / 100 } : {}),
+    }, `Configured advanced blending options.`);
+  }
+  if (/\b(?:pre[\s-]?compose|nest\s+(?:these|the|selected)\s+layers|group\s+(?:these|selected)\s+(?:into|as)\s+(?:a\s+)?comp)\b/i.test(userText) && state.componentIds.length > 0) {
+    push("precompose", {
+      componentIds: state.componentIds,
+    }, `Pre-composed ${state.componentIds.length} layer(s) into a new comp.`);
+  }
+  if (/\b(?:collapse\s+transformations|collapse\s+(?:this|the\s+layer))\b/i.test(userText) && state.firstComponentId) {
+    push("collapse_transformations", {
+      componentId: state.firstComponentId,
+    }, `Toggled collapse transformations.`);
+  }
+  if (/\b(?:alpha\s+mode|premultiplied\s+alpha|straight\s+alpha|unassociated\s+alpha)\b/i.test(userText) && state.firstComponentId) {
+    const modeM = userText.match(/\b(premultiplied|straight|unassociated)\b/i);
+    push("set_alpha_mode", {
+      componentId: state.firstComponentId,
+      mode: modeM && /premultiplied/i.test(modeM[1]) ? "premultiplied" : "straight",
+    }, `Set alpha mode.`);
+  }
+  if (/\b(?:stencil\s+(?:alpha|luma)|silhouette\s+(?:alpha|luma)|alpha[\s-]?add|luma\s+matte)\b/i.test(userText) && state.firstComponentId) {
+    const modeM = userText.match(/\b(stencil\s+alpha|stencil\s+luma|silhouette\s+alpha|silhouette\s+luma|alpha[\s-]?add|luma\s+matte)\b/i);
+    push("set_transfer_mode", {
+      componentId: state.firstComponentId,
+      mode: modeM ? modeM[1].toLowerCase().replace(/\s+/g, "-").replace("alpha-add", "alpha-add") : "stencil-alpha",
+    }, `Set transfer mode.`);
+  }
+  if (/\b(?:blending\s+group|isolate\s+blending|knockout\s+group)\b/i.test(userText) && state.firstComponentId) {
+    push("set_blending_group", {
+      componentId: state.firstComponentId,
+    }, `Configured blending group.`);
+  }
+
+  // --- Time effects & rhythm ---
+  if (/\b(?:time\s+displacement|displace\s+time|pixel\s+time\s+offset)\b/i.test(userText) && state.firstComponentId) {
+    const maxM = userText.match(/(?:max|amount)\s*(\d+)\s*ms/i);
+    push("time_displacement", {
+      componentId: state.firstComponentId,
+      ...(maxM ? { maxDisplacementMs: Number(maxM[1]) } : {}),
+    }, `Applied time displacement.`);
+  }
+  // Careful: plain "echo" is handled by add_echo above; this targets the
+  // advanced composite-operator variant.
+  if (/\b(?:advanced\s+echo|composite\s+echo|echo\s+with\s+(?:operator|mode))\b/i.test(userText) && state.firstComponentId) {
+    const countM = userText.match(/(\d+)\s*(?:echoes?|copies|trails?)/i);
+    const opM = userText.match(/\b(add|maximum|minimum|screen|difference|crossfade)\b/i);
+    push("echo_advanced", {
+      componentId: state.firstComponentId,
+      ...(countM ? { numberOfEchoes: Number(countM[1]) } : {}),
+      ...(opM ? { echoOperator: opM[1].toLowerCase() as "add" | "maximum" | "minimum" | "screen" | "difference" | "crossfade" } : {}),
+    }, `Applied advanced echo.`);
+  }
+  if (/\b(?:sequence\s+with\s+(?:crossfade|transition|dissolve|wipe|push)|dissolve\s+between\s+(?:layers|clips)|transition\s+between\s+(?:layers|clips)|crossfade\s+(?:the\s+)?layers)\b/i.test(userText) && state.componentIds.length >= 2) {
+    const typeM = userText.match(/\b(crossfade|dissolve|cut|wipe|push)\b/i);
+    const durM = userText.match(/(\d+)\s*ms/i);
+    push("sequence_with_transition", {
+      componentIds: state.componentIds,
+      ...(typeM ? { transitionType: typeM[1].toLowerCase() as "crossfade" | "dissolve" | "cut" | "wipe" | "push" } : {}),
+      ...(durM ? { transitionDurationMs: Number(durM[1]) } : {}),
+    }, `Sequenced layers with ${typeM ? typeM[1].toLowerCase() : "crossfade"} transition.`);
+  }
+  if (/\b(?:time\s+reverse|reverse\s+(?:the|this)\s+layer|reverse\s+layer)\b/i.test(userText) && state.firstComponentId) {
+    push("time_reverse_layer", {
+      componentId: state.firstComponentId,
+    }, `Reversed the layer's playback.`);
+  }
+  if (/\b(?:freeze\s+frame|hold\s+(?:this|the|current)\s+frame|freeze\s+at)\b/i.test(userText) && state.firstComponentId) {
+    const atM = userText.match(/at\s*(\d+)\s*ms/i);
+    push("freeze_frame", {
+      componentId: state.firstComponentId,
+      ...(atM ? { atTimeMs: Number(atM[1]) } : {}),
+    }, `Froze the layer at ${atM ? atM[1] + "ms" : "current frame"}.`);
+  }
+  // Careful: plain "posterize time" is handled by posterize_time above; this
+  // targets the advanced variant with regional/velocity options.
+  if (/\b(?:posterize\s+time\s+advanced|regional\s+posterize|velocity\s+posterize|advanced\s+posterize)\b/i.test(userText) && state.firstComponentId) {
+    const fpsM = userText.match(/(\d+)\s*fps/i);
+    push("posterize_time_advanced", {
+      componentId: state.firstComponentId,
+      ...(fpsM ? { fps: Number(fpsM[1]) } : {}),
+    }, `Applied advanced posterize time.`);
+  }
+  // Careful: "time remap" is handled by set_time_remap; this targets the
+  // dedicated speed-curve variant with keyframes.
+  if (/\b(?:time\s+warp|speed\s+ramp|variable\s+speed|变速曲线|时间重映射)\b/i.test(userText) && state.firstComponentId) {
+    push("time_warp_remapping", {
+      componentId: state.firstComponentId,
+      speedKeyframes: [
+        { timeMs: 0, speed: 1, interpolation: "ease" },
+        { timeMs: 500, speed: 0.3, interpolation: "ease" },
+        { timeMs: 1000, speed: 1, interpolation: "ease" },
+      ],
+    }, `Applied time-warp speed remapping.`);
+  }
+
+  // --- Camera lens & optical ---
+  if (/\b(?:lens\s+distortion|barrel\s+distortion|pincushion|remove\s+distortion)\b/i.test(userText) && state.firstComponentId) {
+    const amountM = userText.match(/(?:amount|strength)\s*(-?\d+(?:\.\d+)?)/i);
+    push("lens_distortion", {
+      componentId: state.firstComponentId,
+      ...(amountM ? { amount: Number(amountM[1]) } : {}),
+    }, `Applied lens distortion.`);
+  }
+  if (/\b(?:chromatic\s+aberration|color\s+fringing|rgb\s+split|色差|色散)\b/i.test(userText) && state.firstComponentId) {
+    const redM = userText.match(/red\s*(?:offset)?\s*(-?\d+)/i);
+    const blueM = userText.match(/blue\s*(?:offset)?\s*(-?\d+)/i);
+    push("chromatic_aberration", {
+      componentId: state.firstComponentId,
+      ...(redM ? { redOffset: Number(redM[1]) } : {}),
+      ...(blueM ? { blueOffset: Number(blueM[1]) } : {}),
+    }, `Applied chromatic aberration.`);
+  }
+  if (/\b(?:vignette|darken\s+(?:the\s+)?edges|edge\s+falloff|暗角)\b/i.test(userText) && state.firstComponentId) {
+    const amountM = userText.match(/(?:amount|strength)\s*(\d+(?:\.\d+)?)/i);
+    push("vignette", {
+      componentId: state.firstComponentId,
+      ...(amountM ? { amount: Number(amountM[1]) } : {}),
+    }, `Applied vignette.`);
+  }
+  if (/\b(?:camera\s+shake|handheld\s+shake|procedural\s+shake|jitter\s+the\s+camera|镜头抖动)\b/i.test(userText) && state.firstComponentId) {
+    const intensityM = userText.match(/intensity\s*(\d+(?:\.\d+)?)/i);
+    const freqM = userText.match(/(?:frequency|freq)\s*(\d+(?:\.\d+)?)/i);
+    push("camera_shake_procedural", {
+      componentId: state.firstComponentId,
+      ...(intensityM ? { intensity: Number(intensityM[1]) } : {}),
+      ...(freqM ? { frequency: Number(freqM[1]) } : {}),
+    }, `Applied procedural camera shake.`);
+  }
+  if (/\b(?:optical\s+flow|motion\s+vectors?|motion\s+estimation|光流)\b/i.test(userText) && state.firstComponentId) {
+    push("optical_flow", {
+      componentId: state.firstComponentId,
+    }, `Computed optical flow.`);
+  }
+  if (/\b(?:match[\s-]?move|match\s+this\s+movement|motion\s+match|匹配移动)\b/i.test(userText) && state.firstComponentId) {
+    push("motion_match_move", {
+      componentId: state.firstComponentId,
+    }, `Match-moved the layer.`);
+  }
+  // Careful: plain "lens flare" is handled by apply_lens_flare; this targets
+  // the anamorphic horizontal-streak variant.
+  if (/\b(?:anamorphic\s+flare|horizontal\s+lens\s+flare|cinematic\s+flare|变形光晕|横向光芒)\b/i.test(userText) && state.firstComponentId) {
+    push("lens_flare_anamorphic", {
+      componentId: state.firstComponentId,
+    }, `Applied anamorphic lens flare.`);
+  }
+  // Careful: plain "depth of field" is handled by set_camera_dof; this
+  // targets the advanced variant with custom focus curve and bokeh shape.
+  if (/\b(?:advanced\s+depth\s+of\s+field|bokeh\s+shape|focus\s+curve|custom\s+dof|高级景深)\b/i.test(userText) && state.firstComponentId) {
+    push("depth_of_field_advanced", {
+      componentId: state.firstComponentId,
+    }, `Applied advanced depth of field.`);
+  }
+
+  // --- Paint & cloning ---
+  if (/\b(?:paint\s+(?:a\s+)?stroke|draw\s+on\s+(?:this|the)|brush\s+stroke|画笔笔触)\b/i.test(userText) && state.firstComponentId) {
+    push("paint_stroke", {
+      componentId: state.firstComponentId,
+      points: [{ x: 0, y: 0 }, { x: 100, y: 100 }],
+    }, `Painted a stroke.`);
+  }
+  if (/\b(?:clone\s+stamp|clone\s+from\s+here|sample\s+and\s+paint|克隆图章)\b/i.test(userText) && state.firstComponentId) {
+    push("clone_stamp", {
+      componentId: state.firstComponentId,
+      sourcePoint: [0, 0],
+      destinationPoint: [100, 100],
+    }, `Cloned from source to destination.`);
+  }
+  if (/\b(?:set\s+brush|brush\s+(?:size|hardness|opacity|spacing|flow)|change\s+the\s+brush|画笔设置)\b/i.test(userText) && state.firstComponentId) {
+    const sizeM = userText.match(/size\s*(\d+)/i);
+    const hardnessM = userText.match(/hardness\s*(\d+(?:\.\d+)?)/i);
+    push("brush_settings", {
+      componentId: state.firstComponentId,
+      ...(sizeM ? { size: Number(sizeM[1]) } : {}),
+      ...(hardnessM ? { hardness: Number(hardnessM[1]) / 100 } : {}),
+    }, `Configured brush settings.`);
+  }
+  if (/\b(?:reveal\s+with\s+brush|paint\s+(?:a\s+)?mask|brush\s+reveal|erase\s+with\s+brush|画笔显隐)\b/i.test(userText) && state.firstComponentId) {
+    push("reveal_with_brush", {
+      componentId: state.firstComponentId,
+      points: [{ x: 0, y: 0 }, { x: 100, y: 100 }],
+    }, `Revealed content with brush.`);
+  }
+  if (/\b(?:erase\s+(?:paint|stroke|this)|remove\s+paint|擦除笔触)\b/i.test(userText) && state.firstComponentId) {
+    push("erase_stroke", {
+      componentId: state.firstComponentId,
+      points: [{ x: 0, y: 0 }, { x: 50, y: 50 }],
+    }, `Erased paint strokes.`);
+  }
+  if (/\b(?:animate\s+(?:the\s+)?stroke|write[\s-]?on\s+(?:this\s+)?stroke|paint\s+animation|grow\s+the\s+stroke|笔触动画)\b/i.test(userText) && state.firstComponentId) {
+    const durM = userText.match(/(\d+)\s*ms/i);
+    push("paint_animator", {
+      componentId: state.firstComponentId,
+      ...(durM ? { durationMs: Number(durM[1]) } : {}),
+    }, `Animated the paint stroke.`);
+  }
+
   // --- Adjustment layers ---
   if (/\b(?:set|create|add)\s+(?:an?\s+)?adjustment\s+layer\b|调整层/i.test(userText)) {
     const filterM = userText.match(/\b(blur|brightness|contrast|hue.?rotate|saturate|grayscale|sepia)\b/i);
