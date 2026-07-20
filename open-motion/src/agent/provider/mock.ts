@@ -2166,7 +2166,7 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
       ...(fillOpacityM ? { fillOpacity: Number(fillOpacityM[1]) / 100 } : {}),
     }, `Configured advanced blending options.`);
   }
-  if (/\b(?:pre[\s-]?compose|nest\s+(?:these|the|selected)\s+layers|group\s+(?:these|selected)\s+(?:into|as)\s+(?:a\s+)?comp)\b/i.test(userText) && state.componentIds.length > 0) {
+  if (/\b(?:pre[\s-]?compose|nest\s+(?:these|the\s+selected|the|selected)\s+layers|group\s+(?:these|selected)\s+(?:into|as)\s+(?:a\s+)?comp)\b/i.test(userText) && state.componentIds.length > 0) {
     push("precompose", {
       componentIds: state.componentIds,
     }, `Pre-composed ${state.componentIds.length} layer(s) into a new comp.`);
@@ -2215,11 +2215,11 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
       ...(opM ? { echoOperator: opM[1].toLowerCase() as "add" | "maximum" | "minimum" | "screen" | "difference" | "crossfade" } : {}),
     }, `Applied advanced echo.`);
   }
-  if (/\b(?:sequence\s+with\s+(?:crossfade|transition|dissolve|wipe|push)|dissolve\s+between\s+(?:layers|clips)|transition\s+between\s+(?:layers|clips)|crossfade\s+(?:the\s+)?layers)\b/i.test(userText) && state.componentIds.length >= 2) {
+  if (/\b(?:sequence\s+with\s+(?:crossfade|transition|dissolve|wipe|push)|dissolve\s+between\s+(?:layers|clips)|transition\s+between\s+(?:layers|clips)|crossfade\s+(?:the\s+)?layers)\b/i.test(userText) && state.firstComponentId) {
     const typeM = userText.match(/\b(crossfade|dissolve|cut|wipe|push)\b/i);
     const durM = userText.match(/(\d+)\s*ms/i);
     push("sequence_with_transition", {
-      componentIds: state.componentIds,
+      ...(state.componentIds.length >= 2 ? { componentIds: state.componentIds } : {}),
       ...(typeM ? { transitionType: typeM[1].toLowerCase() as "crossfade" | "dissolve" | "cut" | "wipe" | "push" } : {}),
       ...(durM ? { transitionDurationMs: Number(durM[1]) } : {}),
     }, `Sequenced layers with ${typeM ? typeM[1].toLowerCase() : "crossfade"} transition.`);
