@@ -44,6 +44,12 @@ import {
   type PlanAction,
 } from "./planExecutor.js";
 import { setPlanState, clearPlanState } from "./tools/agentTools.js";
+import {
+  shouldDelegate,
+  composeSubagentTasks,
+  runSubagentsParallel,
+  type SubagentContext,
+} from "./subagent.js";
 import { logger } from "../utils/logger.js";
 
 const MAX_ITERATIONS = 12;
@@ -359,6 +365,78 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
   const allToolCalls: LlmToolCall[] = [];
   const allToolResults: ToolResult[] = [];
   const componentCountBefore = initialSpec?.components.length ?? 0;
+
+  // Subagent delegation routing: when the user asks for exploration, comparison,
+  // or parallel workstreams, delegate to focused subagents with isolated budgets.
+  if (initialSpec && shouldDelegate(userMessage)) {
+    const subagentTasks = composeSubagentTasks(userMessage, projectId);
+    if (subagentTasks.length > 0) {
+      logger.info("subagent delegation mode", { tasks: subagentTasks.length });
+      for (const task of subagentTasks) {
+        onEvent({
+          type: "subagent_started",
+          goal: task.goal,
+          toolCount: task.toolCalls.length,
+          maxIterations: task.maxIterations ?? 6,
+        });
+      }
+
+      const subagentCtx: SubagentContext = {
+        projectId,
+        goalTree,
+        onEvent,
+      };
+      const results = await runSubagentsParallel(subagentTasks, subagentCtx);
+
+      // Merge subagent results into the parent's tool call history.
+      for (const result of results) {
+        allToolCalls.push(...result.toolCalls);
+        allToolResults.push(...result.toolResults);
+        onEvent({
+          type: "subagent_completed",
+          goal: result.task.goal,
+          allSucceeded: result.allSucceeded,
+          specChanged: result.specChanged,
+          durationMs: result.durationMs,
+          iterationsUsed: result.iterationsUsed,
+          summary: result.summary,
+        });
+      }
+
+      const anySpecChanged = results.some((r) => r.specChanged);
+      if (anySpecChanged) {
+        const fresh = getProjectSpec(projectId);
+        if (fresh) {
+          onEvent({
+            type: "spec_update",
+            components: fresh.components,
+            project: fresh.project,
+          });
+        }
+      }
+
+      const summaryText = results.map((r) => r.summary).join("\n");
+      addMemory(projectId, { role: "assistant", content: summaryText });
+      addMessage(projectId, { role: "assistant", content: summaryText });
+
+      if (allToolCalls.length > 0) {
+        const freshSpec = getProjectSpec(projectId);
+        const componentCountAfter = freshSpec?.components.length ?? componentCountBefore;
+        const summary = generateSessionSummary({
+          userMessage,
+          toolCalls: allToolCalls,
+          toolResults: allToolResults,
+          goalTree,
+          componentCountBefore,
+          componentCountAfter,
+        });
+        onEvent({ type: "session_summary", summary });
+      }
+
+      onEvent({ type: "done", message: summaryText, tokensIn: 0, tokensOut: 0 });
+      return;
+    }
+  }
 
   // Plan-then-Execute routing: for complex multi-step requests, decompose into
   // typed actions and execute them sequentially with reviewable progress and
