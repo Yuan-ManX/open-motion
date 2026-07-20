@@ -1345,6 +1345,536 @@ export const DataDrivenChartInput = z.object({
   color: z.string().regex(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i).optional().describe("Series color"),
 });
 
+/* --------------------------- Effects & filters library --------------------------- */
+export const ApplyGaussianBlurInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  radius: z.number().min(0).max(100).default(8).describe("Blur radius in px"),
+});
+export const ApplyDirectionalBlurInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  angle: z.number().default(0).describe("Direction in degrees (0 = horizontal, 90 = vertical)"),
+  length: z.number().min(0).max(200).default(20).describe("Blur length in px"),
+});
+export const ApplyRadialBlurInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  centerX: z.number().default(0).describe("Blur center X (relative to layer center)"),
+  centerY: z.number().default(0).describe("Blur center Y"),
+  amount: z.number().min(0).max(100).default(15).describe("Blur strength (zoom/spin blend)"),
+  spin: z.boolean().default(false).describe("If true, applies spin blur; otherwise zoom blur"),
+});
+export const ApplySharpenInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  amount: z.number().min(0).max(100).default(50).describe("Sharpen amount (0-100)"),
+  radius: z.number().min(0.1).max(10).default(1).describe("Edge detection radius in px"),
+  threshold: z.number().min(0).max(255).default(0).describe("Luma threshold below which no sharpening"),
+});
+export const ApplyWaveWarpInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  waveHeight: z.number().min(0).max(200).default(20).describe("Wave amplitude in px"),
+  waveWidth: z.number().min(1).max(500).default(50).describe("Wave wavelength in px"),
+  direction: z.number().default(90).describe("Wave direction in degrees"),
+  speed: z.number().min(0).default(0).describe("Phase animation speed (cycles per second)"),
+  phase: z.number().default(0).describe("Initial phase in degrees"),
+});
+export const ApplyRippleInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  centerX: z.number().default(0),
+  centerY: z.number().default(0),
+  radius: z.number().min(1).max(500).default(100).describe("Ripple radius in px"),
+  waveSpeed: z.number().min(0).default(1).describe("Wave speed"),
+  frequency: z.number().min(0.1).default(3).describe("Number of ripples within radius"),
+  amplitude: z.number().min(0).max(100).default(10).describe("Ripple amplitude"),
+});
+export const ApplyBulgeInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  centerX: z.number().default(0),
+  centerY: z.number().default(0),
+  radius: z.number().min(1).max(500).default(100).describe("Bulge radius in px"),
+  height: z.number().min(-100).max(100).default(50).describe("Bulge height (-100 = pinch, +100 = bulge)"),
+  antialias: z.boolean().default(true),
+});
+export const ApplyGlowInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  threshold: z.number().min(0).max(255).default(80).describe("Luma threshold above which pixels glow"),
+  radius: z.number().min(0).max(100).default(12).describe("Glow blur radius in px"),
+  intensity: z.number().min(0).max(3).default(1).describe("Glow brightness multiplier"),
+  color: z.string().regex(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i).optional().describe("Optional tint color"),
+});
+export const ApplyMosaicInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  blockSize: z.number().min(1).max(100).default(10).describe("Block size in px"),
+  sharpEdges: z.boolean().default(false).describe("If true, hard block edges; otherwise blended"),
+});
+export const ApplyFindEdgesInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  invert: z.boolean().default(false).describe("Invert result (white edges on black vs black on white)"),
+  blend: z.number().min(0).max(1).default(0).describe("Blend with original (0 = full edge, 1 = original)"),
+});
+export const ApplyLensFlareInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  centerX: z.number().default(0).describe("Flare source X"),
+  centerY: z.number().default(0).describe("Flare source Y"),
+  brightness: z.number().min(0).max(200).default(100).describe("Flare brightness"),
+  rays: z.number().min(0).max(20).default(6).describe("Number of light rays"),
+  color: z.string().regex(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i).default("#ffffff"),
+});
+export const ApplyFourColorGradientInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  color1: z.string().regex(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i).default("#ff0066"),
+  color2: z.string().regex(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i).default("#00ff66"),
+  color3: z.string().regex(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i).default("#0066ff"),
+  color4: z.string().regex(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i).default("#666600"),
+  blend: z.number().min(0).max(1).default(0.5).describe("Cross-blend smoothness"),
+});
+
+/* --------------------------- Expression engine & animation assistants --------------------------- */
+export const RemoveExpressionInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  property: z.enum(["translateX", "translateY", "scale", "rotate", "opacity", "width", "height"]),
+});
+export const SetLoopExpressionInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  property: z.enum(["translateX", "translateY", "scale", "rotate", "opacity"]).default("rotate"),
+  mode: z.enum(["cycle", "pingpong", "offset", "continue"]).default("cycle").describe("Loop mode — cycle (repeat), pingpong (alternate), offset (cumulative), continue (extrapolate)"),
+  durationMs: z.number().int().positive().default(1000).describe("Loop period in ms"),
+});
+export const SequenceLayersInput = z.object({
+  projectId: zIdField,
+  staggerMs: z.number().int().min(0).default(200).describe("Time offset between each layer"),
+  overlap: z.number().min(0).max(1).default(0).describe("0 = sequential, 1 = full overlap"),
+  order: z.enum(["top-to-bottom", "bottom-to-top", "selection-order"]).default("top-to-bottom"),
+  ease: z.boolean().default(true).describe("Ease each layer's entry"),
+});
+export const ExponentialScaleInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  fromScale: z.number().min(0).default(1).describe("Start scale"),
+  toScale: z.number().min(0).default(2).describe("End scale"),
+  durationMs: z.number().int().positive().default(1000).describe("Transition duration in ms"),
+});
+export const SmoothKeyframesInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  property: z.enum(["translateX", "translateY", "scale", "rotate", "opacity"]).default("translateY"),
+  tolerance: z.number().min(0).max(1).default(0.2).describe("Smoothing tolerance (0 = none, 1 = max)"),
+});
+export const WiggleKeyframesInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  property: z.enum(["translateX", "translateY", "scale", "rotate", "opacity"]).default("translateY"),
+  frequency: z.number().min(0.1).default(2).describe("Wiggles per second"),
+  amplitude: z.number().default(20).describe("Wiggle magnitude"),
+  samples: z.number().int().min(2).max(60).default(12).describe("Number of keyframes to generate"),
+});
+export const AudioToKeyframesInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  audioSourceId: zIdField.describe("Reference to audio component id"),
+  property: z.enum(["translateX", "translateY", "scale", "rotate", "opacity"]).default("scale"),
+  channel: z.enum(["both", "left", "right"]).default("both"),
+  samples: z.number().int().min(2).max(120).default(20).describe("Number of keyframes to generate"),
+  smoothing: z.number().min(0).max(1).default(0.3).describe("0 = raw, 1 = heavily smoothed"),
+});
+
+/* --------------------------- Type animation system --------------------------- */
+export const SetRangeSelectorInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  unit: z.enum(["characters", "words", "lines"]).default("characters").describe("Selection unit"),
+  start: z.number().min(0).max(100).default(0).describe("Start of selection as percentage"),
+  end: z.number().min(0).max(100).default(100).describe("End of selection as percentage"),
+  offset: z.number().default(0).describe("Selection offset (-100 to 100)"),
+  ease: z.boolean().default(true),
+  basedOn: z.enum(["characters", "words", "lines", "all"]).default("characters"),
+  mode: z.enum(["add", "subtract", "intersect", "min", "max"]).default("add"),
+});
+export const SetTextWigglerInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  frequency: z.number().min(0.1).default(3).describe("Wiggles per second"),
+  amplitudeX: z.number().default(5).describe("Horizontal displacement"),
+  amplitudeY: z.number().default(5).describe("Vertical displacement"),
+  amplitudeRotation: z.number().default(5).describe("Rotation in degrees"),
+  amplitudeScale: z.number().default(0).describe("Scale variation"),
+  correlation: z.number().min(0).max(1).default(0.5).describe("Spatial correlation between characters"),
+});
+export const TextOnPathInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  pathId: zIdField.describe("Reference to a path component id"),
+  startOffset: z.number().default(0).describe("Offset along path (0-100 percent)"),
+  reverse: z.boolean().default(false),
+  alignToPath: z.boolean().default(true).describe("Rotate characters to follow path tangent"),
+  baselineShift: z.number().default(0).describe("Vertical offset from path"),
+});
+export const SetVerticalTextInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  enabled: z.boolean().default(true),
+  rotateChars: z.boolean().default(false).describe("If true, each character is rotated 90deg"),
+  lineFlow: z.enum(["top-to-bottom", "right-to-left"]).default("top-to-bottom"),
+});
+export const SetKerningInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  tracking: z.number().default(0).describe("Letter spacing in px (positive = loose, negative = tight)"),
+  pairAdjustment: z.boolean().default(true).describe("Apply optical pair kerning"),
+  range: z.object({
+    start: z.number().default(0),
+    end: z.number().default(-1).describe("-1 = to end of text"),
+  }).optional(),
+});
+export const SetLeadingInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  lineHeight: z.number().min(0.5).max(5).default(1.2).describe("Line height multiplier"),
+  baselineShift: z.number().default(0).describe("Baseline shift in px"),
+  autoLeading: z.boolean().default(false).describe("Auto-compute leading from font metrics"),
+});
+export const PerCharacterTransformInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  translateX: z.number().default(0),
+  translateY: z.number().default(0),
+  scale: z.number().default(1),
+  rotate: z.number().default(0),
+  opacity: z.number().min(0).max(1).default(1),
+  anchor: z.enum(["center", "baseline", "top"]).default("center"),
+  staggerMs: z.number().int().min(0).default(50).describe("Per-character stagger in ms"),
+});
+export const SetTextAnimatorInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  animator: z.enum(["position", "scale", "rotation", "opacity", "color", "fillColor", "tracking"]).describe("Property to animate per-character"),
+  from: z.string().optional().describe("Start value (color hex or number)"),
+  to: z.string().optional().describe("End value (color hex or number)"),
+  rangeStart: z.number().min(0).max(100).default(0),
+  rangeEnd: z.number().min(0).max(100).default(100),
+  smooth: z.number().min(0).max(100).default(50).describe("Range falloff percentage"),
+});
+
+/* --------------------------- Motion tracking & stabilization --------------------------- */
+export const TrackPointInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField.describe("Layer to track (provides reference frame)"),
+  pointX: z.number().describe("Initial track point X"),
+  pointY: z.number().describe("Initial track point Y"),
+  searchSize: z.number().int().min(8).max(200).default(32).describe("Search region size in px"),
+  trackName: z.string().optional().describe("Optional name for the track"),
+  durationMs: z.number().int().positive().optional().describe("Track duration (default = layer duration)"),
+});
+export const TrackCameraInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  solveFocalLength: z.boolean().default(true).describe("Solve for camera focal length"),
+  createNulls: z.boolean().default(true).describe("Create null layers for solved 3D points"),
+  threshold: z.number().min(0).max(1).default(0.5).describe("Feature detection threshold"),
+});
+export const WarpStabilizerInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  smoothness: z.number().min(0).max(100).default(50).describe("0 = no smoothing, 100 = locked off"),
+  method: z.enum(["position", "positionScaleRotation", "perspective", "subspaceWarp"]).default("position"),
+  crop: z.number().min(0).max(50).default(10).describe("Auto-crop percentage"),
+  noMotion: z.boolean().default(false).describe("If true, lock to first frame (no motion allowed)"),
+});
+export const ApplyTrackToLayerInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  trackName: z.string().describe("Name of track to apply"),
+  applyTo: z.enum(["position", "anchorPoint", "positionScale", "positionScaleRotation", "transform"]).default("position"),
+  matchName: z.boolean().default(true).describe("Match layer name to track name"),
+  compensate: z.boolean().default(true).describe("Compensate for layer's own motion"),
+});
+export const EditMotionPathInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  points: z.array(z.object({
+    x: z.number(),
+    y: z.number(),
+    ease: z.enum(["linear", "bezier", "hold"]).default("bezier"),
+    handleIn: z.object({ x: z.number(), y: z.number() }).optional(),
+    handleOut: z.object({ x: z.number(), y: z.number() }).optional(),
+  })).min(2).describe("Ordered path control points"),
+  closed: z.boolean().default(false).describe("Whether the path is closed"),
+  roving: z.boolean().default(false).describe("Use roving keyframes for constant speed"),
+});
+export const AutoOrientPathInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  orientAlong: z.enum(["motionPath", "trackPath", "camera"]).default("motionPath"),
+  axis: z.enum(["auto", "x", "y"]).default("auto"),
+  smoothing: z.number().min(0).max(1).default(0.2).describe("Orientation smoothing"),
+  offset: z.number().default(0).describe("Orientation offset in degrees"),
+});
+
+/* --------------------------- Compositing & blending --------------------------- */
+export const SetAdvancedBlendingInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  fillOpacity: z.number().min(0).max(1).optional().describe("Fill opacity (separate from layer opacity)"),
+  redChannel: z.boolean().optional().describe("Include red channel in blend"),
+  greenChannel: z.boolean().optional(),
+  blueChannel: z.boolean().optional(),
+  knockout: z.enum(["none", "shallow", "deep"]).optional().default("none"),
+  blendIfSource: z.enum(["gray", "red", "green", "blue"]).optional(),
+  blendIfRange: z.tuple([z.number().min(0).max(255), z.number().min(0).max(255)]).optional(),
+});
+
+export const PrecomposeInput = z.object({
+  projectId: zIdField,
+  componentIds: z.array(zIdField).min(1),
+  name: z.string().min(1).max(80).default("Pre-comp"),
+  moveAttributes: z.boolean().default(true).describe("Move layer attributes into new comp"),
+});
+
+export const CollapseTransformationsInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  enabled: z.boolean().default(true),
+});
+
+export const SetAlphaModeInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  mode: z.enum(["straight", "premultiplied"]).default("straight"),
+  premultiplyColor: z.string().optional().describe("Color to premultiply with (for premultiplied mode)"),
+});
+
+export const SetTransferModeInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  mode: z.enum(["normal", "stencil-alpha", "stencil-luma", "silhouette-alpha", "silhouette-luma", "alpha-add", "luma-matte"]),
+});
+
+export const SetBlendingGroupInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  isolated: z.boolean().default(true).describe("Isolate blending within this group"),
+  groupOpacity: z.number().min(0).max(1).optional(),
+  knockout: z.boolean().optional().default(false),
+});
+
+/* --------------------------- Time effects & rhythm --------------------------- */
+export const TimeDisplacementInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  maxDisplacementMs: z.number().min(0).max(2000).default(200).describe("Max time offset in ms"),
+  displacementSource: zIdField.optional().describe("Layer to use as displacement map"),
+  resolution: z.enum(["low", "medium", "high"]).default("medium"),
+});
+
+export const EchoAdvancedInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  numberOfEchoes: z.number().int().min(1).max(50).default(6),
+  echoDelayMs: z.number().min(10).max(2000).default(80),
+  decay: z.number().min(0).max(1).default(0.85),
+  echoOperator: z.enum(["add", "maximum", "minimum", "screen", "difference", "composite-in-front", "composite-behind", "crossfade"]).default("composite-in-front"),
+});
+
+export const SequenceWithTransitionInput = z.object({
+  projectId: zIdField,
+  componentIds: z.array(zIdField).min(2).optional(),
+  transitionType: z.enum(["crossfade", "dissolve", "cut", "wipe", "push"]).default("crossfade"),
+  transitionDurationMs: z.number().min(0).max(3000).default(300),
+  overlapMs: z.number().min(0).max(5000).default(0),
+});
+
+export const TimeReverseLayerInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+});
+
+export const FreezeFrameInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  atTimeMs: z.number().optional().describe("Frame to hold (default: current time)"),
+});
+
+export const PosterizeTimeAdvancedInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  fps: z.number().min(1).max(60).default(12),
+  range: z.enum(["full", "first-half", "second-half", "custom"]).default("full"),
+  rangeStartMs: z.number().optional(),
+  rangeEndMs: z.number().optional(),
+  applyToVelocity: z.boolean().default(false).describe("Apply posterize to velocity instead of time"),
+});
+
+export const TimeWarpRemappingInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  speedKeyframes: z.array(z.object({
+    timeMs: z.number(),
+    speed: z.number().min(0).max(10),
+    interpolation: z.enum(["linear", "ease", "hold"]).default("ease"),
+  })).min(2),
+  preserveTotalDuration: z.boolean().default(false),
+});
+
+/* --------------------------- Camera lens & optical --------------------------- */
+export const LensDistortionInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  amount: z.number().min(-1).max(1).default(0.2).describe("Negative = barrel, positive = pincushion"),
+  vertical: z.number().optional().describe("Vertical distortion amount"),
+  horizontal: z.number().optional().describe("Horizontal distortion amount"),
+  remove: z.boolean().default(false).describe("If true, reverse the distortion"),
+});
+
+export const ChromaticAberrationInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  redOffset: z.number().min(-30).max(30).default(2).describe("Red channel offset in px"),
+  blueOffset: z.number().min(-30).max(30).default(-2).describe("Blue channel offset in px"),
+  radial: z.boolean().default(true).describe("Apply offset radially from center"),
+  center: z.tuple([z.number(), z.number()]).optional().describe("Center point [x, y] for radial mode"),
+});
+
+export const VignetteInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  amount: z.number().min(0).max(1).default(0.5),
+  size: z.number().min(0).max(1).default(0.5).describe("How far the darkening extends from center"),
+  softness: z.number().min(0).max(1).default(0.5),
+  color: z.string().default("#000000"),
+});
+
+export const CameraShakeProceduralInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  intensity: z.number().min(0).max(5).default(1).describe("Shake magnitude in px"),
+  frequency: z.number().min(0.1).max(20).default(2).describe("Shake frequency in Hz"),
+  rotation: z.boolean().default(true).describe("Include rotation shake"),
+  seed: z.number().int().default(1),
+});
+
+export const OpticalFlowInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  output: z.enum(["vector-field", "motion-magnitude", "motion-direction"]).default("motion-magnitude"),
+  quality: z.enum(["draft", "high", "best"]).default("high"),
+  smoothing: z.number().min(0).max(1).default(0.3),
+});
+
+export const MotionMatchMoveInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  trackName: z.string().optional().describe("Existing track to use"),
+  applyTo: z.enum(["position", "position-rotation", "position-scale", "position-scale-rotation"]).default("position"),
+  targetComponentId: zIdField.optional().describe("If set, apply to this component; else to source"),
+  stabilization: z.boolean().default(false).describe("If true, stabilize instead of match"),
+});
+
+export const LensFlareAnamorphicInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  position: z.tuple([z.number(), z.number()]).default([0.5, 0.5]).describe("Normalized position [0-1, 0-1]"),
+  brightness: z.number().min(0).max(5).default(1.5),
+  streakLength: z.number().min(0).max(1000).default(120),
+  streakAngle: z.number().min(0).max(360).default(0),
+  color: z.string().default("#88ccff").describe("Streak tint"),
+});
+
+export const DepthOfFieldAdvancedInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  focusDistance: z.number().min(0).default(800),
+  aperture: z.number().min(0).max(2).default(0.3),
+  blurAmount: z.number().min(0).max(50).default(8),
+  highlightShape: z.enum(["circle", "hexagon", "octagon"]).default("circle"),
+  focusCurve: z.array(z.object({
+    distance: z.number(),
+    blur: z.number().min(0).max(1),
+  })).optional().describe("Custom focus-distance-to-blur curve"),
+});
+
+/* --------------------------- Paint & cloning --------------------------- */
+export const PaintStrokeInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  points: z.array(z.object({
+    x: z.number(),
+    y: z.number(),
+    pressure: z.number().min(0).max(1).optional(),
+  })).min(2),
+  color: z.string().default("#ffffff"),
+  opacity: z.number().min(0).max(1).default(1),
+  blendMode: z.enum(["normal", "multiply", "screen", "overlay"]).default("normal"),
+});
+
+export const CloneStampInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  sourcePoint: z.tuple([z.number(), z.number()]),
+  destinationPoint: z.tuple([z.number(), z.number()]),
+  sourceLayerId: zIdField.optional().describe("Layer to sample from (default: current)"),
+  brushSize: z.number().min(1).max(500).default(40),
+  opacity: z.number().min(0).max(1).default(1),
+  aligned: z.boolean().default(true),
+});
+
+export const BrushSettingsInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  size: z.number().min(1).max(500).default(40),
+  hardness: z.number().min(0).max(1).default(0.8),
+  opacity: z.number().min(0).max(1).default(1),
+  spacing: z.number().min(1).max(100).default(25).describe("Brush stamp spacing in % of size"),
+  flow: z.number().min(0).max(1).default(1).describe("Flow rate"),
+  angle: z.number().min(0).max(360).optional(),
+  roundness: z.number().min(0).max(1).optional(),
+});
+
+export const RevealWithBrushInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  points: z.array(z.object({
+    x: z.number(),
+    y: z.number(),
+    pressure: z.number().min(0).max(1).optional(),
+  })).min(2),
+  reveal: z.boolean().default(true).describe("true = reveal, false = hide"),
+  feather: z.number().min(0).max(50).default(0),
+});
+
+export const EraseStrokeInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  points: z.array(z.object({
+    x: z.number(),
+    y: z.number(),
+  })).min(2),
+  brushSize: z.number().min(1).max(500).default(40),
+  hardness: z.number().min(0).max(1).default(0.8),
+});
+
+export const PaintAnimatorInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  strokeId: zIdField.optional().describe("Stroke to animate (default: most recent)"),
+  mode: z.enum(["write-on", "reveal", "grow-from-start", "grow-from-end"]).default("write-on"),
+  durationMs: z.number().int().positive().default(1500),
+  startMs: z.number().int().nonnegative().default(0),
+  endValue: z.number().min(0).max(1).default(1),
+  easing: z.enum(["linear", "ease", "ease-in", "ease-out"]).default("ease"),
+});
+
 /* --------------------------- Restraint engine tools --------------------------- */
 export const AnalyzeRestraintInput = z.object({
   projectId: zIdField,
@@ -2010,6 +2540,66 @@ export const TOOL_INPUT_SCHEMAS = {
   bind_property_to_data: BindPropertyToDataInput,
   unbind_data: UnbindDataInput,
   data_driven_chart: DataDrivenChartInput,
+  apply_gaussian_blur: ApplyGaussianBlurInput,
+  apply_directional_blur: ApplyDirectionalBlurInput,
+  apply_radial_blur: ApplyRadialBlurInput,
+  apply_sharpen: ApplySharpenInput,
+  apply_wave_warp: ApplyWaveWarpInput,
+  apply_ripple: ApplyRippleInput,
+  apply_bulge: ApplyBulgeInput,
+  apply_glow: ApplyGlowInput,
+  apply_mosaic: ApplyMosaicInput,
+  apply_find_edges: ApplyFindEdgesInput,
+  apply_lens_flare: ApplyLensFlareInput,
+  apply_four_color_gradient: ApplyFourColorGradientInput,
+  remove_expression: RemoveExpressionInput,
+  set_loop_expression: SetLoopExpressionInput,
+  sequence_layers: SequenceLayersInput,
+  exponential_scale: ExponentialScaleInput,
+  smooth_keyframes: SmoothKeyframesInput,
+  wiggle_keyframes: WiggleKeyframesInput,
+  audio_to_keyframes: AudioToKeyframesInput,
+  set_range_selector: SetRangeSelectorInput,
+  set_text_wiggler: SetTextWigglerInput,
+  text_on_path: TextOnPathInput,
+  set_vertical_text: SetVerticalTextInput,
+  set_kerning: SetKerningInput,
+  set_leading: SetLeadingInput,
+  per_character_transform: PerCharacterTransformInput,
+  set_text_animator: SetTextAnimatorInput,
+  track_point: TrackPointInput,
+  track_camera: TrackCameraInput,
+  warp_stabilizer: WarpStabilizerInput,
+  apply_track_to_layer: ApplyTrackToLayerInput,
+  edit_motion_path: EditMotionPathInput,
+  auto_orient_path: AutoOrientPathInput,
+  set_advanced_blending: SetAdvancedBlendingInput,
+  precompose: PrecomposeInput,
+  collapse_transformations: CollapseTransformationsInput,
+  set_alpha_mode: SetAlphaModeInput,
+  set_transfer_mode: SetTransferModeInput,
+  set_blending_group: SetBlendingGroupInput,
+  time_displacement: TimeDisplacementInput,
+  echo_advanced: EchoAdvancedInput,
+  sequence_with_transition: SequenceWithTransitionInput,
+  time_reverse_layer: TimeReverseLayerInput,
+  freeze_frame: FreezeFrameInput,
+  posterize_time_advanced: PosterizeTimeAdvancedInput,
+  time_warp_remapping: TimeWarpRemappingInput,
+  lens_distortion: LensDistortionInput,
+  chromatic_aberration: ChromaticAberrationInput,
+  vignette: VignetteInput,
+  camera_shake_procedural: CameraShakeProceduralInput,
+  optical_flow: OpticalFlowInput,
+  motion_match_move: MotionMatchMoveInput,
+  lens_flare_anamorphic: LensFlareAnamorphicInput,
+  depth_of_field_advanced: DepthOfFieldAdvancedInput,
+  paint_stroke: PaintStrokeInput,
+  clone_stamp: CloneStampInput,
+  brush_settings: BrushSettingsInput,
+  reveal_with_brush: RevealWithBrushInput,
+  erase_stroke: EraseStrokeInput,
+  paint_animator: PaintAnimatorInput,
   analyze_restraint: AnalyzeRestraintInput,
   list_recipes: ListRecipesInput,
   apply_recipe: ApplyRecipeInput,
@@ -2263,6 +2853,66 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   bind_property_to_data: "Bind a component property (translateX, translateY, scale, rotate, opacity, width, height, backgroundColor) to a column in a loaded data source. Mapping options: linear, logarithmic, quantize. Optional output range and sample interval. Use when the user says 'bind to data', 'drive this with data', 'data drive this property', or 'animate from CSV column'.",
   unbind_data: "Remove a data binding from a component property (or all bindings if property omitted). Use when the user says 'unbind data', 'remove data binding', 'stop data driving', or 'detach from data'.",
   data_driven_chart: "Generate an animated chart component from a loaded data source — bar, line, pie, scatter, or area chart types. Reads X and Y columns, optional series color, animation duration, and enter animation. Use when the user says 'bar chart from data', 'line chart', 'pie chart', 'data visualization', 'chart from CSV', or 'visualize this data'.",
+  apply_gaussian_blur: "Apply a Gaussian (box) blur to a layer — soft, even blur across the whole layer. Use when the user says 'blur this', 'gaussian blur', 'soften the layer', 'defocus', or '模糊'.",
+  apply_directional_blur: "Apply a directional (motion) blur in a specific angle and length — simulates linear streaking. Use when the user says 'directional blur', 'motion blur this layer' (not the temporal motion blur system), 'horizontal blur', 'vertical blur', or 'streak'.",
+  apply_radial_blur: "Apply radial blur centered on a point — zoom (radial) or spin (rotational) modes. Use when the user says 'radial blur', 'zoom blur', 'spin blur', 'rotational blur', or '径向模糊'.",
+  apply_sharpen: "Sharpen or unsharp-mask a layer — enhances edge contrast. Use when the user says 'sharpen this', 'unsharp mask', 'crisp it up', 'enhance detail', or '锐化'.",
+  apply_wave_warp: "Apply wave warp distortion — sinusoidal displacement in a given direction with amplitude, wavelength, speed, and phase. Use when the user says 'wave warp', 'ripple this', 'wavy distortion', '波浪扭曲'.",
+  apply_ripple: "Apply circular ripple distortion emanating from a center point — concentric waves with frequency, amplitude, and speed. Use when the user says 'ripple', 'circular wave', '涟漪'.",
+  apply_bulge: "Apply a bulge or pinch distortion — spherical displacement centered on a point, with radius and signed height (positive bulges, negative pinches). Use when the user says 'bulge', 'pinch', 'spherize', '膨胀', '收缩'.",
+  apply_glow: "Apply a stylized glow to bright pixels — luma threshold isolates bright regions, then blur + brightness creates halo. Optional tint color. Use when the user says 'glow', 'neon glow', 'add glow', 'make it glow', '发光'.",
+  apply_mosaic: "Apply a mosaic (pixelate) effect — averages pixels into blocks of a given size. Use when the user says 'mosaic', 'pixelate', 'pixelate this', '马赛克'.",
+  apply_find_edges: "Apply edge detection (find edges / outline) — Sobel-style luma gradient yields line-art version. Optional invert and blend with original. Use when the user says 'find edges', 'edge detection', 'outline the layer', '描边'.",
+  apply_lens_flare: "Generate a procedural lens flare — bright core with rays, optional tint color. Use when the user says 'lens flare', 'add flare', '光晕'.",
+  apply_four_color_gradient: "Generate a 4-color gradient fill — four colors at the corners with cross-blend smoothing. Use when the user says '4-color gradient', 'four color gradient', 'gradient corners', '多色渐变'.",
+  remove_expression: "Remove an expression bound to a property — restores keyframe-driven values. Use when the user says 'remove expression', 'delete expression', 'clear expression', or '删除表达式'.",
+  set_loop_expression: "Apply a loop expression to a property with a loop mode (cycle / pingpong / offset / continue) and loop period. Use when the user says 'loop the rotation', 'pingpong this', 'cycle loop', 'loop this property', or '循环'.",
+  sequence_layers: "Sequence selected layers with a stagger offset and optional overlap — cascades entry times. Use when the user says 'sequence these layers', 'cascade them', 'stagger the layers', '序列图层'.",
+  exponential_scale: "Apply exponential scale transition between two scale values over a duration — produces a smooth zoom-in or zoom-out that feels natural. Use when the user says 'exponential scale', 'smooth zoom', 'exponential zoom', or '指数缩放'.",
+  smooth_keyframes: "Smooth keyframes on a property by averaging neighboring values with a tolerance — reduces jitter. Use when the user says 'smooth keyframes', 'smooth this animation', 'reduce jitter', or '平滑关键帧'.",
+  wiggle_keyframes: "Generate wiggled keyframes on a property — creates N samples with given frequency and amplitude. Use when the user says 'wiggle keyframes', 'add wiggle to keyframes', 'generate wiggle', or '摆动关键帧'.",
+  audio_to_keyframes: "Convert audio amplitude from an audio source component into keyframes on a property — generates N samples with optional smoothing. Use when the user says 'audio to keyframes', 'drive this from audio', 'audio amplitude to keyframes', or '音频转关键帧'.",
+  set_range_selector: "Set a range selector on a text component — selects a contiguous range of characters, words, or lines for per-unit animation. Use when the user says 'range selector', 'select first 50% of characters', 'text range', or '范围选择器'.",
+  set_text_wiggler: "Apply a text wiggler to a text component — per-character wiggle with frequency and separate X/Y/rotation/scale amplitudes plus spatial correlation. Use when the user says 'text wiggler', 'wiggle the text', 'jitter the characters', or '文字摆动'.",
+  text_on_path: "Place a text component on a path — characters flow along the path with optional alignment, offset, and reverse. Use when the user says 'text on path', 'put text on the curve', 'flow text along path', or '路径文字'.",
+  set_vertical_text: "Switch a text component to vertical layout — characters stack vertically with optional rotation and line flow direction. Use when the user says 'vertical text', 'stack text vertically', '竖排文字'.",
+  set_kerning: "Set kerning (letter spacing) on a text component — tracking value in px plus optional range and pair adjustment. Use when the user says 'kerning', 'letter spacing', 'tracking', 'tighten the text', 'loosen the text', or '字距'.",
+  set_leading: "Set leading (line height) on a text component — lineHeight multiplier, baseline shift, optional auto-leading. Use when the user says 'leading', 'line height', 'adjust line spacing', or '行距'.",
+  per_character_transform: "Apply per-character transforms to a text component — translate, scale, rotate, opacity per character with stagger. Use when the user says 'per character transform', 'character by character', 'stagger the characters', or '逐字符变换'.",
+  set_text_animator: "Apply a text animator that animates a property (position/scale/rotation/opacity/color/tracking) across a range of characters with falloff. Use when the user says 'text animator', 'animate color per character', 'fade in characters', or '文字动画器'.",
+  track_point: "Track a single point on a layer over time — single-point motion tracker with search region and optional name. Use when the user says 'track this point', 'motion track', 'track point', or '跟踪点'.",
+  track_camera: "Run camera tracker on a layer — solves for 3D camera and creates null layers at solved 3D points. Use when the user says 'camera tracker', 'track the camera', '3D solve', 'solve camera', or '摄像器解算'.",
+  warp_stabilizer: "Apply warp stabilizer to a layer — smooths motion with position/scale/rotation/perspective/subspace methods, auto-crop, and optional no-motion lock. Use when the user says 'stabilize this', 'warp stabilizer', 'smooth camera shake', or '稳定'.",
+  apply_track_to_layer: "Apply a tracked motion to a layer — uses the track data to drive position, anchor point, scale, rotation, or full transform. Use when the user says 'apply track to layer', 'use the track on this', 'apply tracking data', or '应用跟踪'.",
+  edit_motion_path: "Edit the motion path of a layer — replaces the spatial path with an ordered set of bezier control points. Use when the user says 'edit motion path', 'redraw the path', 'change the motion path', or '运动路径'.",
+  auto_orient_path: "Enable auto-orient along motion path, track path, or camera — rotates the layer to face direction of motion with optional smoothing and offset. Use when the user says 'auto orient', 'orient along path', 'face direction of motion', or '沿路径定向'.",
+  set_advanced_blending: "Configure advanced blending options for a layer — fill opacity (separate from layer opacity), per-channel R/G/B inclusion, knockout mode, and Blend If ranges. Use when the user says 'advanced blending', 'fill opacity', 'knockout', 'blend if', or '高级混合'.",
+  precompose: "Pre-compose selected layers into a new nested composition — collects the layers into a single pre-comp with optional attribute move. Use when the user says 'precompose', 'pre-compose', 'nest these layers', 'group into comp', or '预合成'.",
+  collapse_transformations: "Toggle collapse transformations on a pre-comp layer — exposes the inner comp's transformations and 3D layer info to the parent comp. Use when the user says 'collapse transformations', 'collapse this', or '折叠变换'.",
+  set_alpha_mode: "Set the alpha interpretation mode for a layer — straight (unassociated) or premultiplied with a specified color. Use when the user says 'alpha mode', 'premultiplied alpha', 'straight alpha', or 'alpha 解析'.",
+  set_transfer_mode: "Set the layer transfer mode controlling how the layer behaves with underlying layers — stencil-alpha, stencil-luma, silhouette-alpha, silhouette-luma, alpha-add, luma-matte. Use when the user says 'stencil alpha', 'silhouette', 'luma matte', 'alpha add', or '模板遮罩'.",
+  set_blending_group: "Configure a blending group on a layer — isolate blending within the group, apply group-level opacity and knockout. Use when the user says 'blending group', 'isolate blending', 'knockout group', or '混合组'.",
+  time_displacement: "Apply per-pixel time displacement using a displacement map layer — each pixel samples the source at a time offset determined by the map brightness. Use when the user says 'time displacement', 'displace time', 'pixel time offset', or '时间位移'.",
+  echo_advanced: "Apply advanced echo with composite operators — beyond simple trail, supports add/maximum/minimum/screen/difference/composite-in-front/composite-behind/crossfade echo operators with decay. Use when the user says 'echo advanced', 'composite echo', 'trail with operator', or '高级回声'.",
+  sequence_with_transition: "Sequence selected layers with a transition between each — crossfade, dissolve, cut, wipe, or push, with optional overlap. Use when the user says 'sequence with crossfade', 'dissolve between layers', 'transition between clips', or '序列过渡'.",
+  time_reverse_layer: "Reverse the playback direction of a layer — plays the layer's animation from end to start. Use when the user says 'reverse this layer', 'play backwards', 'time reverse', or '反向播放'.",
+  freeze_frame: "Hold a specific frame of a layer — freezes the layer at the specified time (or current time). Use when the user says 'freeze frame', 'hold this frame', 'freeze at this point', or '冻结帧'.",
+  posterize_time_advanced: "Apply posterize time with advanced options — per-region posterize (full/first-half/second-half/custom range), apply to velocity instead of time. Use when the user says 'posterize time advanced', 'regional posterize', 'velocity posterize', or '高级抽帧'.",
+  time_warp_remapping: "Apply free-form time-warp speed remapping via speed keyframes — each keyframe sets a speed multiplier (0=freeze, 1=normal, 2=2x speed) with linear/ease/hold interpolation. Use when the user says 'time warp', 'speed ramp', 'variable speed', '变速曲线', or '时间重映射'.",
+  lens_distortion: "Apply or remove lens distortion — barrel (negative amount) or pincushion (positive amount), with separate vertical/horizontal controls. Use when the user says 'lens distortion', 'barrel distortion', 'pincushion', 'remove distortion', or '镜头畸变'.",
+  chromatic_aberration: "Apply chromatic aberration — splits R and B channels with optional radial offset from a center point. Use when the user says 'chromatic aberration', 'color fringing', 'RGB split', '色差', or '色散'.",
+  vignette: "Apply a vignette — darkens edges around a center point with adjustable amount, size, softness, and color. Use when the user says 'vignette', 'darken edges', 'edge falloff', or '暗角'.",
+  camera_shake_procedural: "Apply procedural camera shake — generates handheld-style position and rotation noise with intensity, frequency, and seed. Use when the user says 'camera shake', 'handheld shake', 'procedural shake', 'jitter the camera', or '镜头抖动'.",
+  optical_flow: "Compute optical flow for a layer — outputs vector field, motion magnitude, or motion direction with quality and smoothing controls. Use when the user says 'optical flow', 'motion vectors', 'motion estimation', or '光流'.",
+  motion_match_move: "Match-move a layer using a tracked point — applies track data to position/rotation/scale of a target layer, with optional stabilization mode. Use when the user says 'match move', 'match this movement', 'apply track to layer', 'motion match', or '匹配移动'.",
+  lens_flare_anamorphic: "Apply an anamorphic lens flare — horizontal streak flare with adjustable brightness, length, angle, and tint. Use when the user says 'anamorphic flare', 'horizontal lens flare', 'cinematic flare', '变形光晕', or '横向光芒'.",
+  depth_of_field_advanced: "Apply advanced depth of field with custom focus curve — focus distance, aperture, blur amount, highlight shape (circle/hexagon/octagon), and optional focus-distance-to-blur curve. Use when the user says 'advanced depth of field', 'bokeh shape', 'focus curve', 'custom DOF', or '高级景深'.",
+  paint_stroke: "Paint a vector stroke on a layer — array of points with optional pressure, color, opacity, and blend mode. Use when the user says 'paint a stroke', 'draw on this', 'brush stroke', or '画笔笔触'.",
+  clone_stamp: "Clone from a source point to a destination point — brush size, opacity, alignment, and optional source layer. Use when the user says 'clone stamp', 'clone from here', 'sample and paint', or '克隆图章'.",
+  brush_settings: "Configure brush settings — size, hardness, opacity, spacing, flow, angle, roundness. Use when the user says 'set brush', 'brush size', 'brush hardness', 'change the brush', or '画笔设置'.",
+  reveal_with_brush: "Reveal or hide layer content via brush strokes — points with pressure, feather, and reveal/hide mode. Use when the user says 'reveal with brush', 'paint a mask', 'brush reveal', 'erase with brush', or '画笔显隐'.",
+  erase_stroke: "Erase paint from a layer — points with brush size and hardness. Use when the user says 'erase paint', 'erase stroke', 'remove paint', or '擦除笔触'.",
+  paint_animator: "Animate a paint stroke — write-on, reveal, grow-from-start, or grow-from-end modes with duration, easing, and end value. Use when the user says 'animate the stroke', 'write on this stroke', 'paint animation', 'grow the stroke', or '笔触动画'.",
   analyze_restraint: "Analyze motion density and restraint — calculates how many animations compete for attention simultaneously, identifies easing/duration monotony, and recommends improvements. Returns a restraint score (0-100) with warnings. Use when the user asks 'is this too much', 'analyze restraint', or 'check density'.",
   list_recipes: "Browse the curated motion recipe library. Each recipe carries avoid_when metadata — situations where it should NOT be used. Optionally filter by category or search by query. Returns recipe names, descriptions, restraint costs, and avoidance conditions.",
   apply_recipe: "Apply a curated motion recipe to a component. Recipes include pre-configured easing, keyframes, and timing. The system checks avoid_when conditions before applying. Use when the user says 'apply a recipe', 'use a gentle entrance', or 'try a cinematic fade'.",
