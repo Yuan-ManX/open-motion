@@ -22,6 +22,10 @@ import { getSessionMetrics, listToolStats, resetAnalytics } from "../../agent/an
 import { composeTools } from "../../agent/toolComposer.js";
 import { listMemory as listConversationMemory } from "../../agent/memory/store.js";
 import { semanticSearch } from "../../agent/memory/semanticSearch.js";
+import { executeTool } from "../../agent/tools/registry.js";
+import { capture, listCheckpoints, isSpecMutating } from "../../agent/checkpointManager.js";
+import { runPreHooks, runPostHooks } from "../../agent/pluginHooks.js";
+import { logger } from "../../utils/logger.js";
 import { TOOL_NAMES, TOOL_DESCRIPTIONS } from "@openmotion/shared";
 
 export const agentRouter = Router();
@@ -268,6 +272,79 @@ agentRouter.get(
           content: r.entry.content.slice(0, 300),
           createdAt: r.entry.createdAt,
         },
+      })),
+    });
+  }),
+);
+
+// --- Direct tool execution endpoint ---
+// Allows the UI (or MCP bridge) to invoke a tool directly without going
+// through the chat loop. Useful for operational tools like rollback_last_action,
+// list_checkpoints, get_plan_state, cancel_plan.
+
+const ExecuteToolSchema = z.object({
+  tool: z.string().min(1),
+  args: z.record(z.unknown()).default({}),
+});
+
+agentRouter.post(
+  "/projects/:id/tools",
+  validate(ExecuteToolSchema),
+  runAsync(async (req: Request, res: Response) => {
+    const { tool, args } = validated<z.infer<typeof ExecuteToolSchema>>(req);
+    if (!TOOL_NAMES.includes(tool as never)) {
+      res.status(400).json({ ok: false, error: `unknown tool: ${tool}` });
+      return;
+    }
+    // Capture a checkpoint for spec-mutating tools (consistency with the chat loop).
+    if (isSpecMutating(tool)) {
+      capture(req.params.id, tool);
+    }
+    // Run pre-hooks (validation, veto, arg patching).
+    const pre = await runPreHooks({
+      projectId: req.params.id,
+      tool: tool as never,
+      args: { ...args, projectId: req.params.id },
+    });
+    if (pre.veto) {
+      res.json({
+        ok: false,
+        result: {
+          ok: false,
+          summary: `vetoed by guardrail: ${pre.reason ?? "unknown reason"}`,
+          specChanged: false,
+        },
+        warnings: pre.warnings,
+      });
+      return;
+    }
+    const result = await executeTool(tool as never, pre.args, { projectId: req.params.id });
+    // Run post-hooks (side effects only).
+    await runPostHooks(
+      { projectId: req.params.id, tool: tool as never, args: pre.args },
+      result,
+    );
+    if (pre.warnings.length > 0) {
+      logger.warn("tool warnings", { tool, warnings: pre.warnings });
+    }
+    res.json({ ok: result.ok, result, warnings: pre.warnings });
+  }),
+);
+
+// --- Checkpoint endpoints ---
+
+agentRouter.get(
+  "/projects/:id/checkpoints",
+  runAsync(async (req: Request, res: Response) => {
+    const checkpoints = listCheckpoints(req.params.id);
+    res.json({
+      count: checkpoints.length,
+      checkpoints: checkpoints.map((c) => ({
+        id: c.id,
+        capturedAt: c.capturedAt,
+        triggerTool: c.triggerTool,
+        componentCount: c.componentCount,
+        label: c.label,
       })),
     });
   }),
