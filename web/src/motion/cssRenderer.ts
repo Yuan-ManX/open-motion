@@ -61,6 +61,18 @@ const RESERVED_STYLE_KEYS = new Set([
   // Paint & cloning tokens.
   "_paintStroke", "_cloneStamp", "_brushSettings",
   "_revealWithBrush", "_eraseStroke", "_paintAnimator",
+  // Rotoscoping & keying tokens.
+  "_rotoBrush", "_refineEdge", "_colorKey", "_linearColorKey",
+  "_differenceMatte", "_spillSuppression", "_matteChoker", "_innerOuterKey",
+  // Transitions library tokens.
+  "_blockDissolve", "_cardWipe", "_gradientWipe", "_irisWipe",
+  "_linearWipe", "_radialWipe", "_venetianBlinds", "_ccJawsWipe",
+  // Simulation & generators tokens.
+  "_ccBallAction", "_ccBubbles", "_ccRainfall", "_ccSnowfall",
+  "_ccStarBurst", "_cellPattern", "_audioSpectrum", "_radioWaves",
+  // Stylize effects tokens.
+  "_cartoonEffect", "_brushStrokes", "_oilPaint", "_watercolor",
+  "_embossEffect", "_motionTile", "_scatterEffect", "_thresholdEffect",
 ]);
 
 /** Check whether a style key is a private metadata token (underscore-prefixed)
