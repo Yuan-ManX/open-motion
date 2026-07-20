@@ -1875,6 +1875,379 @@ export const PaintAnimatorInput = z.object({
   easing: z.enum(["linear", "ease", "ease-in", "ease-out"]).default("ease"),
 });
 
+/* --------------------------- Rotoscoping & keying --------------------------- */
+export const RotoBrushInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  mode: z.enum(["add", "subtract", "foreground", "background"]).default("add"),
+  seedPoints: z.array(z.object({
+    x: z.number(),
+    y: z.number(),
+    radius: z.number().min(1).max(200).default(20),
+  })).min(1).default([{ x: 0.5, y: 0.5, radius: 20 }]),
+  detectionSensitivity: z.number().min(0).max(1).default(0.5),
+  smoothness: z.number().min(0).max(1).default(0.5),
+  frameRange: z.tuple([z.number(), z.number()]).optional(),
+});
+
+export const RefineEdgeInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  featherRadius: z.number().min(0).max(100).default(5),
+  edgeSoftness: z.number().min(0).max(1).default(0.5),
+  decontamination: z.number().min(0).max(1).default(0.2),
+  smoothEdge: z.boolean().default(true),
+  useSmartRadius: z.boolean().default(false),
+  smartRadius: z.number().min(-50).max(50).default(0),
+});
+
+export const ColorKeyInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  keyColor: z.string().regex(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i).default("#00ff00"),
+  colorTolerance: z.number().min(0).max(1).default(0.2),
+  edgeThin: z.number().min(-10).max(10).default(0),
+  edgeFeather: z.number().min(0).max(10).default(1),
+  invert: z.boolean().default(false),
+});
+
+export const LinearColorKeyInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  keyColor: z.string().regex(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i).default("#00ff00"),
+  matchColors: z.array(z.string().regex(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)).min(1).default(["#00ff00"]),
+  matchingTolerance: z.number().min(0).max(1).default(0.2),
+  matchingSoftness: z.number().min(0).max(1).default(0.1),
+  operateOn: z.enum(["rgb", "hue", "saturation", "brightness"]).default("rgb"),
+});
+
+export const DifferenceMatteInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  referenceFrame: z.number().int().nonnegative().default(0),
+  differenceThreshold: z.number().min(0).max(1).default(0.2),
+  matchTolerance: z.number().min(0).max(1).default(0.1),
+  blurBeforeDifference: z.number().min(0).max(10).default(0),
+  invert: z.boolean().default(false),
+});
+
+export const SpillSuppressionInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  suppressColor: z.enum(["green", "blue", "red", "custom"]).default("green"),
+  customColor: z.string().regex(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i).optional(),
+  suppression: z.number().min(0).max(1).default(0.5),
+  luminancePreservation: z.number().min(0).max(1).default(0.5),
+  edgeSoftness: z.number().min(0).max(10).default(2),
+});
+
+export const MatteChokerInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  chokeSpread: z.array(z.number().min(-100).max(100)).length(4).optional().describe("Four stages of choke (negative=spread, positive=choke)"),
+  choke1: z.number().min(-100).max(100).default(0),
+  choke2: z.number().min(-100).max(100).default(0),
+  grayLevel: z.number().min(0).max(1).default(1),
+  iterations: z.number().int().min(1).max(10).default(2),
+});
+
+export const InnerOuterKeyInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  innerPath: z.array(z.object({ x: z.number(), y: z.number() })).min(3).optional(),
+  outerPath: z.array(z.object({ x: z.number(), y: z.number() })).min(3).optional(),
+  feather: z.number().min(0).max(100).default(5),
+  edgeThreshold: z.number().min(0).max(1).default(0.5),
+  useInnerOnly: z.boolean().default(false),
+  invert: z.boolean().default(false),
+  additionalForegroundPath: z.array(z.object({ x: z.number(), y: z.number() })).min(3).optional(),
+  additionalBackgroundPath: z.array(z.object({ x: z.number(), y: z.number() })).min(3).optional(),
+});
+
+/* --------------------------- Transitions library --------------------------- */
+export const BlockDissolveInput = z.object({
+  projectId: zIdField,
+  componentIds: z.array(zIdField).min(2).optional(),
+  blockSize: z.number().int().min(2).max(100).default(16),
+  rows: z.number().int().min(1).max(50).default(8),
+  columns: z.number().int().min(1).max(50).default(8),
+  transitionDurationMs: z.number().min(100).max(10000).default(800),
+  randomness: z.number().min(0).max(1).default(0.3),
+  direction: z.enum(["dissolve-in", "dissolve-out"]).default("dissolve-in"),
+});
+
+export const CardWipeInput = z.object({
+  projectId: zIdField,
+  componentIds: z.array(zIdField).min(2).optional(),
+  rows: z.number().int().min(1).max(50).default(10),
+  columns: z.number().int().min(1).max(50).default(10),
+  flipAxis: z.enum(["x", "y"]).default("x"),
+  flipDirection: z.enum(["positive", "negative"]).default("positive"),
+  transitionDurationMs: z.number().min(100).max(10000).default(1000),
+  randomness: z.number().min(0).max(1).default(0.2),
+  cameraDistance: z.number().min(0).max(1000).default(200),
+  jitter: z.number().min(0).max(50).default(0),
+});
+
+export const GradientWipeInput = z.object({
+  projectId: zIdField,
+  componentIds: z.array(zIdField).min(2).optional(),
+  gradientLayerId: zIdField.optional().describe("Layer to use as wipe gradient (default: brightness of source)"),
+  transitionDurationMs: z.number().min(100).max(10000).default(800),
+  completion: z.number().min(0).max(1).default(0.5),
+  isGradientLayerInverted: z.boolean().default(false),
+});
+
+export const IrisWipeInput = z.object({
+  projectId: zIdField,
+  componentIds: z.array(zIdField).min(2).optional(),
+  irisCenter: z.tuple([z.number(), z.number()]).default([0.5, 0.5]),
+  outerRadius: z.number().min(0).max(1).default(0.5),
+  innerRadius: z.number().min(0).max(1).default(0),
+  irisPoints: z.number().int().min(2).max(32).default(8),
+  rotation: z.number().min(0).max(360).default(0),
+  transitionDurationMs: z.number().min(100).max(10000).default(700),
+  feather: z.number().min(0).max(50).default(2),
+});
+
+export const LinearWipeInput = z.object({
+  projectId: zIdField,
+  componentIds: z.array(zIdField).min(2).optional(),
+  angle: z.number().min(0).max(360).default(0),
+  feather: z.number().min(0).max(100).default(5),
+  transitionDurationMs: z.number().min(100).max(10000).default(600),
+});
+
+export const RadialWipeInput = z.object({
+  projectId: zIdField,
+  componentIds: z.array(zIdField).min(2).optional(),
+  startAngle: z.number().min(0).max(360).default(0),
+  wipeAngle: z.number().min(0).max(360).default(0),
+  feather: z.number().min(0).max(100).default(5),
+  wipeShape: z.enum(["clockwise", "counterclockwise", "both"]).default("clockwise"),
+  transitionDurationMs: z.number().min(100).max(10000).default(700),
+});
+
+export const VenetianBlindsInput = z.object({
+  projectId: zIdField,
+  componentIds: z.array(zIdField).min(2).optional(),
+  stripeWidth: z.number().min(2).max(100).default(20),
+  transitionDurationMs: z.number().min(100).max(10000).default(600),
+  direction: z.enum(["horizontal", "vertical"]).default("horizontal"),
+  edgeCompletion: z.number().min(0).max(1).default(1),
+  feather: z.number().min(0).max(20).default(0),
+});
+
+export const CcJawsWipeInput = z.object({
+  projectId: zIdField,
+  componentIds: z.array(zIdField).min(2).optional(),
+  shape: z.enum(["jaws", "line", "scale", "grid", "radial"]).default("jaws"),
+  direction: z.enum(["top-left", "top-right", "bottom-left", "bottom-right", "all"]).default("all"),
+  completion: z.number().min(0).max(1).default(0.5),
+  transitionDurationMs: z.number().min(100).max(10000).default(800),
+  pointSpacing: z.number().min(1).max(100).default(20),
+  shapeLayer: z.boolean().default(false),
+});
+
+/* --------------------------- Simulation & generators --------------------------- */
+export const CcBallActionInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  ballSize: z.number().min(1).max(50).default(10),
+  spacing: z.number().min(1).max(50).default(15),
+  rotationX: z.number().min(0).max(360).default(0),
+  rotationY: z.number().min(0).max(360).default(0),
+  rotationZ: z.number().min(0).max(360).default(0),
+  scatter: z.number().min(0).max(1).default(0),
+  gridMode: z.enum(["rectangular", "hexagonal"]).default("rectangular"),
+});
+
+export const CcBubblesInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  bubbleCount: z.number().int().min(1).max(500).default(50),
+  minSize: z.number().min(1).max(100).default(10),
+  maxSize: z.number().min(1).max(100).default(30),
+  speed: z.number().min(0).max(10).default(1),
+  wobble: z.number().min(0).max(1).default(0.3),
+  direction: z.enum(["up", "down", "left", "right"]).default("up"),
+  seed: z.number().int().nonnegative().default(1),
+});
+
+export const CcRainfallInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  dropCount: z.number().int().min(1).max(2000).default(300),
+  dropSize: z.number().min(1).max(20).default(3),
+  speed: z.number().min(0).max(50).default(10),
+  wind: z.number().min(-20).max(20).default(0),
+  angle: z.number().min(-45).max(45).default(0),
+  opacity: z.number().min(0).max(1).default(0.7),
+  blur: z.number().min(0).max(20).default(2),
+  seed: z.number().int().nonnegative().default(1),
+});
+
+export const CcSnowfallInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  flakeCount: z.number().int().min(1).max(2000).default(200),
+  minSize: z.number().min(1).max(30).default(3),
+  maxSize: z.number().min(1).max(30).default(10),
+  speed: z.number().min(0).max(20).default(2),
+  wind: z.number().min(-20).max(20).default(0),
+  wobble: z.number().min(0).max(2).default(0.5),
+  opacity: z.number().min(0).max(1).default(0.9),
+  seed: z.number().int().nonnegative().default(1),
+});
+
+export const CcStarBurstInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  starCount: z.number().int().min(1).max(1000).default(100),
+  speed: z.number().min(0).max(20).default(2),
+  scatter: z.number().min(0).max(1).default(0.5),
+  phase: z.number().min(0).max(360).default(0),
+  gridSize: z.number().min(1).max(100).default(20),
+  color: z.string().regex(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i).default("#ffffff"),
+  seed: z.number().int().nonnegative().default(1),
+});
+
+export const CellPatternInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  patternType: z.enum(["bubbles", "crystals", "static-plates", "tubular", "spotted", "cracked", "steel", "organic", "stone-rock", "dried-up", "shatter", "scales", "turbulent", "load-bubbles"]).default("bubbles"),
+  contrast: z.number().min(0).max(100).default(50),
+  dispersal: z.number().min(0).max(1).default(0.5),
+  size: z.number().min(0).max(200).default(50),
+  offset: z.tuple([z.number(), z.number()]).default([0, 0]),
+  tiling: z.boolean().default(false),
+  evolution: z.number().min(0).max(360).default(0),
+  speed: z.number().min(0).max(5).default(1),
+});
+
+export const AudioSpectrumInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  audioLayerId: zIdField.optional().describe("Audio source layer (default: project audio track)"),
+  startPath: z.tuple([z.number(), z.number()]).default([0.5, 0.5]),
+  endPath: z.tuple([z.number(), z.number()]).default([0.9, 0.5]),
+  pathShape: z.enum(["line", "curve", "closed", "loop"]).default("line"),
+  frequencyRange: z.tuple([z.number().min(0).max(20000), z.number().min(0).max(20000)]).default([20, 2000]),
+  maximumHeight: z.number().min(1).max(500).default(100),
+  thickness: z.number().min(1).max(50).default(10),
+  insideColor: z.string().regex(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i).default("#ffffff"),
+  outsideColor: z.string().regex(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i).default("#000000"),
+  displayOptions: z.array(z.enum(["analog", "digital", "log", "analog-frequencies", "digital-frequencies"])).default(["analog"]),
+  hueInterpolation: z.number().min(0).max(1).default(0),
+});
+
+export const RadioWavesInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  producerPoint: z.tuple([z.number(), z.number()]).default([0.5, 0.5]),
+  wavesPerSecond: z.number().min(0).max(20).default(1),
+  waveSpeed: z.number().min(0).max(100).default(5),
+  frequency: z.number().min(0).max(50).default(2),
+  expansion: z.number().min(0).max(500).default(50),
+  maxRadius: z.number().min(1).max(2000).default(500),
+  strokeWidth: z.number().min(0).max(20).default(2),
+  color: z.string().regex(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i).default("#ffffff"),
+  fadeoutTime: z.number().min(0).max(10).default(2),
+  startWidth: z.number().min(0).max(100).default(10),
+  endWidth: z.number().min(0).max(100).default(0),
+});
+
+/* --------------------------- Stylize effects --------------------------- */
+export const CartoonEffectInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  edgeThickness: z.number().min(0).max(10).default(1.5),
+  edgeIntensity: z.number().min(0).max(1).default(0.8),
+  shadingSteps: z.number().int().min(2).max(10).default(4),
+  shadingSmoothness: z.number().min(0).max(1).default(0.5),
+  outlineColor: z.string().regex(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i).default("#000000"),
+  edgeMode: z.enum(["inverted", "drawn", "lit", "outline"]).default("drawn"),
+});
+
+export const BrushStrokesInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  brushSize: z.number().min(1).max(50).default(8),
+  strokeAngle: z.number().min(0).max(360).default(45),
+  strokeLength: z.number().min(1).max(50).default(15),
+  strokeDensity: z.number().min(0).max(1).default(0.6),
+  strokeRandomness: z.number().min(0).max(1).default(0.3),
+  paintSurface: z.enum(["painting", "canvas", "paper", "wet"]).default("canvas"),
+  blendMode: z.enum(["normal", "multiply", "screen"]).default("normal"),
+});
+
+export const OilPaintInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  brushScale: z.number().min(1).max(20).default(4),
+  contrast: z.number().min(0).max(2).default(1),
+  cleanColor: z.number().min(0).max(1).default(0.5),
+  invert: z.boolean().default(false),
+  blur: z.number().min(0).max(20).default(3),
+  sharpness: z.number().min(0).max(1).default(0.4),
+});
+
+export const WatercolorInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  edgeIntensity: z.number().min(0).max(2).default(1),
+  edgeSimplicity: z.number().min(0).max(10).default(2),
+  texture: z.number().min(0).max(1).default(0.4),
+  brushSize: z.number().min(1).max(30).default(10),
+  wetness: z.number().min(0).max(1).default(0.5),
+  colorVariation: z.number().min(0).max(1).default(0.3),
+  paperType: z.enum(["cold-press", "hot-press", "rough"]).default("cold-press"),
+});
+
+export const EmbossEffectInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  angle: z.number().min(0).max(360).default(135),
+  height: z.number().min(1).max(50).default(5),
+  amount: z.number().min(0).max(200).default(100),
+  relief: z.number().min(0).max(100).default(50),
+});
+
+export const MotionTileInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  tileCenter: z.tuple([z.number(), z.number()]).default([0.5, 0.5]),
+  tileWidth: z.number().min(0).max(2).default(1),
+  tileHeight: z.number().min(0).max(2).default(1),
+  outputWidth: z.number().min(0).max(10).default(2),
+  outputHeight: z.number().min(0).max(10).default(2),
+  phase: z.number().min(0).max(360).default(0),
+  horizontalOffset: z.number().min(-1).max(1).default(0),
+  verticalOffset: z.number().min(-1).max(1).default(0),
+  mirrorEdges: z.boolean().default(false),
+});
+
+export const ScatterEffectInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  scatterAmount: z.number().min(0).max(50).default(5),
+  grainAmount: z.number().min(0).max(1).default(0.3),
+  grainSeed: z.number().int().nonnegative().default(1),
+  horizontalOnly: z.boolean().default(false),
+  verticalOnly: z.boolean().default(false),
+  monochromatic: z.boolean().default(false),
+});
+
+export const ThresholdEffectInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField,
+  level: z.number().min(0).max(1).default(0.5),
+  invert: z.boolean().default(false),
+  channel: z.enum(["luminance", "red", "green", "blue", "alpha"]).default("luminance"),
+  halftone: z.boolean().default(false),
+  halftoneSize: z.number().min(1).max(20).default(4),
+});
+
 /* --------------------------- Restraint engine tools --------------------------- */
 export const AnalyzeRestraintInput = z.object({
   projectId: zIdField,
@@ -2383,6 +2756,28 @@ export const ListModelsInput = z.object({
   modality: z.string().optional().describe("Filter by modality: text-to-image, text-to-video, text-to-speech, speech-to-text, text-to-3d"),
 });
 
+/* --------------------------- Checkpoint & plan tools --------------------------- */
+export const RollbackLastActionInput = z.object({
+  projectId: zIdField,
+});
+
+export const ListCheckpointsInput = z.object({
+  projectId: zIdField,
+});
+
+export const RollbackToCheckpointInput = z.object({
+  projectId: zIdField,
+  checkpointId: zIdField,
+});
+
+export const CancelPlanInput = z.object({
+  projectId: zIdField,
+});
+
+export const GetPlanStateInput = z.object({
+  projectId: zIdField,
+});
+
 /** Tool-name → input schema registry. The agent and MCP layer both consume this. */
 export const TOOL_INPUT_SCHEMAS = {
   get_motion_spec: GetMotionSpecInput,
@@ -2600,6 +2995,42 @@ export const TOOL_INPUT_SCHEMAS = {
   reveal_with_brush: RevealWithBrushInput,
   erase_stroke: EraseStrokeInput,
   paint_animator: PaintAnimatorInput,
+  // Rotoscoping & keying
+  roto_brush: RotoBrushInput,
+  refine_edge: RefineEdgeInput,
+  color_key: ColorKeyInput,
+  linear_color_key: LinearColorKeyInput,
+  difference_matte: DifferenceMatteInput,
+  spill_suppression: SpillSuppressionInput,
+  matte_choker: MatteChokerInput,
+  inner_outer_key: InnerOuterKeyInput,
+  // Transitions library
+  block_dissolve: BlockDissolveInput,
+  card_wipe: CardWipeInput,
+  gradient_wipe: GradientWipeInput,
+  iris_wipe: IrisWipeInput,
+  linear_wipe: LinearWipeInput,
+  radial_wipe: RadialWipeInput,
+  venetian_blinds: VenetianBlindsInput,
+  cc_jaws_wipe: CcJawsWipeInput,
+  // Simulation & generators
+  cc_ball_action: CcBallActionInput,
+  cc_bubbles: CcBubblesInput,
+  cc_rainfall: CcRainfallInput,
+  cc_snowfall: CcSnowfallInput,
+  cc_star_burst: CcStarBurstInput,
+  cell_pattern: CellPatternInput,
+  audio_spectrum: AudioSpectrumInput,
+  radio_waves: RadioWavesInput,
+  // Stylize effects
+  cartoon_effect: CartoonEffectInput,
+  brush_strokes: BrushStrokesInput,
+  oil_paint: OilPaintInput,
+  watercolor: WatercolorInput,
+  emboss_effect: EmbossEffectInput,
+  motion_tile: MotionTileInput,
+  scatter_effect: ScatterEffectInput,
+  threshold_effect: ThresholdEffectInput,
   analyze_restraint: AnalyzeRestraintInput,
   list_recipes: ListRecipesInput,
   apply_recipe: ApplyRecipeInput,
@@ -2689,6 +3120,11 @@ export const TOOL_INPUT_SCHEMAS = {
   generate_video: GenerateVideoInput,
   generate_3d: Generate3DInput,
   list_models: ListModelsInput,
+  rollback_last_action: RollbackLastActionInput,
+  list_checkpoints: ListCheckpointsInput,
+  rollback_to_checkpoint: RollbackToCheckpointInput,
+  cancel_plan: CancelPlanInput,
+  get_plan_state: GetPlanStateInput,
 } as const;
 
 export type ToolName = keyof typeof TOOL_INPUT_SCHEMAS;
@@ -2913,6 +3349,42 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   reveal_with_brush: "Reveal or hide layer content via brush strokes — points with pressure, feather, and reveal/hide mode. Use when the user says 'reveal with brush', 'paint a mask', 'brush reveal', 'erase with brush', or '画笔显隐'.",
   erase_stroke: "Erase paint from a layer — points with brush size and hardness. Use when the user says 'erase paint', 'erase stroke', 'remove paint', or '擦除笔触'.",
   paint_animator: "Animate a paint stroke — write-on, reveal, grow-from-start, or grow-from-end modes with duration, easing, and end value. Use when the user says 'animate the stroke', 'write on this stroke', 'paint animation', 'grow the stroke', or '笔触动画'.",
+  // Rotoscoping & keying
+  roto_brush: "Automatic rotoscoping via seed-point propagation — mode (add/subtract/foreground/background), detection sensitivity, smoothness, and frame range. Use when the user says 'roto brush', 'auto mask', 'rotoscope this', or '自动遮罩'.",
+  refine_edge: "Refine matte edges — feather radius, edge softness, decontamination, smart radius. Use when the user says 'refine edge', 'feather the matte', 'soft edge', 'clean up the mask edge', or '边缘羽化'.",
+  color_key: "Chroma key — key out a specific color with tolerance, edge thin, and edge feather. Use when the user says 'color key', 'green screen', 'blue screen', 'remove the background color', or '抠像'.",
+  linear_color_key: "Linear color key — match multiple colors with tolerance/softness, operate on RGB/hue/saturation/brightness. Use when the user says 'linear color key', 'match these colors', 'key out these shades', or '多色键'.",
+  difference_matte: "Difference matte — extract a matte by comparing against a reference frame. Use when the user says 'difference matte', 'compare against reference', 'extract difference', or '差异遮罩'.",
+  spill_suppression: "Spill suppression — remove green/blue/red spill from keyed footage with luminance preservation. Use when the user says 'spill suppression', 'remove green spill', 'clean up the edge color', or '溢出抑制'.",
+  matte_choker: "Matte choker — tighten or spread a matte with multiple choke stages and iterations. Use when the user says 'matte choker', 'choke the matte', 'tighten the mask', 'spread the matte', or '遮罩收紧'.",
+  inner_outer_key: "Inner/outer key — define foreground/background via inner and outer paths with feather. Use when the user says 'inner outer key', 'mask between two paths', 'isolate the subject', or '内外路径抠像'.",
+  // Transitions library
+  block_dissolve: "Block dissolve transition — dissolve between layers via a grid of random blocks. Use when the user says 'block dissolve', 'pixelate dissolve', 'tile dissolve', or '块状溶解'.",
+  card_wipe: "Card wipe transition — flip cards on X or Y axis to reveal the next layer. Use when the user says 'card wipe', 'card flip', 'flip cards transition', or '卡片翻转'.",
+  gradient_wipe: "Gradient wipe — wipe transition driven by a gradient layer's brightness. Use when the user says 'gradient wipe', 'wipe by gradient', 'brightness wipe', or '渐变擦除'.",
+  iris_wipe: "Iris wipe — reveal via a polygonal iris (n-point star) opening/closing. Use when the user says 'iris wipe', 'star wipe', 'iris transition', or '光圈转场'.",
+  linear_wipe: "Linear wipe — wipe at a specified angle with feather. Use when the user says 'linear wipe', 'wipe at 90 degrees', 'angle wipe', or '线性擦除'.",
+  radial_wipe: "Radial wipe — sweep transition around a center point clockwise/counterclockwise. Use when the user says 'radial wipe', 'clock wipe', 'sweep transition', or '径向擦除'.",
+  venetian_blinds: "Venetian blinds transition — reveal via horizontal or vertical stripes. Use when the user says 'venetian blinds', 'blind wipe', 'stripe transition', or '百叶窗'.",
+  cc_jaws_wipe: "CC Jaws wipe — multi-directional jaws/line/scale/grid/radial wipe with point spacing. Use when the user says 'jaws wipe', 'cc jaws', 'multi-direction wipe', or '锯齿擦除'.",
+  // Simulation & generators
+  cc_ball_action: "CC Ball Action — render the layer as a grid of balls with rotation and scatter. Use when the user says 'ball action', 'turn into balls', 'sphere grid', or '球阵动画'.",
+  cc_bubbles: "CC Bubbles — procedurally generate rising/falling bubbles with size, speed, and wobble. Use when the user says 'bubbles', 'add bubbles', 'bubble field', or '气泡效果'.",
+  cc_rainfall: "CC Rainfall — procedural rain with drop count, size, speed, wind, angle, and blur. Use when the user says 'rainfall', 'rain effect', 'add rain', 'falling rain', or '下雨效果'.",
+  cc_snowfall: "CC Snowfall — procedural snowflakes with count, size, speed, wind, wobble. Use when the user says 'snowfall', 'snow effect', 'add snow', 'falling snow', or '下雪效果'.",
+  cc_star_burst: "CC Star Burst — point-star burst generator with speed, scatter, and phase. Use when the user says 'star burst', 'stars flying', 'starfield burst', or '星爆效果'.",
+  cell_pattern: "Cell pattern generator — 14 procedural patterns (bubbles, crystals, static plates, tubular, spotted, cracked, steel, organic, stone rock, dried up, shatter, scales, turbulent, load bubbles). Use when the user says 'cell pattern', 'procedural texture', 'crystal pattern', 'organic noise', or '细胞纹理'.",
+  audio_spectrum: "Audio spectrum visualizer — render frequency spectrum along a path with thickness, colors, and display modes. Use when the user says 'audio spectrum', 'frequency visualizer', 'audio bars', 'spectrum analyzer', or '频谱可视化'.",
+  radio_waves: "Radio waves — emit expanding wave rings from a producer point with frequency and fadeout. Use when the user says 'radio waves', 'sonar rings', 'expanding circles', 'wave emitter', or '电波扩散'.",
+  // Stylize effects
+  cartoon_effect: "Cartoon cel shader — edge thickness, shading steps, outline color, edge mode (inverted/drawn/lit/outline). Use when the user says 'cartoon', 'cel shade', 'toon style', 'comic look', or '卡通着色'.",
+  brush_strokes: "Brush strokes — painterly rendering via brush size, angle, length, density, randomness, and paint surface. Use when the user says 'brush strokes', 'painterly', 'oil brush look', 'paint texture', or '笔触油画'.",
+  oil_paint: "Oil paint effect — brush scale, contrast, clean color, blur, sharpness. Use when the user says 'oil paint', 'oil painting look', 'palette knife', or '油画效果'.",
+  watercolor: "Watercolor effect — edge intensity, simplicity, texture, brush size, wetness, color variation, paper type. Use when the user says 'watercolor', 'aquarelle', 'watercolour', 'paint wash', or '水彩效果'.",
+  emboss_effect: "Emboss — direction angle, height, amount, relief for a sculpted relief look. Use when the user says 'emboss', 'bas-relief', 'sculpted look', 'relief', or '浮雕效果'.",
+  motion_tile: "Motion tile — tile a layer across an output area with phase, offsets, and edge mirroring. Use when the user says 'motion tile', 'tile the layer', 'repeat pattern', 'wrap edges', or '运动拼贴'.",
+  scatter_effect: "Scatter — randomly displace pixels with grain, monochromatic option, and axis lock. Use when the user says 'scatter', 'pixel scatter', 'grain', 'disperse pixels', or '像素散射'.",
+  threshold_effect: "Threshold — binarize the image at a level with channel selection and optional halftone. Use when the user says 'threshold', 'binarize', 'posterize to 2 colors', 'high contrast', or '阈值化'.",
   analyze_restraint: "Analyze motion density and restraint — calculates how many animations compete for attention simultaneously, identifies easing/duration monotony, and recommends improvements. Returns a restraint score (0-100) with warnings. Use when the user asks 'is this too much', 'analyze restraint', or 'check density'.",
   list_recipes: "Browse the curated motion recipe library. Each recipe carries avoid_when metadata — situations where it should NOT be used. Optionally filter by category or search by query. Returns recipe names, descriptions, restraint costs, and avoidance conditions.",
   apply_recipe: "Apply a curated motion recipe to a component. Recipes include pre-configured easing, keyframes, and timing. The system checks avoid_when conditions before applying. Use when the user says 'apply a recipe', 'use a gentle entrance', or 'try a cinematic fade'.",
@@ -3002,4 +3474,9 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   generate_video: "Generate a video from a text prompt or animate a static image using configured providers (Runway Gen-3, Luma Dream Machine, Pika). Returns the video URL. Use when the user says 'generate a video', 'create a clip', 'animate this', 'make a movie', or 'produce a video sequence'.",
   generate_3d: "Generate a 3D model from a text prompt or convert a 2D image to 3D using configured providers (Meshy, Tripo). Returns the model URL (GLB format). Use when the user says 'generate a 3D model', 'create 3D', 'make a mesh', 'text to 3D', or 'convert image to 3D'.",
   list_models: "List all available AI models in the registry, optionally filtered by provider or modality. Shows model capabilities (text, vision, audio, image generation, video generation, code, tool use, reasoning) and context windows. Use when the user says 'what models are available', 'list models', 'show providers', or 'which LLMs can I use'.",
+  rollback_last_action: "Roll back the most recent AI-driven mutation by restoring the latest checkpoint. Use when the user says 'undo last action', 'rollback', 'revert that change', or 'go back'.",
+  list_checkpoints: "List all available checkpoints for the project, newest first. Each checkpoint is a snapshot captured before an AI tool batch mutated the spec.",
+  rollback_to_checkpoint: "Roll back to a specific checkpoint by id. Use after list_checkpoints to pick a target snapshot.",
+  cancel_plan: "Cancel the currently running structured plan. The agent stops executing remaining actions after the current one completes.",
+  get_plan_state: "Get the current structured plan execution state — which actions are pending, in progress, completed, or failed. Use when the user asks 'what's the plan', 'where are we', or 'plan status'.",
 };
