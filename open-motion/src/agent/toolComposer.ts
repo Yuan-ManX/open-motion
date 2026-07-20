@@ -227,15 +227,21 @@ const PATTERNS: CompositionPattern[] = [
       // Guard: when the user clearly means per-character text animation
       // (text animator context), defer to the dedicated add_text_animator
       // intent in the mock provider — don't hijack as component stagger.
-      if (/\b(?:text|character|word|char)\b/i.test(msg)) return null;
+      // Match plural forms (characters/words/chars) too.
+      if (/\b(?:text|characters?|words?|chars?)\b/i.test(msg)) return null;
       // Guard: when the user mentions a single-layer ripple/wave effect
       // (mesh warp, liquid distortion), defer to the dedicated apply_mesh_warp
       // intent in the mock provider — "ripple the layer" is a layer effect,
       // not a multi-layer choreography pattern.
-      if (/\b(?:warp|distort|liquid|organic|mesh|puppet|turbulence)\b/i.test(msg)) return null;
+      if (/\b(?:warp|distort\w*|liquid|organic|mesh|puppet|turbulence)\b/i.test(msg)) return null;
       // Guard: "ripple/wave + layer/this/it" patterns target a single layer,
       // not a multi-component choreography.
       if (/\b(?:ripple|wave)\s+(?:the\s+)?(?:layer|this|it|element|component)\b/i.test(msg)) return null;
+      // Guard: when the user wants to time-offset existing layers with a
+      // staggered start (sequence/stagger/cascade + layers/components),
+      // defer to the dedicated sequence_layers intent in the mock provider
+      // — this is a layer-timing operation, not a choreography pattern.
+      if (/\b(?:sequence|stagger|cascade)\s+(?:these\s+|the\s+)?(?:layers|components)\b/i.test(msg)) return null;
 
       const stepMs = extractNumber(msg, /(\d+)\s*ms\s*(?:step|stagger|delay)/) ?? 150;
 
@@ -492,6 +498,11 @@ const PATTERNS: CompositionPattern[] = [
       // dedicated add_repeater intent in the mock provider — don't hijack
       // the message as a loop-iteration request.
       if (/\b(?:repeater|repeat\s+this|repeat\s+in\s+(?:a\s+)?(?:radial|circular|grid|pattern|linear)|\d+\s*(?:copies|instances)|tile\s+this|cascade\s+copies)\b/i.test(msg)) return null;
+      // Guard: when the user wants an expression-based loop (loopIn/loopOut
+      // with cycle/pingpong/offset/continue modes applied to a specific
+      // property), defer to the dedicated set_loop_expression intent in the
+      // mock provider — don't hijack as a CSS iteration-count loop.
+      if (/\b(?:loop\s+(?:the\s+)?(?:rotation|position|scale|opacity|this\s+property|this)|pingpong\s+(?:this|the)|cycle\s+loop|loop\s+this\s+property)\b/i.test(msg)) return null;
 
       const countMatch = msg.match(/(\d+)\s*(?:times?|loops?|repeats?)/);
       const iterationCount: number | "infinite" = countMatch ? parseInt(countMatch[1], 10) : "infinite";
