@@ -242,6 +242,13 @@ const PATTERNS: CompositionPattern[] = [
       // defer to the dedicated sequence_layers intent in the mock provider
       // — this is a layer-timing operation, not a choreography pattern.
       if (/\b(?:sequence|stagger|cascade)\s+(?:these\s+|the\s+)?(?:layers|components)\b/i.test(msg)) return null;
+      // Guard: when the user wants to sequence layers with an explicit
+      // transition (crossfade/dissolve/wipe/push) or mentions a transition
+      // between layers/clips, defer to the dedicated
+      // sequence_with_transition intent in the mock provider.
+      if (/\b(?:sequence|stagger|cascade)\s+with\s+(?:crossfade|transition|dissolve|wipe|push)\b/i.test(msg)) return null;
+      if (/\b(?:dissolve|transition)\s+between\s+(?:layers|clips)\b/i.test(msg)) return null;
+      if (/\bcrossfade\s+(?:the\s+)?layers\b/i.test(msg)) return null;
 
       const stepMs = extractNumber(msg, /(\d+)\s*ms\s*(?:step|stagger|delay)/) ?? 150;
 
