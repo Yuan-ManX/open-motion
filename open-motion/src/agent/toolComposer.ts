@@ -249,6 +249,11 @@ const PATTERNS: CompositionPattern[] = [
       if (/\b(?:sequence|stagger|cascade)\s+with\s+(?:crossfade|transition|dissolve|wipe|push)\b/i.test(msg)) return null;
       if (/\b(?:dissolve|transition)\s+between\s+(?:layers|clips)\b/i.test(msg)) return null;
       if (/\bcrossfade\s+(?:the\s+)?layers\b/i.test(msg)) return null;
+      // Guard: when the user wants radio waves / sonar rings / wave
+      // emitter / expanding circles — these are simulation generator
+      // intents handled by the mock provider's radio_waves handler, not
+      // a choreography pattern.
+      if (/\b(?:radio\s+waves|sonar\s+rings|expanding\s+circles|wave\s+emitter|电波扩散)\b/i.test(msg)) return null;
 
       const stepMs = extractNumber(msg, /(\d+)\s*ms\s*(?:step|stagger|delay)/) ?? 150;
 
