@@ -18,6 +18,35 @@ import {
 import { analyzeProjectRestraint } from "../services/restraintService.js";
 import { compileGrammar, GRAMMAR_EXAMPLES, MOTION_VERBS } from "../../motion/grammar.js";
 import { listShaderEffects, getShaderEffect } from "../../motion/shaders.js";
+import { listAllShaderEffects, getExtendedShaderEffect } from "../../motion/shaderLibraryExt.js";
+import {
+  encodeRecipeTriple,
+  encodeRecipeLibrary,
+  substituteComponentId,
+  decodeToolCallsToSpec,
+  composeDescriptionFromSpec,
+  buildSkillMarkdown,
+} from "../../motion/recipeCodec.js";
+import {
+  readBudget,
+  writeBudget,
+  setTier,
+  recomputeSpend,
+  formatBudgetReport,
+  recommendTierUpgrade,
+  type RestraintTier,
+} from "../../motion/restraintBudget.js";
+import { getProjectWithSpec, updateProjectOrThrow } from "../services/projectService.js";
+import {
+  connectExternalServer,
+  disconnectExternalServer,
+  listExternalServers,
+  listExternalMcpTools,
+  callExternalMcpTool,
+  routeNamespacedExternalCall,
+  isExternalServerConnected,
+  type ExternalServerConfig,
+} from "../../agent/mcpClient.js";
 import { getSessionMetrics, listToolStats, resetAnalytics } from "../../agent/analytics.js";
 import { composeTools } from "../../agent/toolComposer.js";
 import { listMemory as listConversationMemory } from "../../agent/memory/store.js";
@@ -105,6 +134,74 @@ agentRouter.get(
   }),
 );
 
+// --- Triple-encoded recipe endpoints ---
+// Each recipe is exposed in three encodings: natural language, structured
+// spec, and executable tool call sequence. The triple form lets the Agent
+// pick the most efficient execution path for any context.
+// NOTE: these routes must be declared BEFORE /recipes/:id to avoid the
+// parameter route shadowing them.
+
+agentRouter.get(
+  "/recipes/triple",
+  runAsync(async (_req: Request, res: Response) => {
+    const recipes = listRecipes();
+    const library = encodeRecipeLibrary(recipes);
+    res.json({
+      encoding: "triple",
+      count: library.length,
+      recipes: library,
+    });
+  }),
+);
+
+const CaptureRecipeSchema = z.object({
+  name: z.string().min(1),
+  category: z.string().min(1),
+  toolCalls: z.array(
+    z.object({
+      tool: z.string(),
+      args: z.record(z.unknown()),
+    }),
+  ),
+  avoidWhen: z.array(z.string()).default([]),
+  restraintCost: z.number().min(0).max(5).default(2),
+  tags: z.array(z.string()).default([]),
+});
+
+agentRouter.post(
+  "/recipes/capture",
+  validate(CaptureRecipeSchema),
+  runAsync(async (req: Request, res: Response) => {
+    const input = validated<z.infer<typeof CaptureRecipeSchema>>(req);
+    const spec = decodeToolCallsToSpec(input.toolCalls);
+    const description = composeDescriptionFromSpec(spec);
+    const skillMarkdown = buildSkillMarkdown({
+      recipeId: `captured-${Date.now()}`,
+      name: input.name,
+      category: input.category,
+      description,
+      skillMarkdown: "",
+      spec,
+      toolCalls: input.toolCalls.map((tc: { tool: string; args: Record<string, unknown> }) => ({
+        tool: tc.tool as never,
+        args: tc.args,
+        reason: "captured from user composition",
+      })),
+      executionCost: input.toolCalls.length + input.restraintCost,
+    });
+    res.status(201).json({
+      captured: true,
+      name: input.name,
+      category: input.category,
+      description,
+      spec,
+      skillMarkdown,
+      toolCallCount: input.toolCalls.length,
+      executionCost: input.toolCalls.length + input.restraintCost,
+    });
+  }),
+);
+
 agentRouter.get(
   "/recipes/:id",
   runAsync(async (req: Request, res: Response) => {
@@ -114,6 +211,45 @@ agentRouter.get(
       return;
     }
     res.json(recipe);
+  }),
+);
+
+agentRouter.get(
+  "/recipes/:id/triple",
+  runAsync(async (req: Request, res: Response) => {
+    const recipe = getRecipe(req.params.id);
+    if (!recipe) {
+      res.status(404).json({ error: `recipe ${req.params.id} not found` });
+      return;
+    }
+    const triple = encodeRecipeTriple(recipe);
+    res.json(triple);
+  }),
+);
+
+// Resolve a recipe's tool call sequence against a specific component.
+// Returns the substituted tool calls ready for direct execution.
+agentRouter.post(
+  "/recipes/:id/resolve",
+  runAsync(async (req: Request, res: Response) => {
+    const recipe = getRecipe(req.params.id);
+    if (!recipe) {
+      res.status(404).json({ error: `recipe ${req.params.id} not found` });
+      return;
+    }
+    const componentId = typeof req.body?.componentId === "string" ? req.body.componentId : "";
+    if (!componentId) {
+      res.status(400).json({ error: "componentId is required in the body" });
+      return;
+    }
+    const triple = encodeRecipeTriple(recipe);
+    const resolved = substituteComponentId(triple.toolCalls, componentId);
+    res.json({
+      recipeId: recipe.id,
+      componentId,
+      toolCalls: resolved,
+      executionCost: triple.executionCost,
+    });
   }),
 );
 
@@ -139,6 +275,77 @@ agentRouter.get(
       return;
     }
     res.json(result);
+  }),
+);
+
+// --- Restraint budget endpoints ---
+// Per-project ceiling on cumulative motion "loudness". The budget tracks
+// spend across spec mutations and blocks new loud effects when exhausted.
+
+agentRouter.get(
+  "/projects/:id/budget",
+  runAsync(async (req: Request, res: Response) => {
+    const project = getProjectWithSpec(req.params.id);
+    if (!project || !project.spec) {
+      res.status(404).json({ error: `project ${req.params.id} not found` });
+      return;
+    }
+    const tokens = project.spec.project.tokens ?? {};
+    const budget = readBudget(tokens);
+    const report = formatBudgetReport(budget);
+    const recommendedUpgrade = recommendTierUpgrade(budget);
+    res.json({
+      budget,
+      remaining: budget.ceiling - budget.spent,
+      percentUsed: budget.ceiling > 0 ? Math.round((budget.spent / budget.ceiling) * 100) : 0,
+      report,
+      recommendedUpgrade,
+    });
+  }),
+);
+
+const SetTierSchema = z.object({
+  tier: z.enum(["minimalist", "balanced", "expressive", "maximalist"]),
+});
+
+agentRouter.post(
+  "/projects/:id/budget/tier",
+  validate(SetTierSchema),
+  runAsync(async (req: Request, res: Response) => {
+    const input = validated<z.infer<typeof SetTierSchema>>(req);
+    const project = getProjectWithSpec(req.params.id);
+    if (!project || !project.spec) {
+      res.status(404).json({ error: `project ${req.params.id} not found` });
+      return;
+    }
+    const tokens = project.spec.project.tokens ?? {};
+    const { budget, tokens: newTokens } = setTier(input.tier as RestraintTier, tokens);
+    updateProjectOrThrow(req.params.id, { tokens: newTokens });
+    res.json({
+      budget,
+      message: `Tier set to ${input.tier} (ceiling ${budget.ceiling})`,
+    });
+  }),
+);
+
+agentRouter.post(
+  "/projects/:id/budget/recompute",
+  runAsync(async (req: Request, res: Response) => {
+    const project = getProjectWithSpec(req.params.id);
+    if (!project || !project.spec) {
+      res.status(404).json({ error: `project ${req.params.id} not found` });
+      return;
+    }
+    const tokens = project.spec.project.tokens ?? {};
+    const budget = readBudget(tokens);
+    const newSpend = recomputeSpend(project.spec);
+    const updated = { ...budget, spent: newSpend };
+    const newTokens = writeBudget(tokens, updated);
+    updateProjectOrThrow(req.params.id, { tokens: newTokens });
+    res.json({
+      budget: updated,
+      message: `Recomputed spend: ${newSpend}/${updated.ceiling} (${updated.tier})`,
+    });
   }),
 );
 
@@ -174,19 +381,81 @@ agentRouter.get(
   "/shaders",
   runAsync(async (req: Request, res: Response) => {
     const category = typeof req.query.category === "string" ? req.query.category : undefined;
-    res.json(listShaderEffects(category));
+    const extended = req.query.extended === "1" || req.query.extended === "true";
+    if (extended) {
+      res.json({
+        base: listShaderEffects(category),
+        extended: listAllShaderEffects(category).filter(
+          (s) => !listShaderEffects(category).some((b) => b.id === s.id),
+        ),
+        total: listAllShaderEffects(category).length,
+      });
+    } else {
+      res.json(listShaderEffects(category));
+    }
+  }),
+);
+
+agentRouter.get(
+  "/shaders/all",
+  runAsync(async (req: Request, res: Response) => {
+    const category = typeof req.query.category === "string" ? req.query.category : undefined;
+    const all = listAllShaderEffects(category);
+    res.json({
+      count: all.length,
+      categories: [...new Set(all.map((s) => s.category))],
+      shaders: all,
+    });
   }),
 );
 
 agentRouter.get(
   "/shaders/:id",
   runAsync(async (req: Request, res: Response) => {
-    const effect = getShaderEffect(req.params.id);
+    const effect = getShaderEffect(req.params.id) ?? getExtendedShaderEffect(req.params.id);
     if (!effect) {
       res.status(404).json({ error: `shader ${req.params.id} not found` });
       return;
     }
     res.json(effect);
+  }),
+);
+
+// --- MotionMount runtime config ---
+// Returns the runtime configuration for mounting a shader to a WebGL canvas.
+// The frontend MotionMount component fetches this config and uses the
+// createShaderRenderer() utility to render the shader.
+
+agentRouter.get(
+  "/shaders/:id/mount",
+  runAsync(async (req: Request, res: Response) => {
+    const effect = getShaderEffect(req.params.id) ?? getExtendedShaderEffect(req.params.id);
+    if (!effect) {
+      res.status(404).json({ error: `shader ${req.params.id} not found` });
+      return;
+    }
+    const defaultParams: Record<string, number> = {};
+    for (const [name, spec] of Object.entries(effect.parameters)) {
+      defaultParams[name] = spec.default;
+    }
+    res.json({
+      shaderId: effect.id,
+      name: effect.name,
+      category: effect.category,
+      glslSource: effect.glslSource,
+      cssFallback: effect.cssStyle,
+      parameters: effect.parameters,
+      defaultParams,
+      mountConfig: {
+        antialias: true,
+        premultipliedAlpha: false,
+        uniformPrefix: "u_",
+        timeUniform: "u_time",
+        resolutionUniform: "u_resolution",
+        intensityUniform: "u_intensity",
+        fps: 60,
+      },
+    });
   }),
 );
 
@@ -347,5 +616,121 @@ agentRouter.get(
         label: c.label,
       })),
     });
+  }),
+);
+
+// --- Inbound MCP client endpoints ---
+// OpenMotion can act as an MCP client and connect to external MCP servers
+// (stdio or Streamable HTTP). Tools from connected servers are namespaced as
+// `${serverId}__${toolName}` and become callable from the orchestrator.
+
+const ConnectStdioSchema = z.object({
+  transport: z.literal("stdio"),
+  command: z.string().min(1),
+  args: z.array(z.string()).optional(),
+  env: z.record(z.string()).optional(),
+  cwd: z.string().optional(),
+});
+
+const ConnectHttpSchema = z.object({
+  transport: z.literal("http"),
+  url: z.string().url(),
+  requestInit: z.any().optional(),
+  sessionId: z.string().optional(),
+});
+
+const ConnectExternalSchema = z.discriminatedUnion("transport", [
+  ConnectStdioSchema,
+  ConnectHttpSchema,
+]);
+
+agentRouter.post(
+  "/mcp/servers/:serverId",
+  validate(ConnectExternalSchema),
+  runAsync(async (req: Request, res: Response) => {
+    const config = validated<ExternalServerConfig>(req);
+    const info = await connectExternalServer(req.params.serverId, config);
+    res.status(201).json(info);
+  }),
+);
+
+agentRouter.get(
+  "/mcp/servers",
+  runAsync(async (_req: Request, res: Response) => {
+    const servers = listExternalServers();
+    res.json({ count: servers.length, servers });
+  }),
+);
+
+agentRouter.get(
+  "/mcp/servers/:serverId",
+  runAsync(async (req: Request, res: Response) => {
+    if (!isExternalServerConnected(req.params.serverId)) {
+      res.status(404).json({ error: `server "${req.params.serverId}" is not connected` });
+      return;
+    }
+    res.json(listExternalServers().find((s) => s.serverId === req.params.serverId));
+  }),
+);
+
+agentRouter.delete(
+  "/mcp/servers/:serverId",
+  runAsync(async (req: Request, res: Response) => {
+    await disconnectExternalServer(req.params.serverId);
+    res.status(204).end();
+  }),
+);
+
+agentRouter.get(
+  "/mcp/tools",
+  runAsync(async (_req: Request, res: Response) => {
+    const tools = await listExternalMcpTools();
+    res.json({ count: tools.length, tools });
+  }),
+);
+
+const CallExternalSchema = z.object({
+  tool: z.string().min(1),
+  args: z.record(z.unknown()).default({}),
+  timeoutMs: z.number().min(100).max(120_000).optional(),
+});
+
+agentRouter.post(
+  "/mcp/servers/:serverId/call",
+  validate(CallExternalSchema),
+  runAsync(async (req: Request, res: Response) => {
+    const { tool, args, timeoutMs } = validated<z.infer<typeof CallExternalSchema>>(req);
+    if (!isExternalServerConnected(req.params.serverId)) {
+      res.status(404).json({
+        ok: false,
+        error: `server "${req.params.serverId}" is not connected`,
+      });
+      return;
+    }
+    const result = await callExternalMcpTool(req.params.serverId, tool, args, timeoutMs);
+    res.json(result);
+  }),
+);
+
+const CallNamespacedSchema = z.object({
+  name: z.string().min(1),
+  args: z.record(z.unknown()).default({}),
+  timeoutMs: z.number().min(100).max(120_000).optional(),
+});
+
+agentRouter.post(
+  "/mcp/route",
+  validate(CallNamespacedSchema),
+  runAsync(async (req: Request, res: Response) => {
+    const { name, args, timeoutMs } = validated<z.infer<typeof CallNamespacedSchema>>(req);
+    const result = await routeNamespacedExternalCall(name, args, timeoutMs);
+    if (!result) {
+      res.status(404).json({
+        ok: false,
+        error: `tool "${name}" is not a namespaced external call (expected "serverId__toolName")`,
+      });
+      return;
+    }
+    res.json(result);
   }),
 );
