@@ -13,7 +13,7 @@
 export interface ShaderEffect {
   id: string;
   name: string;
-  category: "distortion" | "color" | "noise" | "light" | "pattern" | "filter";
+  category: "distortion" | "color" | "noise" | "light" | "pattern" | "filter" | "material";
   description: string;
   glslSource: string;
   cssStyle: Record<string, string>;
