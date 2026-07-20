@@ -32,6 +32,35 @@ const RESERVED_STYLE_KEYS = new Set([
   "_exposure", "_shadowHighlight", "_selectiveColor",
   // Data-driven animation tokens.
   "_dataBinding", "_dataSourceName", "_dataColumn", "_dataMapping",
+  // Effects & filters library tokens (rendered as SVG filter chains).
+  "_effectGaussianBlur", "_effectDirectionalBlur", "_effectRadialBlur",
+  "_effectSharpen", "_effectWaveWarp", "_effectRipple", "_effectBulge",
+  "_effectGlow", "_effectMosaic", "_effectFindEdges", "_effectLensFlare",
+  "_effectFourColorGradient",
+  // Expression engine & animation assistant tokens.
+  "_expression", "_loopExpression", "_loopMode", "_loopDuration",
+  "_sequenceLayer", "_exponentialScale", "_smoothedKeyframes",
+  "_wiggleKeyframes", "_audioKeyframes",
+  // Type animation system tokens.
+  "_rangeSelector", "_textWiggler", "_textOnPath", "_verticalText",
+  "_kerning", "_leading", "_perCharTransform", "_textAnimator",
+  // Motion tracking & stabilization tokens.
+  "_trackPoint", "_trackCamera", "_warpStabilizer", "_applyTrack",
+  "_motionPathEdit", "_autoOrient",
+  // Compositing & blending tokens.
+  "_advancedBlending", "_precompose", "_collapseTransformations",
+  "_alphaMode", "_transferMode", "_blendingGroup",
+  // Time effects & rhythm tokens.
+  "_timeDisplacement", "_echoAdvanced", "_sequenceWithTransition",
+  "_timeReverseLayer", "_freezeFrame", "_posterizeTimeAdvanced",
+  "_timeWarpRemapping",
+  // Camera lens & optical tokens.
+  "_lensDistortion", "_chromaticAberration", "_vignette",
+  "_cameraShakeProcedural", "_opticalFlow", "_motionMatchMove",
+  "_lensFlareAnamorphic", "_depthOfFieldAdvanced",
+  // Paint & cloning tokens.
+  "_paintStroke", "_cloneStamp", "_brushSettings",
+  "_revealWithBrush", "_eraseStroke", "_paintAnimator",
 ]);
 
 /** Check whether a style key is a private metadata token (underscore-prefixed)
