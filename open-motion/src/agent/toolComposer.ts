@@ -861,6 +861,37 @@ const PATTERNS: CompositionPattern[] = [
       ];
     },
   },
+
+  // --- Motion storytelling composition ---
+  {
+    name: "motion-storytelling",
+    match: (msg, _ctx) => {
+      // Detect narrative keywords that map to the storytelling engine.
+      // This pattern does not require existing components — it generates a
+      // narrative plan that the agent can then use to create new components.
+      const narrativeKeywords = [
+        "hero entrance", "grand entrance", "make an entrance",
+        "celebration", "celebrate", "confetti", "victory",
+        "dramatic reveal", "reveal", "unveil", "surprise",
+        "conflict", "clash", "battle", "versus",
+        "transformation", "transform", "metamorphosis", "morph",
+        "journey", "adventure", "quest",
+        "resolution", "closure", "wind down", "settle down",
+        "story", "narrative", "cinematic sequence",
+      ];
+      const matched = narrativeKeywords.some((k) => msg.includes(k));
+      if (!matched) return null;
+      // Pass the original message as the prompt so the storytelling engine
+      // can detect the specific narrative intent.
+      return [
+        {
+          tool: "generate_story",
+          args: { projectId: _ctx.projectId, prompt: msg },
+          reason: "Generate a 5-act narrative motion sequence matching the detected story intent",
+        },
+      ];
+    },
+  },
 ];
 
 /**
