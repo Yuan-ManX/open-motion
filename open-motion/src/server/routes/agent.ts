@@ -94,6 +94,12 @@ import {
   formatSynthesisReport,
   type SynthesisStrategy,
 } from "../../agent/motionSynthesis.js";
+import {
+  autoFixAccessibility,
+  formatAutoFixReport,
+  type AutoFixOptions,
+} from "../../agent/motionAutoFix.js";
+import { patchComponent } from "../../db/repositories/components.js";
 
 export const agentRouter = Router();
 
@@ -1314,6 +1320,77 @@ agentRouter.post(
       avgDurationMs: result.avgDurationMs,
       avgDelayMs: result.avgDelayMs,
       report: formatSynthesisReport(result),
+    });
+  }),
+);
+
+// --- Motion Auto-Fix endpoint ---
+
+const AutoFixSchema = z.object({
+  componentIds: z.array(z.string().min(1)).optional().describe("Restrict the fix to a subset of components. Defaults to the entire project."),
+  apply: z.boolean().optional().default(true).describe("When true, persist fixes to the project spec. When false, return a dry-run preview."),
+  options: z.object({
+    maxDisplacementPx: z.number().positive().optional(),
+    maxRotationDeg: z.number().positive().optional(),
+    minDurationMs: z.number().int().positive().optional(),
+    maxLoopIterations: z.number().int().positive().optional(),
+    staggerStepMs: z.number().int().positive().optional(),
+  }).optional(),
+});
+
+agentRouter.post(
+  "/projects/:id/auto-fix",
+  validate(AutoFixSchema),
+  runAsync(async (req: Request, res: Response) => {
+    const input = validated<z.infer<typeof AutoFixSchema>>(req);
+    const spec = getProjectSpec(req.params.id);
+    if (!spec) {
+      res.status(404).json({ error: "project not found" });
+      return;
+    }
+    // Resolve target components: either an explicit subset or the whole project.
+    const targets = input.componentIds && input.componentIds.length > 0
+      ? spec.components.filter((c) => input.componentIds!.includes(c.id))
+      : spec.components;
+    if (targets.length === 0) {
+      res.status(400).json({ error: "no components available to auto-fix" });
+      return;
+    }
+    const options: AutoFixOptions = { ...(input.options ?? {}) };
+    const { fixedComponents, result } = autoFixAccessibility(targets, options);
+
+    // Optionally persist fixes to the spec so the canvas reflects them.
+    let applied = false;
+    if (input.apply && result.fixedCount > 0) {
+      for (const fixed of fixedComponents) {
+        const compFixes = result.fixes.filter((f) => f.componentId === fixed.id);
+        const touchedFields = new Set(compFixes.map((f) => f.field.split(".")[0]));
+        const patch: Record<string, unknown> = {};
+        if (touchedFields.has("durationMs")) patch.durationMs = fixed.durationMs;
+        if (touchedFields.has("delayMs")) patch.delayMs = fixed.delayMs;
+        if (touchedFields.has("iterationCount")) patch.iterationCount = fixed.iterationCount;
+        if (touchedFields.has("fillMode")) patch.fillMode = fixed.fillMode;
+        if (touchedFields.has("easing")) patch.easing = fixed.easing;
+        if (touchedFields.has("keyframe")) patch.keyframes = fixed.keyframes;
+        if (Object.keys(patch).length > 0) {
+          patchComponent(req.params.id, fixed.id, patch);
+          applied = true;
+        }
+      }
+    }
+
+    res.json({
+      ok: true,
+      applied,
+      beforeScore: result.beforeScore,
+      afterScore: result.afterScore,
+      beforeIssueCount: result.beforeIssueCount,
+      afterIssueCount: result.afterIssueCount,
+      fixedCount: result.fixedCount,
+      skippedCount: result.skippedCount,
+      fixes: result.fixes,
+      summary: result.summary,
+      report: formatAutoFixReport(result),
     });
   }),
 );
