@@ -881,11 +881,31 @@ const PATTERNS: CompositionPattern[] = [
       // Skip when the user is asking to critique a specific aspect that has
       // a dedicated tool (e.g., "extract DNA").
       if (has(msg, "dna", "decompose")) return null;
+      // Skip when the user explicitly wants auto-fix — handled by the
+      // motion-auto-fix pattern below.
+      if (has(msg, "auto fix", "auto-fix", "autofix", "fix accessibility", "fix the accessibility", "remediate", "make it safe", "make the motion safe", "fix motion issues", "fix these issues", "fix the issues")) return null;
       return [
         {
           tool: "critique_motion",
           args: { projectId: ctx.projectId },
           reason: "Run a full structural critique across accessibility, performance, aesthetic, and consistency dimensions",
+        },
+      ];
+    },
+  },
+
+  // --- Motion auto-fix composition ---
+  {
+    name: "motion-auto-fix",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      // Detect explicit remediation requests.
+      if (!has(msg, "auto fix", "auto-fix", "autofix", "fix accessibility", "fix the accessibility", "remediate", "make it safe", "make the motion safe", "fix motion issues", "fix these issues", "fix the issues", "fix safety", "make accessible")) return null;
+      return [
+        {
+          tool: "auto_fix_accessibility",
+          args: { projectId: ctx.projectId, apply: true },
+          reason: "Automatically remediate vestibular, seizure, reduced-motion, and cognitive accessibility issues across the project",
         },
       ];
     },
