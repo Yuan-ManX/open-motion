@@ -78,6 +78,17 @@ import {
   listNarrativeIntents,
   type NarrativeIntent,
 } from "../../agent/motionStorytelling.js";
+import {
+  recordLineage,
+  getLineage,
+  getLineageTree,
+  getOperationHistory,
+  generateLineageReport,
+  getProjectLineageSummary,
+  formatLineageTree,
+  clearProjectLineage,
+  type LineageOperation,
+} from "../../agent/motionLineage.js";
 
 export const agentRouter = Router();
 
@@ -1179,5 +1190,76 @@ agentRouter.post(
       intensityCurve: sequence.intensityCurve,
       report: formatStoryReport(sequence),
     });
+  }),
+);
+
+// --- Motion Lineage endpoints ---
+
+agentRouter.get(
+  "/projects/:id/lineage/summary",
+  runAsync(async (req: Request, res: Response) => {
+    res.json({ ok: true, summary: getProjectLineageSummary(req.params.id) });
+  }),
+);
+
+agentRouter.get(
+  "/projects/:id/lineage/history",
+  runAsync(async (req: Request, res: Response) => {
+    res.json({ ok: true, history: getOperationHistory(req.params.id) });
+  }),
+);
+
+agentRouter.get(
+  "/projects/:id/lineage",
+  runAsync(async (req: Request, res: Response) => {
+    const tree = getLineageTree(req.params.id);
+    res.json({ ok: true, tree, formatted: formatLineageTree(tree) });
+  }),
+);
+
+agentRouter.get(
+  "/projects/:id/lineage/:componentId",
+  runAsync(async (req: Request, res: Response) => {
+    const report = generateLineageReport(req.params.id, req.params.componentId);
+    if (!report) {
+      res.status(404).json({ error: "no lineage record found for this component" });
+      return;
+    }
+    res.json({ ok: true, report });
+  }),
+);
+
+const RecordLineageSchema = z.object({
+  componentId: z.string().min(1),
+  componentName: z.string().min(1),
+  operation: z.enum(["original", "variation", "style-transfer", "story-beat", "template", "duplicate", "import"]),
+  parentIds: z.array(z.string()).default([]),
+  params: z.record(z.unknown()).default({}),
+  label: z.string().optional(),
+});
+
+agentRouter.post(
+  "/projects/:id/lineage",
+  validate(RecordLineageSchema),
+  runAsync(async (req: Request, res: Response) => {
+    const input = validated<z.infer<typeof RecordLineageSchema>>(req);
+    const record = recordLineage(
+      req.params.id,
+      input.componentId,
+      input.componentName,
+      input.operation as LineageOperation,
+      input.parentIds,
+      input.params,
+      input.label,
+    );
+    res.status(201).json({ ok: true, record });
+  }),
+);
+
+agentRouter.delete(
+  "/projects/:id/lineage",
+  runAsync(async (req: Request, res: Response) => {
+    clearProjectLineage(req.params.id);
+    res.status(204).end();
   }),
 );
