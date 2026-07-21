@@ -595,6 +595,35 @@ const PATTERNS: CompositionPattern[] = [
         "toast rise": "recipe-toast-rise",
         "bar grow": "recipe-bar-grow",
         "confetti burst": "recipe-confetti-burst",
+        "3d flip": "recipe-flip-3d",
+        "card tilt": "recipe-card-tilt",
+        "perspective rotate": "recipe-perspective-rotate",
+        "chromatic shift": "recipe-chromatic-shift",
+        "color pulse": "recipe-color-pulse",
+        "gradient flow": "recipe-gradient-flow",
+        "cinematic dolly": "recipe-cinematic-dolly",
+        "cinematic pan": "recipe-cinematic-pan",
+        "rack focus": "recipe-cinematic-rack-focus",
+        "error shake": "recipe-error-shake",
+        "success checkmark": "recipe-success-checkmark",
+        "long press bloom": "recipe-long-press-bloom",
+        "pinch zoom": "recipe-pinch-zoom",
+        "swipe back": "recipe-swipe-back",
+        "focus ring": "recipe-focus-ring",
+        "ripple out": "recipe-ripple-out",
+        "toggle pulse": "recipe-toggle-pulse",
+        "gravity drop": "recipe-gravity-drop",
+        "momentum slide": "recipe-momentum-slide",
+        "spring settle": "recipe-spring-settle",
+        "parallax depth": "recipe-parallax-depth",
+        "scroll reveal": "recipe-scroll-reveal",
+        "sticky shrink": "recipe-sticky-shrink",
+        "dropdown reveal": "recipe-dropdown-reveal",
+        "modal open": "recipe-modal-open",
+        "tab switch": "recipe-tab-switch",
+        "cross route": "recipe-cross-route",
+        "page curl": "recipe-page-curl",
+        "shared element": "recipe-shared-element",
       };
 
       for (const [keyword, recipeId] of Object.entries(recipeMap)) {
@@ -918,6 +947,35 @@ const PATTERNS: CompositionPattern[] = [
           tool: "query_lineage",
           args: { projectId: ctx.projectId, componentId: "__last__" },
           reason: "Query the lineage and ancestry of the most recently created component",
+        },
+      ];
+    },
+  },
+
+  // --- Motion synthesis composition ---
+  {
+    name: "motion-synthesis",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      // Detect synthesis/breeding/hybridization keywords.
+      if (!has(msg, "synthes", "hybrid", "breed", "cross", "combine the dna", "merge the motion", "blend the motion", "splice")) return null;
+
+      // Determine strategy from the message.
+      let strategy: "blend" | "dominant" | "crossover" | "mutation" = "blend";
+      if (has(msg, "dominant")) strategy = "dominant";
+      else if (has(msg, "crossover")) strategy = "crossover";
+      else if (has(msg, "mutat")) strategy = "mutation";
+
+      return [
+        {
+          tool: "synthesize_motion",
+          args: {
+            projectId: ctx.projectId,
+            sourceComponentId: "__first__",
+            targetComponentId: "__last__",
+            strategy,
+          },
+          reason: `Synthesize a hybrid motion DNA from the first and last components using ${strategy} strategy`,
         },
       ];
     },
