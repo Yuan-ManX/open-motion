@@ -74,7 +74,7 @@ A complete motion graphics engine, without the export pipeline. Over 340 tools a
 - **Stylize** — cartoon, brush strokes, oil paint, watercolor, emboss, motion tile, scatter, threshold.
 
 ### AI-native motion intelligence
-Five original systems that turn motion into a queryable, breedable, narratable medium — each callable by the Agent as a tool, each surfaced in the Intel panel.
+Six original systems that turn motion into a queryable, breedable, narratable, self-remediating medium — each callable by the Agent as a tool, each surfaced in the Intel panel.
 
 - **Variation Engine.** Generates N variations along orthogonal axes — easing, duration, intensity, direction, origin, stagger — so the Agent can explore a design space in a single round-trip.
 - **Motion DNA.** Decomposes any component into a genetic fingerprint: easing family, timing profile, transform signature, trigger semantics, intensity, and a composite signature. Two components can be compared by DNA similarity (0..1).
@@ -83,6 +83,7 @@ Five original systems that turn motion into a queryable, breedable, narratable m
 - **Motion Storytelling.** Narrative-to-motion synthesis. Seven narrative intents decomposed into a five-act Freytag pyramid — each act with its own easing, intensity, emotional tone, and transform hints.
 - **Motion Lineage.** DAG-based genealogy tracker. Records parent-child relationships across operations, computes generation depth, answers ancestor/descendant/sibling queries.
 - **Motion Synthesis.** DNA hybridization with four genetic strategies: blend, dominant, crossover, mutation. Each synthesized DNA carries trait attribution. Reproducible by seed.
+- **Motion Auto-Fix.** One-call accessibility remediation. Detects vestibular, seizure, reduced-motion, and cognitive issues, then applies targeted fixes — capping displacement and rotation, stretching flashing below the 3Hz threshold, capping infinite loops, setting fillMode, staggering simultaneous animations, normalizing timing tiers, and unifying easing families. Returns a before/after score and a per-fix audit trail.
 
 ### Motion as a transferable unit
 - **Per-component fine-tuning.** Every animation is composed of independent components. Tune one without disturbing the rest.
@@ -91,7 +92,7 @@ Five original systems that turn motion into a queryable, breedable, narratable m
 - **MCP-native.** External agents program the runtime through the Model Context Protocol — motion as a first-class agent surface.
 
 ### Agent-native by design
-OpenMotion is built to be driven by AI agents, not merely used by humans. The Agent doesn't just edit keyframes; it runs variation engines, extracts motion DNA, transfers styles, critiques structural quality, generates narrative sequences, tracks genealogy, and synthesizes hybrid motion — all through conversational intent.
+OpenMotion is built to be driven by AI agents, not merely used by humans. The Agent doesn't just edit keyframes; it runs variation engines, extracts motion DNA, transfers styles, critiques structural quality, generates narrative sequences, tracks genealogy, synthesizes hybrid motion, and auto-remediates accessibility violations — all through conversational intent.
 
 
 ## Getting Started
