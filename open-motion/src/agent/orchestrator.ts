@@ -80,6 +80,12 @@ import {
   formatSynthesisReport,
   type SynthesisStrategy,
 } from "./motionSynthesis.js";
+import {
+  autoFixAccessibility,
+  formatAutoFixReport,
+  type AutoFixOptions,
+} from "./motionAutoFix.js";
+import { patchComponent } from "../db/repositories/components.js";
 import { logger } from "../utils/logger.js";
 
 const MAX_ITERATIONS = 12;
@@ -399,7 +405,8 @@ async function executeMotionIntelligenceTool(
     tool !== "get_lineage_tree" &&
     tool !== "get_lineage_summary" &&
     tool !== "record_lineage" &&
-    tool !== "synthesize_motion"
+    tool !== "synthesize_motion" &&
+    tool !== "auto_fix_accessibility"
   ) {
     return null;
   }
@@ -609,6 +616,62 @@ async function executeMotionIntelligenceTool(
       summary: formatDNAReport(dna, component.name),
       specChanged: false,
       data: { kind: "motion_dna", componentId: component.id, componentName: component.name, dna },
+    };
+  }
+
+  if (tool === "auto_fix_accessibility") {
+    // Resolve target components: either an explicit list or the whole project.
+    const requestedIds = Array.isArray(args.componentIds)
+      ? args.componentIds.filter((id): id is string => typeof id === "string")
+      : [];
+    const targets = requestedIds.length > 0
+      ? spec.components.filter((c) => requestedIds.includes(c.id))
+      : spec.components;
+    if (targets.length === 0) {
+      return {
+        ok: false,
+        summary: "no components available to auto-fix",
+        specChanged: false,
+      };
+    }
+    const options: AutoFixOptions = {};
+    if (typeof args.maxDisplacementPx === "number") options.maxDisplacementPx = args.maxDisplacementPx;
+    if (typeof args.maxRotationDeg === "number") options.maxRotationDeg = args.maxRotationDeg;
+    if (typeof args.minDurationMs === "number") options.minDurationMs = args.minDurationMs;
+    if (typeof args.maxLoopIterations === "number") options.maxLoopIterations = args.maxLoopIterations;
+    if (typeof args.staggerStepMs === "number") options.staggerStepMs = args.staggerStepMs;
+    const { fixedComponents, result } = autoFixAccessibility(targets, options);
+
+    // Optionally apply fixes to the project spec so the canvas reflects them.
+    const apply = args.apply !== false; // default true
+    let specChanged = false;
+    if (apply && result.fixedCount > 0) {
+      for (const fixed of fixedComponents) {
+        const patch: Record<string, unknown> = {};
+        const compFixes = result.fixes.filter((f) => f.componentId === fixed.id);
+        const touchedFields = new Set(compFixes.map((f) => f.field.split(".")[0]));
+        if (touchedFields.has("durationMs")) patch.durationMs = fixed.durationMs;
+        if (touchedFields.has("delayMs")) patch.delayMs = fixed.delayMs;
+        if (touchedFields.has("iterationCount")) patch.iterationCount = fixed.iterationCount;
+        if (touchedFields.has("fillMode")) patch.fillMode = fixed.fillMode;
+        if (touchedFields.has("easing")) patch.easing = fixed.easing;
+        if (touchedFields.has("keyframe")) patch.keyframes = fixed.keyframes;
+        if (Object.keys(patch).length > 0) {
+          patchComponent(projectId, fixed.id, patch);
+          specChanged = true;
+        }
+      }
+    }
+    return {
+      ok: true,
+      summary: formatAutoFixReport(result),
+      specChanged,
+      data: {
+        kind: "auto_fix",
+        result,
+        applied: apply,
+        components: apply ? fixedComponents : undefined,
+      },
     };
   }
 
