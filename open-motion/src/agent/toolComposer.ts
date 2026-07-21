@@ -783,6 +783,84 @@ const PATTERNS: CompositionPattern[] = [
       return tools;
     },
   },
+
+  // --- Motion variations composition ---
+  // "give me variations of this", "try different easings", "explore alternatives"
+  {
+    name: "motion-variations",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      // Must explicitly ask for variations/alternatives/options.
+      if (!has(msg, "variation", "alternative", "option", "different version", "explore", "try different")) return null;
+      // Avoid hijacking style comparison requests (handled by subagent delegation).
+      if (has(msg, "compare", "vs", "versus")) return null;
+
+      return [
+        {
+          tool: "generate_variations",
+          args: { projectId: ctx.projectId, componentId: "__last__", countPerAxis: 3 },
+          reason: "Generate motion variations along easing, duration, intensity, and direction axes",
+        },
+      ];
+    },
+  },
+
+  // --- Motion DNA analysis composition ---
+  // "analyze the dna of this motion", "what makes this motion tick"
+  {
+    name: "motion-dna-analysis",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "dna", "what makes this motion", "decompose", "character of this motion", "motion signature")) return null;
+
+      return [
+        {
+          tool: "extract_motion_dna",
+          args: { projectId: ctx.projectId, componentId: "__last__" },
+          reason: "Extract the motion DNA — easing family, timing profile, transform signature, intensity",
+        },
+      ];
+    },
+  },
+
+  // --- Style transfer composition ---
+  // "transfer the style of X to Y", "apply the feel of X to Y"
+  {
+    name: "style-transfer",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "transfer", "apply the feel", "apply the style", "adopt the")) return null;
+      // Need at least 2 components for style transfer.
+      // The orchestrator resolves __last__ but we also need a source.
+      // This pattern is a hint; the actual tool will use the first two components.
+      return [
+        {
+          tool: "transfer_style",
+          args: { projectId: ctx.projectId, sourceComponentId: "__first__", targetComponentId: "__last__" },
+          reason: "Transfer the motion style (easing, timing, intensity) from the first component to the last",
+        },
+      ];
+    },
+  },
+
+  // --- Motion critique composition ---
+  {
+    name: "motion-critique",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "critique", "review this", "review the", "analyze this", "analyze the", "evaluate", "audit", "how good", "quality check", "accessibility check")) return null;
+      // Skip when the user is asking to critique a specific aspect that has
+      // a dedicated tool (e.g., "extract DNA").
+      if (has(msg, "dna", "decompose")) return null;
+      return [
+        {
+          tool: "critique_motion",
+          args: { projectId: ctx.projectId },
+          reason: "Run a full structural critique across accessibility, performance, aesthetic, and consistency dimensions",
+        },
+      ];
+    },
+  },
 ];
 
 /**
