@@ -107,7 +107,29 @@ interface LineageReportData {
   summary: string;
 }
 
-type Section = "critique" | "dna" | "variations" | "style" | "story" | "lineage" | "emotion" | "rhythm" | "narrative";
+interface TraitAttributionData {
+  trait: string;
+  sourceIndex: number;
+  value: string;
+}
+
+interface SynthesisData {
+  strategy: string;
+  sourceCount: number;
+  sourceNames: string[];
+  summary: string;
+  attributions: TraitAttributionData[];
+  dna: {
+    easingFamily: string;
+    intensity: string;
+    signature: string;
+    timingProfile: { durationBucket: string; hasDelay: boolean; isLooping: boolean };
+    transformSignature: string[];
+    triggerSemantics: string;
+  };
+}
+
+type Section = "critique" | "dna" | "variations" | "style" | "story" | "lineage" | "synthesis" | "emotion" | "rhythm" | "narrative";
 
 const SECTIONS: { id: Section; label: string }[] = [
   { id: "critique", label: "Critique" },
@@ -116,6 +138,7 @@ const SECTIONS: { id: Section; label: string }[] = [
   { id: "style", label: "Style Transfer" },
   { id: "story", label: "Story" },
   { id: "lineage", label: "Lineage" },
+  { id: "synthesis", label: "Synthesis" },
   { id: "emotion", label: "Emotion" },
   { id: "rhythm", label: "Rhythm" },
   { id: "narrative", label: "Narrative" },
@@ -143,6 +166,10 @@ export function MotionIntelligencePanel() {
   const [storyIntent, setStoryIntent] = useState<string>("hero-entrance");
   const [lineageSummary, setLineageSummary] = useState<LineageSummaryData | null>(null);
   const [lineageReport, setLineageReport] = useState<LineageReportData | null>(null);
+  const [synthesis, setSynthesis] = useState<SynthesisData | null>(null);
+  const [synthStrategy, setSynthStrategy] = useState<string>("blend");
+  const [synthSourceA, setSynthSourceA] = useState<string>("");
+  const [synthSourceB, setSynthSourceB] = useState<string>("");
   const [selectedComponentId, setSelectedComponentId] = useState<string>("");
   const [sourceComponentId, setSourceComponentId] = useState<string>("");
   const [targetComponentId, setTargetComponentId] = useState<string>("");
@@ -289,6 +316,33 @@ export function MotionIntelligencePanel() {
       if (resp.ok) {
         const data = await resp.json();
         setLineageReport(data.report);
+      }
+    } catch {
+      // offline fallback
+    } finally {
+      setLoading(null);
+    }
+  }, [projectId]);
+
+  const runSynthesis = useCallback(async (sourceA: string, sourceB: string, strategy: string) => {
+    if (!projectId || !sourceA || !sourceB) return;
+    setLoading("synthesis");
+    try {
+      const resp = await fetch(`/api/projects/${projectId}/synthesize`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ componentIds: [sourceA, sourceB], strategy }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        setSynthesis({
+          strategy: data.strategy,
+          sourceCount: data.sourceCount,
+          sourceNames: data.sourceNames,
+          summary: data.summary,
+          attributions: data.attributions,
+          dna: data.dna,
+        });
       }
     } catch {
       // offline fallback
@@ -766,6 +820,112 @@ export function MotionIntelligencePanel() {
                 <p className="text-[10px] text-gray-600">Select a component and query its lineage.</p>
               )}
             </div>
+          </div>
+        )}
+
+        {/* --- Synthesis --- */}
+        {section === "synthesis" && (
+          <div className="px-3 py-2 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">DNA Synthesis</span>
+              <button
+                onClick={() => runSynthesis(synthSourceA, synthSourceB, synthStrategy)}
+                disabled={loading === "synthesis" || !synthSourceA || !synthSourceB}
+                className="px-1.5 py-0.5 text-[9px] bg-panel2 hover:bg-panel3 rounded text-gray-300 disabled:opacity-40"
+              >
+                {loading === "synthesis" ? "..." : "Synthesize"}
+              </button>
+            </div>
+            <div className="space-y-1">
+              <div>
+                <label className="text-[9px] text-gray-600">Source A</label>
+                <select
+                  value={synthSourceA}
+                  onChange={(e) => { setSynthSourceA(e.target.value); setSynthesis(null); }}
+                  className="w-full bg-panel2 text-gray-300 text-[10px] px-1.5 py-1 rounded border border-edge"
+                >
+                  <option value="">Select...</option>
+                  {components.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-[9px] text-gray-600">Source B</label>
+                <select
+                  value={synthSourceB}
+                  onChange={(e) => { setSynthSourceB(e.target.value); setSynthesis(null); }}
+                  className="w-full bg-panel2 text-gray-300 text-[10px] px-1.5 py-1 rounded border border-edge"
+                >
+                  <option value="">Select...</option>
+                  {components.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-[9px] text-gray-600">Strategy</label>
+                <select
+                  value={synthStrategy}
+                  onChange={(e) => setSynthStrategy(e.target.value)}
+                  className="w-full bg-panel2 text-gray-300 text-[10px] px-1.5 py-1 rounded border border-edge"
+                >
+                  <option value="blend">Blend (average all traits)</option>
+                  <option value="dominant">Dominant (70/30 split)</option>
+                  <option value="crossover">Crossover (random per trait)</option>
+                  <option value="mutation">Mutation (blend + random)</option>
+                </select>
+              </div>
+            </div>
+            {synthesis ? (
+              <div className="space-y-2">
+                <div className="px-1.5 py-1 bg-panel2 rounded">
+                  <div className="text-[10px] text-gray-300">{synthesis.strategy.toUpperCase()}</div>
+                  <div className="text-[9px] text-gray-500 leading-snug mt-0.5">{synthesis.summary}</div>
+                  <div className="flex flex-wrap gap-1 mt-0.5">
+                    {synthesis.sourceNames.map((n, i) => (
+                      <span key={i} className="px-1 py-0.5 text-[9px] bg-panel3 rounded text-gray-400">{n}</span>
+                    ))}
+                  </div>
+                </div>
+                {/* Trait attribution */}
+                <div>
+                  <div className="text-[9px] text-gray-600 mb-0.5">Trait Attribution</div>
+                  <div className="space-y-0.5">
+                    {synthesis.attributions.map((attr, i) => {
+                      const sourceLabel = attr.sourceIndex === -1 ? "blend/mut" : synthesis.sourceNames[attr.sourceIndex] ?? "?";
+                      return (
+                        <div key={i} className="flex items-center gap-1 text-[9px]">
+                          <span className="text-gray-500 w-20 truncate">{attr.trait}</span>
+                          <span className="text-gray-600">←</span>
+                          <span className="text-gray-400 w-16 truncate">{sourceLabel}</span>
+                          <span className="text-gray-600 truncate">{attr.value}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                {/* Synthesized DNA */}
+                <div className="px-1.5 py-1 bg-panel2 rounded">
+                  <div className="text-[9px] text-gray-600 mb-0.5">Synthesized DNA</div>
+                  <div className="grid grid-cols-2 gap-1 text-[9px]">
+                    <div><span className="text-gray-600">Easing:</span> <span className="text-gray-300">{synthesis.dna.easingFamily}</span></div>
+                    <div><span className="text-gray-600">Intensity:</span> <span className="text-gray-300">{synthesis.dna.intensity}</span></div>
+                    <div><span className="text-gray-600">Bucket:</span> <span className="text-gray-300">{synthesis.dna.timingProfile.durationBucket}</span></div>
+                    <div><span className="text-gray-600">Trigger:</span> <span className="text-gray-300">{synthesis.dna.triggerSemantics}</span></div>
+                  </div>
+                  <div className="text-[9px] text-gray-600 mt-0.5">Signature: <span className="text-gray-400 font-mono">{synthesis.dna.signature}</span></div>
+                </div>
+                <button
+                  onClick={() => projectId && send(projectId, `Synthesize a hybrid motion from ${synthesis.sourceNames.join(" and ")} using ${synthStrategy} strategy and apply it to the canvas`)}
+                  className="w-full text-left px-2 py-1 text-[10px] bg-panel2 hover:bg-panel3 rounded text-gray-400"
+                >
+                  Ask Agent to apply synthesized DNA
+                </button>
+              </div>
+            ) : (
+              <p className="text-[10px] text-gray-600">Select two source components and a synthesis strategy.</p>
+            )}
           </div>
         )}
 
