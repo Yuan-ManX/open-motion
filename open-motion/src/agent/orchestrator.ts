@@ -60,6 +60,13 @@ import {
   formatStyleTransferReport,
 } from "./motionIntelligence.js";
 import { critiqueMotion, formatCritiqueReport } from "./motionCritique.js";
+import {
+  generateStorySequence,
+  formatStoryReport,
+  detectNarrativeIntent,
+  listNarrativeIntents,
+  type NarrativeIntent,
+} from "./motionStorytelling.js";
 import { logger } from "../utils/logger.js";
 
 const MAX_ITERATIONS = 12;
@@ -372,9 +379,22 @@ async function executeMotionIntelligenceTool(
     tool !== "generate_variations" &&
     tool !== "extract_motion_dna" &&
     tool !== "transfer_style" &&
-    tool !== "critique_motion"
+    tool !== "critique_motion" &&
+    tool !== "generate_story" &&
+    tool !== "list_story_intents"
   ) {
     return null;
+  }
+
+  // List story intents does not require a spec.
+  if (tool === "list_story_intents") {
+    const intents = listNarrativeIntents();
+    return {
+      ok: true,
+      summary: `${intents.length} narrative intents available: ${intents.map((i) => i.intent).join(", ")}`,
+      specChanged: false,
+      data: { kind: "story_intents", intents },
+    };
   }
 
   const spec = getProjectSpec(projectId);
@@ -393,6 +413,29 @@ async function executeMotionIntelligenceTool(
       summary: formatCritiqueReport(report, spec.project.name),
       specChanged: false,
       data: { kind: "critique", report },
+    };
+  }
+
+  if (tool === "generate_story") {
+    // Accept either an explicit intent or a natural-language prompt.
+    const explicitIntent = typeof args.intent === "string" ? (args.intent as NarrativeIntent) : null;
+    const prompt = typeof args.prompt === "string" ? args.prompt : "";
+    const intent = explicitIntent ?? detectNarrativeIntent(prompt);
+    if (!intent) {
+      return {
+        ok: false,
+        summary: "could not detect a narrative intent from the message. Available intents: hero-entrance, celebration, dramatic-reveal, conflict, transformation, journey, resolution",
+        specChanged: false,
+      };
+    }
+    const totalDurationMs = typeof args.totalDurationMs === "number" ? args.totalDurationMs : 4000;
+    const intensityScale = typeof args.intensityScale === "number" ? args.intensityScale : 1.0;
+    const sequence = generateStorySequence(intent, { totalDurationMs, intensityScale });
+    return {
+      ok: true,
+      summary: formatStoryReport(sequence),
+      specChanged: false,
+      data: { kind: "story", sequence },
     };
   }
 
