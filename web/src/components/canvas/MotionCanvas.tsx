@@ -3,6 +3,8 @@ import { useProjectStore } from "../../store/projectStore.js";
 import { useUiStore } from "../../store/uiStore.js";
 import { useChatStore } from "../../store/chatStore.js";
 import { renderSpec } from "../../motion/cssRenderer.js";
+import { useLayoutFlip } from "../../hooks/useMotionValue.js";
+import { canvasFlipRegistry } from "../../motion/layoutAnimations.js";
 import * as api from "../../api/endpoints.js";
 import type { Keyframe } from "@openmotion/shared";
 import { AlignmentToolbar } from "./AlignmentToolbar.js";
@@ -100,6 +102,16 @@ export function MotionCanvas() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [visibleComponents, replayKey, playbackSpeed],
   );
+
+  // FLIP layout animations: when the component list changes (reorder,
+  // insert, remove, resize), animate the position/size transition instead
+  // of letting the DOM jump. The trigger is the ordered id list so the
+  // hook captures the "first" rect before the browser paints the new layout.
+  const flipTrigger = useMemo(
+    () => nodes.map((n) => n.componentId).join("|"),
+    [nodes],
+  );
+  useLayoutFlip(flipTrigger, { duration: 220, enterNew: true });
 
   // 3D camera: when project tokens carry a camera config, apply perspective
   // + perspective-origin to the canvas viewport. Layers with translateZ in
@@ -551,7 +563,7 @@ export function MotionCanvas() {
           {/* Rendered components */}
           <div className="absolute inset-0" style={cameraStyle}>
             {nodes.map((node) => {
-              const Tag = node.tag as keyof JSX.IntrinsicElements;
+              const Tag = node.tag as React.ElementType;
               const isSelected = selectedIds.has(node.componentId);
               const isLocked = lockedIds.has(node.componentId);
               const compListeners = listenersByComponent.get(node.componentId) ?? [];
@@ -614,6 +626,7 @@ export function MotionCanvas() {
                 return (
                   <Tag
                     key={node.componentId}
+                    ref={((el: HTMLElement | null) => canvasFlipRegistry.register(node.componentId, el)) as never}
                     className={`${node.className} ${isLocked ? "cursor-not-allowed" : "cursor-pointer"} ${isSelected ? "selection-outline" : ""}`}
                     data-om-name={node.name}
                     data-om-component-id={node.componentId}
@@ -626,6 +639,7 @@ export function MotionCanvas() {
               return (
                 <Tag
                   key={node.componentId}
+                  ref={((el: HTMLElement | null) => canvasFlipRegistry.register(node.componentId, el)) as never}
                   className={`${node.className} ${isLocked ? "cursor-not-allowed" : "cursor-pointer"} ${isSelected ? "selection-outline" : ""}`}
                   data-om-name={node.name}
                   data-om-component-id={node.componentId}
