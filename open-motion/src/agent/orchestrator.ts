@@ -67,6 +67,14 @@ import {
   listNarrativeIntents,
   type NarrativeIntent,
 } from "./motionStorytelling.js";
+import {
+  recordLineage,
+  getLineage,
+  getLineageTree,
+  generateLineageReport,
+  getProjectLineageSummary,
+  formatLineageTree,
+} from "./motionLineage.js";
 import { logger } from "../utils/logger.js";
 
 const MAX_ITERATIONS = 12;
@@ -381,7 +389,11 @@ async function executeMotionIntelligenceTool(
     tool !== "transfer_style" &&
     tool !== "critique_motion" &&
     tool !== "generate_story" &&
-    tool !== "list_story_intents"
+    tool !== "list_story_intents" &&
+    tool !== "query_lineage" &&
+    tool !== "get_lineage_tree" &&
+    tool !== "get_lineage_summary" &&
+    tool !== "record_lineage"
   ) {
     return null;
   }
@@ -394,6 +406,74 @@ async function executeMotionIntelligenceTool(
       summary: `${intents.length} narrative intents available: ${intents.map((i) => i.intent).join(", ")}`,
       specChanged: false,
       data: { kind: "story_intents", intents },
+    };
+  }
+
+  // Lineage tools work on the in-memory lineage store, not the spec.
+  if (tool === "get_lineage_summary") {
+    const summary = getProjectLineageSummary(projectId);
+    return {
+      ok: true,
+      summary: `Lineage: ${summary.totalComponents} components, ${summary.rootCount} roots, max generation ${summary.maxGeneration}, avg ${summary.averageGeneration.toFixed(1)}`,
+      specChanged: false,
+      data: { kind: "lineage_summary", summary },
+    };
+  }
+
+  if (tool === "get_lineage_tree") {
+    const tree = getLineageTree(projectId);
+    return {
+      ok: true,
+      summary: formatLineageTree(tree),
+      specChanged: false,
+      data: { kind: "lineage_tree", tree },
+    };
+  }
+
+  if (tool === "query_lineage") {
+    const componentId = typeof args.componentId === "string" ? args.componentId : "";
+    if (!componentId) {
+      return {
+        ok: false,
+        summary: "componentId is required for query_lineage",
+        specChanged: false,
+      };
+    }
+    const report = generateLineageReport(projectId, componentId);
+    if (!report) {
+      return {
+        ok: false,
+        summary: `no lineage record found for component ${componentId}`,
+        specChanged: false,
+      };
+    }
+    return {
+      ok: true,
+      summary: report.summary,
+      specChanged: false,
+      data: { kind: "lineage_report", report },
+    };
+  }
+
+  if (tool === "record_lineage") {
+    const componentId = typeof args.componentId === "string" ? args.componentId : "";
+    const componentName = typeof args.componentName === "string" ? args.componentName : "";
+    const operation = typeof args.operation === "string" ? args.operation : "original";
+    const parentIds = Array.isArray(args.parentIds) ? args.parentIds.filter((id): id is string => typeof id === "string") : [];
+    const params = (args.params && typeof args.params === "object" ? args.params : {}) as Record<string, unknown>;
+    if (!componentId || !componentName) {
+      return {
+        ok: false,
+        summary: "componentId and componentName are required for record_lineage",
+        specChanged: false,
+      };
+    }
+    const record = recordLineage(projectId, componentId, componentName, operation as never, parentIds, params);
+    return {
+      ok: true,
+      summary: `Recorded lineage: ${componentName} (${operation}, generation ${record.generation})`,
+      specChanged: false,
+      data: { kind: "lineage_record", record },
     };
   }
 
