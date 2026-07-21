@@ -89,6 +89,11 @@ import {
   clearProjectLineage,
   type LineageOperation,
 } from "../../agent/motionLineage.js";
+import {
+  synthesizeMotion,
+  formatSynthesisReport,
+  type SynthesisStrategy,
+} from "../../agent/motionSynthesis.js";
 
 export const agentRouter = Router();
 
@@ -1261,5 +1266,54 @@ agentRouter.delete(
   runAsync(async (req: Request, res: Response) => {
     clearProjectLineage(req.params.id);
     res.status(204).end();
+  }),
+);
+
+// --- Motion Synthesis endpoints ---
+
+const SynthesizeSchema = z.object({
+  componentIds: z.array(z.string().min(1)).min(2),
+  strategy: z.enum(["blend", "dominant", "crossover", "mutation"]).optional(),
+  dominantIndex: z.number().int().min(0).optional(),
+  mutationRate: z.number().min(0).max(1).optional(),
+  seed: z.number().int().positive().optional(),
+});
+
+agentRouter.post(
+  "/projects/:id/synthesize",
+  validate(SynthesizeSchema),
+  runAsync(async (req: Request, res: Response) => {
+    const input = validated<z.infer<typeof SynthesizeSchema>>(req);
+    const spec = getProjectSpec(req.params.id);
+    if (!spec) {
+      res.status(404).json({ error: "project not found" });
+      return;
+    }
+    // Resolve source components from the spec.
+    const sources = input.componentIds
+      .map((id) => spec.components.find((c) => c.id === id))
+      .filter((c): c is NonNullable<typeof c> => c !== undefined);
+    if (sources.length < 2) {
+      res.status(400).json({ error: "at least 2 valid source components are required" });
+      return;
+    }
+    const result = synthesizeMotion(sources, {
+      strategy: input.strategy as SynthesisStrategy | undefined,
+      dominantIndex: input.dominantIndex,
+      mutationRate: input.mutationRate,
+      seed: input.seed,
+    });
+    res.json({
+      ok: true,
+      strategy: result.strategy,
+      sourceCount: result.sourceCount,
+      sourceNames: result.sourceNames,
+      summary: result.summary,
+      attributions: result.attributions,
+      dna: result.dna,
+      avgDurationMs: result.avgDurationMs,
+      avgDelayMs: result.avgDelayMs,
+      report: formatSynthesisReport(result),
+    });
   }),
 );
