@@ -52,10 +52,25 @@ import { composeTools } from "../../agent/toolComposer.js";
 import { listMemory as listConversationMemory } from "../../agent/memory/store.js";
 import { semanticSearch } from "../../agent/memory/semanticSearch.js";
 import { executeTool } from "../../agent/tools/registry.js";
-import { capture, listCheckpoints, isSpecMutating } from "../../agent/checkpointManager.js";
+import { capture, listCheckpoints, isSpecMutating, rollback, rollbackTo, clearCheckpoints } from "../../agent/checkpointManager.js";
 import { runPreHooks, runPostHooks } from "../../agent/pluginHooks.js";
 import { logger } from "../../utils/logger.js";
 import { TOOL_NAMES, TOOL_DESCRIPTIONS } from "@openmotion/shared";
+import { composeStructuredPlan, shouldUsePlanMode } from "../../agent/planExecutor.js";
+import { setPlan, getPlan, cancelPlan, clearPlan, summarizePlan, getPlanProgress, isPlanDone } from "../../agent/planStore.js";
+import { getProjectSpec } from "../../db/repositories/projects.js";
+import { unifiedSearch, rebuildFtsIndexes, type SearchScope } from "../services/searchService.js";
+import {
+  generateVariations,
+  extractDNA,
+  transferStyle,
+  compareDNA,
+  formatVariationSummary,
+  formatDNAReport,
+  formatStyleTransferReport,
+  type VariationAxis,
+} from "../../agent/motionIntelligence.js";
+import { critiqueMotion, formatCritiqueReport } from "../../agent/motionCritique.js";
 
 export const agentRouter = Router();
 
@@ -619,6 +634,204 @@ agentRouter.get(
   }),
 );
 
+// Capture a manual checkpoint (e.g., before a risky user-initiated change).
+agentRouter.post(
+  "/projects/:id/checkpoints",
+  runAsync(async (req: Request, res: Response) => {
+    const trigger = typeof req.body?.triggerTool === "string" ? req.body.triggerTool : "manual";
+    const cp = capture(req.params.id, trigger);
+    if (!cp) {
+      res.status(404).json({ ok: false, error: "project has no spec to snapshot" });
+      return;
+    }
+    res.status(201).json({
+      ok: true,
+      checkpoint: {
+        id: cp.id,
+        capturedAt: cp.capturedAt,
+        triggerTool: cp.triggerTool,
+        componentCount: cp.componentCount,
+        label: cp.label,
+      },
+    });
+  }),
+);
+
+// Get a specific checkpoint by id (includes the full component snapshot).
+agentRouter.get(
+  "/projects/:id/checkpoints/:cpId",
+  runAsync(async (req: Request, res: Response) => {
+    const checkpoints = listCheckpoints(req.params.id);
+    const cp = checkpoints.find((c) => c.id === req.params.cpId);
+    if (!cp) {
+      res.status(404).json({ ok: false, error: "checkpoint not found" });
+      return;
+    }
+    res.json({
+      checkpoint: {
+        id: cp.id,
+        capturedAt: cp.capturedAt,
+        triggerTool: cp.triggerTool,
+        componentCount: cp.componentCount,
+        label: cp.label,
+        components: cp.components,
+        project: cp.project,
+      },
+    });
+  }),
+);
+
+// Rollback to the most recent checkpoint.
+agentRouter.post(
+  "/projects/:id/checkpoints/rollback",
+  runAsync(async (req: Request, res: Response) => {
+    const cp = rollback(req.params.id);
+    if (!cp) {
+      res.status(404).json({ ok: false, error: "no checkpoints available" });
+      return;
+    }
+    res.json({
+      ok: true,
+      checkpoint: {
+        id: cp.id,
+        capturedAt: cp.capturedAt,
+        triggerTool: cp.triggerTool,
+        componentCount: cp.componentCount,
+        label: cp.label,
+      },
+    });
+  }),
+);
+
+// Rollback to a specific checkpoint by id.
+agentRouter.post(
+  "/projects/:id/checkpoints/:cpId/rollback",
+  runAsync(async (req: Request, res: Response) => {
+    const cp = rollbackTo(req.params.id, req.params.cpId);
+    if (!cp) {
+      res.status(404).json({ ok: false, error: "checkpoint not found" });
+      return;
+    }
+    res.json({
+      ok: true,
+      checkpoint: {
+        id: cp.id,
+        capturedAt: cp.capturedAt,
+        triggerTool: cp.triggerTool,
+        componentCount: cp.componentCount,
+        label: cp.label,
+      },
+    });
+  }),
+);
+
+// Clear all checkpoints for a project.
+agentRouter.delete(
+  "/projects/:id/checkpoints",
+  runAsync(async (req: Request, res: Response) => {
+    clearCheckpoints(req.params.id);
+    res.json({ ok: true });
+  }),
+);
+
+// --- Plan endpoints ---
+// The plan store holds the current StructuredPlan for a project so the UI
+// can poll progress, cancel mid-flight, and inspect the action roster.
+
+const ComposePlanSchema = z.object({
+  message: z.string().min(1),
+});
+
+agentRouter.get(
+  "/projects/:id/plan",
+  runAsync(async (req: Request, res: Response) => {
+    res.json(summarizePlan(req.params.id));
+  }),
+);
+
+agentRouter.post(
+  "/projects/:id/plan",
+  validate(ComposePlanSchema),
+  runAsync(async (req: Request, res: Response) => {
+    const { message } = validated<{ message: string }>(req);
+    const spec = getProjectSpec(req.params.id);
+    if (!spec) {
+      res.status(404).json({ ok: false, error: "project not found" });
+      return;
+    }
+    const plan = composeStructuredPlan(message, spec);
+    const record = setPlan(req.params.id, plan);
+    res.status(201).json({
+      ok: true,
+      planMode: shouldUsePlanMode(message, spec),
+      createdAt: record.createdAt,
+      summary: summarizePlan(req.params.id),
+    });
+  }),
+);
+
+agentRouter.post(
+  "/projects/:id/plan/cancel",
+  runAsync(async (req: Request, res: Response) => {
+    const rec = cancelPlan(req.params.id);
+    if (!rec) {
+      res.status(404).json({ ok: false, error: "no active plan to cancel" });
+      return;
+    }
+    res.json({ ok: true, summary: summarizePlan(req.params.id) });
+  }),
+);
+
+agentRouter.delete(
+  "/projects/:id/plan",
+  runAsync(async (req: Request, res: Response) => {
+    clearPlan(req.params.id);
+    res.json({ ok: true });
+  }),
+);
+
+agentRouter.get(
+  "/projects/:id/plan/progress",
+  runAsync(async (req: Request, res: Response) => {
+    res.json({
+      progress: getPlanProgress(req.params.id),
+      finished: isPlanDone(req.params.id),
+      summary: summarizePlan(req.params.id),
+    });
+  }),
+);
+
+// --- Unified FTS5 search endpoint ---
+// Searches across projects, components, messages, memory, skills, generated
+// skills, and recipes. Pass `scope` to restrict to one category, and
+// `projectId` to scope project-bound results to a single project.
+
+agentRouter.get(
+  "/search",
+  runAsync(async (req: Request, res: Response) => {
+    const query = typeof req.query.q === "string" ? req.query.q : "";
+    if (query.trim().length === 0) {
+      res.json({ query: "", total: 0, hits: [] });
+      return;
+    }
+    const scope = typeof req.query.scope === "string" ? (req.query.scope as SearchScope) : "all";
+    const projectId = typeof req.query.projectId === "string" ? req.query.projectId : undefined;
+    const limitParam = Number(req.query.limit);
+    const limitPerScope = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(50, limitParam) : 10;
+    const result = unifiedSearch({ query, scope, projectId, limitPerScope });
+    res.json(result);
+  }),
+);
+
+// Rebuild the FTS5 indexes from existing rows (admin operation).
+agentRouter.post(
+  "/search/rebuild",
+  runAsync(async (_req: Request, res: Response) => {
+    const result = rebuildFtsIndexes();
+    res.json({ ok: true, indexed: result.indexed });
+  }),
+);
+
 // --- Inbound MCP client endpoints ---
 // OpenMotion can act as an MCP client and connect to external MCP servers
 // (stdio or Streamable HTTP). Tools from connected servers are namespaced as
@@ -732,5 +945,179 @@ agentRouter.post(
       return;
     }
     res.json(result);
+  }),
+);
+
+// --- Motion Intelligence endpoints ---
+// Three original systems for creative motion analysis and generation:
+// variation engine, DNA extraction, and style transfer.
+
+const VariationsSchema = z.object({
+  componentId: z.string().min(1),
+  countPerAxis: z.number().int().min(1).max(10).optional(),
+  axes: z.array(
+    z.enum(["easing", "duration", "intensity", "direction", "origin", "stagger"]),
+  ).optional(),
+  seed: z.number().int().optional(),
+});
+
+agentRouter.post(
+  "/projects/:id/variations",
+  validate(VariationsSchema),
+  runAsync(async (req: Request, res: Response) => {
+    const input = validated<z.infer<typeof VariationsSchema>>(req);
+    const spec = getProjectSpec(req.params.id);
+    if (!spec) {
+      res.status(404).json({ error: `project ${req.params.id} not found` });
+      return;
+    }
+    const source = spec.components.find((c) => c.id === input.componentId);
+    if (!source) {
+      res.status(404).json({ error: `component ${input.componentId} not found` });
+      return;
+    }
+    const variations = generateVariations(source, {
+      countPerAxis: input.countPerAxis,
+      axes: input.axes as VariationAxis[] | undefined,
+      seed: input.seed,
+    });
+    res.json({
+      ok: true,
+      sourceComponentId: source.id,
+      count: variations.length,
+      summary: formatVariationSummary(variations),
+      variations: variations.map((v) => ({
+        label: v.label,
+        axis: v.axis,
+        delta: v.delta,
+        component: v.component,
+      })),
+    });
+  }),
+);
+
+agentRouter.get(
+  "/projects/:id/components/:componentId/dna",
+  runAsync(async (req: Request, res: Response) => {
+    const spec = getProjectSpec(req.params.id);
+    if (!spec) {
+      res.status(404).json({ error: `project ${req.params.id} not found` });
+      return;
+    }
+    const component = spec.components.find((c) => c.id === req.params.componentId);
+    if (!component) {
+      res.status(404).json({ error: `component ${req.params.componentId} not found` });
+      return;
+    }
+    const dna = extractDNA(component);
+    res.json({
+      ok: true,
+      componentId: component.id,
+      componentName: component.name,
+      dna,
+      report: formatDNAReport(dna, component.name),
+    });
+  }),
+);
+
+const StyleTransferSchema = z.object({
+  sourceComponentId: z.string().min(1),
+  targetComponentId: z.string().min(1),
+  apply: z.boolean().default(false),
+});
+
+agentRouter.post(
+  "/projects/:id/style-transfer",
+  validate(StyleTransferSchema),
+  runAsync(async (req: Request, res: Response) => {
+    const input = validated<z.infer<typeof StyleTransferSchema>>(req);
+    const spec = getProjectSpec(req.params.id);
+    if (!spec) {
+      res.status(404).json({ error: `project ${req.params.id} not found` });
+      return;
+    }
+    const source = spec.components.find((c) => c.id === input.sourceComponentId);
+    const target = spec.components.find((c) => c.id === input.targetComponentId);
+    if (!source) {
+      res.status(404).json({ error: `source component ${input.sourceComponentId} not found` });
+      return;
+    }
+    if (!target) {
+      res.status(404).json({ error: `target component ${input.targetComponentId} not found` });
+      return;
+    }
+    const result = transferStyle(source, target);
+    res.json({
+      ok: true,
+      sourceComponentId: source.id,
+      targetComponentId: target.id,
+      transferred: result.transferred,
+      preserved: result.preserved,
+      component: result.component,
+      report: formatStyleTransferReport(result, source.name, target.name),
+    });
+  }),
+);
+
+const DnaCompareSchema = z.object({
+  componentIdA: z.string().min(1),
+  componentIdB: z.string().min(1),
+});
+
+agentRouter.post(
+  "/projects/:id/dna-compare",
+  validate(DnaCompareSchema),
+  runAsync(async (req: Request, res: Response) => {
+    const input = validated<z.infer<typeof DnaCompareSchema>>(req);
+    const spec = getProjectSpec(req.params.id);
+    if (!spec) {
+      res.status(404).json({ error: `project ${req.params.id} not found` });
+      return;
+    }
+    const a = spec.components.find((c) => c.id === input.componentIdA);
+    const b = spec.components.find((c) => c.id === input.componentIdB);
+    if (!a) {
+      res.status(404).json({ error: `component ${input.componentIdA} not found` });
+      return;
+    }
+    if (!b) {
+      res.status(404).json({ error: `component ${input.componentIdB} not found` });
+      return;
+    }
+    const dnaA = extractDNA(a);
+    const dnaB = extractDNA(b);
+    const comparison = compareDNA(dnaA, dnaB);
+    res.json({
+      ok: true,
+      componentA: { id: a.id, name: a.name, dna: dnaA },
+      componentB: { id: b.id, name: b.name, dna: dnaB },
+      similarity: comparison.similarity,
+      matches: comparison.matches,
+      differences: comparison.differences,
+    });
+  }),
+);
+
+// --- Motion Critique endpoint ---
+
+agentRouter.get(
+  "/projects/:id/critique",
+  runAsync(async (req: Request, res: Response) => {
+    const spec = getProjectSpec(req.params.id);
+    if (!spec) {
+      res.status(404).json({ error: `project ${req.params.id} not found` });
+      return;
+    }
+    const report = critiqueMotion(spec);
+    res.json({
+      ok: true,
+      projectName: spec.project.name,
+      componentCount: report.componentCount,
+      overallScore: report.overallScore,
+      dimensions: report.dimensions,
+      findings: report.findings,
+      recommendations: report.recommendations,
+      report: formatCritiqueReport(report, spec.project.name),
+    });
   }),
 );
