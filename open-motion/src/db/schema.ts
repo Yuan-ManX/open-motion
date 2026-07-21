@@ -166,4 +166,114 @@ CREATE TABLE IF NOT EXISTS tool_pipelines (
   updated_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_tool_pipelines_project ON tool_pipelines(project_id);
+
+-- FTS5 full-text search indexes. One virtual table per searchable entity,
+-- kept in sync via triggers so inserts/updates/deletes propagate automatically.
+-- The external-content pattern is avoided in favor of simple shadow tables
+-- so node:sqlite's FTS5 bundle handles all MATCH queries natively.
+
+CREATE VIRTUAL TABLE IF NOT EXISTS projects_fts USING fts5(
+  id UNINDEXED, name, description,
+  tokenize = 'porter unicode61'
+);
+CREATE TRIGGER IF NOT EXISTS projects_ai AFTER INSERT ON projects BEGIN
+  INSERT INTO projects_fts(id, name, description) VALUES (new.id, new.name, new.description);
+END;
+CREATE TRIGGER IF NOT EXISTS projects_ad AFTER DELETE ON projects BEGIN
+  DELETE FROM projects_fts WHERE id = old.id;
+END;
+CREATE TRIGGER IF NOT EXISTS projects_au AFTER UPDATE ON projects BEGIN
+  DELETE FROM projects_fts WHERE id = old.id;
+  INSERT INTO projects_fts(id, name, description) VALUES (new.id, new.name, new.description);
+END;
+
+CREATE VIRTUAL TABLE IF NOT EXISTS components_fts USING fts5(
+  id UNINDEXED, project_id UNINDEXED, name, selector,
+  tokenize = 'porter unicode61'
+);
+CREATE TRIGGER IF NOT EXISTS components_ai AFTER INSERT ON motion_components BEGIN
+  INSERT INTO components_fts(id, project_id, name, selector) VALUES (new.id, new.project_id, new.name, COALESCE(new.selector, ''));
+END;
+CREATE TRIGGER IF NOT EXISTS components_ad AFTER DELETE ON motion_components BEGIN
+  DELETE FROM components_fts WHERE id = old.id;
+END;
+CREATE TRIGGER IF NOT EXISTS components_au AFTER UPDATE ON motion_components BEGIN
+  DELETE FROM components_fts WHERE id = old.id;
+  INSERT INTO components_fts(id, project_id, name, selector) VALUES (new.id, new.project_id, new.name, COALESCE(new.selector, ''));
+END;
+
+CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
+  id UNINDEXED, project_id UNINDEXED, role UNINDEXED, content,
+  tokenize = 'porter unicode61'
+);
+CREATE TRIGGER IF NOT EXISTS messages_ai AFTER INSERT ON messages BEGIN
+  INSERT INTO messages_fts(id, project_id, role, content) VALUES (new.id, new.project_id, new.role, new.content);
+END;
+CREATE TRIGGER IF NOT EXISTS messages_ad AFTER DELETE ON messages BEGIN
+  DELETE FROM messages_fts WHERE id = old.id;
+END;
+CREATE TRIGGER IF NOT EXISTS messages_au AFTER UPDATE ON messages BEGIN
+  DELETE FROM messages_fts WHERE id = old.id;
+  INSERT INTO messages_fts(id, project_id, role, content) VALUES (new.id, new.project_id, new.role, new.content);
+END;
+
+CREATE VIRTUAL TABLE IF NOT EXISTS agent_memory_fts USING fts5(
+  id UNINDEXED, project_id UNINDEXED, layer UNINDEXED, key, value, tags_json,
+  tokenize = 'porter unicode61'
+);
+CREATE TRIGGER IF NOT EXISTS agent_memory_ai AFTER INSERT ON agent_memory BEGIN
+  INSERT INTO agent_memory_fts(id, project_id, layer, key, value, tags_json) VALUES (new.id, new.project_id, new.layer, new.key, new.value, new.tags_json);
+END;
+CREATE TRIGGER IF NOT EXISTS agent_memory_ad AFTER DELETE ON agent_memory BEGIN
+  DELETE FROM agent_memory_fts WHERE id = old.id;
+END;
+CREATE TRIGGER IF NOT EXISTS agent_memory_au AFTER UPDATE ON agent_memory BEGIN
+  DELETE FROM agent_memory_fts WHERE id = old.id;
+  INSERT INTO agent_memory_fts(id, project_id, layer, key, value, tags_json) VALUES (new.id, new.project_id, new.layer, new.key, new.value, new.tags_json);
+END;
+
+CREATE VIRTUAL TABLE IF NOT EXISTS skills_fts USING fts5(
+  id UNINDEXED, name, description,
+  tokenize = 'porter unicode61'
+);
+CREATE TRIGGER IF NOT EXISTS skills_ai AFTER INSERT ON skills BEGIN
+  INSERT INTO skills_fts(id, name, description) VALUES (new.id, new.name, new.description);
+END;
+CREATE TRIGGER IF NOT EXISTS skills_ad AFTER DELETE ON skills BEGIN
+  DELETE FROM skills_fts WHERE id = old.id;
+END;
+CREATE TRIGGER IF NOT EXISTS skills_au AFTER UPDATE ON skills BEGIN
+  DELETE FROM skills_fts WHERE id = old.id;
+  INSERT INTO skills_fts(id, name, description) VALUES (new.id, new.name, new.description);
+END;
+
+CREATE VIRTUAL TABLE IF NOT EXISTS generated_skills_fts USING fts5(
+  id UNINDEXED, project_id UNINDEXED, name, description, trigger_pattern, skill_markdown,
+  tokenize = 'porter unicode61'
+);
+CREATE TRIGGER IF NOT EXISTS generated_skills_ai AFTER INSERT ON generated_skills BEGIN
+  INSERT INTO generated_skills_fts(id, project_id, name, description, trigger_pattern, skill_markdown) VALUES (new.id, new.project_id, new.name, new.description, new.trigger_pattern, new.skill_markdown);
+END;
+CREATE TRIGGER IF NOT EXISTS generated_skills_ad AFTER DELETE ON generated_skills BEGIN
+  DELETE FROM generated_skills_fts WHERE id = old.id;
+END;
+CREATE TRIGGER IF NOT EXISTS generated_skills_au AFTER UPDATE ON generated_skills BEGIN
+  DELETE FROM generated_skills_fts WHERE id = old.id;
+  INSERT INTO generated_skills_fts(id, project_id, name, description, trigger_pattern, skill_markdown) VALUES (new.id, new.project_id, new.name, new.description, new.trigger_pattern, new.skill_markdown);
+END;
+
+CREATE VIRTUAL TABLE IF NOT EXISTS recipes_fts USING fts5(
+  id UNINDEXED, name, category UNINDEXED, description, skill_markdown,
+  tokenize = 'porter unicode61'
+);
+CREATE TRIGGER IF NOT EXISTS recipes_ai AFTER INSERT ON motion_recipes BEGIN
+  INSERT INTO recipes_fts(id, name, category, description, skill_markdown) VALUES (new.id, new.name, new.category, new.description, new.skill_markdown);
+END;
+CREATE TRIGGER IF NOT EXISTS recipes_ad AFTER DELETE ON motion_recipes BEGIN
+  DELETE FROM recipes_fts WHERE id = old.id;
+END;
+CREATE TRIGGER IF NOT EXISTS recipes_au AFTER UPDATE ON motion_recipes BEGIN
+  DELETE FROM recipes_fts WHERE id = old.id;
+  INSERT INTO recipes_fts(id, name, category, description, skill_markdown) VALUES (new.id, new.name, new.category, new.description, new.skill_markdown);
+END;
 `;
