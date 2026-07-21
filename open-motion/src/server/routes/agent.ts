@@ -71,6 +71,13 @@ import {
   type VariationAxis,
 } from "../../agent/motionIntelligence.js";
 import { critiqueMotion, formatCritiqueReport } from "../../agent/motionCritique.js";
+import {
+  generateStorySequence,
+  formatStoryReport,
+  detectNarrativeIntent,
+  listNarrativeIntents,
+  type NarrativeIntent,
+} from "../../agent/motionStorytelling.js";
 
 export const agentRouter = Router();
 
@@ -1118,6 +1125,59 @@ agentRouter.get(
       findings: report.findings,
       recommendations: report.recommendations,
       report: formatCritiqueReport(report, spec.project.name),
+    });
+  }),
+);
+
+// --- Motion Storytelling endpoints ---
+
+agentRouter.get(
+  "/storytelling/intents",
+  runAsync(async (_req: Request, res: Response) => {
+    res.json({ ok: true, intents: listNarrativeIntents() });
+  }),
+);
+
+const StorySchema = z.object({
+  intent: z.string().optional(),
+  prompt: z.string().optional(),
+  totalDurationMs: z.number().int().positive().max(30000).optional(),
+  intensityScale: z.number().min(0.1).max(3).optional(),
+});
+
+agentRouter.post(
+  "/projects/:id/story",
+  validate(StorySchema),
+  runAsync(async (req: Request, res: Response) => {
+    const input = validated<z.infer<typeof StorySchema>>(req);
+    // Resolve the narrative intent: explicit > detected from prompt > error.
+    let intent: NarrativeIntent | null = null;
+    if (input.intent) {
+      intent = input.intent as NarrativeIntent;
+    } else if (input.prompt) {
+      intent = detectNarrativeIntent(input.prompt);
+    }
+    if (!intent) {
+      res.status(400).json({
+        error: "could not detect a narrative intent. Provide an 'intent' or a 'prompt' containing narrative keywords.",
+        availableIntents: listNarrativeIntents().map((i) => i.intent),
+      });
+      return;
+    }
+    const sequence = generateStorySequence(intent, {
+      totalDurationMs: input.totalDurationMs,
+      intensityScale: input.intensityScale,
+    });
+    res.json({
+      ok: true,
+      intent: sequence.intent,
+      title: sequence.title,
+      summary: sequence.summary,
+      themes: sequence.themes,
+      totalDurationMs: sequence.totalDurationMs,
+      beats: sequence.beats,
+      intensityCurve: sequence.intensityCurve,
+      report: formatStoryReport(sequence),
     });
   }),
 );
