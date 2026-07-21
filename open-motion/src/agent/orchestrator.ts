@@ -75,6 +75,11 @@ import {
   getProjectLineageSummary,
   formatLineageTree,
 } from "./motionLineage.js";
+import {
+  synthesizeMotion,
+  formatSynthesisReport,
+  type SynthesisStrategy,
+} from "./motionSynthesis.js";
 import { logger } from "../utils/logger.js";
 
 const MAX_ITERATIONS = 12;
@@ -393,7 +398,8 @@ async function executeMotionIntelligenceTool(
     tool !== "query_lineage" &&
     tool !== "get_lineage_tree" &&
     tool !== "get_lineage_summary" &&
-    tool !== "record_lineage"
+    tool !== "record_lineage" &&
+    tool !== "synthesize_motion"
   ) {
     return null;
   }
@@ -483,6 +489,44 @@ async function executeMotionIntelligenceTool(
       ok: false,
       summary: "no project spec available for Motion Intelligence analysis",
       specChanged: false,
+    };
+  }
+
+  if (tool === "synthesize_motion") {
+    // Resolve source component IDs from args. Supports componentIds array
+    // or sourceComponentId + targetComponentId pair.
+    const componentIds = Array.isArray(args.componentIds)
+      ? args.componentIds.filter((id): id is string => typeof id === "string")
+      : [];
+    const sourceId = typeof args.sourceComponentId === "string" ? args.sourceComponentId : "";
+    const targetId = typeof args.targetComponentId === "string" ? args.targetComponentId : "";
+    const ids = componentIds.length >= 2
+      ? componentIds
+      : [sourceId, targetId].filter(Boolean);
+    if (ids.length < 2) {
+      return {
+        ok: false,
+        summary: "synthesize_motion requires at least 2 source component IDs",
+        specChanged: false,
+      };
+    }
+    const sources = ids
+      .map((id) => spec.components.find((c) => c.id === id))
+      .filter((c): c is NonNullable<typeof c> => c !== undefined);
+    if (sources.length < 2) {
+      return {
+        ok: false,
+        summary: "could not resolve at least 2 valid source components",
+        specChanged: false,
+      };
+    }
+    const strategy = typeof args.strategy === "string" ? (args.strategy as SynthesisStrategy) : "blend";
+    const result = synthesizeMotion(sources, { strategy });
+    return {
+      ok: true,
+      summary: formatSynthesisReport(result),
+      specChanged: false,
+      data: { kind: "synthesis", result },
     };
   }
 
