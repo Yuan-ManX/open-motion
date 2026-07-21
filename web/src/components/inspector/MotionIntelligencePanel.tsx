@@ -129,7 +129,30 @@ interface SynthesisData {
   };
 }
 
-type Section = "critique" | "dna" | "variations" | "style" | "story" | "lineage" | "synthesis" | "emotion" | "rhythm" | "narrative";
+interface AutoFixActionData {
+  componentId: string;
+  componentName: string;
+  category: string;
+  issue: string;
+  fix: string;
+  field: string;
+  before: string;
+  after: string;
+}
+
+interface AutoFixData {
+  applied: boolean;
+  beforeScore: number;
+  afterScore: number;
+  beforeIssueCount: number;
+  afterIssueCount: number;
+  fixedCount: number;
+  skippedCount: number;
+  fixes: AutoFixActionData[];
+  summary: string;
+}
+
+type Section = "critique" | "dna" | "variations" | "style" | "story" | "lineage" | "synthesis" | "auto-fix" | "emotion" | "rhythm" | "narrative";
 
 const SECTIONS: { id: Section; label: string }[] = [
   { id: "critique", label: "Critique" },
@@ -139,6 +162,7 @@ const SECTIONS: { id: Section; label: string }[] = [
   { id: "story", label: "Story" },
   { id: "lineage", label: "Lineage" },
   { id: "synthesis", label: "Synthesis" },
+  { id: "auto-fix", label: "Auto-Fix" },
   { id: "emotion", label: "Emotion" },
   { id: "rhythm", label: "Rhythm" },
   { id: "narrative", label: "Narrative" },
@@ -153,6 +177,7 @@ const SECTIONS: { id: Section; label: string }[] = [
 export function MotionIntelligencePanel() {
   const projectId = useProjectStore((s) => s.projectId);
   const components = useProjectStore((s) => s.components);
+  const loadProject = useProjectStore((s) => s.loadProject);
   const send = useChatStore((s) => s.send);
   const [section, setSection] = useState<Section>("critique");
   const [report, setReport] = useState<IntelligenceReport | null>(null);
@@ -170,6 +195,8 @@ export function MotionIntelligencePanel() {
   const [synthStrategy, setSynthStrategy] = useState<string>("blend");
   const [synthSourceA, setSynthSourceA] = useState<string>("");
   const [synthSourceB, setSynthSourceB] = useState<string>("");
+  const [autoFix, setAutoFix] = useState<AutoFixData | null>(null);
+  const [autoFixApply, setAutoFixApply] = useState<boolean>(true);
   const [selectedComponentId, setSelectedComponentId] = useState<string>("");
   const [sourceComponentId, setSourceComponentId] = useState<string>("");
   const [targetComponentId, setTargetComponentId] = useState<string>("");
@@ -350,6 +377,40 @@ export function MotionIntelligencePanel() {
       setLoading(null);
     }
   }, [projectId]);
+
+  const runAutoFix = useCallback(async (apply: boolean) => {
+    if (!projectId) return;
+    setLoading("auto-fix");
+    try {
+      const resp = await fetch(`/api/projects/${projectId}/auto-fix`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ apply }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        setAutoFix({
+          applied: data.applied,
+          beforeScore: data.beforeScore,
+          afterScore: data.afterScore,
+          beforeIssueCount: data.beforeIssueCount,
+          afterIssueCount: data.afterIssueCount,
+          fixedCount: data.fixedCount,
+          skippedCount: data.skippedCount,
+          fixes: data.fixes,
+          summary: data.summary,
+        });
+        // When fixes were applied, reload the project so the canvas reflects them.
+        if (data.applied && data.fixedCount > 0) {
+          await loadProject(projectId);
+        }
+      }
+    } catch {
+      // offline fallback
+    } finally {
+      setLoading(null);
+    }
+  }, [projectId, loadProject]);
 
   const runAnalysis = useCallback(async (type: "emotion" | "rhythm" | "narrative") => {
     if (!projectId) return;
@@ -925,6 +986,88 @@ export function MotionIntelligencePanel() {
               </div>
             ) : (
               <p className="text-[10px] text-gray-600">Select two source components and a synthesis strategy.</p>
+            )}
+          </div>
+        )}
+
+        {/* --- Auto-Fix --- */}
+        {section === "auto-fix" && (
+          <div className="px-3 py-2 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Auto-Fix</span>
+              <button
+                onClick={() => runAutoFix(autoFixApply)}
+                disabled={loading === "auto-fix"}
+                className="px-1.5 py-0.5 text-[9px] bg-panel2 hover:bg-panel3 rounded text-gray-300 disabled:opacity-40"
+              >
+                {loading === "auto-fix" ? "..." : autoFixApply ? "Run & Apply" : "Dry Run"}
+              </button>
+            </div>
+            <label className="flex items-center gap-1.5 text-[10px] text-gray-400">
+              <input
+                type="checkbox"
+                checked={autoFixApply}
+                onChange={(e) => setAutoFixApply(e.target.checked)}
+                className="w-3 h-3 accent-white"
+              />
+              <span>Apply fixes to project (uncheck for dry-run preview)</span>
+            </label>
+            {autoFix ? (
+              <div className="space-y-2">
+                {/* Before / After score */}
+                <div className="px-1.5 py-1 bg-panel2 rounded">
+                  <div className="flex items-center gap-2 text-[10px]">
+                    <span className="text-gray-500">Score:</span>
+                    <span className="text-gray-400">{autoFix.beforeScore}</span>
+                    <span className="text-gray-600">→</span>
+                    <span className="text-white font-bold">{autoFix.afterScore}</span>
+                    <span className="text-gray-500">/100</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-[10px] mt-0.5">
+                    <span className="text-gray-500">Issues:</span>
+                    <span className="text-gray-400">{autoFix.beforeIssueCount}</span>
+                    <span className="text-gray-600">→</span>
+                    <span className="text-white font-bold">{autoFix.afterIssueCount}</span>
+                  </div>
+                  <div className="text-[9px] text-gray-500 mt-0.5">
+                    {autoFix.fixedCount} fix(es) applied · {autoFix.skippedCount} skipped · {autoFix.applied ? "persisted" : "dry-run"}
+                  </div>
+                </div>
+
+                {/* Fix list */}
+                {autoFix.fixes.length > 0 && (
+                  <div>
+                    <div className="text-[9px] text-gray-600 mb-0.5">Applied Fixes</div>
+                    <div className="space-y-1 max-h-48 overflow-y-auto">
+                      {autoFix.fixes.map((fix, i) => (
+                        <div key={i} className="px-1.5 py-1 bg-panel2 rounded text-[9px]">
+                          <div className="flex items-center gap-1">
+                            <span className="px-1 py-0.5 bg-panel3 rounded text-gray-400 uppercase">{fix.category}</span>
+                            <span className="text-gray-300 truncate">{fix.componentName}</span>
+                          </div>
+                          <div className="text-gray-500 mt-0.5 leading-snug">{fix.fix}</div>
+                          <div className="text-gray-600 mt-0.5">
+                            <span className="text-gray-500">{fix.field}:</span>{" "}
+                            <span className="text-gray-400 line-through">{fix.before}</span>{" "}
+                            <span className="text-gray-600">→</span>{" "}
+                            <span className="text-white">{fix.after}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Agent trigger */}
+                <button
+                  onClick={() => projectId && send(projectId, "Auto-fix accessibility issues across the project and apply the remediations")}
+                  className="w-full text-left px-2 py-1 text-[10px] bg-panel2 hover:bg-panel3 rounded text-gray-400"
+                >
+                  Ask Agent to re-run auto-fix
+                </button>
+              </div>
+            ) : (
+              <p className="text-[10px] text-gray-600">Run an accessibility auto-fix pass across the project. Capped displacement, rotation, and loop counts; stretched flashing below the 3Hz threshold; staggered simultaneous animations; normalized timing tiers; and unified easing families.</p>
             )}
           </div>
         )}
