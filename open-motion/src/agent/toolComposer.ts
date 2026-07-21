@@ -892,6 +892,36 @@ const PATTERNS: CompositionPattern[] = [
       ];
     },
   },
+
+  // --- Motion lineage composition ---
+  {
+    name: "motion-lineage",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      // Detect lineage/genealogy/ancestry queries.
+      if (!has(msg, "lineage", "genealogy", "ancestry", "ancestor", "descendant", "heritage", "where did this come from", "origin of", "derived from", "family tree")) return null;
+
+      // If the user asks for a tree/overview, return the full tree.
+      if (has(msg, "tree", "overview", "all", "full", "summary")) {
+        return [
+          {
+            tool: "get_lineage_tree",
+            args: { projectId: ctx.projectId },
+            reason: "Retrieve the full lineage tree showing all component derivations",
+          },
+        ];
+      }
+
+      // Otherwise, query the lineage of the latest component.
+      return [
+        {
+          tool: "query_lineage",
+          args: { projectId: ctx.projectId, componentId: "__last__" },
+          reason: "Query the lineage and ancestry of the most recently created component",
+        },
+      ];
+    },
+  },
 ];
 
 /**
