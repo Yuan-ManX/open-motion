@@ -3,6 +3,7 @@ import { SCHEMA_SQL } from "./schema.js";
 import { seedTemplates, countTemplates } from "./seed.js";
 import { seedRecipes } from "../motion/recipes.js";
 import { logger } from "../utils/logger.js";
+import { rebuildFtsIndexes } from "../server/services/searchService.js";
 
 /** Columns added after initial release; applied idempotently to existing DBs. */
 const COLUMN_MIGRATIONS: { table: string; column: string; ddl: string }[] = [
@@ -36,4 +37,9 @@ export function migrate(): void {
   }
   seedRecipes();
   logger.info("Motion recipe library seeded");
+  // Backfill FTS5 indexes for databases created before the virtual tables
+  // were added. New rows are kept in sync by triggers; this one-shot rebuild
+  // covers the existing corpus.
+  const ftsResult = rebuildFtsIndexes();
+  logger.info("FTS5 indexes rebuilt", { indexed: ftsResult.indexed });
 }
