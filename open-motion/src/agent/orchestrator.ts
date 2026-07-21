@@ -50,6 +50,16 @@ import {
   runSubagentsParallel,
   type SubagentContext,
 } from "./subagent.js";
+import { routeNamespacedExternalCall, describeExternalToolsForOrchestrator } from "./mcpClient.js";
+import {
+  generateVariations,
+  extractDNA,
+  transferStyle,
+  formatVariationSummary,
+  formatDNAReport,
+  formatStyleTransferReport,
+} from "./motionIntelligence.js";
+import { critiqueMotion, formatCritiqueReport } from "./motionCritique.js";
 import { logger } from "../utils/logger.js";
 
 const MAX_ITERATIONS = 12;
@@ -128,6 +138,35 @@ async function executeToolWithGuardrails(
 ): Promise<{ result: ToolResult; warnings: string[]; checkpointId?: string }> {
   const warnings: string[] = [];
   let checkpointId: string | undefined;
+
+  // 0. External MCP routing: namespaced tool names ("serverId__toolName")
+  // bypass the local registry entirely and call the external server.
+  if (tool.includes("__")) {
+    const externalResult = await routeNamespacedExternalCall(tool, args);
+    if (externalResult) {
+      const textParts = externalResult.content
+        .map((c: { type: string; text?: string } & Record<string, unknown>) =>
+          typeof c.text === "string" ? c.text : JSON.stringify(c),
+        )
+        .join("\n");
+      return {
+        result: {
+          ok: externalResult.ok,
+          summary: textParts.slice(0, 500) || `external call ${externalResult.ok ? "ok" : "failed"}`,
+          specChanged: false,
+          data: {
+            external: true,
+            content: externalResult.content,
+            durationMs: externalResult.durationMs,
+          },
+        },
+        warnings,
+        checkpointId,
+      };
+    }
+    // If the namespace does not match any connected server, fall through to
+    // the local registry so the user sees a normal "unknown tool" error.
+  }
 
   // 1. Checkpoint capture for spec-mutating tools.
   if (isSpecMutating(tool)) {
@@ -313,6 +352,128 @@ async function executeStructuredPlan(
 }
 
 /**
+ * Inline executor for Motion Intelligence tools.
+ *
+ * These tools are not registered in the standard tool registry because they
+ * return analysis/creative output rather than mutating the project spec. They
+ * are intercepted here so the orchestrator can run them as part of a composed
+ * tool pipeline.
+ *
+ * Returns the tool result, or `null` if the tool name is not a Motion
+ * Intelligence tool — in which case the caller falls through to the standard
+ * `executeToolWithGuardrails` path.
+ */
+async function executeMotionIntelligenceTool(
+  tool: string,
+  args: Record<string, unknown>,
+  projectId: string,
+): Promise<ToolResult | null> {
+  if (
+    tool !== "generate_variations" &&
+    tool !== "extract_motion_dna" &&
+    tool !== "transfer_style" &&
+    tool !== "critique_motion"
+  ) {
+    return null;
+  }
+
+  const spec = getProjectSpec(projectId);
+  if (!spec) {
+    return {
+      ok: false,
+      summary: "no project spec available for Motion Intelligence analysis",
+      specChanged: false,
+    };
+  }
+
+  if (tool === "critique_motion") {
+    const report = critiqueMotion(spec);
+    return {
+      ok: true,
+      summary: formatCritiqueReport(report, spec.project.name),
+      specChanged: false,
+      data: { kind: "critique", report },
+    };
+  }
+
+  if (tool === "generate_variations") {
+    const componentId = typeof args.componentId === "string" ? args.componentId : "";
+    const source = spec.components.find((c) => c.id === componentId);
+    if (!source) {
+      return {
+        ok: false,
+        summary: `component ${componentId} not found for variation generation`,
+        specChanged: false,
+      };
+    }
+    const countPerAxis = typeof args.countPerAxis === "number" ? args.countPerAxis : 3;
+    const variations = generateVariations(source, { countPerAxis });
+    return {
+      ok: true,
+      summary: formatVariationSummary(variations),
+      specChanged: false,
+      data: {
+        kind: "variations",
+        sourceComponentId: source.id,
+        sourceComponentName: source.name,
+        variations: variations.map((v) => ({
+          label: v.label,
+          axis: v.axis,
+          delta: v.delta,
+          component: v.component,
+        })),
+      },
+    };
+  }
+
+  if (tool === "extract_motion_dna") {
+    const componentId = typeof args.componentId === "string" ? args.componentId : "";
+    const component = spec.components.find((c) => c.id === componentId);
+    if (!component) {
+      return {
+        ok: false,
+        summary: `component ${componentId} not found for DNA extraction`,
+        specChanged: false,
+      };
+    }
+    const dna = extractDNA(component);
+    return {
+      ok: true,
+      summary: formatDNAReport(dna, component.name),
+      specChanged: false,
+      data: { kind: "motion_dna", componentId: component.id, componentName: component.name, dna },
+    };
+  }
+
+  // transfer_style
+  const sourceComponentId = typeof args.sourceComponentId === "string" ? args.sourceComponentId : "";
+  const targetComponentId = typeof args.targetComponentId === "string" ? args.targetComponentId : "";
+  const source = spec.components.find((c) => c.id === sourceComponentId);
+  const target = spec.components.find((c) => c.id === targetComponentId);
+  if (!source || !target) {
+    return {
+      ok: false,
+      summary: `source ${sourceComponentId} or target ${targetComponentId} not found for style transfer`,
+      specChanged: false,
+    };
+  }
+  const result = transferStyle(source, target);
+  return {
+    ok: true,
+    summary: formatStyleTransferReport(result, source.name, target.name),
+    specChanged: false,
+    data: {
+      kind: "style_transfer",
+      sourceComponentId: source.id,
+      targetComponentId: target.id,
+      transferred: result.transferred,
+      preserved: result.preserved,
+      component: result.component,
+    },
+  };
+}
+
+/**
  * The conversation heart: prompt the provider, execute any tool calls, feed
  * results back, and repeat until the provider returns a plain reply. Each
  * spec-mutating tool batch emits a spec_update so the live canvas refreshes.
@@ -362,6 +523,29 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
   }
 
   const tools = buildToolSpecs();
+  // Augment the tool surface with any tools from connected external MCP
+  // servers. Their names are namespaced ("serverId__toolName") so the LLM
+  // can call them like any native tool and the orchestrator routes the call
+  // back through routeNamespacedExternalCall in executeToolWithGuardrails.
+  try {
+    const externalToolSpecs = await describeExternalToolsForOrchestrator();
+    for (const spec of externalToolSpecs) {
+      tools.push({
+        name: spec.name as never,
+        description: spec.description,
+        inputSchema: spec.inputSchema,
+      });
+    }
+    if (externalToolSpecs.length > 0) {
+      logger.info("external mcp tools attached to orchestrator", {
+        count: externalToolSpecs.length,
+      });
+    }
+  } catch (err) {
+    logger.warn("failed to attach external mcp tools", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
   const allToolCalls: LlmToolCall[] = [];
   const allToolResults: ToolResult[] = [];
   const componentCountBefore = initialSpec?.components.length ?? 0;
@@ -528,27 +712,64 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
         text: `Composed ${composition.tools.length} tool calls via pattern: ${composition.patternName}`,
       });
 
-      // Execute the composed tools sequentially, resolving __last__ placeholder
+      // Execute the composed tools sequentially, resolving __last__/__first__ placeholders
       const composedCalls = composedToToolCalls(composition.tools);
       let composedSpecChanged = false;
       for (let i = 0; i < composedCalls.length; i++) {
         const call = composedCalls[i];
-        // Resolve __last__ to the most recently created component
         const args = call.args as Record<string, unknown>;
-        if (args && typeof args === "object" && args.componentId === "__last__") {
-          const freshSpec = getProjectSpec(projectId);
-          const lastComponent = freshSpec?.components[freshSpec.components.length - 1];
-          if (lastComponent) {
-            call.args = { ...args, componentId: lastComponent.id };
-          } else {
-            // Skip this tool if no component exists yet
-            continue;
+        if (args && typeof args === "object") {
+          // Resolve __last__ to the most recently created component
+          if (args.componentId === "__last__") {
+            const freshSpec = getProjectSpec(projectId);
+            const lastComponent = freshSpec?.components[freshSpec.components.length - 1];
+            if (lastComponent) {
+              call.args = { ...args, componentId: lastComponent.id };
+            } else {
+              continue;
+            }
+          }
+          // Resolve __first__ to the first component in the spec
+          if (args.componentId === "__first__") {
+            const freshSpec = getProjectSpec(projectId);
+            const firstComponent = freshSpec?.components[0];
+            if (firstComponent) {
+              call.args = { ...args, componentId: firstComponent.id };
+            } else {
+              continue;
+            }
+          }
+          // Resolve sourceComponentId/targetComponentId placeholders
+          if (args.sourceComponentId === "__first__") {
+            const freshSpec = getProjectSpec(projectId);
+            const firstComponent = freshSpec?.components[0];
+            if (firstComponent) {
+              call.args = { ...args, sourceComponentId: firstComponent.id };
+            } else {
+              continue;
+            }
+          }
+          if (args.targetComponentId === "__last__") {
+            const freshSpec = getProjectSpec(projectId);
+            const lastComponent = freshSpec?.components[freshSpec.components.length - 1];
+            if (lastComponent) {
+              call.args = { ...args, targetComponentId: lastComponent.id };
+            } else {
+              continue;
+            }
           }
         }
 
         onEvent({ type: "tool_call", tool: call.tool, args: call.args, callId: call.callId });
         const toolStart = Date.now();
-        const { result } = await executeToolWithGuardrails(call.tool as string, call.args as Record<string, unknown>, { projectId }, onEvent);
+
+        // Motion Intelligence tools are handled inline (not in the tool registry).
+        const miResult = await executeMotionIntelligenceTool(
+          call.tool,
+          call.args as Record<string, unknown>,
+          projectId,
+        );
+        const result = miResult ?? (await executeToolWithGuardrails(call.tool as string, call.args as Record<string, unknown>, { projectId }, onEvent)).result;
         const toolDurationMs = Date.now() - toolStart;
         recordToolExecution(projectId, call.tool, result.ok, toolDurationMs);
         if (isToolUnreliable(projectId, call.tool)) {
