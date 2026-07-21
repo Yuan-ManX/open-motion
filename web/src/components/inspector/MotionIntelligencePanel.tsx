@@ -55,13 +55,67 @@ interface StyleTransferData {
   component: MotionComponent;
 }
 
-type Section = "critique" | "dna" | "variations" | "style" | "emotion" | "rhythm" | "narrative";
+interface StoryBeatData {
+  act: string;
+  orderIndex: number;
+  label: string;
+  description: string;
+  emotionalTone: string;
+  intensity: number;
+  durationMs: number;
+  delayMs: number;
+  templateId: string;
+  transformHint: string;
+}
+
+interface StoryData {
+  intent: string;
+  title: string;
+  summary: string;
+  themes: string[];
+  totalDurationMs: number;
+  beats: StoryBeatData[];
+  intensityCurve: number[];
+}
+
+interface LineageRecordData {
+  componentId: string;
+  componentName: string;
+  operation: string;
+  generation: number;
+  parentIds: string[];
+  label: string;
+  createdAt: string;
+}
+
+interface LineageSummaryData {
+  totalComponents: number;
+  rootCount: number;
+  maxGeneration: number;
+  averageGeneration: number;
+  operationBreakdown: Record<string, number>;
+}
+
+interface LineageReportData {
+  componentId: string;
+  componentName: string;
+  operation: string;
+  generation: number;
+  ancestorChain: LineageRecordData[];
+  descendantCount: number;
+  siblingCount: number;
+  summary: string;
+}
+
+type Section = "critique" | "dna" | "variations" | "style" | "story" | "lineage" | "emotion" | "rhythm" | "narrative";
 
 const SECTIONS: { id: Section; label: string }[] = [
   { id: "critique", label: "Critique" },
   { id: "dna", label: "DNA" },
   { id: "variations", label: "Variations" },
   { id: "style", label: "Style Transfer" },
+  { id: "story", label: "Story" },
+  { id: "lineage", label: "Lineage" },
   { id: "emotion", label: "Emotion" },
   { id: "rhythm", label: "Rhythm" },
   { id: "narrative", label: "Narrative" },
@@ -85,6 +139,10 @@ export function MotionIntelligencePanel() {
   const [dna, setDna] = useState<DnaData | null>(null);
   const [variations, setVariations] = useState<VariationItem[] | null>(null);
   const [styleResult, setStyleResult] = useState<StyleTransferData | null>(null);
+  const [story, setStory] = useState<StoryData | null>(null);
+  const [storyIntent, setStoryIntent] = useState<string>("hero-entrance");
+  const [lineageSummary, setLineageSummary] = useState<LineageSummaryData | null>(null);
+  const [lineageReport, setLineageReport] = useState<LineageReportData | null>(null);
   const [selectedComponentId, setSelectedComponentId] = useState<string>("");
   const [sourceComponentId, setSourceComponentId] = useState<string>("");
   const [targetComponentId, setTargetComponentId] = useState<string>("");
@@ -167,6 +225,70 @@ export function MotionIntelligencePanel() {
       if (resp.ok) {
         const data = await resp.json();
         setStyleResult({ transferred: data.transferred, preserved: data.preserved, component: data.component });
+      }
+    } catch {
+      // offline fallback
+    } finally {
+      setLoading(null);
+    }
+  }, [projectId]);
+
+  const runStory = useCallback(async (intent: string) => {
+    if (!projectId || !intent) return;
+    setLoading("story");
+    try {
+      const resp = await fetch(`/api/projects/${projectId}/story`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ intent }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        setStory({
+          intent: data.intent,
+          title: data.title,
+          summary: data.summary,
+          themes: data.themes,
+          totalDurationMs: data.totalDurationMs,
+          beats: data.beats,
+          intensityCurve: data.intensityCurve,
+        });
+      }
+    } catch {
+      // offline fallback
+    } finally {
+      setLoading(null);
+    }
+  }, [projectId]);
+
+  const runLineageSummary = useCallback(async () => {
+    if (!projectId) return;
+    setLoading("lineage");
+    try {
+      const resp = await fetch(`/api/projects/${projectId}/lineage/summary`, {
+        headers: { ...getAuthHeaders() },
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        setLineageSummary(data.summary);
+      }
+    } catch {
+      // offline fallback
+    } finally {
+      setLoading(null);
+    }
+  }, [projectId]);
+
+  const runLineageReport = useCallback(async (componentId: string) => {
+    if (!projectId || !componentId) return;
+    setLoading("lineage-report");
+    try {
+      const resp = await fetch(`/api/projects/${projectId}/lineage/${componentId}`, {
+        headers: { ...getAuthHeaders() },
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        setLineageReport(data.report);
       }
     } catch {
       // offline fallback
@@ -449,6 +571,201 @@ export function MotionIntelligencePanel() {
             ) : (
               <p className="text-[10px] text-gray-600">Transfer easing, timing, and intensity from one component to another.</p>
             )}
+          </div>
+        )}
+
+        {/* --- Story --- */}
+        {section === "story" && (
+          <div className="px-3 py-2 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Story Sequence</span>
+              <button
+                onClick={() => runStory(storyIntent)}
+                disabled={loading === "story" || !storyIntent}
+                className="px-1.5 py-0.5 text-[9px] bg-panel2 hover:bg-panel3 rounded text-gray-300 disabled:opacity-40"
+              >
+                {loading === "story" ? "..." : "Generate"}
+              </button>
+            </div>
+            <select
+              value={storyIntent}
+              onChange={(e) => { setStoryIntent(e.target.value); setStory(null); }}
+              className="w-full bg-panel2 text-gray-300 text-[10px] px-1.5 py-1 rounded border border-edge"
+            >
+              <option value="hero-entrance">Hero Entrance</option>
+              <option value="celebration">Celebration</option>
+              <option value="dramatic-reveal">Dramatic Reveal</option>
+              <option value="conflict">Conflict</option>
+              <option value="transformation">Transformation</option>
+              <option value="journey">Journey</option>
+              <option value="resolution">Resolution</option>
+            </select>
+            {story ? (
+              <div className="space-y-2">
+                <div>
+                  <div className="text-[11px] font-bold text-white">{story.title}</div>
+                  <div className="text-[9px] text-gray-500 leading-snug">{story.summary}</div>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {story.themes.map((t, i) => (
+                    <span key={i} className="px-1 py-0.5 text-[9px] bg-panel2 rounded text-gray-400">{t}</span>
+                  ))}
+                  <span className="px-1 py-0.5 text-[9px] text-gray-600">{story.totalDurationMs}ms total</span>
+                </div>
+                {/* Intensity curve sparkline */}
+                <div>
+                  <div className="text-[9px] text-gray-600 mb-0.5">Intensity Curve</div>
+                  <div className="flex items-end h-8 gap-1">
+                    {story.intensityCurve.map((v, i) => (
+                      <div
+                        key={i}
+                        className="flex-1 bg-gray-400"
+                        style={{ height: `${Math.max(8, v * 100)}%`, opacity: 0.3 + v * 0.7 }}
+                        title={`Act ${i + 1}: ${Math.round(v * 100)}%`}
+                      />
+                    ))}
+                  </div>
+                </div>
+                {/* 5-Act beats */}
+                <div className="space-y-1">
+                  {story.beats.map((beat, i) => (
+                    <div key={i} className="px-1.5 py-1 bg-panel2 rounded">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-gray-300">{beat.label}</span>
+                        <span className="text-[9px] text-gray-600 uppercase">{beat.emotionalTone}</span>
+                      </div>
+                      <div className="text-[9px] text-gray-500 leading-snug mt-0.5">{beat.description}</div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[9px] text-gray-600">{beat.durationMs}ms</span>
+                        <div className="flex-1 h-1 bg-panel3 rounded-full overflow-hidden">
+                          <div className="h-full bg-white" style={{ width: `${beat.intensity * 100}%` }} />
+                        </div>
+                        <span className="text-[9px] text-gray-500">{Math.round(beat.intensity * 100)}%</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={() => projectId && send(projectId, `Create a ${storyIntent.replace("-", " ")} story sequence and apply it to the canvas`)}
+                  className="w-full text-left px-2 py-1 text-[10px] bg-panel2 hover:bg-panel3 rounded text-gray-400 mt-1"
+                >
+                  Ask Agent to build this sequence
+                </button>
+              </div>
+            ) : (
+              <p className="text-[10px] text-gray-600">Select a narrative intent and generate a 5-act story sequence.</p>
+            )}
+          </div>
+        )}
+
+        {/* --- Lineage --- */}
+        {section === "lineage" && (
+          <div className="px-3 py-2 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Lineage</span>
+              <button
+                onClick={runLineageSummary}
+                disabled={loading === "lineage"}
+                className="px-1.5 py-0.5 text-[9px] bg-panel2 hover:bg-panel3 rounded text-gray-300 disabled:opacity-40"
+              >
+                {loading === "lineage" ? "..." : "Summary"}
+              </button>
+            </div>
+            {lineageSummary ? (
+              <div className="space-y-1">
+                <div className="grid grid-cols-2 gap-1">
+                  <div className="px-1.5 py-1 bg-panel2 rounded">
+                    <div className="text-[9px] text-gray-600">Components</div>
+                    <div className="text-[14px] font-bold text-white">{lineageSummary.totalComponents}</div>
+                  </div>
+                  <div className="px-1.5 py-1 bg-panel2 rounded">
+                    <div className="text-[9px] text-gray-600">Roots</div>
+                    <div className="text-[14px] font-bold text-white">{lineageSummary.rootCount}</div>
+                  </div>
+                  <div className="px-1.5 py-1 bg-panel2 rounded">
+                    <div className="text-[9px] text-gray-600">Max Gen</div>
+                    <div className="text-[14px] font-bold text-white">{lineageSummary.maxGeneration}</div>
+                  </div>
+                  <div className="px-1.5 py-1 bg-panel2 rounded">
+                    <div className="text-[9px] text-gray-600">Avg Gen</div>
+                    <div className="text-[14px] font-bold text-white">{lineageSummary.averageGeneration.toFixed(1)}</div>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[9px] text-gray-600 mb-0.5">Operations</div>
+                  <div className="flex flex-wrap gap-1">
+                    {Object.entries(lineageSummary.operationBreakdown)
+                      .filter(([, count]) => count > 0)
+                      .map(([op, count]) => (
+                        <span key={op} className="px-1 py-0.5 text-[9px] bg-panel2 rounded text-gray-400">
+                          {op}: {count}
+                        </span>
+                      ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <p className="text-[10px] text-gray-600">Click Summary to see the project lineage overview.</p>
+            )}
+
+            {/* Component lineage report */}
+            <div className="mt-2 border-t border-edge pt-2">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Component Report</div>
+              <select
+                value={selectedComponentId}
+                onChange={(e) => { setSelectedComponentId(e.target.value); setLineageReport(null); }}
+                className="w-full bg-panel2 text-gray-300 text-[10px] px-1.5 py-1 rounded border border-edge mb-1"
+              >
+                {components.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <button
+                onClick={() => runLineageReport(selectedComponentId)}
+                disabled={loading === "lineage-report" || !selectedComponentId}
+                className="w-full px-1.5 py-0.5 text-[9px] bg-panel2 hover:bg-panel3 rounded text-gray-300 disabled:opacity-40 mb-1"
+              >
+                {loading === "lineage-report" ? "Querying..." : "Query Lineage"}
+              </button>
+              {lineageReport ? (
+                <div className="space-y-1">
+                  <div className="px-1.5 py-1 bg-panel2 rounded">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-gray-300">{lineageReport.componentName}</span>
+                      <span className="text-[9px] text-gray-600">gen {lineageReport.generation}</span>
+                    </div>
+                    <div className="text-[9px] text-gray-500 mt-0.5">{lineageReport.operation}</div>
+                    <div className="flex gap-2 mt-0.5">
+                      <span className="text-[9px] text-gray-600">Anc: {lineageReport.ancestorChain.length}</span>
+                      <span className="text-[9px] text-gray-600">Desc: {lineageReport.descendantCount}</span>
+                      <span className="text-[9px] text-gray-600">Sib: {lineageReport.siblingCount}</span>
+                    </div>
+                  </div>
+                  {lineageReport.ancestorChain.length > 0 && (
+                    <div>
+                      <div className="text-[9px] text-gray-600 mb-0.5">Ancestor Chain</div>
+                      <div className="space-y-0.5">
+                        {lineageReport.ancestorChain.map((a, i) => (
+                          <div key={i} className="flex items-center gap-1 text-[9px]">
+                            <span className="text-gray-600">gen {a.generation}</span>
+                            <span className="text-gray-400">{a.componentName}</span>
+                            <span className="text-gray-600">({a.operation})</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => projectId && send(projectId, `Show me the full lineage tree of this project`)}
+                    className="w-full text-left px-2 py-1 text-[10px] bg-panel2 hover:bg-panel3 rounded text-gray-400 mt-1"
+                  >
+                    Ask Agent for full tree
+                  </button>
+                </div>
+              ) : (
+                <p className="text-[10px] text-gray-600">Select a component and query its lineage.</p>
+              )}
+            </div>
           </div>
         )}
 
