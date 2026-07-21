@@ -1,8 +1,10 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, useLayoutEffect } from "react";
 import type { Template } from "@openmotion/shared";
 import { useProjectStore } from "../../store/projectStore.js";
 import { useUiStore } from "../../store/uiStore.js";
 import * as api from "../../api/endpoints.js";
+import { AnimatePresence } from "../AnimatePresence.js";
+import { useFlipRegistry } from "../../hooks/useMotionValue.js";
 
 export function LayersPanel() {
   const components = useProjectStore((s) => s.components);
@@ -37,11 +39,46 @@ export function LayersPanel() {
     return () => { alive = false; };
   }, []);
 
-  const sorted = [...components].sort((a, b) => a.orderIndex - b.orderIndex);
+  const sorted = useMemo(
+    () => [...components].sort((a, b) => a.orderIndex - b.orderIndex),
+    [components],
+  );
   const grouped = templates.reduce<Record<string, Template[]>>((acc, t) => {
     (acc[t.category] ??= []).push(t);
     return acc;
   }, {});
+
+  // Flatten the parent/child tree into a render-ordered list with depth info
+  // so we can iterate once and still respect the tree indentation.
+  const flatList = useMemo(() => {
+    const out: Array<{ component: typeof sorted[number]; depth: number }> = [];
+    const childrenOf = (id: string | null) =>
+      sorted.filter((c) => (id === null ? !c.parentId : c.parentId === id));
+    const visit = (parent: string | null, depth: number) => {
+      for (const c of childrenOf(parent)) {
+        out.push({ component: c, depth });
+        visit(c.id, depth + 1);
+      }
+    };
+    visit(null, 0);
+    return out;
+  }, [sorted]);
+
+  // Per-instance FlipRegistry drives FLIP animations when reorder operations
+  // change the layer order. We snapshot before React commits the new layout
+  // and play the inverse transform after the browser paints.
+  const flipRegistry = useFlipRegistry();
+  const flipTrigger = flatList.map((item) => item.component.id).join("|");
+  const flipOptsRef = useRef({ duration: 220, easing: "cubic-bezier(0.22, 1, 0.36, 1)", enterNew: true });
+  useLayoutEffect(() => {
+    flipRegistry.snapshot();
+  }, [flipTrigger, flipRegistry]);
+  useLayoutEffect(() => {
+    const raf = requestAnimationFrame(() => {
+      flipRegistry.play(flipOptsRef.current);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [flipTrigger, flipRegistry]);
 
   useEffect(() => {
     if (renamingId && renameInputRef.current) {
@@ -277,12 +314,8 @@ export function LayersPanel() {
             {projectId ? "No layers yet." : "No project loaded."}
           </div>
         )}
-        {(() => {
-          // Build tree from flat list using parentId
-          const roots = sorted.filter((c) => !c.parentId);
-          const childrenOf = (id: string) => sorted.filter((c) => c.parentId === id);
-          const rendered: React.ReactNode[] = [];
-          const renderLayer = (c: typeof sorted[number], depth: number) => {
+        <AnimatePresence duration={200} enterFromScale={0.96} exitToScale={0.96}>
+          {flatList.map(({ component: c, depth }) => {
             const isSelected = c.id === selectedId;
             const isHidden = hiddenIds.has(c.id);
             const isLocked = lockedIds.has(c.id);
@@ -290,10 +323,10 @@ export function LayersPanel() {
             const isRenaming = renamingId === c.id;
             const isDragged = draggedId === c.id;
             const isDragOver = dragOverId === c.id;
-            const kids = childrenOf(c.id);
-            rendered.push(
+            return (
               <div
                 key={c.id}
+                ref={((el: HTMLElement | null) => flipRegistry.register(c.id, el)) as never}
                 draggable={!isRenaming}
                 onDragStart={(e) => handleDragStart(e, c.id)}
                 onDragOver={(e) => handleDragOver(e, c.id)}
@@ -305,7 +338,7 @@ export function LayersPanel() {
                   e.stopPropagation();
                   startRename(c.id, c.name);
                 }}
-                className={`group flex items-center gap-1.5 px-2 py-1.5 border-b border-edge/50 cursor-pointer transition-colors ${depth > 0 ? "pl-" + (4 + depth * 3) : ""} ${
+                className={`group flex items-center gap-1.5 px-2 py-1.5 border-b border-edge/50 cursor-pointer transition-colors ${
                   isSelected ? "bg-accent/20" : "hover:bg-panel2"
                 } ${isDragged ? "opacity-40" : ""} ${isDragOver ? "border-t-2 border-t-accent" : ""}`}
                 style={depth > 0 ? { paddingLeft: `${8 + depth * 16}px` } : undefined}
@@ -453,11 +486,8 @@ export function LayersPanel() {
                 )}
               </div>
             );
-            kids.forEach((k) => renderLayer(k, depth + 1));
-          };
-          roots.forEach((r) => renderLayer(r, 0));
-          return rendered;
-        })()}
+          })}
+        </AnimatePresence>
       </div>
       {sorted.length > 0 && (
         <div className="px-3 py-1 border-t border-edge text-[9px] text-gray-700">
