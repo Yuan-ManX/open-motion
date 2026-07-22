@@ -152,6 +152,22 @@ import {
   formatStrategyReport,
   listArchetypes,
 } from "../../agent/motionStrategist.js";
+import {
+  auditMotion,
+  formatAuditReport,
+} from "../../agent/motionAuditor.js";
+import {
+  choreographMotion,
+  formatChoreographyReport,
+  listChoreographyModes,
+  type ChoreographyMode,
+} from "../../agent/motionChoreographer.js";
+import {
+  optimizeForExport,
+  formatExportReport,
+  listExportTargets,
+  type ExportTarget,
+} from "../../agent/motionExportOptimizer.js";
 import { patchComponent } from "../../db/repositories/components.js";
 
 export const agentRouter = Router();
@@ -1953,6 +1969,99 @@ agentRouter.get(
       ok: true,
       ...report,
       report: formatStrategyReport(report),
+    });
+  }),
+);
+
+// --- Motion Auditor endpoints ---
+
+agentRouter.get(
+  "/projects/:id/audit",
+  runAsync(async (req: Request, res: Response) => {
+    const spec = getProjectSpec(req.params.id);
+    if (!spec) {
+      res.status(404).json({ error: "project not found" });
+      return;
+    }
+    const report = auditMotion(spec);
+    res.json({
+      ok: true,
+      ...report,
+      report: formatAuditReport(report),
+    });
+  }),
+);
+
+// --- Motion Choreographer endpoints ---
+
+agentRouter.get(
+  "/choreography-modes",
+  runAsync(async (_req: Request, res: Response) => {
+    res.json({ modes: listChoreographyModes() });
+  }),
+);
+
+const ChoreographSchema = z.object({
+  mode: z.enum(["cascade", "wave", "cluster", "climax", "symphony"]).default("cascade"),
+  apply: z.boolean().default(false),
+});
+
+agentRouter.post(
+  "/projects/:id/choreograph",
+  validate(ChoreographSchema),
+  runAsync(async (req: Request, res: Response) => {
+    const spec = getProjectSpec(req.params.id);
+    if (!spec) {
+      res.status(404).json({ error: "project not found" });
+      return;
+    }
+    const input = validated<z.infer<typeof ChoreographSchema>>(req);
+    const plan = choreographMotion(spec, input.mode as ChoreographyMode);
+    if (input.apply) {
+      for (const c of plan.components) {
+        patchComponent(req.params.id, c.componentId, {
+          delayMs: c.delayMs,
+          durationMs: c.durationMs,
+        });
+      }
+    }
+    res.json({
+      ok: true,
+      applied: input.apply,
+      ...plan,
+      report: formatChoreographyReport(plan),
+    });
+  }),
+);
+
+// --- Motion Export Optimizer endpoints ---
+
+agentRouter.get(
+  "/export-targets",
+  runAsync(async (_req: Request, res: Response) => {
+    res.json({ targets: listExportTargets() });
+  }),
+);
+
+const ExportSchema = z.object({
+  target: z.enum(["css", "waapi", "lottie", "react-spring", "gsap"]).default("css"),
+});
+
+agentRouter.post(
+  "/projects/:id/optimize-export",
+  validate(ExportSchema),
+  runAsync(async (req: Request, res: Response) => {
+    const spec = getProjectSpec(req.params.id);
+    if (!spec) {
+      res.status(404).json({ error: "project not found" });
+      return;
+    }
+    const input = validated<z.infer<typeof ExportSchema>>(req);
+    const result = optimizeForExport(spec, input.target as ExportTarget);
+    res.json({
+      ok: true,
+      ...result,
+      report: formatExportReport(result),
     });
   }),
 );
