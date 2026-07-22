@@ -116,6 +116,13 @@ import {
   listRemixStrategies,
   type RemixStrategy,
 } from "./motionRemix.js";
+import {
+  translateDialect,
+  formatDialectReport,
+  listDialects,
+  detectDialect,
+  type DialectId,
+} from "./motionDialect.js";
 import { patchComponent } from "../db/repositories/components.js";
 import { logger } from "../utils/logger.js";
 
@@ -447,7 +454,10 @@ async function executeMotionIntelligenceTool(
     tool !== "negotiate_intent" &&
     tool !== "list_constraint_profiles" &&
     tool !== "remix_motion" &&
-    tool !== "list_remix_strategies"
+    tool !== "list_remix_strategies" &&
+    tool !== "translate_dialect" &&
+    tool !== "list_dialects" &&
+    tool !== "detect_dialect"
   ) {
     return null;
   }
@@ -983,6 +993,100 @@ async function executeMotionIntelligenceTool(
           sourceComponentCount: result.sourceComponentCount,
           remixComponentCount: result.remixComponentCount,
           changeCount: result.changes.length,
+          changes: result.changes,
+          summary: result.summary,
+        },
+        applied: apply,
+      },
+    };
+  }
+
+  if (tool === "list_dialects") {
+    const dialects = listDialects();
+    return {
+      ok: true,
+      summary: `${dialects.length} dialect(s) available: ${dialects.map((d) => d.name).join(", ")}`,
+      specChanged: false,
+      data: {
+        kind: "dialects",
+        dialects: dialects.map((d) => ({
+          id: d.id,
+          name: d.name,
+          description: d.description,
+          durationRange: d.durationRange,
+          preferredEasings: d.preferredEasings,
+          avoidedEasings: d.avoidedEasings,
+          intensityMultiplier: d.intensityMultiplier,
+          favorsInfiniteLoops: d.favorsInfiniteLoops,
+          defaultLoopCount: d.defaultLoopCount,
+          staggerInterval: d.staggerInterval,
+          maxConcurrency: d.maxConcurrency,
+          signatures: d.signatures,
+        })),
+      },
+    };
+  }
+
+  if (tool === "detect_dialect") {
+    const result = detectDialect(spec);
+    return {
+      ok: true,
+      summary: `Best dialect match: ${result.bestMatch}. Scores: ${result.scores.map((s) => `${s.name}=${s.score}`).join(", ")}`,
+      specChanged: false,
+      data: {
+        kind: "dialect_detection",
+        bestMatch: result.bestMatch,
+        scores: result.scores,
+      },
+    };
+  }
+
+  if (tool === "translate_dialect") {
+    const validDialects: DialectId[] = ["web", "mobile", "gaming", "data-viz", "presentation", "kiosk", "accessibility"];
+    const sourceId = typeof args.sourceDialect === "string" ? args.sourceDialect : "web";
+    const targetId = typeof args.targetDialect === "string" ? args.targetDialect : "";
+    if (!targetId || !validDialects.includes(targetId as DialectId)) {
+      return {
+        ok: false,
+        summary: `Invalid target dialect: ${targetId}. Valid: ${validDialects.join(", ")}`,
+        specChanged: false,
+      };
+    }
+    // Auto-detect source if not provided or invalid.
+    const finalSourceId = validDialects.includes(sourceId as DialectId)
+      ? (sourceId as DialectId)
+      : detectDialect(spec).bestMatch;
+    const result = translateDialect(spec, finalSourceId, targetId as DialectId);
+    const apply = args.apply === true; // default false — translation is dry-run by default
+    let specChanged = false;
+    if (apply && result.translatedSpec.components.length > 0) {
+      for (const translated of result.translatedSpec.components) {
+        const existing = spec.components.find((c) => c.id === translated.id);
+        if (existing) {
+          const patch: Record<string, unknown> = {};
+          if (existing.durationMs !== translated.durationMs) patch.durationMs = translated.durationMs;
+          if (existing.delayMs !== translated.delayMs) patch.delayMs = translated.delayMs;
+          if (existing.iterationCount !== translated.iterationCount) patch.iterationCount = translated.iterationCount;
+          if (existing.easing !== translated.easing) patch.easing = translated.easing;
+          if (existing.keyframes !== translated.keyframes) patch.keyframes = translated.keyframes;
+          if (Object.keys(patch).length > 0) {
+            patchComponent(projectId, translated.id, patch);
+            specChanged = true;
+          }
+        }
+      }
+    }
+    return {
+      ok: true,
+      summary: formatDialectReport(result),
+      specChanged,
+      data: {
+        kind: "dialect_translation",
+        result: {
+          sourceDialect: result.sourceDialect,
+          targetDialect: result.targetDialect,
+          componentCount: result.componentCount,
+          changeCount: result.changeCount,
           changes: result.changes,
           summary: result.summary,
         },
