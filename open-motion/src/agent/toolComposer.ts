@@ -1283,6 +1283,66 @@ const PATTERNS: CompositionPattern[] = [
       ];
     },
   },
+
+  // --- Motion auditor composition ---
+  {
+    name: "motion-auditor",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "audit", "wcag", "accessibility report", "compliance", "flash", "seizure", "pause stop hide", "distraction", "cognitive load", "motion sickness", "vestibular", "a11y audit")) return null;
+      return [
+        {
+          tool: "audit_motion",
+          args: { projectId: ctx.projectId },
+          reason: "Audit the project against WCAG accessibility guidelines — flash thresholds, pause/stop/hide, distraction, cognitive load, and motion sickness risk",
+        },
+      ];
+    },
+  },
+
+  // --- Motion choreographer composition ---
+  {
+    name: "motion-choreographer",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      const mode = has(msg, "wave") ? "wave"
+        : has(msg, "cluster") ? "cluster"
+        : has(msg, "climax") ? "climax"
+        : has(msg, "symphony") ? "symphony"
+        : has(msg, "cascade") ? "cascade"
+        : null;
+      if (!has(msg, "choreograph", "sequence", "stagger", "orchestrat", "timeline arrangement", "timing arrangement", "cascade", "wave", "cluster", "climax", "symphony") && !mode) return null;
+      return [
+        {
+          tool: "choreograph_motion",
+          args: { projectId: ctx.projectId, mode: mode || "cascade", apply: false },
+          reason: `Choreograph the components into a ${mode || "cascade"} sequence with optimal stagger timing and act structure`,
+        },
+      ];
+    },
+  },
+
+  // --- Motion export optimizer composition ---
+  {
+    name: "motion-export-optimizer",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      const target = has(msg, "lottie") ? "lottie"
+        : has(msg, "react spring", "react-spring") ? "react-spring"
+        : has(msg, "gsap", "greensock") ? "gsap"
+        : has(msg, "waapi", "web animations api") ? "waapi"
+        : has(msg, "css", "keyframes") ? "css"
+        : null;
+      if (!has(msg, "export", "optimize export", "convert to", "target", "bundle", "ship", "deploy") && !target) return null;
+      return [
+        {
+          tool: "optimize_export",
+          args: { projectId: ctx.projectId, target: target || "css" },
+          reason: `Optimize the project for ${target || "CSS"} export — check compatibility, generate target-specific output, and provide reduced-motion strategy`,
+        },
+      ];
+    },
+  },
 ];
 
 /**
