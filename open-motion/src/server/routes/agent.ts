@@ -138,6 +138,20 @@ import {
   detectDialect,
   type DialectId,
 } from "../../agent/motionDialect.js";
+import {
+  profileMotion,
+  formatProfilerReport,
+} from "../../agent/motionProfiler.js";
+import {
+  curateMotion,
+  formatCurationReport,
+  listSemanticRoles,
+} from "../../agent/motionCurator.js";
+import {
+  strategizeMotion,
+  formatStrategyReport,
+  listArchetypes,
+} from "../../agent/motionStrategist.js";
 import { patchComponent } from "../../db/repositories/components.js";
 
 export const agentRouter = Router();
@@ -1868,6 +1882,77 @@ agentRouter.post(
       changes: result.changes,
       summary: result.summary,
       report: formatDialectReport(result),
+    });
+  }),
+);
+
+// --- Motion Profiler endpoints ---
+
+agentRouter.get(
+  "/projects/:id/profile",
+  runAsync(async (req: Request, res: Response) => {
+    const spec = getProjectSpec(req.params.id);
+    if (!spec) {
+      res.status(404).json({ error: "project not found" });
+      return;
+    }
+    const report = profileMotion(spec);
+    res.json({
+      ok: true,
+      ...report,
+      report: formatProfilerReport(report),
+    });
+  }),
+);
+
+// --- Motion Curator endpoints ---
+
+agentRouter.get(
+  "/semantic-roles",
+  runAsync(async (_req: Request, res: Response) => {
+    res.json({ roles: listSemanticRoles() });
+  }),
+);
+
+agentRouter.get(
+  "/projects/:id/curator",
+  runAsync(async (req: Request, res: Response) => {
+    const spec = getProjectSpec(req.params.id);
+    if (!spec) {
+      res.status(404).json({ error: "project not found" });
+      return;
+    }
+    const report = curateMotion(spec);
+    res.json({
+      ok: true,
+      ...report,
+      report: formatCurationReport(report),
+    });
+  }),
+);
+
+// --- Motion Strategist endpoints ---
+
+agentRouter.get(
+  "/archetypes",
+  runAsync(async (_req: Request, res: Response) => {
+    res.json({ archetypes: listArchetypes() });
+  }),
+);
+
+agentRouter.get(
+  "/projects/:id/strategy",
+  runAsync(async (req: Request, res: Response) => {
+    const spec = getProjectSpec(req.params.id);
+    if (!spec) {
+      res.status(404).json({ error: "project not found" });
+      return;
+    }
+    const report = strategizeMotion(spec);
+    res.json({
+      ok: true,
+      ...report,
+      report: formatStrategyReport(report),
     });
   }),
 );
