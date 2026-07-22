@@ -1236,6 +1236,53 @@ const PATTERNS: CompositionPattern[] = [
       ];
     },
   },
+
+  // --- Motion profiler composition ---
+  {
+    name: "motion-profiler",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "profile", "performance cost", "gpu cost", "jank", "frame budget", "rendering cost", "paint cost", "composite layer", "will-change", "fps", "optimization recommendation")) return null;
+      return [
+        {
+          tool: "profile_motion",
+          args: { projectId: ctx.projectId },
+          reason: "Profile the project's quantitative performance cost — GPU layers, paint complexity, jank risk, and frame budget consumption",
+        },
+      ];
+    },
+  },
+
+  // --- Motion curator composition ---
+  {
+    name: "motion-curator",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "curate", "curation", "organize", "group components", "semantic", "redundanc", "coverage", "collection", "tag components", "classify")) return null;
+      return [
+        {
+          tool: "curate_motion",
+          args: { projectId: ctx.projectId },
+          reason: "Curate the project semantically — tag components by functional role, detect redundancy, and build coverage map",
+        },
+      ];
+    },
+  },
+
+  // --- Motion strategist composition ---
+  {
+    name: "motion-strategist",
+    match: (msg, ctx) => {
+      if (!has(msg, "strategy", "strategize", "motion plan", "motion philosophy", "timing philosophy", "easing palette", "rhythm pattern", "accessibility stance", "archetype", "motion language", "motion direction", "overall approach")) return null;
+      return [
+        {
+          tool: "strategize_motion",
+          args: { projectId: ctx.projectId },
+          reason: "Analyze the project and recommend a holistic motion strategy — archetype, timing philosophy, easing palette, rhythm pattern, and accessibility stance",
+        },
+      ];
+    },
+  },
 ];
 
 /**
