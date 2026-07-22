@@ -123,6 +123,20 @@ import {
   detectDialect,
   type DialectId,
 } from "./motionDialect.js";
+import {
+  profileMotion,
+  formatProfilerReport,
+} from "./motionProfiler.js";
+import {
+  curateMotion,
+  formatCurationReport,
+  listSemanticRoles,
+} from "./motionCurator.js";
+import {
+  strategizeMotion,
+  formatStrategyReport,
+  listArchetypes,
+} from "./motionStrategist.js";
 import { patchComponent } from "../db/repositories/components.js";
 import { logger } from "../utils/logger.js";
 
@@ -457,7 +471,12 @@ async function executeMotionIntelligenceTool(
     tool !== "list_remix_strategies" &&
     tool !== "translate_dialect" &&
     tool !== "list_dialects" &&
-    tool !== "detect_dialect"
+    tool !== "detect_dialect" &&
+    tool !== "profile_motion" &&
+    tool !== "curate_motion" &&
+    tool !== "list_semantic_roles" &&
+    tool !== "strategize_motion" &&
+    tool !== "list_archetypes"
   ) {
     return null;
   }
@@ -1091,6 +1110,74 @@ async function executeMotionIntelligenceTool(
           summary: result.summary,
         },
         applied: apply,
+      },
+    };
+  }
+
+  // --- Motion Profiler ---
+  if (tool === "profile_motion") {
+    const report = profileMotion(spec);
+    return {
+      ok: true,
+      summary: formatProfilerReport(report),
+      specChanged: false,
+      data: {
+        kind: "profiler",
+        report,
+      },
+    };
+  }
+
+  // --- Motion Curator ---
+  if (tool === "list_semantic_roles") {
+    const roles = listSemanticRoles();
+    return {
+      ok: true,
+      summary: `${roles.length} semantic roles available: ${roles.map((r) => r.name).join(", ")}`,
+      specChanged: false,
+      data: {
+        kind: "semantic_roles",
+        roles,
+      },
+    };
+  }
+
+  if (tool === "curate_motion") {
+    const report = curateMotion(spec);
+    return {
+      ok: true,
+      summary: formatCurationReport(report),
+      specChanged: false,
+      data: {
+        kind: "curator",
+        report,
+      },
+    };
+  }
+
+  // --- Motion Strategist ---
+  if (tool === "list_archetypes") {
+    const archetypes = listArchetypes();
+    return {
+      ok: true,
+      summary: `${archetypes.length} archetypes available: ${archetypes.map((a) => a.archetype).join(", ")}`,
+      specChanged: false,
+      data: {
+        kind: "archetypes",
+        archetypes,
+      },
+    };
+  }
+
+  if (tool === "strategize_motion") {
+    const report = strategizeMotion(spec);
+    return {
+      ok: true,
+      summary: formatStrategyReport(report),
+      specChanged: false,
+      data: {
+        kind: "strategy",
+        report,
       },
     };
   }
