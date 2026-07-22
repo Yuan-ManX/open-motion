@@ -137,6 +137,22 @@ import {
   formatStrategyReport,
   listArchetypes,
 } from "./motionStrategist.js";
+import {
+  auditMotion,
+  formatAuditReport,
+} from "./motionAuditor.js";
+import {
+  choreographMotion,
+  formatChoreographyReport,
+  listChoreographyModes,
+  type ChoreographyMode,
+} from "./motionChoreographer.js";
+import {
+  optimizeForExport,
+  formatExportReport,
+  listExportTargets,
+  type ExportTarget,
+} from "./motionExportOptimizer.js";
 import { patchComponent } from "../db/repositories/components.js";
 import { logger } from "../utils/logger.js";
 
@@ -476,7 +492,12 @@ async function executeMotionIntelligenceTool(
     tool !== "curate_motion" &&
     tool !== "list_semantic_roles" &&
     tool !== "strategize_motion" &&
-    tool !== "list_archetypes"
+    tool !== "list_archetypes" &&
+    tool !== "audit_motion" &&
+    tool !== "choreograph_motion" &&
+    tool !== "list_choreography_modes" &&
+    tool !== "optimize_export" &&
+    tool !== "list_export_targets"
   ) {
     return null;
   }
@@ -1178,6 +1199,87 @@ async function executeMotionIntelligenceTool(
       data: {
         kind: "strategy",
         report,
+      },
+    };
+  }
+
+  // --- Motion Auditor ---
+  if (tool === "audit_motion") {
+    const report = auditMotion(spec);
+    return {
+      ok: true,
+      summary: formatAuditReport(report),
+      specChanged: false,
+      data: {
+        kind: "audit",
+        report,
+      },
+    };
+  }
+
+  // --- Motion Choreographer ---
+  if (tool === "list_choreography_modes") {
+    const modes = listChoreographyModes();
+    return {
+      ok: true,
+      summary: `${modes.length} choreography modes available: ${modes.map((m) => m.name).join(", ")}`,
+      specChanged: false,
+      data: {
+        kind: "choreography_modes",
+        modes,
+      },
+    };
+  }
+
+  if (tool === "choreograph_motion") {
+    const mode = (typeof args.mode === "string" ? args.mode : "cascade") as ChoreographyMode;
+    const plan = choreographMotion(spec, mode);
+    const apply = args.apply === true;
+    if (apply) {
+      // Apply the choreographed delays to the spec
+      for (const c of plan.components) {
+        patchComponent(projectId, c.componentId, {
+          delayMs: c.delayMs,
+          durationMs: c.durationMs,
+        });
+      }
+    }
+    return {
+      ok: true,
+      summary: formatChoreographyReport(plan),
+      specChanged: apply,
+      data: {
+        kind: "choreography",
+        plan,
+        applied: apply,
+      },
+    };
+  }
+
+  // --- Motion Export Optimizer ---
+  if (tool === "list_export_targets") {
+    const targets = listExportTargets();
+    return {
+      ok: true,
+      summary: `${targets.length} export targets available: ${targets.map((t) => t.name).join(", ")}`,
+      specChanged: false,
+      data: {
+        kind: "export_targets",
+        targets,
+      },
+    };
+  }
+
+  if (tool === "optimize_export") {
+    const target = (typeof args.target === "string" ? args.target : "css") as ExportTarget;
+    const result = optimizeForExport(spec, target);
+    return {
+      ok: true,
+      summary: formatExportReport(result),
+      specChanged: false,
+      data: {
+        kind: "export_optimization",
+        result,
       },
     };
   }
