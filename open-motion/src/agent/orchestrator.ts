@@ -85,6 +85,37 @@ import {
   formatAutoFixReport,
   type AutoFixOptions,
 } from "./motionAutoFix.js";
+import {
+  applyPersona,
+  detectPersona,
+  formatPersonaApplicationReport,
+  formatPersonaDetectionReport,
+  listPersonas,
+} from "./motionPersona.js";
+import {
+  coachMotion,
+  formatCoachReport,
+} from "./motionCoach.js";
+import {
+  analyzeGenome,
+  formatGenomeReport,
+} from "./motionGenome.js";
+import {
+  forecastMotion,
+  formatForecastReport,
+} from "./motionForecast.js";
+import {
+  negotiateIntent,
+  formatNegotiationReport,
+  listConstraintProfiles,
+  getConstraintProfile,
+} from "./motionNegotiation.js";
+import {
+  remixMotion,
+  formatRemixReport,
+  listRemixStrategies,
+  type RemixStrategy,
+} from "./motionRemix.js";
 import { patchComponent } from "../db/repositories/components.js";
 import { logger } from "../utils/logger.js";
 
@@ -406,7 +437,17 @@ async function executeMotionIntelligenceTool(
     tool !== "get_lineage_summary" &&
     tool !== "record_lineage" &&
     tool !== "synthesize_motion" &&
-    tool !== "auto_fix_accessibility"
+    tool !== "auto_fix_accessibility" &&
+    tool !== "apply_persona" &&
+    tool !== "detect_persona" &&
+    tool !== "list_personas" &&
+    tool !== "coach_motion" &&
+    tool !== "analyze_genome" &&
+    tool !== "forecast_motion" &&
+    tool !== "negotiate_intent" &&
+    tool !== "list_constraint_profiles" &&
+    tool !== "remix_motion" &&
+    tool !== "list_remix_strategies"
   ) {
     return null;
   }
@@ -671,6 +712,281 @@ async function executeMotionIntelligenceTool(
         result,
         applied: apply,
         components: apply ? fixedComponents : undefined,
+      },
+    };
+  }
+
+  if (tool === "list_personas") {
+    const personas = listPersonas();
+    return {
+      ok: true,
+      summary: `${personas.length} persona(s) available: ${personas.map((p) => p.name).join(", ")}`,
+      specChanged: false,
+      data: {
+        kind: "persona_list",
+        personas: personas.map((p) => ({
+          id: p.id,
+          name: p.name,
+          description: p.description,
+          origin: p.origin,
+          signatures: p.signatures,
+          restraintLevel: p.restraintLevel,
+          intensityCeiling: p.intensityCeiling,
+        })),
+      },
+    };
+  }
+
+  if (tool === "detect_persona") {
+    const detection = detectPersona(spec);
+    return {
+      ok: true,
+      summary: formatPersonaDetectionReport(detection),
+      specChanged: false,
+      data: { kind: "persona_detection", detection },
+    };
+  }
+
+  if (tool === "apply_persona") {
+    const personaId = typeof args.personaId === "string" ? args.personaId : "";
+    if (!personaId) {
+      return {
+        ok: false,
+        summary: "personaId is required for apply_persona",
+        specChanged: false,
+      };
+    }
+    const result = applyPersona(spec, personaId);
+    const apply = args.apply !== false; // default true
+    let specChanged = false;
+    if (apply && result.adjustedCount > 0) {
+      // Persist the transformed components to the spec.
+      for (const transformed of result.transformedComponents) {
+        const adj = result.adjustments.filter((a) => a.componentId === transformed.id);
+        if (adj.length === 0) continue;
+        const patch: Record<string, unknown> = {};
+        const fields = new Set(adj.map((a) => a.field.split(".")[0]));
+        if (fields.has("easing")) patch.easing = transformed.easing;
+        if (fields.has("durationMs")) patch.durationMs = transformed.durationMs;
+        if (fields.has("delayMs")) patch.delayMs = transformed.delayMs;
+        if (fields.has("iterationCount")) patch.iterationCount = transformed.iterationCount;
+        if (fields.has("keyframe")) patch.keyframes = transformed.keyframes;
+        if (Object.keys(patch).length > 0) {
+          patchComponent(projectId, transformed.id, patch);
+          specChanged = true;
+        }
+      }
+    }
+    return {
+      ok: true,
+      summary: formatPersonaApplicationReport(result),
+      specChanged,
+      data: {
+        kind: "persona_application",
+        result: {
+          personaId: result.personaId,
+          personaName: result.personaName,
+          adjustments: result.adjustments,
+          componentCount: result.componentCount,
+          adjustedCount: result.adjustedCount,
+          skippedCount: result.skippedCount,
+          summary: result.summary,
+        },
+        applied: apply,
+      },
+    };
+  }
+
+  if (tool === "coach_motion") {
+    const result = coachMotion(spec);
+    return {
+      ok: true,
+      summary: formatCoachReport(result),
+      specChanged: false,
+      data: { kind: "coach", result },
+    };
+  }
+
+  if (tool === "analyze_genome") {
+    const result = analyzeGenome(spec);
+    return {
+      ok: true,
+      summary: formatGenomeReport(result),
+      specChanged: false,
+      data: { kind: "genome", result },
+    };
+  }
+
+  if (tool === "forecast_motion") {
+    const result = forecastMotion(spec);
+    return {
+      ok: true,
+      summary: formatForecastReport(result),
+      specChanged: false,
+      data: { kind: "forecast", result },
+    };
+  }
+
+  if (tool === "list_constraint_profiles") {
+    const profiles = listConstraintProfiles();
+    return {
+      ok: true,
+      summary: `${profiles.length} constraint profile(s) available: ${profiles.map((p) => p.name).join(", ")}`,
+      specChanged: false,
+      data: {
+        kind: "constraint_profiles",
+        profiles: profiles.map((p) => ({
+          name: p.name,
+          maxDurationMs: p.maxDurationMs,
+          minDurationMs: p.minDurationMs,
+          maxDisplacementPx: p.maxDisplacementPx,
+          maxRotationDeg: p.maxRotationDeg,
+          maxScale: p.maxScale,
+          maxOpacityDelta: p.maxOpacityDelta,
+          forbiddenEasings: p.forbiddenEasings,
+          preferredEasings: p.preferredEasings,
+          maxLoops: p.maxLoops,
+          maxConcurrentAnimations: p.maxConcurrentAnimations,
+        })),
+      },
+    };
+  }
+
+  if (tool === "negotiate_intent") {
+    const intent = typeof args.intent === "string" ? args.intent : "";
+    if (!intent) {
+      return {
+        ok: false,
+        summary: "intent is required for negotiate_intent",
+        specChanged: false,
+      };
+    }
+    const profileName = typeof args.profile === "string" ? args.profile : "vestibular-safe";
+    const profile = getConstraintProfile(profileName) ?? getConstraintProfile("vestibular-safe")!;
+    const result = negotiateIntent(intent, spec, profile);
+    const apply = args.apply === true; // default false — negotiation is dry-run by default
+    let specChanged = false;
+    if (apply && result.negotiatedSpec.components.length > 0) {
+      // Persist the negotiated components to the spec.
+      for (const negotiated of result.negotiatedSpec.components) {
+        // For existing components (renegotiated), patch them.
+        const existing = spec.components.find((c) => c.id === negotiated.id);
+        if (existing) {
+          const patch: Record<string, unknown> = {};
+          if (existing.durationMs !== negotiated.durationMs) patch.durationMs = negotiated.durationMs;
+          if (existing.delayMs !== negotiated.delayMs) patch.delayMs = negotiated.delayMs;
+          if (existing.iterationCount !== negotiated.iterationCount) patch.iterationCount = negotiated.iterationCount;
+          if (existing.easing !== negotiated.easing) patch.easing = negotiated.easing;
+          if (existing.keyframes !== negotiated.keyframes) patch.keyframes = negotiated.keyframes;
+          if (Object.keys(patch).length > 0) {
+            patchComponent(projectId, negotiated.id, patch);
+            specChanged = true;
+          }
+        }
+        // New components (negotiated from empty spec) are not auto-created here —
+        // the caller can use the returned negotiatedSpec to create them via the
+        // normal component creation flow.
+      }
+    }
+    return {
+      ok: true,
+      summary: formatNegotiationReport(result),
+      specChanged,
+      data: {
+        kind: "negotiation",
+        result: {
+          intent: result.intent,
+          parsedIntent: result.parsedIntent,
+          constraintProfile: {
+            name: result.constraintProfile.name,
+            maxDurationMs: result.constraintProfile.maxDurationMs,
+            minDurationMs: result.constraintProfile.minDurationMs,
+            maxDisplacementPx: result.constraintProfile.maxDisplacementPx,
+            maxRotationDeg: result.constraintProfile.maxRotationDeg,
+            maxScale: result.constraintProfile.maxScale,
+            maxOpacityDelta: result.constraintProfile.maxOpacityDelta,
+            forbiddenEasings: result.constraintProfile.forbiddenEasings,
+            preferredEasings: result.constraintProfile.preferredEasings,
+            maxLoops: result.constraintProfile.maxLoops,
+            maxConcurrentAnimations: result.constraintProfile.maxConcurrentAnimations,
+          },
+          tradeoffs: result.tradeoffs,
+          complianceScore: result.complianceScore,
+          intentFidelityScore: result.intentFidelityScore,
+          intentWasCompatible: result.intentWasCompatible,
+          summary: result.summary,
+        },
+        applied: apply,
+        negotiatedComponents: apply ? result.negotiatedSpec.components : undefined,
+      },
+    };
+  }
+
+  if (tool === "list_remix_strategies") {
+    const strategies = listRemixStrategies();
+    return {
+      ok: true,
+      summary: `${strategies.length} remix strategy(ies) available: ${strategies.map((s) => s.id).join(", ")}`,
+      specChanged: false,
+      data: {
+        kind: "remix_strategies",
+        strategies,
+      },
+    };
+  }
+
+  if (tool === "remix_motion") {
+    const strategyArg = typeof args.strategy === "string" ? args.strategy : "shuffle";
+    const validStrategies: RemixStrategy[] = ["shuffle", "mirror", "invert", "swap", "cascade", "scatter", "hybridize", "rephrase"];
+    if (!validStrategies.includes(strategyArg as RemixStrategy)) {
+      return {
+        ok: false,
+        summary: `Unknown remix strategy: ${strategyArg}. Valid strategies: ${validStrategies.join(", ")}`,
+        specChanged: false,
+      };
+    }
+    const strategy = strategyArg as RemixStrategy;
+    const seed = typeof args.seed === "number" ? args.seed : Date.now();
+    const result = remixMotion(spec, strategy, seed);
+    const apply = args.apply === true; // default false — remix is dry-run by default
+    let specChanged = false;
+    if (apply && result.remixedSpec.components.length > 0) {
+      // Persist the remixed component changes to the spec.
+      for (const remixed of result.remixedSpec.components) {
+        const existing = spec.components.find((c) => c.id === remixed.id);
+        if (existing) {
+          const patch: Record<string, unknown> = {};
+          if (existing.durationMs !== remixed.durationMs) patch.durationMs = remixed.durationMs;
+          if (existing.delayMs !== remixed.delayMs) patch.delayMs = remixed.delayMs;
+          if (existing.iterationCount !== remixed.iterationCount) patch.iterationCount = remixed.iterationCount;
+          if (existing.direction !== remixed.direction) patch.direction = remixed.direction;
+          if (existing.easing !== remixed.easing) patch.easing = remixed.easing;
+          if (existing.keyframes !== remixed.keyframes) patch.keyframes = remixed.keyframes;
+          if (existing.name !== remixed.name) patch.name = remixed.name;
+          if (existing.orderIndex !== remixed.orderIndex) patch.orderIndex = remixed.orderIndex;
+          if (Object.keys(patch).length > 0) {
+            patchComponent(projectId, remixed.id, patch);
+            specChanged = true;
+          }
+        }
+      }
+    }
+    return {
+      ok: true,
+      summary: formatRemixReport(result),
+      specChanged,
+      data: {
+        kind: "remix",
+        result: {
+          strategy: result.strategy,
+          seed: result.seed,
+          sourceComponentCount: result.sourceComponentCount,
+          remixComponentCount: result.remixComponentCount,
+          changeCount: result.changes.length,
+          changes: result.changes,
+          summary: result.summary,
+        },
+        applied: apply,
       },
     };
   }
