@@ -99,6 +99,38 @@ import {
   formatAutoFixReport,
   type AutoFixOptions,
 } from "../../agent/motionAutoFix.js";
+import {
+  applyPersona,
+  detectPersona,
+  formatPersonaApplicationReport,
+  formatPersonaDetectionReport,
+  listPersonas,
+} from "../../agent/motionPersona.js";
+import {
+  coachMotion,
+  formatCoachReport,
+} from "../../agent/motionCoach.js";
+import {
+  analyzeGenome,
+  formatGenomeReport,
+} from "../../agent/motionGenome.js";
+import {
+  forecastMotion,
+  formatForecastReport,
+} from "../../agent/motionForecast.js";
+import {
+  negotiateIntent,
+  formatNegotiationReport,
+  listConstraintProfiles,
+  getConstraintProfile,
+  CONSTRAINT_PROFILES,
+} from "../../agent/motionNegotiation.js";
+import {
+  remixMotion,
+  formatRemixReport,
+  listRemixStrategies,
+  type RemixStrategy,
+} from "../../agent/motionRemix.js";
 import { patchComponent } from "../../db/repositories/components.js";
 
 export const agentRouter = Router();
@@ -1391,6 +1423,344 @@ agentRouter.post(
       fixes: result.fixes,
       summary: result.summary,
       report: formatAutoFixReport(result),
+    });
+  }),
+);
+
+// --- Motion Persona endpoints ---
+
+agentRouter.get(
+  "/personas",
+  runAsync(async (_req: Request, res: Response) => {
+    const personas = listPersonas();
+    res.json({
+      ok: true,
+      count: personas.length,
+      personas: personas.map((p) => ({
+        id: p.id,
+        name: p.name,
+        description: p.description,
+        origin: p.origin,
+        preferredEasings: p.preferredEasings,
+        avoidedEasings: p.avoidedEasings,
+        durationRange: p.durationRange,
+        intensityCeiling: p.intensityCeiling,
+        favorsLoops: p.favorsLoops,
+        favorsStagger: p.favorsStagger,
+        preferredProperties: p.preferredProperties,
+        avoidedProperties: p.avoidedProperties,
+        restraintLevel: p.restraintLevel,
+        signatures: p.signatures,
+      })),
+    });
+  }),
+);
+
+agentRouter.get(
+  "/projects/:id/persona-detection",
+  runAsync(async (req: Request, res: Response) => {
+    const spec = getProjectSpec(req.params.id);
+    if (!spec) {
+      res.status(404).json({ error: "project not found" });
+      return;
+    }
+    const detection = detectPersona(spec);
+    res.json({
+      ok: true,
+      bestMatch: detection.bestMatch,
+      allScores: detection.allScores,
+      summary: detection.summary,
+      report: formatPersonaDetectionReport(detection),
+    });
+  }),
+);
+
+const ApplyPersonaSchema = z.object({
+  personaId: z.string().min(1),
+  apply: z.boolean().optional().default(true),
+});
+
+agentRouter.post(
+  "/projects/:id/apply-persona",
+  validate(ApplyPersonaSchema),
+  runAsync(async (req: Request, res: Response) => {
+    const input = validated<z.infer<typeof ApplyPersonaSchema>>(req);
+    const spec = getProjectSpec(req.params.id);
+    if (!spec) {
+      res.status(404).json({ error: "project not found" });
+      return;
+    }
+    const result = applyPersona(spec, input.personaId);
+    let applied = false;
+    if (input.apply && result.adjustedCount > 0) {
+      for (const transformed of result.transformedComponents) {
+        const adj = result.adjustments.filter((a) => a.componentId === transformed.id);
+        if (adj.length === 0) continue;
+        const patch: Record<string, unknown> = {};
+        const fields = new Set(adj.map((a) => a.field.split(".")[0]));
+        if (fields.has("easing")) patch.easing = transformed.easing;
+        if (fields.has("durationMs")) patch.durationMs = transformed.durationMs;
+        if (fields.has("delayMs")) patch.delayMs = transformed.delayMs;
+        if (fields.has("iterationCount")) patch.iterationCount = transformed.iterationCount;
+        if (fields.has("keyframe")) patch.keyframes = transformed.keyframes;
+        if (Object.keys(patch).length > 0) {
+          patchComponent(req.params.id, transformed.id, patch);
+          applied = true;
+        }
+      }
+    }
+    res.json({
+      ok: true,
+      applied,
+      personaId: result.personaId,
+      personaName: result.personaName,
+      adjustments: result.adjustments,
+      componentCount: result.componentCount,
+      adjustedCount: result.adjustedCount,
+      skippedCount: result.skippedCount,
+      summary: result.summary,
+      report: formatPersonaApplicationReport(result),
+    });
+  }),
+);
+
+// --- Motion Coach endpoint ---
+
+agentRouter.get(
+  "/projects/:id/coach",
+  runAsync(async (req: Request, res: Response) => {
+    const spec = getProjectSpec(req.params.id);
+    if (!spec) {
+      res.status(404).json({ error: "project not found" });
+      return;
+    }
+    const result = coachMotion(spec);
+    res.json({
+      ok: true,
+      proficiency: result.proficiency,
+      proficiencyReason: result.proficiencyReason,
+      narrations: result.narrations,
+      suggestions: result.suggestions,
+      lessons: result.lessons,
+      summary: result.summary,
+      report: formatCoachReport(result),
+    });
+  }),
+);
+
+// --- Motion Genome endpoint ---
+
+agentRouter.get(
+  "/projects/:id/genome",
+  runAsync(async (req: Request, res: Response) => {
+    const spec = getProjectSpec(req.params.id);
+    if (!spec) {
+      res.status(404).json({ error: "project not found" });
+      return;
+    }
+    const result = analyzeGenome(spec);
+    res.json({
+      ok: true,
+      componentCount: result.componentCount,
+      diversityScore: result.diversityScore,
+      inbreedingCoefficient: result.inbreedingCoefficient,
+      dimensions: result.dimensions,
+      tree: result.tree,
+      familyCount: result.familyCount,
+      isMonoculture: result.isMonoculture,
+      monocultureAxes: result.monocultureAxes,
+      suggestions: result.suggestions,
+      summary: result.summary,
+      report: formatGenomeReport(result),
+    });
+  }),
+);
+
+// --- Motion Forecast endpoint ---
+
+agentRouter.get(
+  "/projects/:id/forecast",
+  runAsync(async (req: Request, res: Response) => {
+    const spec = getProjectSpec(req.params.id);
+    if (!spec) {
+      res.status(404).json({ error: "project not found" });
+      return;
+    }
+    const result = forecastMotion(spec);
+    res.json({
+      ok: true,
+      componentCount: result.componentCount,
+      trends: result.trends,
+      missingAxes: result.missingAxes,
+      nextMoves: result.nextMoves,
+      risks: result.risks,
+      projectedFinalForm: result.projectedFinalForm,
+      summary: result.summary,
+      report: formatForecastReport(result),
+    });
+  }),
+);
+
+// --- Motion Negotiation endpoints ---
+
+agentRouter.get(
+  "/constraint-profiles",
+  runAsync(async (_req: Request, res: Response) => {
+    const profiles = listConstraintProfiles();
+    res.json({
+      ok: true,
+      count: profiles.length,
+      profiles: profiles.map((p) => ({
+        name: p.name,
+        maxDurationMs: p.maxDurationMs,
+        minDurationMs: p.minDurationMs,
+        maxDisplacementPx: p.maxDisplacementPx,
+        maxRotationDeg: p.maxRotationDeg,
+        maxScale: p.maxScale,
+        maxOpacityDelta: p.maxOpacityDelta,
+        forbiddenEasings: p.forbiddenEasings,
+        preferredEasings: p.preferredEasings,
+        maxLoops: p.maxLoops,
+        maxConcurrentAnimations: p.maxConcurrentAnimations,
+      })),
+    });
+  }),
+);
+
+const NegotiateSchema = z.object({
+  intent: z.string().min(1),
+  profile: z.string().optional().default("vestibular-safe"),
+  apply: z.boolean().optional().default(false),
+});
+
+agentRouter.post(
+  "/projects/:id/negotiate",
+  validate(NegotiateSchema),
+  runAsync(async (req: Request, res: Response) => {
+    const input = validated<z.infer<typeof NegotiateSchema>>(req);
+    const spec = getProjectSpec(req.params.id);
+    if (!spec) {
+      res.status(404).json({ error: "project not found" });
+      return;
+    }
+    const profile = getConstraintProfile(input.profile) ?? CONSTRAINT_PROFILES["vestibular-safe"];
+    const result = negotiateIntent(input.intent, spec, profile);
+
+    // Optionally persist the negotiated changes to the spec.
+    let applied = false;
+    if (input.apply && result.negotiatedSpec.components.length > 0) {
+      for (const negotiated of result.negotiatedSpec.components) {
+        const existing = spec.components.find((c) => c.id === negotiated.id);
+        if (existing) {
+          const patch: Record<string, unknown> = {};
+          if (existing.durationMs !== negotiated.durationMs) patch.durationMs = negotiated.durationMs;
+          if (existing.delayMs !== negotiated.delayMs) patch.delayMs = negotiated.delayMs;
+          if (existing.iterationCount !== negotiated.iterationCount) patch.iterationCount = negotiated.iterationCount;
+          if (existing.easing !== negotiated.easing) patch.easing = negotiated.easing;
+          if (existing.keyframes !== negotiated.keyframes) patch.keyframes = negotiated.keyframes;
+          if (Object.keys(patch).length > 0) {
+            patchComponent(req.params.id, negotiated.id, patch);
+            applied = true;
+          }
+        }
+      }
+    }
+
+    res.json({
+      ok: true,
+      applied,
+      intent: result.intent,
+      parsedIntent: result.parsedIntent,
+      constraintProfile: {
+        name: result.constraintProfile.name,
+        maxDurationMs: result.constraintProfile.maxDurationMs,
+        minDurationMs: result.constraintProfile.minDurationMs,
+        maxDisplacementPx: result.constraintProfile.maxDisplacementPx,
+        maxRotationDeg: result.constraintProfile.maxRotationDeg,
+        maxScale: result.constraintProfile.maxScale,
+        maxOpacityDelta: result.constraintProfile.maxOpacityDelta,
+        forbiddenEasings: result.constraintProfile.forbiddenEasings,
+        preferredEasings: result.constraintProfile.preferredEasings,
+        maxLoops: result.constraintProfile.maxLoops,
+        maxConcurrentAnimations: result.constraintProfile.maxConcurrentAnimations,
+      },
+      tradeoffs: result.tradeoffs,
+      complianceScore: result.complianceScore,
+      intentFidelityScore: result.intentFidelityScore,
+      intentWasCompatible: result.intentWasCompatible,
+      summary: result.summary,
+      report: formatNegotiationReport(result),
+    });
+  }),
+);
+
+// --- Motion Remix endpoints ---
+
+agentRouter.get(
+  "/remix-strategies",
+  runAsync(async (_req: Request, res: Response) => {
+    const strategies = listRemixStrategies();
+    res.json({
+      ok: true,
+      count: strategies.length,
+      strategies,
+    });
+  }),
+);
+
+const RemixSchema = z.object({
+  strategy: z.enum(["shuffle", "mirror", "invert", "swap", "cascade", "scatter", "hybridize", "rephrase"]).default("shuffle"),
+  seed: z.number().int().optional(),
+  apply: z.boolean().optional().default(false),
+});
+
+agentRouter.post(
+  "/projects/:id/remix",
+  validate(RemixSchema),
+  runAsync(async (req: Request, res: Response) => {
+    const input = validated<z.infer<typeof RemixSchema>>(req);
+    const spec = getProjectSpec(req.params.id);
+    if (!spec) {
+      res.status(404).json({ error: "project not found" });
+      return;
+    }
+    const seed = input.seed ?? Date.now();
+    const result = remixMotion(spec, input.strategy as RemixStrategy, seed);
+
+    // Optionally persist the remixed changes to the spec.
+    let applied = false;
+    if (input.apply && result.remixedSpec.components.length > 0) {
+      for (const remixed of result.remixedSpec.components) {
+        const existing = spec.components.find((c) => c.id === remixed.id);
+        if (existing) {
+          const patch: Record<string, unknown> = {};
+          if (existing.durationMs !== remixed.durationMs) patch.durationMs = remixed.durationMs;
+          if (existing.delayMs !== remixed.delayMs) patch.delayMs = remixed.delayMs;
+          if (existing.iterationCount !== remixed.iterationCount) patch.iterationCount = remixed.iterationCount;
+          if (existing.direction !== remixed.direction) patch.direction = remixed.direction;
+          if (existing.easing !== remixed.easing) patch.easing = remixed.easing;
+          if (existing.keyframes !== remixed.keyframes) patch.keyframes = remixed.keyframes;
+          if (existing.name !== remixed.name) patch.name = remixed.name;
+          if (existing.orderIndex !== remixed.orderIndex) patch.orderIndex = remixed.orderIndex;
+          if (Object.keys(patch).length > 0) {
+            patchComponent(req.params.id, remixed.id, patch);
+            applied = true;
+          }
+        }
+      }
+    }
+
+    res.json({
+      ok: true,
+      applied,
+      strategy: result.strategy,
+      seed: result.seed,
+      sourceComponentCount: result.sourceComponentCount,
+      remixComponentCount: result.remixComponentCount,
+      changeCount: result.changes.length,
+      changes: result.changes,
+      summary: result.summary,
+      report: formatRemixReport(result),
     });
   }),
 );
