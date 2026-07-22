@@ -911,6 +911,207 @@ const PATTERNS: CompositionPattern[] = [
     },
   },
 
+  // --- Motion persona composition ---
+  {
+    name: "motion-persona-detect",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      // Detection-only requests — list personas or identify the current style.
+      if (has(msg, "list personas", "what personas", "available personas", "detect persona", "what style", "what design style", "identify the style", "which persona", "what design language")) {
+        return [
+          {
+            tool: "list_personas",
+            args: { projectId: ctx.projectId },
+            reason: "List all available motion personas",
+          },
+          {
+            tool: "detect_persona",
+            args: { projectId: ctx.projectId },
+            reason: "Score the project against every persona and identify the closest match",
+          },
+        ];
+      }
+      return null;
+    },
+  },
+  {
+    name: "motion-persona-apply",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      // Apply a specific named persona. Match the persona id against keywords.
+      const personaTriggers: Array<{ id: string; keywords: string[] }> = [
+        { id: "bauhaus", keywords: ["bauhaus", "geometric primary", "form follows function"] },
+        { id: "apple-hig", keywords: ["apple", "hig", "ios style", "macos style", "apple style"] },
+        { id: "material", keywords: ["material design", "material style", "android style"] },
+        { id: "brutalist", keywords: ["brutalist", "raw style", "jarring"] },
+        { id: "memphis", keywords: ["memphis", "playful style", "postmodern"] },
+        { id: "art-deco", keywords: ["art deco", "deco style", "geometric luxury"] },
+        { id: "swiss", keywords: ["swiss style", "international typographic", "grid discipline"] },
+        { id: "vaporwave", keywords: ["vaporwave", "vhs style", "retrofuturist", "nostalgic style"] },
+      ];
+      if (!has(msg, "apply persona", "apply the", "make it", "style it as", "redesign as", "convert to", "transform to", "give it a", "give the project a")) return null;
+      for (const trigger of personaTriggers) {
+        if (has(msg, ...trigger.keywords)) {
+          return [
+            {
+              tool: "apply_persona",
+              args: { projectId: ctx.projectId, personaId: trigger.id, apply: true },
+              reason: `Apply the ${trigger.id} persona across the project`,
+            },
+          ];
+        }
+      }
+      return null;
+    },
+  },
+
+  // --- Motion coach composition ---
+  {
+    name: "motion-coach",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      // Detect coaching / explanation / teaching requests.
+      if (has(msg, "coach me", "teach me", "explain", "what does this do", "what is this animation", "why does this work", "what principle", "what should i try", "how can i improve", "what should i learn", "lesson", "tutorial", "walk me through", "help me understand")) {
+        return [
+          {
+            tool: "coach_motion",
+            args: { projectId: ctx.projectId },
+            reason: "Generate a coaching pass: narrate each component, suggest skill-tiered next steps, and build a lesson plan anchored to real components",
+          },
+        ];
+      }
+      return null;
+    },
+  },
+
+  // --- Motion genome composition ---
+  {
+    name: "motion-genome",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      // Detect population-genetics / diversity / monoculture requests.
+      if (has(msg, "genome", "genetic diversity", "diversity of", "how diverse", "monoculture", "inbreeding", "evolutionary tree", "genealogy of the project", "population", "are my components too similar", "everything looks the same", "too repetitive")) {
+        return [
+          {
+            tool: "analyze_genome",
+            args: { projectId: ctx.projectId },
+            reason: "Analyze project-level population genetics: diversity, inbreeding coefficient, evolutionary tree, monoculture detection, and diversification suggestions",
+          },
+        ];
+      }
+      return null;
+    },
+  },
+
+  // --- Motion forecast composition ---
+  {
+    name: "motion-forecast",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      // Detect forecasting / trend / prediction requests.
+      if (has(msg, "forecast", "predict", "trend", "where is this going", "where is the project going", "what should i add next", "what's next", "what should come next", "project the future", "trajectory", "extrapolate", "what am i missing", "what haven't i tried")) {
+        return [
+          {
+            tool: "forecast_motion",
+            args: { projectId: ctx.projectId },
+            reason: "Project current trends forward, flag monoculture risks, identify missing axes, and recommend ranked next moves with expected diversity gain",
+          },
+        ];
+      }
+      return null;
+    },
+  },
+
+  // --- Motion negotiation composition ---
+  {
+    name: "motion-negotiate",
+    match: (msg, ctx) => {
+      // Detect requests that involve extreme intent + constraint awareness.
+      // Triggered when the user mentions accessibility constraints AND an
+      // extreme motion descriptor, or when they explicitly say "negotiate",
+      // "compromise", "safe version", "accessible version".
+      const wantsNegotiation = has(
+        msg,
+        "negotiate",
+        "compromise",
+        "safe version",
+        "accessible version",
+        "vestibular safe",
+        "photosensitivity safe",
+        "cognitive safe",
+        "reduced motion",
+        "make it safe",
+        "make it accessible",
+        "but safe",
+        "but accessible",
+      );
+      const hasExtreme = has(
+        msg,
+        "really fast",
+        "very fast",
+        "extreme",
+        "intense",
+        "rainbow",
+        "neon",
+        "infinite",
+        "lots of",
+        "maximalist",
+        "explosive",
+      );
+      if (!wantsNegotiation && !hasExtreme) return null;
+
+      // Determine the profile from the message.
+      let profile = "vestibular-safe";
+      if (has(msg, "photosensitivity", "seizure", "flashing", "photosensitive")) profile = "photosensitivity-safe";
+      else if (has(msg, "cognitive", "overwhelm", "overload", "attention")) profile = "cognitive-safe";
+      else if (has(msg, "reduced motion", "reduce motion", "prefers reduced")) profile = "reduced-motion";
+      else if (has(msg, "vestibular", "dizziness", "motion sickness")) profile = "vestibular-safe";
+
+      // Use the original message as the intent.
+      return [
+        {
+          tool: "negotiate_intent",
+          args: { projectId: ctx.projectId, intent: msg, profile, apply: false },
+          reason: `Negotiate the user's intent against the ${profile} constraint profile and propose a compromise that preserves creative direction while satisfying accessibility constraints`,
+        },
+      ];
+    },
+  },
+
+  // --- Motion remix composition ---
+  {
+    name: "motion-remix",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      // Detect remix requests.
+      if (!has(msg, "remix", "recombine", "reshuffle", "different take", "another take", "reimagine", "reinterpret", "fresh take", "shuffle it", "mix it up")) {
+        return null;
+      }
+
+      // Detect which strategy the user wants.
+      let strategy = "shuffle";
+      if (has(msg, "mirror", "flip", "reflect")) strategy = "mirror";
+      else if (has(msg, "invert", "opposite", "reverse intensity")) strategy = "invert";
+      else if (has(msg, "swap", "exchange easings")) strategy = "swap";
+      else if (has(msg, "cascade", "stagger", "waterfall")) strategy = "cascade";
+      else if (has(msg, "scatter", "randomize timing", "loose")) strategy = "scatter";
+      else if (has(msg, "hybridize", "cross-pollinate", "crossbreed")) strategy = "hybridize";
+      else if (has(msg, "rephrase", "change mood", "change feel", "different mood")) strategy = "rephrase";
+      else if (has(msg, "shuffle", "reorder", "rearrange")) strategy = "shuffle";
+
+      // Determine whether to apply or dry-run.
+      const apply = has(msg, "apply", "do it", "make it so", "go ahead");
+
+      return [
+        {
+          tool: "remix_motion",
+          args: { projectId: ctx.projectId, strategy, apply },
+          reason: `Remix the project using the ${strategy} strategy to produce a fresh interpretation of the same motion vocabulary`,
+        },
+      ];
+    },
+  },
+
   // --- Motion storytelling composition ---
   {
     name: "motion-storytelling",
