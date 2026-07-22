@@ -403,7 +403,172 @@ interface DialectData {
   summary: string;
 }
 
-type Section = "critique" | "dna" | "variations" | "style" | "story" | "lineage" | "synthesis" | "auto-fix" | "persona" | "coach" | "genome" | "forecast" | "negotiate" | "remix" | "dialect" | "emotion" | "rhythm" | "narrative";
+interface ComponentCostData {
+  componentId: string;
+  componentName: string;
+  composite: number;
+  paint: number;
+  layout: number;
+  loop: number;
+  overlap: number;
+  total: number;
+  costlyProperties: string[];
+  jankRisk: string;
+}
+
+interface OverlapWindowData {
+  startMs: number;
+  endMs: number;
+  concurrentCount: number;
+  componentIds: string[];
+  severity: string;
+}
+
+interface GpuLayerData {
+  promotedLayers: number;
+  estimatedMemoryKb: number;
+  recommendWillChange: boolean;
+  willChangeCandidates: string[];
+}
+
+interface ProfilerRecommendationData {
+  rank: number;
+  componentId: string;
+  componentName: string;
+  title: string;
+  description: string;
+  estimatedSaving: number;
+  targetProperty: string;
+  suggestedValue: string;
+}
+
+interface ProfilerData {
+  componentCount: number;
+  totalCost: number;
+  averageCost: number;
+  frameBudgetPercent: number;
+  fitsFrameBudget: boolean;
+  components: ComponentCostData[];
+  overlaps: OverlapWindowData[];
+  gpu: GpuLayerData;
+  recommendations: ProfilerRecommendationData[];
+  grade: string;
+  summary: string;
+}
+
+interface SemanticTagData {
+  componentId: string;
+  componentName: string;
+  role: string;
+  confidence: number;
+  secondaryRole?: string;
+  signals: string[];
+  reasoning: string;
+}
+
+interface CuratedCollectionData {
+  role: string;
+  name: string;
+  description: string;
+  componentIds: string[];
+  componentNames: string[];
+  isComplete: boolean;
+  idealCount: number;
+}
+
+interface RedundancyPairData {
+  componentAId: string;
+  componentAName: string;
+  componentBId: string;
+  componentBName: string;
+  similarity: number;
+  sharedTraits: string[];
+  suggestion: string;
+  reason: string;
+}
+
+interface CoverageMapData {
+  role: string;
+  count: number;
+  targetCount: number;
+  status: string;
+  description: string;
+}
+
+interface CurationRecommendationData {
+  rank: number;
+  type: string;
+  role: string;
+  title: string;
+  description: string;
+  componentIds: string[];
+  benefit: string;
+}
+
+interface CuratorData {
+  componentCount: number;
+  tags: SemanticTagData[];
+  collections: CuratedCollectionData[];
+  redundancies: RedundancyPairData[];
+  coverage: CoverageMapData[];
+  recommendations: CurationRecommendationData[];
+  curationScore: number;
+  summary: string;
+}
+
+interface TimingPhilosophyData {
+  durationPalette: { label: string; ms: number; usage: string }[];
+  staggerIntervalMs: number;
+  executionStyle: string;
+  description: string;
+}
+
+interface EasingPaletteEntryData {
+  easing: string;
+  ratio: number;
+  whenToUse: string;
+}
+
+interface RhythmPatternData {
+  pattern: string;
+  description: string;
+  tempoBpm: number;
+  usesRests: boolean;
+}
+
+interface AccessibilityStanceData {
+  level: string;
+  maxDurationMs: number;
+  allowsInfiniteLoops: boolean;
+  avoidedEasings: string[];
+  guardrails: string[];
+  description: string;
+}
+
+interface StrategicRecommendationData {
+  rank: number;
+  category: string;
+  title: string;
+  description: string;
+  currentState: string;
+  recommendedState: string;
+  impact: string;
+}
+
+interface StrategistData {
+  archetype: string;
+  archetypeConfidence: number;
+  archetypeEvidence: string[];
+  timing: TimingPhilosophyData;
+  easingPalette: EasingPaletteEntryData[];
+  rhythm: RhythmPatternData;
+  accessibility: AccessibilityStanceData;
+  recommendations: StrategicRecommendationData[];
+  coherenceScore: number;
+  summary: string;
+}
+
+type Section = "critique" | "dna" | "variations" | "style" | "story" | "lineage" | "synthesis" | "auto-fix" | "persona" | "coach" | "genome" | "forecast" | "negotiate" | "remix" | "dialect" | "profiler" | "curator" | "strategist" | "emotion" | "rhythm" | "narrative";
 
 const SECTIONS: { id: Section; label: string }[] = [
   { id: "critique", label: "Critique" },
@@ -421,6 +586,9 @@ const SECTIONS: { id: Section; label: string }[] = [
   { id: "negotiate", label: "Negotiate" },
   { id: "remix", label: "Remix" },
   { id: "dialect", label: "Dialect" },
+  { id: "profiler", label: "Profiler" },
+  { id: "curator", label: "Curator" },
+  { id: "strategist", label: "Strategist" },
   { id: "emotion", label: "Emotion" },
   { id: "rhythm", label: "Rhythm" },
   { id: "narrative", label: "Narrative" },
@@ -470,6 +638,9 @@ export function MotionIntelligencePanel() {
   const [remixSeed, setRemixSeed] = useState<string>("");
   const [dialect, setDialect] = useState<DialectData | null>(null);
   const [dialectTarget, setDialectTarget] = useState<string>("mobile");
+  const [profiler, setProfiler] = useState<ProfilerData | null>(null);
+  const [curator, setCurator] = useState<CuratorData | null>(null);
+  const [strategist, setStrategist] = useState<StrategistData | null>(null);
   const [selectedComponentId, setSelectedComponentId] = useState<string>("");
   const [sourceComponentId, setSourceComponentId] = useState<string>("");
   const [targetComponentId, setTargetComponentId] = useState<string>("");
@@ -942,6 +1113,60 @@ export function MotionIntelligencePanel() {
       setLoading(null);
     }
   }, [projectId, dialectTarget, loadProject]);
+
+  const runProfiler = useCallback(async () => {
+    if (!projectId) return;
+    setLoading("profiler");
+    try {
+      const resp = await fetch(`/api/projects/${projectId}/profile`, {
+        headers: getAuthHeaders(),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        setProfiler(data);
+      }
+    } catch {
+      // offline fallback
+    } finally {
+      setLoading(null);
+    }
+  }, [projectId]);
+
+  const runCurator = useCallback(async () => {
+    if (!projectId) return;
+    setLoading("curator");
+    try {
+      const resp = await fetch(`/api/projects/${projectId}/curator`, {
+        headers: getAuthHeaders(),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        setCurator(data);
+      }
+    } catch {
+      // offline fallback
+    } finally {
+      setLoading(null);
+    }
+  }, [projectId]);
+
+  const runStrategist = useCallback(async () => {
+    if (!projectId) return;
+    setLoading("strategist");
+    try {
+      const resp = await fetch(`/api/projects/${projectId}/strategy`, {
+        headers: getAuthHeaders(),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        setStrategist(data);
+      }
+    } catch {
+      // offline fallback
+    } finally {
+      setLoading(null);
+    }
+  }, [projectId]);
 
   const runAnalysis = useCallback(async (type: "emotion" | "rhythm" | "narrative") => {
     if (!projectId) return;
@@ -2439,6 +2664,206 @@ export function MotionIntelligencePanel() {
               </div>
             ) : (
               <p className="text-[10px] text-gray-600">Different design contexts speak different motion dialects: web favors medium durations with smooth easings, mobile favors shorter snappy transitions, gaming favors longer bouncy sequences, data-viz favors precise linear state changes, presentation favors dramatic reveals, kiosk favors ambient loops, accessibility favors minimal reduced motion. Translate between dialects to adapt a project for a new context.</p>
+            )}
+          </div>
+        )}
+
+        {/* --- Profiler --- */}
+        {section === "profiler" && (
+          <div className="px-3 py-2 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium">Motion Profiler</span>
+              <button
+                onClick={() => runProfiler()}
+                disabled={loading === "profiler" || !projectId}
+                className="px-2 py-1 text-[10px] bg-panel2 hover:bg-panel3 rounded disabled:opacity-50"
+              >
+                {loading === "profiler" ? "Profiling..." : "Profile"}
+              </button>
+            </div>
+            <p className="text-[10px] text-gray-600">Quantitative performance cost estimation — GPU layers, paint complexity, jank risk, frame budget, and optimization recommendations.</p>
+            {profiler ? (
+              <div className="bg-panel2 rounded p-2 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg font-bold">Grade: {profiler.grade}</span>
+                  <span className="text-[10px] text-gray-400">Frame budget: {profiler.frameBudgetPercent}%</span>
+                </div>
+                <p className="text-[10px] text-gray-500">{profiler.summary}</p>
+                {profiler.components.length > 0 && (
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-medium text-gray-400">Component Costs</span>
+                    {profiler.components.map((c) => (
+                      <div key={c.componentId} className="text-[10px] flex justify-between">
+                        <span>{c.componentName}</span>
+                        <span className={c.jankRisk === "high" ? "text-red-500" : c.jankRisk === "medium" ? "text-yellow-600" : "text-gray-400"}>
+                          {c.total} (jank: {c.jankRisk})
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {profiler.recommendations.length > 0 && (
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-medium text-gray-400">Recommendations</span>
+                    {profiler.recommendations.slice(0, 5).map((r) => (
+                      <div key={r.rank} className="text-[10px] text-gray-500">
+                        <span className="text-gray-300">{r.rank}. {r.componentName}:</span> {r.title} (saves ~{r.estimatedSaving})
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <button
+                  onClick={() => projectId && send(projectId, "Profile the project performance cost and give me optimization recommendations")}
+                  className="w-full text-left px-2 py-1 text-[10px] bg-panel2 hover:bg-panel3 rounded text-gray-400"
+                >
+                  Ask Agent to profile and optimize
+                </button>
+              </div>
+            ) : (
+              <p className="text-[10px] text-gray-600">Click Profile to estimate the GPU, paint, layout, and jank cost of every component.</p>
+            )}
+          </div>
+        )}
+
+        {/* --- Curator --- */}
+        {section === "curator" && (
+          <div className="px-3 py-2 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium">Motion Curator</span>
+              <button
+                onClick={() => runCurator()}
+                disabled={loading === "curator" || !projectId}
+                className="px-2 py-1 text-[10px] bg-panel2 hover:bg-panel3 rounded disabled:opacity-50"
+              >
+                {loading === "curator" ? "Curating..." : "Curate"}
+              </button>
+            </div>
+            <p className="text-[10px] text-gray-600">Semantic grouping — tags components by functional role (entrance, ambient, interactive, etc.), detects redundancy, and builds a coverage map.</p>
+            {curator ? (
+              <div className="bg-panel2 rounded p-2 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg font-bold">{curator.curationScore}/100</span>
+                  <span className="text-[10px] text-gray-400">curation score</span>
+                </div>
+                <p className="text-[10px] text-gray-500">{curator.summary}</p>
+                {curator.collections.length > 0 && (
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-medium text-gray-400">Collections</span>
+                    {curator.collections.map((c) => (
+                      <div key={c.role} className="text-[10px] flex justify-between">
+                        <span>{c.name}</span>
+                        <span className={c.isComplete ? "text-green-600" : "text-yellow-600"}>{c.componentIds.length}/{c.idealCount}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {curator.redundancies.length > 0 && (
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-medium text-gray-400">Redundancies ({curator.redundancies.length})</span>
+                    {curator.redundancies.slice(0, 3).map((r, i) => (
+                      <div key={i} className="text-[10px] text-gray-500">
+                        {r.componentAName} ↔ {r.componentBName} ({Math.round(r.similarity * 100)}%) — {r.suggestion}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="space-y-1">
+                  <span className="text-[10px] font-medium text-gray-400">Coverage Map</span>
+                  {curator.coverage.map((c) => (
+                    <div key={c.role} className="text-[10px] flex justify-between">
+                      <span>{c.role}</span>
+                      <span className={c.status === "balanced" ? "text-green-600" : c.status === "missing" ? "text-red-500" : "text-yellow-600"}>
+                        {c.count}/{c.targetCount} [{c.status}]
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={() => projectId && send(projectId, "Curate the project — tag components by role, detect redundancy, and suggest what to add or merge")}
+                  className="w-full text-left px-2 py-1 text-[10px] bg-panel2 hover:bg-panel3 rounded text-gray-400"
+                >
+                  Ask Agent to curate and organize
+                </button>
+              </div>
+            ) : (
+              <p className="text-[10px] text-gray-600">Click Curate to organize components into thematic collections and detect redundancy.</p>
+            )}
+          </div>
+        )}
+
+        {/* --- Strategist --- */}
+        {section === "strategist" && (
+          <div className="px-3 py-2 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium">Motion Strategist</span>
+              <button
+                onClick={() => runStrategist()}
+                disabled={loading === "strategist" || !projectId}
+                className="px-2 py-1 text-[10px] bg-panel2 hover:bg-panel3 rounded disabled:opacity-50"
+              >
+                {loading === "strategist" ? "Analyzing..." : "Strategize"}
+              </button>
+            </div>
+            <p className="text-[10px] text-gray-600">Project-level motion strategy — detects archetype, recommends timing philosophy, easing palette, rhythm pattern, and accessibility stance.</p>
+            {strategist ? (
+              <div className="bg-panel2 rounded p-2 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold">{strategist.archetype}</span>
+                  <span className="text-[10px] text-gray-400">{Math.round(strategist.archetypeConfidence * 100)}% confidence</span>
+                  <span className="text-[10px] text-gray-400 ml-auto">Coherence: {strategist.coherenceScore}/100</span>
+                </div>
+                <p className="text-[10px] text-gray-500">{strategist.summary}</p>
+                <div className="space-y-1">
+                  <span className="text-[10px] font-medium text-gray-400">Timing Philosophy</span>
+                  <p className="text-[10px] text-gray-500">{strategist.timing.description}</p>
+                  <div className="text-[10px] text-gray-400">
+                    Execution: {strategist.timing.executionStyle} | Stagger: {strategist.timing.staggerIntervalMs}ms
+                  </div>
+                  {strategist.timing.durationPalette.map((d) => (
+                    <div key={d.label} className="text-[10px] text-gray-500 flex justify-between">
+                      <span>{d.label}</span>
+                      <span>{d.ms}ms — {d.usage}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[10px] font-medium text-gray-400">Easing Palette</span>
+                  {strategist.easingPalette.map((e) => (
+                    <div key={e.easing} className="text-[10px] text-gray-500 flex justify-between">
+                      <span>{e.easing}</span>
+                      <span>{Math.round(e.ratio * 100)}%</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[10px] font-medium text-gray-400">Rhythm & Accessibility</span>
+                  <div className="text-[10px] text-gray-500">
+                    Rhythm: {strategist.rhythm.pattern} ({strategist.rhythm.tempoBpm} BPM)
+                  </div>
+                  <div className="text-[10px] text-gray-500">
+                    A11y: {strategist.accessibility.level} | Max: {strategist.accessibility.maxDurationMs}ms | Loops: {strategist.accessibility.allowsInfiniteLoops ? "yes" : "no"}
+                  </div>
+                </div>
+                {strategist.recommendations.length > 0 && (
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-medium text-gray-400">Recommendations</span>
+                    {strategist.recommendations.map((r) => (
+                      <div key={r.rank} className="text-[10px] text-gray-500">
+                        <span className="text-gray-300">{r.rank}. [{r.category}] {r.title}</span>
+                        <br />{r.currentState} → {r.recommendedState}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <button
+                  onClick={() => projectId && send(projectId, "Analyze the project and recommend a holistic motion strategy — archetype, timing, easing palette, rhythm, and accessibility stance")}
+                  className="w-full text-left px-2 py-1 text-[10px] bg-panel2 hover:bg-panel3 rounded text-gray-400"
+                >
+                  Ask Agent to strategize
+                </button>
+              </div>
+            ) : (
+              <p className="text-[10px] text-gray-600">Click Strategize to analyze the project and get a holistic motion strategy recommendation.</p>
             )}
           </div>
         )}
