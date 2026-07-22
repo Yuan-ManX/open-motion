@@ -1112,6 +1112,41 @@ const PATTERNS: CompositionPattern[] = [
     },
   },
 
+  // --- Motion dialect composition ---
+  {
+    name: "motion-dialect",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      // Detect dialect translation requests.
+      if (!has(msg, "translate", "dialect", "for mobile", "for web", "for gaming", "for data", "for presentation", "for kiosk", "mobile version", "web version", "gaming version", "make it mobile", "make it gaming", "convert to")) {
+        return null;
+      }
+
+      // Detect which target dialect the user wants.
+      let targetDialect = "";
+      if (has(msg, "mobile", "phone", "ios", "android")) targetDialect = "mobile";
+      else if (has(msg, "gaming", "game", "game-ready")) targetDialect = "gaming";
+      else if (has(msg, "data-viz", "data viz", "chart", "dashboard")) targetDialect = "data-viz";
+      else if (has(msg, "presentation", "slideshow", "deck", "slide")) targetDialect = "presentation";
+      else if (has(msg, "kiosk", "signage", "display")) targetDialect = "kiosk";
+      else if (has(msg, "accessibility", "reduced motion", "a11y")) targetDialect = "accessibility";
+      else if (has(msg, "web", "website", "browser")) targetDialect = "web";
+
+      if (!targetDialect) return null;
+
+      // Determine whether to apply or dry-run.
+      const apply = has(msg, "apply", "do it", "make it so", "go ahead", "convert");
+
+      return [
+        {
+          tool: "translate_dialect",
+          args: { projectId: ctx.projectId, sourceDialect: "web", targetDialect, apply },
+          reason: `Translate the project's motion vocabulary from web to ${targetDialect} dialect, adjusting duration ranges, easing preferences, intensity, loop behavior, and stagger patterns`,
+        },
+      ];
+    },
+  },
+
   // --- Motion storytelling composition ---
   {
     name: "motion-storytelling",
