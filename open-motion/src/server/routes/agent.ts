@@ -131,6 +131,13 @@ import {
   listRemixStrategies,
   type RemixStrategy,
 } from "../../agent/motionRemix.js";
+import {
+  translateDialect,
+  formatDialectReport,
+  listDialects,
+  detectDialect,
+  type DialectId,
+} from "../../agent/motionDialect.js";
 import { patchComponent } from "../../db/repositories/components.js";
 
 export const agentRouter = Router();
@@ -1761,6 +1768,106 @@ agentRouter.post(
       changes: result.changes,
       summary: result.summary,
       report: formatRemixReport(result),
+    });
+  }),
+);
+
+// --- Motion Dialect endpoints ---
+
+agentRouter.get(
+  "/dialects",
+  runAsync(async (_req: Request, res: Response) => {
+    const dialects = listDialects();
+    res.json({
+      ok: true,
+      count: dialects.length,
+      dialects: dialects.map((d) => ({
+        id: d.id,
+        name: d.name,
+        description: d.description,
+        durationRange: d.durationRange,
+        preferredEasings: d.preferredEasings,
+        avoidedEasings: d.avoidedEasings,
+        intensityMultiplier: d.intensityMultiplier,
+        favorsInfiniteLoops: d.favorsInfiniteLoops,
+        defaultLoopCount: d.defaultLoopCount,
+        staggerInterval: d.staggerInterval,
+        maxConcurrency: d.maxConcurrency,
+        signatures: d.signatures,
+      })),
+    });
+  }),
+);
+
+agentRouter.get(
+  "/projects/:id/dialect-detection",
+  runAsync(async (req: Request, res: Response) => {
+    const spec = getProjectSpec(req.params.id);
+    if (!spec) {
+      res.status(404).json({ error: "project not found" });
+      return;
+    }
+    const result = detectDialect(spec);
+    res.json({
+      ok: true,
+      bestMatch: result.bestMatch,
+      scores: result.scores,
+    });
+  }),
+);
+
+const TranslateDialectSchema = z.object({
+  sourceDialect: z.string().optional().default("web"),
+  targetDialect: z.enum(["web", "mobile", "gaming", "data-viz", "presentation", "kiosk", "accessibility"]),
+  apply: z.boolean().optional().default(false),
+});
+
+agentRouter.post(
+  "/projects/:id/translate-dialect",
+  validate(TranslateDialectSchema),
+  runAsync(async (req: Request, res: Response) => {
+    const input = validated<z.infer<typeof TranslateDialectSchema>>(req);
+    const spec = getProjectSpec(req.params.id);
+    if (!spec) {
+      res.status(404).json({ error: "project not found" });
+      return;
+    }
+    const validDialects: DialectId[] = ["web", "mobile", "gaming", "data-viz", "presentation", "kiosk", "accessibility"];
+    const finalSourceId = validDialects.includes(input.sourceDialect as DialectId)
+      ? (input.sourceDialect as DialectId)
+      : detectDialect(spec).bestMatch;
+    const result = translateDialect(spec, finalSourceId, input.targetDialect as DialectId);
+
+    // Optionally persist the translated changes to the spec.
+    let applied = false;
+    if (input.apply && result.translatedSpec.components.length > 0) {
+      for (const translated of result.translatedSpec.components) {
+        const existing = spec.components.find((c) => c.id === translated.id);
+        if (existing) {
+          const patch: Record<string, unknown> = {};
+          if (existing.durationMs !== translated.durationMs) patch.durationMs = translated.durationMs;
+          if (existing.delayMs !== translated.delayMs) patch.delayMs = translated.delayMs;
+          if (existing.iterationCount !== translated.iterationCount) patch.iterationCount = translated.iterationCount;
+          if (existing.easing !== translated.easing) patch.easing = translated.easing;
+          if (existing.keyframes !== translated.keyframes) patch.keyframes = translated.keyframes;
+          if (Object.keys(patch).length > 0) {
+            patchComponent(req.params.id, translated.id, patch);
+            applied = true;
+          }
+        }
+      }
+    }
+
+    res.json({
+      ok: true,
+      applied,
+      sourceDialect: result.sourceDialect,
+      targetDialect: result.targetDialect,
+      componentCount: result.componentCount,
+      changeCount: result.changeCount,
+      changes: result.changes,
+      summary: result.summary,
+      report: formatDialectReport(result),
     });
   }),
 );
