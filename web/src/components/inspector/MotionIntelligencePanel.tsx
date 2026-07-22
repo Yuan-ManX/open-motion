@@ -568,7 +568,66 @@ interface StrategistData {
   summary: string;
 }
 
-type Section = "critique" | "dna" | "variations" | "style" | "story" | "lineage" | "synthesis" | "auto-fix" | "persona" | "coach" | "genome" | "forecast" | "negotiate" | "remix" | "dialect" | "profiler" | "curator" | "strategist" | "emotion" | "rhythm" | "narrative";
+interface CriterionResultData {
+  criterion: string;
+  title: string;
+  level: string;
+  status: string;
+  summary: string;
+  violationCount: number;
+}
+
+interface AuditData {
+  componentCount: number;
+  complianceLevel: string;
+  accessibilityScore: number;
+  passed: boolean;
+  criteria: CriterionResultData[];
+  summary: string;
+  violations: { priority: number; severity: string; criterion: string; componentName: string; issue: string; remediation: string }[];
+}
+
+interface ChoreographyActData {
+  index: number;
+  name: string;
+  startMs: number;
+  endMs: number;
+  componentIds: string[];
+  description: string;
+}
+
+interface ChoreographedComponentData {
+  componentId: string;
+  componentName: string;
+  delayMs: number;
+  durationMs: number;
+  act: number;
+  role: string;
+}
+
+interface ChoreographyData {
+  mode: string;
+  totalDurationMs: number;
+  staggerIntervalMs: number;
+  components: ChoreographedComponentData[];
+  acts: ChoreographyActData[];
+  hasRests: boolean;
+  peakMoment: string;
+  summary: string;
+}
+
+interface ExportData {
+  target: string;
+  componentCount: number;
+  fullyCompatible: boolean;
+  compatibilityScore: number;
+  estimatedSizeKb: number;
+  reducedMotionStrategy: string;
+  summary: string;
+  issues: { componentName: string; property: string; issue: string; severity: string; fallback: string }[];
+}
+
+type Section = "critique" | "dna" | "variations" | "style" | "story" | "lineage" | "synthesis" | "auto-fix" | "persona" | "coach" | "genome" | "forecast" | "negotiate" | "remix" | "dialect" | "profiler" | "curator" | "strategist" | "auditor" | "choreographer" | "export" | "emotion" | "rhythm" | "narrative";
 
 const SECTIONS: { id: Section; label: string }[] = [
   { id: "critique", label: "Critique" },
@@ -589,6 +648,9 @@ const SECTIONS: { id: Section; label: string }[] = [
   { id: "profiler", label: "Profiler" },
   { id: "curator", label: "Curator" },
   { id: "strategist", label: "Strategist" },
+  { id: "auditor", label: "Auditor" },
+  { id: "choreographer", label: "Choreo" },
+  { id: "export", label: "Export" },
   { id: "emotion", label: "Emotion" },
   { id: "rhythm", label: "Rhythm" },
   { id: "narrative", label: "Narrative" },
@@ -641,6 +703,11 @@ export function MotionIntelligencePanel() {
   const [profiler, setProfiler] = useState<ProfilerData | null>(null);
   const [curator, setCurator] = useState<CuratorData | null>(null);
   const [strategist, setStrategist] = useState<StrategistData | null>(null);
+  const [auditor, setAuditor] = useState<AuditData | null>(null);
+  const [choreographer, setChoreographer] = useState<ChoreographyData | null>(null);
+  const [choreoMode, setChoreoMode] = useState<string>("cascade");
+  const [exportOpt, setExportOpt] = useState<ExportData | null>(null);
+  const [exportTarget, setExportTarget] = useState<string>("css");
   const [selectedComponentId, setSelectedComponentId] = useState<string>("");
   const [sourceComponentId, setSourceComponentId] = useState<string>("");
   const [targetComponentId, setTargetComponentId] = useState<string>("");
@@ -1167,6 +1234,62 @@ export function MotionIntelligencePanel() {
       setLoading(null);
     }
   }, [projectId]);
+
+  const runAuditor = useCallback(async () => {
+    if (!projectId) return;
+    setLoading("auditor");
+    try {
+      const resp = await fetch(`/api/projects/${projectId}/audit`, { headers: getAuthHeaders() });
+      if (resp.ok) {
+        const data = await resp.json();
+        setAuditor(data);
+      }
+    } catch {
+      // offline fallback
+    } finally {
+      setLoading(null);
+    }
+  }, [projectId]);
+
+  const runChoreographer = useCallback(async () => {
+    if (!projectId) return;
+    setLoading("choreographer");
+    try {
+      const resp = await fetch(`/api/projects/${projectId}/choreograph`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ mode: choreoMode, apply: false }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        setChoreographer(data);
+      }
+    } catch {
+      // offline fallback
+    } finally {
+      setLoading(null);
+    }
+  }, [projectId, choreoMode]);
+
+  const runExport = useCallback(async () => {
+    if (!projectId) return;
+    setLoading("export");
+    try {
+      const resp = await fetch(`/api/projects/${projectId}/optimize-export`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ target: exportTarget }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        setExportOpt(data);
+      }
+    } catch {
+      // offline fallback
+    } finally {
+      setLoading(null);
+    }
+  }, [projectId, exportTarget]);
 
   const runAnalysis = useCallback(async (type: "emotion" | "rhythm" | "narrative") => {
     if (!projectId) return;
@@ -2864,6 +2987,217 @@ export function MotionIntelligencePanel() {
               </div>
             ) : (
               <p className="text-[10px] text-gray-600">Click Strategize to analyze the project and get a holistic motion strategy recommendation.</p>
+            )}
+          </div>
+        )}
+
+        {/* --- Auditor --- */}
+        {section === "auditor" && (
+          <div className="px-3 py-2 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium">Motion Auditor</span>
+              <button
+                onClick={() => runAuditor()}
+                disabled={loading === "auditor" || !projectId}
+                className="px-2 py-1 text-[10px] bg-panel2 hover:bg-panel3 rounded disabled:opacity-50"
+              >
+                {loading === "auditor" ? "Auditing..." : "Audit"}
+              </button>
+            </div>
+            <p className="text-[10px] text-gray-600">WCAG-style accessibility auditing — flash analysis (2.3.1), pause/stop/hide (2.2.2), distraction scoring, cognitive load, motion sickness risk, compliance certificate.</p>
+            {auditor ? (
+              <div className="bg-panel2 rounded p-2 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className={`text-sm font-bold ${auditor.passed ? "text-gray-200" : "text-red-500"}`}>
+                    {auditor.passed ? "PASS" : "FAIL"}
+                  </span>
+                  <span className="text-[10px] text-gray-400">{auditor.complianceLevel}</span>
+                  <span className="text-[10px] text-gray-400 ml-auto">Score: {auditor.accessibilityScore}/100</span>
+                </div>
+                <p className="text-[10px] text-gray-500">{auditor.summary}</p>
+                <div className="text-[10px] text-gray-400">
+                  Components: {auditor.componentCount} | Criteria: {auditor.criteria.length}
+                </div>
+                {auditor.criteria.length > 0 && (
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-medium text-gray-400">Criteria</span>
+                    {auditor.criteria.map((c) => (
+                      <div key={c.criterion} className="text-[10px] text-gray-500 flex justify-between">
+                        <span>{c.criterion} — {c.title}</span>
+                        <span className={c.status === "pass" ? "text-gray-300" : "text-red-500"}>{c.status}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {auditor.violations.length > 0 && (
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-medium text-gray-400">Violations ({auditor.violations.length})</span>
+                    {auditor.violations.slice(0, 8).map((v, i) => (
+                      <div key={i} className="text-[10px] text-gray-500">
+                        <span className={v.severity === "critical" ? "text-red-500" : v.severity === "serious" ? "text-red-400" : "text-gray-300"}>
+                          [{v.severity}] {v.criterion} — {v.componentName}
+                        </span>
+                        <br />{v.issue}
+                        <br /><span className="text-gray-400">Fix: {v.remediation}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <button
+                  onClick={() => projectId && send(projectId, "Audit the project for WCAG accessibility violations — flash, pause/stop/hide, distraction, cognitive load, and motion sickness")}
+                  className="w-full text-left px-2 py-1 text-[10px] bg-panel2 hover:bg-panel3 rounded text-gray-400"
+                >
+                  Ask Agent to audit accessibility
+                </button>
+              </div>
+            ) : (
+              <p className="text-[10px] text-gray-600">Click Audit to produce a formal WCAG compliance report for the project.</p>
+            )}
+          </div>
+        )}
+
+        {/* --- Choreographer --- */}
+        {section === "choreographer" && (
+          <div className="px-3 py-2 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium">Motion Choreographer</span>
+              <button
+                onClick={() => runChoreographer()}
+                disabled={loading === "choreographer" || !projectId}
+                className="px-2 py-1 text-[10px] bg-panel2 hover:bg-panel3 rounded disabled:opacity-50"
+              >
+                {loading === "choreographer" ? "Sequencing..." : "Choreograph"}
+              </button>
+            </div>
+            <p className="text-[10px] text-gray-600">Auto-choreography sequencing — 5 modes (cascade, wave, cluster, climax, symphony) with dependency detection, act structure, and peak moment identification.</p>
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] text-gray-400">Mode:</span>
+              {(["cascade", "wave", "cluster", "climax", "symphony"] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setChoreoMode(m)}
+                  className={`px-1.5 py-0.5 text-[9px] rounded ${choreoMode === m ? "bg-panel3 text-gray-200" : "bg-panel2 text-gray-500"}`}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+            {choreographer ? (
+              <div className="bg-panel2 rounded p-2 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold">{choreographer.mode}</span>
+                  <span className="text-[10px] text-gray-400 ml-auto">{choreographer.totalDurationMs}ms</span>
+                </div>
+                <p className="text-[10px] text-gray-500">{choreographer.summary}</p>
+                <div className="text-[10px] text-gray-400">
+                  Stagger: {choreographer.staggerIntervalMs}ms | Acts: {choreographer.acts.length} | Rests: {choreographer.hasRests ? "yes" : "no"}
+                </div>
+                {choreographer.peakMoment && (
+                  <div className="text-[10px] text-gray-500">
+                    Peak: {choreographer.peakMoment}
+                  </div>
+                )}
+                {choreographer.acts.length > 0 && (
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-medium text-gray-400">Acts</span>
+                    {choreographer.acts.map((a) => (
+                      <div key={a.index} className="text-[10px] text-gray-500">
+                        <span className="text-gray-300">Act {a.index + 1}: {a.name}</span>
+                        <br />{a.startMs}–{a.endMs}ms — {a.description}
+                        <br /><span className="text-gray-400">Components: {a.componentIds.length}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {choreographer.components.length > 0 && (
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-medium text-gray-400">Component Schedule</span>
+                    {choreographer.components.slice(0, 10).map((c) => (
+                      <div key={c.componentId} className="text-[10px] text-gray-500 flex justify-between">
+                        <span>{c.componentName}</span>
+                        <span>delay {c.delayMs}ms / dur {c.durationMs}ms</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <button
+                  onClick={() => projectId && send(projectId, `Choreograph all components using a ${choreoMode} mode — sequence their timing with stagger, acts, and peak moment`)}
+                  className="w-full text-left px-2 py-1 text-[10px] bg-panel2 hover:bg-panel3 rounded text-gray-400"
+                >
+                  Ask Agent to choreograph
+                </button>
+              </div>
+            ) : (
+              <p className="text-[10px] text-gray-600">Click Choreograph to sequence existing components into an optimal timing arrangement.</p>
+            )}
+          </div>
+        )}
+
+        {/* --- Export --- */}
+        {section === "export" && (
+          <div className="px-3 py-2 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium">Motion Export Optimizer</span>
+              <button
+                onClick={() => runExport()}
+                disabled={loading === "export" || !projectId}
+                className="px-2 py-1 text-[10px] bg-panel2 hover:bg-panel3 rounded disabled:opacity-50"
+              >
+                {loading === "export" ? "Optimizing..." : "Optimize"}
+              </button>
+            </div>
+            <p className="text-[10px] text-gray-600">Target-specific export optimization — 5 targets (CSS, WAAPI, Lottie, React Spring, GSAP) with compatibility checking and reduced-motion strategy.</p>
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] text-gray-400">Target:</span>
+              {(["css", "waapi", "lottie", "react-spring", "gsap"] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setExportTarget(t)}
+                  className={`px-1.5 py-0.5 text-[9px] rounded ${exportTarget === t ? "bg-panel3 text-gray-200" : "bg-panel2 text-gray-500"}`}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+            {exportOpt ? (
+              <div className="bg-panel2 rounded p-2 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold">{exportOpt.target.toUpperCase()}</span>
+                  <span className={`text-[10px] ${exportOpt.fullyCompatible ? "text-gray-300" : "text-red-500"}`}>
+                    {exportOpt.fullyCompatible ? "Fully compatible" : "Has issues"}
+                  </span>
+                  <span className="text-[10px] text-gray-400 ml-auto">{exportOpt.compatibilityScore}% compat</span>
+                </div>
+                <p className="text-[10px] text-gray-500">{exportOpt.summary}</p>
+                <div className="text-[10px] text-gray-400">
+                  Components: {exportOpt.componentCount} | Est. size: {exportOpt.estimatedSizeKb}KB
+                </div>
+                <div className="text-[10px] text-gray-500">
+                  <span className="text-gray-400">Reduced-motion: </span>{exportOpt.reducedMotionStrategy}
+                </div>
+                {exportOpt.issues.length > 0 && (
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-medium text-gray-400">Compatibility Issues ({exportOpt.issues.length})</span>
+                    {exportOpt.issues.slice(0, 8).map((iss, i) => (
+                      <div key={i} className="text-[10px] text-gray-500">
+                        <span className={iss.severity === "critical" ? "text-red-500" : "text-gray-300"}>
+                          [{iss.severity}] {iss.componentName} — {iss.property}
+                        </span>
+                        <br />{iss.issue}
+                        <br /><span className="text-gray-400">Fallback: {iss.fallback}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <button
+                  onClick={() => projectId && send(projectId, `Optimize the project for ${exportTarget} export — check compatibility, apply fallbacks, and generate the target output`)}
+                  className="w-full text-left px-2 py-1 text-[10px] bg-panel2 hover:bg-panel3 rounded text-gray-400"
+                >
+                  Ask Agent to optimize export
+                </button>
+              </div>
+            ) : (
+              <p className="text-[10px] text-gray-600">Click Optimize to analyze the project for export compatibility with the selected target.</p>
             )}
           </div>
         )}
