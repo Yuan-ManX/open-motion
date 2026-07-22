@@ -384,7 +384,26 @@ interface RemixData {
   summary: string;
 }
 
-type Section = "critique" | "dna" | "variations" | "style" | "story" | "lineage" | "synthesis" | "auto-fix" | "persona" | "coach" | "genome" | "forecast" | "negotiate" | "remix" | "emotion" | "rhythm" | "narrative";
+interface DialectChangeData {
+  componentId: string;
+  componentName: string;
+  field: string;
+  before: string;
+  after: string;
+  reason: string;
+}
+
+interface DialectData {
+  applied: boolean;
+  sourceDialect: string;
+  targetDialect: string;
+  componentCount: number;
+  changeCount: number;
+  changes: DialectChangeData[];
+  summary: string;
+}
+
+type Section = "critique" | "dna" | "variations" | "style" | "story" | "lineage" | "synthesis" | "auto-fix" | "persona" | "coach" | "genome" | "forecast" | "negotiate" | "remix" | "dialect" | "emotion" | "rhythm" | "narrative";
 
 const SECTIONS: { id: Section; label: string }[] = [
   { id: "critique", label: "Critique" },
@@ -401,6 +420,7 @@ const SECTIONS: { id: Section; label: string }[] = [
   { id: "forecast", label: "Forecast" },
   { id: "negotiate", label: "Negotiate" },
   { id: "remix", label: "Remix" },
+  { id: "dialect", label: "Dialect" },
   { id: "emotion", label: "Emotion" },
   { id: "rhythm", label: "Rhythm" },
   { id: "narrative", label: "Narrative" },
@@ -448,6 +468,8 @@ export function MotionIntelligencePanel() {
   const [remix, setRemix] = useState<RemixData | null>(null);
   const [remixStrategy, setRemixStrategy] = useState<string>("shuffle");
   const [remixSeed, setRemixSeed] = useState<string>("");
+  const [dialect, setDialect] = useState<DialectData | null>(null);
+  const [dialectTarget, setDialectTarget] = useState<string>("mobile");
   const [selectedComponentId, setSelectedComponentId] = useState<string>("");
   const [sourceComponentId, setSourceComponentId] = useState<string>("");
   const [targetComponentId, setTargetComponentId] = useState<string>("");
@@ -883,6 +905,43 @@ export function MotionIntelligencePanel() {
       setLoading(null);
     }
   }, [projectId, remixStrategy, remixSeed, loadProject]);
+
+  const runDialect = useCallback(async (apply: boolean) => {
+    if (!projectId) return;
+    setLoading("dialect");
+    try {
+      const resp = await fetch(`/api/projects/${projectId}/translate-dialect`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({
+          sourceDialect: "web",
+          targetDialect: dialectTarget,
+          apply,
+        }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        setDialect({
+          applied: data.applied,
+          sourceDialect: data.sourceDialect,
+          targetDialect: data.targetDialect,
+          componentCount: data.componentCount,
+          changeCount: data.changeCount,
+          changes: data.changes,
+          summary: data.summary,
+        });
+        // When the translated changes were applied, reload the project so the
+        // canvas reflects them.
+        if (data.applied) {
+          await loadProject(projectId);
+        }
+      }
+    } catch {
+      // offline fallback
+    } finally {
+      setLoading(null);
+    }
+  }, [projectId, dialectTarget, loadProject]);
 
   const runAnalysis = useCallback(async (type: "emotion" | "rhythm" | "narrative") => {
     if (!projectId) return;
@@ -2276,6 +2335,110 @@ export function MotionIntelligencePanel() {
               </div>
             ) : (
               <p className="text-[10px] text-gray-600">Remix produces a fresh interpretation of the project by recombining components using one of eight strategies: shuffle, mirror, invert, swap, cascade, scatter, hybridize, rephrase. Each remix is reproducible by seed and documented with a per-component change log.</p>
+            )}
+          </div>
+        )}
+
+        {/* --- Dialect --- */}
+        {section === "dialect" && (
+          <div className="px-3 py-2 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Dialect</span>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => runDialect(false)}
+                  disabled={loading === "dialect" || components.length === 0}
+                  className="px-1.5 py-0.5 text-[9px] bg-panel2 hover:bg-panel3 rounded text-gray-300 disabled:opacity-40"
+                >
+                  {loading === "dialect" ? "..." : "Dry Run"}
+                </button>
+                <button
+                  onClick={() => runDialect(true)}
+                  disabled={loading === "dialect" || components.length === 0}
+                  className="px-1.5 py-0.5 text-[9px] bg-panel2 hover:bg-panel3 rounded text-gray-300 disabled:opacity-40"
+                >
+                  Apply
+                </button>
+              </div>
+            </div>
+
+            {components.length === 0 && (
+              <p className="text-[10px] text-red-400">Add at least one component before translating.</p>
+            )}
+
+            {/* Target dialect selector */}
+            <div>
+              <div className="text-[9px] text-gray-600 mb-0.5">Target Dialect</div>
+              <select
+                value={dialectTarget}
+                onChange={(e) => setDialectTarget(e.target.value)}
+                className="w-full px-1.5 py-0.5 text-[10px] bg-panel2 border border-panel3 rounded text-white"
+              >
+                <option value="web">Web — medium, smooth</option>
+                <option value="mobile">Mobile — short, snappy</option>
+                <option value="gaming">Gaming — long, bouncy</option>
+                <option value="data-viz">Data Viz — precise, measured</option>
+                <option value="presentation">Presentation — dramatic, sequential</option>
+                <option value="kiosk">Kiosk — ambient, looping</option>
+                <option value="accessibility">Accessibility — minimal, safe</option>
+              </select>
+            </div>
+
+            {dialect ? (
+              <div className="space-y-2">
+                {/* Summary */}
+                <div className="px-1.5 py-1 bg-panel2 rounded">
+                  <div className="grid grid-cols-2 gap-1 text-[10px]">
+                    <div>
+                      <span className="text-gray-500">source:</span>{" "}
+                      <span className="text-white font-bold">{dialect.sourceDialect}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">target:</span>{" "}
+                      <span className="text-white font-bold">{dialect.targetDialect}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">changes:</span>{" "}
+                      <span className="text-white">{dialect.changeCount}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">applied:</span>{" "}
+                      <span className={dialect.applied ? "text-white font-bold" : "text-gray-400"}>{dialect.applied ? "yes" : "no (dry-run)"}</span>
+                    </div>
+                  </div>
+                  <div className="text-[9px] text-gray-500 mt-0.5">{dialect.summary}</div>
+                </div>
+
+                {/* Changes */}
+                {dialect.changes.length > 0 && (
+                  <div>
+                    <div className="text-[9px] text-gray-600 mb-0.5">Changes ({dialect.changes.length})</div>
+                    <div className="space-y-1 max-h-64 overflow-y-auto">
+                      {dialect.changes.map((c, i) => (
+                        <div key={i} className="px-1.5 py-1 bg-panel2 rounded text-[9px]">
+                          <div className="text-gray-300 font-bold">{c.componentName}</div>
+                          <div className="text-gray-500 mt-0.5">
+                            <span className="text-gray-400">{c.field}:</span>{" "}
+                            <span className="text-gray-400 line-through">{c.before}</span>{" "}
+                            <span className="text-gray-600">→</span>{" "}
+                            <span className="text-white">{c.after}</span>
+                          </div>
+                          <div className="text-gray-500 mt-0.5 leading-snug italic">{c.reason}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  onClick={() => projectId && send(projectId, `Translate this project for ${dialectTarget} — adjust duration, easing, intensity, and loop behavior to match the ${dialectTarget} dialect`)}
+                  className="w-full text-left px-2 py-1 text-[10px] bg-panel2 hover:bg-panel3 rounded text-gray-400"
+                >
+                  Ask Agent to re-translate
+                </button>
+              </div>
+            ) : (
+              <p className="text-[10px] text-gray-600">Different design contexts speak different motion dialects: web favors medium durations with smooth easings, mobile favors shorter snappy transitions, gaming favors longer bouncy sequences, data-viz favors precise linear state changes, presentation favors dramatic reveals, kiosk favors ambient loops, accessibility favors minimal reduced motion. Translate between dialects to adapt a project for a new context.</p>
             )}
           </div>
         )}
