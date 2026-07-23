@@ -209,6 +209,11 @@ export async function runSubagent(
       result: result.data ?? null,
       summary: result.summary,
     });
+    if (result.editorCommands) {
+      for (const cmd of result.editorCommands) {
+        ctx.onEvent({ type: "editor_command", command: cmd.command, args: cmd.args });
+      }
+    }
   }
 
   const durationMs = Date.now() - startTime;
