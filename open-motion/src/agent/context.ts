@@ -6,6 +6,7 @@ import { assembleMemoryContext } from "./memory/persistentMemory.js";
 import { listMemory } from "./memory/store.js";
 import { semanticSearch, formatRelevantMemory } from "./memory/semanticSearch.js";
 import { formatAnalyticsContext } from "./analytics.js";
+import { getModelContextWindow } from "./provider/registry.js";
 import type { LlmMessage } from "./provider/types.js";
 
 export interface AgentContext {
@@ -25,8 +26,12 @@ export interface AgentContext {
  * the most topically relevant past conversation entries across the entire
  * memory history — including entries compressed out of the active window —
  * and injects them into the system prompt for contextual awareness.
+ *
+ * Token-aware context windowing: when a model is specified, the context
+ * window size is looked up and messages are selected to fit within budget.
+ * Long tool results are truncated to prevent context overflow.
  */
-export function assembleAgentContext(projectId: string, userMessage?: string): AgentContext | null {
+export function assembleAgentContext(projectId: string, userMessage?: string, model?: string): AgentContext | null {
   const project = getProject(projectId);
   if (!project) return null;
   const spec = getProjectSpec(projectId);
@@ -60,6 +65,8 @@ export function assembleAgentContext(projectId: string, userMessage?: string): A
     basePrompt += "\n" + analyticsCtx;
   }
 
-  const messages = buildMessages(projectId, basePrompt);
+  // Look up context window for token-aware message selection
+  const contextWindow = model ? getModelContextWindow(model) : undefined;
+  const messages = buildMessages(projectId, basePrompt, contextWindow);
   return { project, spec, messages, systemPrompt: basePrompt };
 }
