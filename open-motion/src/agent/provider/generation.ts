@@ -78,29 +78,59 @@ export async function generateMedia(req: GenerationRequest): Promise<GenerationR
     };
   }
 
-  // Select the best provider for this modality
-  switch (modality) {
-    case "text-to-image":
-      return generateImage(req);
-    case "text-to-speech":
-      return generateSpeech(req);
-    case "speech-to-text":
-      return transcribeAudio(req);
-    case "text-to-video":
-    case "image-to-video":
-      return generateVideo(req);
-    case "text-to-audio":
-      return generateAudio(req);
-    case "text-to-music":
-      return generateMusic(req);
-    case "text-to-3d":
-      return generate3D(req);
-    case "text-to-embedding":
-      return generateEmbedding(req);
-    case "text-to-animation":
-      return generateAnimation(req);
-    default:
-      throw new Error(`Unsupported generation modality: ${modality}`);
+  // Dispatch to the specific generation function for this modality
+  const dispatch = (r: GenerationRequest): Promise<GenerationResult> => {
+    switch (r.modality) {
+      case "text-to-image":
+        return generateImage(r);
+      case "text-to-speech":
+        return generateSpeech(r);
+      case "speech-to-text":
+        return transcribeAudio(r);
+      case "text-to-video":
+      case "image-to-video":
+        return generateVideo(r);
+      case "text-to-audio":
+        return generateAudio(r);
+      case "text-to-music":
+        return generateMusic(r);
+      case "text-to-3d":
+        return generate3D(r);
+      case "text-to-embedding":
+        return generateEmbedding(r);
+      case "text-to-animation":
+        return generateAnimation(r);
+      default:
+        throw new Error(`Unsupported generation modality: ${r.modality}`);
+    }
+  };
+
+  // First attempt — try with the requested model (if any)
+  try {
+    return await dispatch(req);
+  } catch (firstErr) {
+    // If no specific model was requested, the first attempt already tried
+    // all available providers in sequence — nothing to fall back to.
+    if (!req.model) {
+      throw firstErr;
+    }
+
+    // If a specific model was requested and failed, retry without the model
+    // override so the generation function picks the next available provider.
+    logger.warn(`Generation with model "${req.model}" failed, trying fallback`, {
+      modality: req.modality,
+      err: String(firstErr).slice(0, 150),
+    });
+
+    try {
+      return await dispatch({ ...req, model: undefined });
+    } catch (secondErr) {
+      logger.error(`Generation failover also failed for ${modality}`, {
+        firstErr: String(firstErr).slice(0, 100),
+        secondErr: String(secondErr).slice(0, 100),
+      });
+      throw secondErr;
+    }
   }
 }
 
