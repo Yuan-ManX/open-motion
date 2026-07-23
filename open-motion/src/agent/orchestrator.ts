@@ -175,6 +175,8 @@ export interface OrchestrateOptions {
   userMessage: string;
   provider: LlmProvider;
   onEvent: (event: ChatEvent) => void;
+  /** Optional model ID for token-aware context windowing. */
+  model?: string;
 }
 
 /**
@@ -1767,7 +1769,7 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
     }
     const iter = budget.consumed - 1;
     // Pass userMessage on first iteration so persistent memory can be retrieved
-    const ctx = assembleAgentContext(projectId, iter === 0 ? userMessage : undefined);
+    const ctx = assembleAgentContext(projectId, iter === 0 ? userMessage : undefined, opts.model);
     if (!ctx) {
       onEvent({ type: "error", message: "project not found", recoverable: false });
       return;
