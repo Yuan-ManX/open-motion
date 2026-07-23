@@ -153,6 +153,18 @@ import {
   listExportTargets,
   type ExportTarget,
 } from "./motionExportOptimizer.js";
+import {
+  analyzeCohesion,
+  formatCohesionReport,
+} from "./motionCohesion.js";
+import {
+  detectConflicts,
+  formatConflictReport,
+} from "./motionConflict.js";
+import {
+  compareVariants,
+  formatComparisonReport,
+} from "./motionComparator.js";
 import { patchComponent } from "../db/repositories/components.js";
 import { logger } from "../utils/logger.js";
 
@@ -380,6 +392,12 @@ async function executeStructuredPlan(
         result: result.data ?? null,
         summary: result.summary,
       });
+      // Forward editor commands to the frontend so the Agent can drive the UI.
+      if (result.editorCommands) {
+        for (const cmd of result.editorCommands) {
+          onEvent({ type: "editor_command", command: cmd.command, args: cmd.args });
+        }
+      }
       addMemory(ctx.projectId, {
         role: "tool",
         content: result.summary,
@@ -497,7 +515,10 @@ async function executeMotionIntelligenceTool(
     tool !== "choreograph_motion" &&
     tool !== "list_choreography_modes" &&
     tool !== "optimize_export" &&
-    tool !== "list_export_targets"
+    tool !== "list_export_targets" &&
+    tool !== "analyze_cohesion" &&
+    tool !== "detect_conflicts" &&
+    tool !== "compare_variants"
   ) {
     return null;
   }
@@ -1284,6 +1305,51 @@ async function executeMotionIntelligenceTool(
     };
   }
 
+  // --- Motion Cohesion Analyzer ---
+  if (tool === "analyze_cohesion") {
+    const report = analyzeCohesion(spec);
+    return {
+      ok: true,
+      summary: formatCohesionReport(report),
+      specChanged: false,
+      data: {
+        kind: "cohesion",
+        report,
+      },
+    };
+  }
+
+  // --- Motion Timeline Conflict Detector ---
+  if (tool === "detect_conflicts") {
+    const report = detectConflicts(spec);
+    return {
+      ok: true,
+      summary: formatConflictReport(report),
+      specChanged: false,
+      data: {
+        kind: "conflicts",
+        report,
+      },
+    };
+  }
+
+  // --- Motion Variant Comparator ---
+  if (tool === "compare_variants") {
+    const variantIds = Array.isArray(args.variantIds)
+      ? args.variantIds.filter((v): v is string => typeof v === "string")
+      : undefined;
+    const report = compareVariants(spec, variantIds);
+    return {
+      ok: true,
+      summary: formatComparisonReport(report),
+      specChanged: false,
+      data: {
+        kind: "comparison",
+        report,
+      },
+    };
+  }
+
   // transfer_style
   const sourceComponentId = typeof args.sourceComponentId === "string" ? args.sourceComponentId : "";
   const targetComponentId = typeof args.targetComponentId === "string" ? args.targetComponentId : "";
@@ -1628,6 +1694,11 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
             result: result.data ?? null,
             summary: result.summary,
           });
+          if (result.editorCommands) {
+            for (const cmd of result.editorCommands) {
+              onEvent({ type: "editor_command", command: cmd.command, args: cmd.args });
+            }
+          }
           if (result.ok && gid) {
             completeToolGoal(goalTree, gid);
             onEvent({ type: "goal", root: serializeGoal(goalTree) });
@@ -1640,6 +1711,11 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
             result: result.data ?? null,
             summary: result.summary,
           });
+          if (result.editorCommands) {
+            for (const cmd of result.editorCommands) {
+              onEvent({ type: "editor_command", command: cmd.command, args: cmd.args });
+            }
+          }
         }
       }
 
@@ -1817,6 +1893,11 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
         result: result.data ?? null,
         summary: result.summary,
       });
+      if (result.editorCommands) {
+        for (const cmd of result.editorCommands) {
+          onEvent({ type: "editor_command", command: cmd.command, args: cmd.args });
+        }
+      }
       addMemory(projectId, {
         role: "tool",
         content: result.summary,
