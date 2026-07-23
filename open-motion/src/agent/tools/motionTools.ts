@@ -45,6 +45,11 @@ import {
   matchProjectRecipesByIntent,
   seedProjectRecipes,
 } from "../../motion/projectRecipes.js";
+import { runMotionPipeline } from "../../motion/automationPipeline.js";
+import { flattenToTimeline, createComposition } from "../../motion/compositionEngine.js";
+import { seekToFrame, renderFrameRange, findThumbnailFrame } from "../../motion/frameRenderer.js";
+import { generateHtmlComposition } from "../../motion/htmlComposition.js";
+import { resolveMedia } from "../../motion/mediaPipeline.js";
 import {
   readBrandPacks,
   findBrandPack,
@@ -4277,5 +4282,188 @@ export const motionExecutors: Partial<Record<ToolName, Executor>> = {
       false,
       { format, content, stats },
     );
+  },
+  run_motion_pipeline: async (args, ctx) => {
+    const result = await runMotionPipeline({
+      description: String(args.description),
+      durationMs: args.durationMs ? Number(args.durationMs) : undefined,
+      colorScheme: args.colorScheme as "complementary" | "analogous" | "triadic" | "monochrome" | undefined,
+      baseColor: args.baseColor ? String(args.baseColor) : undefined,
+      choreography: args.choreography as "cascade" | "call_response" | "unison" | "counterpoint" | "wave" | "canon" | "stagger_grid" | "ripple_out" | "auto" | undefined,
+      componentCount: args.componentCount ? Number(args.componentCount) : undefined,
+    });
+
+    // Persist generated components to the project
+    const project = getProject(ctx.projectId);
+    if (project) {
+      for (const comp of result.spec.components) {
+        createComponent({ ...comp, projectId: ctx.projectId });
+      }
+    }
+
+    return {
+      ok: true,
+      summary: result.summary,
+      specChanged: true,
+      data: {
+        steps: result.steps,
+        totalDurationMs: result.totalDurationMs,
+        componentCount: result.componentCount,
+      },
+    };
+  },
+  compose_sequence: (args, ctx) => {
+    const spec = getProjectSpec(ctx.projectId);
+    if (!spec) {
+      return { ok: false, summary: "Project spec not found", specChanged: false };
+    }
+
+    const componentIds = (args.componentIds as string[]) ?? [];
+    const components = spec.components.filter((c) => componentIds.includes(c.id));
+    if (components.length === 0) {
+      return { ok: false, summary: "No matching components found", specChanged: false };
+    }
+
+    const type = args.type as "sequence" | "parallel" | "stagger";
+    const stepMs = args.stepMs ? Number(args.stepMs) : 80;
+    const gapMs = args.gapMs ? Number(args.gapMs) : 0;
+
+    // Create composition and flatten to timeline
+    const composition = createComposition(components, type, { stepMs, gapMs });
+    const timeline = flattenToTimeline(composition);
+
+    return {
+      ok: true,
+      summary: `Composed ${components.length} components as ${type} — total ${timeline.totalDurationMs}ms, ${timeline.frameCount} frames`,
+      specChanged: false,
+      data: {
+        type,
+        timeline: timeline.timeline,
+        totalDurationMs: timeline.totalDurationMs,
+        frameCount: timeline.frameCount,
+        fps: timeline.fps,
+      },
+    };
+  },
+  seek_to_frame: (args, ctx) => {
+    const spec = getProjectSpec(ctx.projectId);
+    if (!spec) {
+      return { ok: false, summary: "Project spec not found", specChanged: false };
+    }
+    const frame = Number(args.frame);
+    const fps = args.fps ? Number(args.fps) : 60;
+    const snapshot = seekToFrame(spec, frame, { fps });
+    return {
+      ok: true,
+      summary: `Frame ${frame}: ${snapshot.components.length} active components, time=${snapshot.timeMs.toFixed(0)}ms`,
+      specChanged: false,
+      data: {
+        frame: snapshot.frame,
+        timeMs: snapshot.timeMs,
+        totalFrames: snapshot.totalFrames,
+        isComplete: snapshot.isComplete,
+        components: snapshot.components.map((c) => ({
+          componentId: c.componentId,
+          name: c.name,
+          progress: c.progress,
+          opacity: c.opacity,
+          transformCss: c.transformCss,
+          visible: c.visible,
+        })),
+      },
+    };
+  },
+  render_frames: (args, ctx) => {
+    const spec = getProjectSpec(ctx.projectId);
+    if (!spec) {
+      return { ok: false, summary: "Project spec not found", specChanged: false };
+    }
+    const fps = args.fps ? Number(args.fps) : 60;
+    const startFrame = args.startFrame ? Number(args.startFrame) : 0;
+    const sampleStep = args.sampleStep ? Number(args.sampleStep) : 1;
+
+    // Determine end frame
+    let endFrame: number;
+    if (args.endFrame) {
+      endFrame = Number(args.endFrame);
+    } else {
+      // Use the thumbnail finder to get total frames
+      const thumbFrame = findThumbnailFrame(spec, { fps });
+      endFrame = thumbFrame + 60; // Estimate: thumbnail + 60 frames
+    }
+
+    const result = renderFrameRange(spec, startFrame, endFrame, { fps });
+    // Sample frames for efficiency
+    const sampled = result.frames.filter((_, i) => i % sampleStep === 0);
+    return {
+      ok: true,
+      summary: `Rendered ${sampled.length} frames (sampled from ${result.frames.length}): ${result.activeFrames} active, ${result.totalFrames} total, ${result.durationMs}ms duration`,
+      specChanged: false,
+      data: {
+        totalFrames: result.totalFrames,
+        fps: result.fps,
+        durationMs: result.durationMs,
+        activeFrames: result.activeFrames,
+        renderedFrames: sampled.length,
+        frames: sampled.map((s) => ({
+          frame: s.frame,
+          timeMs: s.timeMs,
+          componentCount: s.components.length,
+        })),
+      },
+    };
+  },
+  export_html_composition: (args, ctx) => {
+    const spec = getProjectSpec(ctx.projectId);
+    if (!spec) {
+      return { ok: false, summary: "Project spec not found", specChanged: false };
+    }
+    const result = generateHtmlComposition(spec, {
+      width: args.width ? Number(args.width) : undefined,
+      height: args.height ? Number(args.height) : undefined,
+      fps: args.fps ? Number(args.fps) : undefined,
+      includeControls: args.includeControls !== false,
+      loop: args.loop === true,
+    });
+    return {
+      ok: true,
+      summary: `HTML composition generated: ${result.componentCount} components, ${result.totalFrames} frames, ${result.durationMs}ms at ${result.fps}fps`,
+      specChanged: false,
+      data: {
+        html: result.html,
+        totalFrames: result.totalFrames,
+        durationMs: result.durationMs,
+        fps: result.fps,
+        componentCount: result.componentCount,
+      },
+    };
+  },
+  resolve_media: async (args) => {
+    const asset = await resolveMedia({
+      modality: args.modality as "audio" | "image" | "video" | "voice" | "icon" | "logo" | "lut" | "font",
+      purpose: args.purpose as "background-music" | "sound-effect" | "voiceover" | "background-image" | "foreground-image" | "transition" | "overlay" | "color-grade" | "caption" | "watermark",
+      description: String(args.description),
+      durationSec: args.durationSec ? Number(args.durationSec) : undefined,
+      allowGeneration: args.allowGeneration !== false,
+    });
+    return {
+      ok: true,
+      summary: `Media resolved: ${asset.id} (${asset.modality}/${asset.purpose}) — ${asset.generated ? "generated" : "from catalog"}, ${asset.source}`,
+      specChanged: false,
+      data: {
+        id: asset.id,
+        modality: asset.modality,
+        purpose: asset.purpose,
+        source: asset.source,
+        mimeType: asset.mimeType,
+        sizeBytes: asset.sizeBytes,
+        durationSec: asset.durationSec,
+        width: asset.width,
+        height: asset.height,
+        generated: asset.generated,
+        seed: asset.seed,
+        tags: asset.tags,
+      },
+    };
   },
 };
