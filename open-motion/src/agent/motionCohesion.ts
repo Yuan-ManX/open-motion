@@ -237,7 +237,7 @@ function computeHierarchy(components: MotionComponent[]): HierarchyEntry[] {
         loopPenalty: lp,
       },
       rank: 0,
-      tier: "background" as const,
+      tier: "background" as "primary" | "secondary" | "tertiary" | "background",
     };
   });
 
