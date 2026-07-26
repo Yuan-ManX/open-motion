@@ -208,40 +208,32 @@ function computeDistraction(component: MotionComponent): DistractionScore {
   // Large displacements are more distracting
   for (const kf of component.keyframes) {
     const props = kf.properties;
-    if (typeof props.transform === "string") {
-      const translateMatch = props.transform.match(/translate[XYZ]?\(([^)]+)\)/);
-      if (translateMatch) {
-        const value = parseFloat(translateMatch[1]);
-        if (value > 200) {
-          score += 15;
-          factors.push("large-displacement");
-        }
+    // Check individual transform properties (OpenMotion uses per-axis props)
+    for (const axis of ["translateX", "translateY", "translateZ"] as const) {
+      const v = props[axis];
+      if (typeof v === "number" && Math.abs(v) > 200) {
+        score += 15;
+        factors.push("large-displacement");
       }
-      if (props.transform.includes("rotate") && /rotate\(([^)]+)\)/.test(props.transform)) {
-        const match = props.transform.match(/rotate\(([^)]+)\)/);
-        if (match) {
-          const value = parseFloat(match[1]);
-          if (Math.abs(value) > 180) {
-            score += 15;
-            factors.push("large-rotation");
-          }
-        }
-      }
+    }
+    if (typeof props.rotate === "number" && Math.abs(props.rotate) > 180) {
+      score += 15;
+      factors.push("large-rotation");
     }
   }
 
   // High scale changes are distracting
   for (const kf of component.keyframes) {
     const props = kf.properties;
-    if (typeof props.transform === "string" && props.transform.includes("scale")) {
-      const match = props.transform.match(/scale\(([^)]+)\)/);
-      if (match) {
-        const value = parseFloat(match[1]);
-        if (value > 2 || value < 0.3) {
-          score += 10;
-          factors.push("extreme-scale");
-        }
-      }
+    const sx = props.scaleX;
+    const sy = props.scaleY;
+    const s = props.scale;
+    if (typeof s === "number" && (s > 2 || s < 0.3)) {
+      score += 10;
+      factors.push("extreme-scale");
+    } else if ((typeof sx === "number" && (sx > 2 || sx < 0.3)) || (typeof sy === "number" && (sy > 2 || sy < 0.3))) {
+      score += 10;
+      factors.push("extreme-scale");
     }
   }
 
@@ -279,31 +271,29 @@ function computeMotionSickness(component: MotionComponent): MotionSicknessRisk {
   // Large translations (vestibular)
   for (const kf of component.keyframes) {
     const props = kf.properties;
-    if (typeof props.transform === "string") {
-      const translateMatch = props.transform.match(/translate[XYZ]?\(([^)]+)\)/);
-      if (translateMatch) {
-        const value = parseFloat(translateMatch[1]);
-        if (value > 300) {
+    // Check individual transform properties (OpenMotion uses per-axis props)
+    for (const axis of ["translateX", "translateY", "translateZ"] as const) {
+      const v = props[axis];
+      if (typeof v === "number") {
+        const abs = Math.abs(v);
+        if (abs > 300) {
           riskScore += 25;
           triggers.push("large-translation");
-        } else if (value > 150) {
+        } else if (abs > 150) {
           riskScore += 15;
           triggers.push("moderate-translation");
         }
       }
-      // Rotations
-      if (props.transform.includes("rotate")) {
-        const match = props.transform.match(/rotate\(([^)]+)\)/);
-        if (match) {
-          const value = parseFloat(match[1]);
-          if (Math.abs(value) > 360) {
-            riskScore += 30;
-            triggers.push("full-rotation");
-          } else if (Math.abs(value) > 90) {
-            riskScore += 15;
-            triggers.push("large-rotation");
-          }
-        }
+    }
+    // Rotations
+    if (typeof props.rotate === "number") {
+      const abs = Math.abs(props.rotate);
+      if (abs > 360) {
+        riskScore += 30;
+        triggers.push("full-rotation");
+      } else if (abs > 90) {
+        riskScore += 15;
+        triggers.push("large-rotation");
       }
     }
   }
