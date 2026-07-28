@@ -168,6 +168,18 @@ import {
   listExportTargets,
   type ExportTarget,
 } from "../../agent/motionExportOptimizer.js";
+import {
+  analyzeCohesion,
+  formatCohesionReport,
+} from "../../agent/motionCohesion.js";
+import {
+  detectConflicts,
+  formatConflictReport,
+} from "../../agent/motionConflict.js";
+import {
+  compareVariants,
+  formatComparisonReport,
+} from "../../agent/motionComparator.js";
 import { patchComponent } from "../../db/repositories/components.js";
 
 export const agentRouter = Router();
@@ -2062,6 +2074,69 @@ agentRouter.post(
       ok: true,
       ...result,
       report: formatExportReport(result),
+    });
+  }),
+);
+
+// --- Motion Cohesion Analyzer endpoint ---
+
+agentRouter.get(
+  "/projects/:id/cohesion",
+  runAsync(async (req: Request, res: Response) => {
+    const spec = getProjectSpec(req.params.id);
+    if (!spec) {
+      res.status(404).json({ error: "project not found" });
+      return;
+    }
+    const report = analyzeCohesion(spec);
+    res.json({
+      ok: true,
+      ...report,
+      report: formatCohesionReport(report),
+    });
+  }),
+);
+
+// --- Motion Timeline Conflict Detector endpoint ---
+
+agentRouter.get(
+  "/projects/:id/conflicts",
+  runAsync(async (req: Request, res: Response) => {
+    const spec = getProjectSpec(req.params.id);
+    if (!spec) {
+      res.status(404).json({ error: "project not found" });
+      return;
+    }
+    const report = detectConflicts(spec);
+    res.json({
+      ok: true,
+      ...report,
+      report: formatConflictReport(report),
+    });
+  }),
+);
+
+// --- Motion Variant Comparator endpoint ---
+
+const CompareSchema = z.object({
+  variantIds: z.array(z.string()).optional(),
+});
+
+agentRouter.post(
+  "/projects/:id/compare",
+  validate(CompareSchema),
+  runAsync(async (req: Request, res: Response) => {
+    const spec = getProjectSpec(req.params.id);
+    if (!spec) {
+      res.status(404).json({ error: "project not found" });
+      return;
+    }
+    const input = validated<z.infer<typeof CompareSchema>>(req);
+    const report = compareVariants(spec, input.variantIds);
+    res.json({
+      ok: true,
+      ...report,
+      report: formatComparisonReport(report),
     });
   }),
 );
