@@ -268,9 +268,11 @@ function resolveKeyframes(
 
   // Interpolate all properties
   const allProps = new Set([...Object.keys(from.properties), ...Object.keys(to.properties)]);
+  const fromProps = from.properties as Record<string, string | number>;
+  const toProps = to.properties as Record<string, string | number>;
   for (const prop of allProps) {
-    const fromVal = from.properties[prop] ?? getDefaultForProp(prop);
-    const toVal = to.properties[prop] ?? getDefaultForProp(prop);
+    const fromVal = fromProps[prop] ?? getDefaultForProp(prop);
+    const toVal = toProps[prop] ?? getDefaultForProp(prop);
     const interpolated = interpolateValue(fromVal, toVal, segmentT);
 
     if (prop === "opacity") {
