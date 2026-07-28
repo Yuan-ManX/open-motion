@@ -77,6 +77,40 @@ const PATTERNS: CompositionPattern[] = [
       if (has(msg, "save", "capture", "export", "record", "as a profile", "as a pipeline", "as a recipe")) {
         return null;
       }
+      // Yield to Motion Astronomy — "orbit" as a celestial concept (orbital
+      // period, galactic structure) is astronomical analysis, not a template.
+      if (has(msg, "astronomy", "astronomical", "celestial", "cosmos", "cosmic", "constellation", "galaxy", "galactic", "stellar", "spectral type", "supernova", "black hole", "nebula", "pulsar", "star system", "orbital period", "luminosity")) {
+        return null;
+      }
+      // Yield to Motion Chemistry — chemical analysis should not be confused
+      // with template creation.
+      if (has(msg, "chemistry", "chemical", "molecule", "molecular", "atom", "atomic", "bond", "reaction", "catalyst", "inhibitor", "compound", "covalent", "ionic", "metallic", "hydrogen bond", "van der waals", "synthesis reaction", "decomposition reaction", "displacement reaction", "combustion reaction", "ph of", "acidity", "alkalinity", "enthalpy", "entropy of", "equilibrium", "state of matter", "periodic")) {
+        return null;
+      }
+      // Yield to Motion Musicology — musical analysis is not template creation.
+      if (has(msg, "musicology", "musical", "melody", "melodic", "harmony", "harmonic", "rhythm", "rhythmic", "tempo", "bpm", "chord", "phrase", "key signature", "time signature", "scale of", "pitch of", "dynamics of", "crescendo", "decrescendo", "sonata", "rondo", "aaba")) {
+        return null;
+      }
+      // Yield to Motion Botany — botanical analysis is not template creation.
+      if (has(msg, "botany", "botanical", "plant", "leaf", "leaves", "stem", "flower", "petal", "root", "canopy", "germination", "seedling", "phenology", "biomass", "tropism", "vine", "shrub")) {
+        return null;
+      }
+      // Yield to Motion Geology — geological analysis is not template creation.
+      if (has(msg, "geology", "geological", "stratum", "strata", "sedimentary", "igneous", "metamorphic", "volcanic", "alluvial", "tectonic", "earthquake", "uplift", "fault line", "faulting", "erosion", "deposition", "mineral", "epoch", "canyon", "plateau", "mountain range", "rock layer", "crust")) {
+        return null;
+      }
+      // Yield to Motion Physics — physics analysis is not template creation.
+      if (has(msg, "physics", "physical", "kinematic", "dynamic", "force", "energy of", "momentum", "collision", "velocity", "acceleration", "inertia", "equilibrium", "work of", "power of", "spring force")) {
+        return null;
+      }
+      // Yield to Motion Linguistics — linguistic analysis is not template creation.
+      if (has(msg, "linguistics", "linguistic", "phoneme", "phonology", "morpheme", "morphology", "syntax", "syntactic", "semantic", "semantics", "pragmatic", "pragmatics", "prosody", "discourse", "speech act", "intonation", "language family")) {
+        return null;
+      }
+      // Yield to Motion Cinema — cinematic analysis is not template creation.
+      if (has(msg, "cinema", "cinematic", "film", "movie", "mise-en-scène", "mise en scene", "camera movement", "camera angle", "narrative structure", "montage", "storyboard", "screenplay", "directing")) {
+        return null;
+      }
       // Must mention a template type and an easing style.
       // Compound keywords (e.g. "fade out") are listed BEFORE their
       // single-word counterparts (e.g. "fade") so that the longer match
@@ -128,6 +162,9 @@ const PATTERNS: CompositionPattern[] = [
         "collapsedown": "tpl-collapse-down",
         "dissolveout": "tpl-dissolve-out",
         dissolve: "tpl-dissolve-out",
+        "quantum entanglement": "tpl-quantum-entanglement",
+        "acoustic wave": "tpl-acoustic-wave",
+        "crystalline growth": "tpl-crystalline-growth",
       };
 
       let templateId: string | null = null;
@@ -484,6 +521,16 @@ const PATTERNS: CompositionPattern[] = [
     match: (msg, ctx) => {
       if (!has(msg, "spring", "physics")) return null;
       if (!ctx.hasComponents) return null;
+      // Guard: when the user wants to *analyze* the composition through
+      // physics principles (kinematics/dynamics/energy/momentum), defer to
+      // the analyze-physics composition so a physics report is produced
+      // instead of configuring spring easing on an existing component.
+      if (has(msg, "analyze", "examine", "study", "inspect", "investigate", "measure", "calculate", "report on", "tell me about", "describe the", "of the motion", "of the composition", "of the animation")) return null;
+      // Guard: when the user clearly wants to generate a new physics
+      // simulation (rather than tune an existing component's spring),
+      // defer to the physics-simulate composition below so a new component
+      // with sampled keyframes is created.
+      if (has(msg, "generate", "simulate", "create", "animation", "animat")) return null;
 
       const stiffness = extractNumber(msg, /stiffness\s*(\d+)/) ?? 180;
       const damping = extractNumber(msg, /damping\s*(\d+)/) ?? 14;
@@ -680,6 +727,8 @@ const PATTERNS: CompositionPattern[] = [
     match: (msg, ctx) => {
       if (!has(msg, "responsive", "adapt for", "adapt to", "mobile", "tablet", "breakpoint")) return null;
       if (!ctx.hasComponents) return null;
+      // Guard: "collaboration" requests belong to the collaboration engine
+      if (has(msg, "collaboration", "collaborate")) return null;
 
       const tools: ComposedTool[] = [
         {
@@ -884,6 +933,48 @@ const PATTERNS: CompositionPattern[] = [
       // Skip when the user explicitly wants auto-fix — handled by the
       // motion-auto-fix pattern below.
       if (has(msg, "auto fix", "auto-fix", "autofix", "fix accessibility", "fix the accessibility", "remediate", "make it safe", "make the motion safe", "fix motion issues", "fix these issues", "fix the issues")) return null;
+      // Yield to Motion Harmonics — harmonic/frequency/spectrum/consonance/dissonance analysis
+      if (has(msg, "harmonic", "harmony", "harmonics", "frequency spectrum", "frequency signature", "overtone", "consonance", "dissonance")) return null;
+      // Yield to Motion Entropy — entropy/information theory/predictability/redundancy analysis
+      if (has(msg, "entropy", "information theory", "information content", "information density", "predictability", "redundancy", "hotspot")) return null;
+      // Yield to Motion Cognition — cognitive load/working memory/attention switching analysis
+      if (has(msg, "cognitive load", "working memory", "attention switching", "perceptual grouping", "processing fluency", "mental load", "mental effort")) return null;
+      // Yield to Motion Topology — topology/connected components/euler characteristic analysis
+      if (has(msg, "topology", "topological", "connected component", "temporal hole", "euler characteristic", "genus", "compactness")) return null;
+      // Yield to Motion Poetics — poetic meter/form/rhythm analysis
+      if (has(msg, "poetic", "poetics", "meter", "iambic", "trochaic", "dactylic", "anapestic", "stanza", "caesura", "enjambment", "sonnet", "haiku", "free verse", "blank verse", "rhythm of the motion", "poetic form")) return null;
+      // Yield to Motion Ecology — ecosystem/ecology/biodiversity/species analysis
+      if (has(msg, "ecosystem", "ecology", "ecological", "biodiversity", "symbiotic", "parasitic", "predator-prey", "trophic", "carrying capacity", "niche")) return null;
+      // Yield to Motion Calligraphy — calligraphic/brush/stroke/ink analysis
+      if (has(msg, "calligraphy", "calligraphic", "brush stroke", "ink flow", "penmanship", "cursive", "regular script", "running script", "wild script")) return null;
+      // Yield to Motion Mythology — mythology/hero's journey/archetype analysis
+      if (has(msg, "mythology", "mythic", "mythological", "hero's journey", "heros journey", "monomyth", "archetype", "archetypal", "shadow archetype", "mentor archetype", "threshold guardian", "boon", "transformation myth")) return null;
+      // Yield to Motion Weather — weather/storm/climate/front analysis
+      if (has(msg, "weather", "storm", "storm pattern", "atmospheric pressure", "weather system", "weather forecast", "climate", "front activity", "calm period", "wind speed", "humidity")) return null;
+      // Yield to Motion Alchemy — alchemical/transmutation/magnum opus analysis
+      if (has(msg, "alchemy", "alchemical", "transmutation", "magnum opus", "philosopher's stone", "nigredo", "albedo", "citrinitas", "rubedo", "prima materia", "crucible", "hermetic")) return null;
+      // Yield to Motion Architecture — architectural/structural/proportion analysis
+      if (has(msg, "architecture", "architectural", "structural", "foundation", "facade", "load-bearing", "proportion", "golden ratio", "hierarchy", "material honesty", "brutalist", "modernist", "baroque", "gothic", "deconstructivist")) return null;
+      // Yield to Motion Cartography — cartographic/terrain/elevation/contour analysis
+      if (has(msg, "cartography", "cartographic", "terrain", "elevation", "contour", "landmark", "compass", "biome", "territory", "route", "map the composition", "topography")) return null;
+      // Yield to Motion Genealogy — genealogy/lineage/ancestry/evolution analysis
+      if (has(msg, "genealogy", "genealogical", "lineage", "ancestry", "ancestor", "descendant", "evolutionary", "phylogenetic", "genetic trait", "mutation rate", "common ancestor")) return null;
+      // Yield to Motion Astronomy — celestial/cosmic/galactic/constellation analysis
+      if (has(msg, "astronomy", "astronomical", "celestial", "cosmos", "cosmic", "constellation", "galaxy", "galactic", "stellar", "spectral type", "supernova", "black hole", "nebula", "pulsar", "star system", "light-years", "light years", "orbital period", "luminosity")) return null;
+      // Yield to Motion Chemistry — chemical/molecular/atomic/bond/reaction analysis
+      if (has(msg, "chemistry", "chemical", "molecule", "molecular", "atom", "atomic", "bond", "reaction", "catalyst", "inhibitor", "compound", "covalent", "ionic", "metallic", "hydrogen bond", "van der waals", "synthesis reaction", "decomposition reaction", "displacement reaction", "combustion reaction", "ph of", "acidity", "alkalinity", "enthalpy", "entropy of", "equilibrium", "state of matter", "plasma", "periodic")) return null;
+      // Yield to Motion Musicology — musical/melodic/harmonic/rhythmic analysis
+      if (has(msg, "musicology", "musical", "melody", "melodic", "harmony", "harmonic", "rhythm", "rhythmic", "tempo", "bpm", "chord", "phrase", "key signature", "time signature", "scale of", "pitch of", "dynamics of", "crescendo", "decrescendo", "sonata", "rondo", "aaba", "orchestration", "counterpoint", "articulation")) return null;
+      // Yield to Motion Botany — botanical/plant/organ/canopy analysis
+      if (has(msg, "botany", "botanical", "plant", "leaf", "leaves", "stem", "flower", "petal", "root", "branch", "canopy", "germination", "seedling", "phenology", "biomass", "tropism", "photosynth", "vine", "shrub", "tree-like", "growth pattern", "branching")) return null;
+      // Yield to Motion Geology — geological/strata/tectonic/erosion analysis
+      if (has(msg, "geology", "geological", "stratum", "strata", "sedimentary", "igneous", "metamorphic", "volcanic", "alluvial", "tectonic", "earthquake", "uplift", "fault line", "faulting", "erosion", "deposition", "mineral", "epoch", "topology of", "terrain of", "canyon", "plateau", "mountain range", "rock layer", "crust")) return null;
+      // Yield to Motion Physics — physics/kinematics/dynamics/force analysis
+      if (has(msg, "physics", "physical", "kinematic", "dynamic", "force", "energy", "momentum", "collision", "velocity", "acceleration", "inertia", "equilibrium", "work of", "power of", "friction", "gravity", "spring force")) return null;
+      // Yield to Motion Linguistics — linguistics/phonology/syntax/semantics analysis
+      if (has(msg, "linguistics", "linguistic", "phoneme", "phonology", "morpheme", "morphology", "syntax", "syntactic", "semantic", "semantics", "pragmatic", "pragmatics", "prosody", "discourse", "clause", "phrase structure", "speech act", "intonation", "stress pattern", "rhythm of speech", "register of", "language family")) return null;
+      // Yield to Motion Cinema — cinema/film/shot/camera analysis
+      if (has(msg, "cinema", "cinematic", "film", "movie", "shot", "scene", "cut", "transition", "mise-en-scène", "mise en scene", "camera movement", "camera angle", "narrative structure", "pacing of", "montage", "genre of", "close-up", "wide shot", "pan", "tilt", "dolly", "zoom", "crane", "storyboard", "screenplay", "directing")) return null;
       return [
         {
           tool: "critique_motion",
@@ -989,6 +1080,9 @@ const PATTERNS: CompositionPattern[] = [
     name: "motion-genome",
     match: (msg, ctx) => {
       if (!ctx.hasComponents) return null;
+      // Yield to Motion Ecology — ecosystem/ecology/biodiversity analysis
+      // (avoids "biodiversity of" matching the "diversity of" keyword below)
+      if (has(msg, "ecosystem", "ecology", "ecological", "biodiversity")) return null;
       // Detect population-genetics / diversity / monoculture requests.
       if (has(msg, "genome", "genetic diversity", "diversity of", "how diverse", "monoculture", "inbreeding", "evolutionary tree", "genealogy of the project", "population", "are my components too similar", "everything looks the same", "too repetitive")) {
         return [
@@ -1117,6 +1211,8 @@ const PATTERNS: CompositionPattern[] = [
     name: "motion-dialect",
     match: (msg, ctx) => {
       if (!ctx.hasComponents) return null;
+      // Guard: "collaboration" requests belong to the collaboration engine
+      if (has(msg, "collaboration", "collaborate")) return null;
       // Detect dialect translation requests.
       if (!has(msg, "translate", "dialect", "for mobile", "for web", "for gaming", "for data", "for presentation", "for kiosk", "mobile version", "web version", "gaming version", "make it mobile", "make it gaming", "convert to")) {
         return null;
@@ -1166,6 +1262,11 @@ const PATTERNS: CompositionPattern[] = [
       ];
       const matched = narrativeKeywords.some((k) => msg.includes(k));
       if (!matched) return null;
+      // Guard: "emotion journey" belongs to emotion intelligence, not storytelling
+      if (has(msg, "emotion")) return null;
+      // Guard: alchemical transformation belongs to Motion Alchemy analysis,
+      // not narrative storytelling.
+      if (has(msg, "alchemy", "alchemical", "transmutation", "magnum opus", "philosopher's stone", "nigredo", "albedo", "citrinitas", "rubedo", "prima materia", "crucible", "hermetic")) return null;
       // Pass the original message as the prompt so the storytelling engine
       // can detect the specific narrative intent.
       return [
@@ -1185,6 +1286,11 @@ const PATTERNS: CompositionPattern[] = [
       if (!ctx.hasComponents) return null;
       // Detect lineage/genealogy/ancestry queries.
       if (!has(msg, "lineage", "genealogy", "ancestry", "ancestor", "descendant", "heritage", "where did this come from", "origin of", "derived from", "family tree")) return null;
+      // Guard: when the user requests evolutionary/genealogical ANALYSIS
+      // (phylogenetic tree, genetic diversity, mutation rate, evolutionary
+      // pattern), defer to the dedicated analyze_genealogy intent in the
+      // mock provider — this is an analytical operation, not a lineage query.
+      if (has(msg, "evolutionary", "phylogenetic", "genetic diversity", "mutation rate", "common ancestor", "genetic trait", "evolution of", "genealogical analysis", "trace the genealogy", "trace the lineage", "trace the ancestry", "analyze the genealogy", "analyze the lineage", "analyze the ancestry")) return null;
 
       // If the user asks for a tree/overview, return the full tree.
       if (has(msg, "tree", "overview", "all", "full", "summary")) {
@@ -1215,6 +1321,11 @@ const PATTERNS: CompositionPattern[] = [
       if (!ctx.hasComponents) return null;
       // Detect synthesis/breeding/hybridization keywords.
       if (!has(msg, "synthes", "hybrid", "breed", "cross", "combine the dna", "merge the motion", "blend the motion", "splice")) return null;
+      // Guard: when the user requests chemical synthesis analysis (alongside
+      // chemistry keywords like reaction/compound/molecule/atom/bond/catalyst),
+      // defer to the dedicated analyze_chemistry intent — "synthesis" here is
+      // a chemical reaction type, not motion-DNA hybridization.
+      if (has(msg, "reaction", "compound", "molecule", "molecular", "atom", "atomic", "bond", "catalyst", "inhibitor", "covalent", "ionic", "metallic", "ph of", "enthalpy", "chemical", "chemistry")) return null;
 
       // Determine strategy from the message.
       let strategy: "blend" | "dominant" | "crossover" | "mutation" = "blend";
@@ -1242,6 +1353,8 @@ const PATTERNS: CompositionPattern[] = [
     name: "motion-profiler",
     match: (msg, ctx) => {
       if (!ctx.hasComponents) return null;
+      // Guard: "taste profile" belongs to adaptive learning, not performance profiling
+      if (has(msg, "taste")) return null;
       if (!has(msg, "profile", "performance cost", "gpu cost", "jank", "frame budget", "rendering cost", "paint cost", "composite layer", "will-change", "fps", "optimization recommendation")) return null;
       return [
         {
@@ -1259,6 +1372,24 @@ const PATTERNS: CompositionPattern[] = [
     match: (msg, ctx) => {
       if (!ctx.hasComponents) return null;
       if (!has(msg, "curate", "curation", "organize", "group components", "semantic", "redundanc", "coverage", "collection", "tag components", "classify")) return null;
+      // Yield to Motion Chemistry — chemical bonds/reactions/compounds are
+      // molecular analysis, not component curation.
+      if (has(msg, "chemistry", "chemical", "molecule", "molecular", "atom", "atomic", "bond", "reaction", "catalyst", "inhibitor", "compound", "covalent", "ionic", "metallic", "hydrogen bond", "van der waals", "synthesis", "decomposition", "displacement", "combustion", "ph of", "acidity", "alkalinity", "enthalpy", "entropy of", "equilibrium", "state of matter", "plasma", "periodic")) return null;
+      // Yield to Motion Astronomy — celestial bodies/constellations are
+      // astronomical classification, not component curation.
+      if (has(msg, "astronomy", "astronomical", "celestial", "cosmos", "cosmic", "constellation", "galaxy", "galactic", "stellar", "spectral", "supernova", "black hole", "nebula", "pulsar", "star system", "light-years", "light years", "orbital period", "luminosity")) return null;
+      // Yield to Motion Musicology — musical classification is not curation.
+      if (has(msg, "musicology", "musical", "melody", "melodic", "harmony", "harmonic", "rhythm", "rhythmic", "tempo", "bpm", "chord", "phrase", "key signature", "time signature", "scale of", "pitch of", "dynamics of", "crescendo", "decrescendo", "sonata", "rondo", "aaba")) return null;
+      // Yield to Motion Botany — botanical classification is not curation.
+      if (has(msg, "botany", "botanical", "plant", "leaf", "leaves", "stem", "flower", "petal", "root", "canopy", "germination", "seedling", "phenology", "biomass", "tropism", "vine", "shrub")) return null;
+      // Yield to Motion Geology — geological classification is not curation.
+      if (has(msg, "geology", "geological", "stratum", "strata", "sedimentary", "igneous", "metamorphic", "volcanic", "alluvial", "tectonic", "earthquake", "uplift", "fault line", "faulting", "erosion", "deposition", "mineral", "epoch", "canyon", "plateau", "mountain range", "rock layer", "crust")) return null;
+      // Yield to Motion Physics — physics analysis is not curation.
+      if (has(msg, "physics", "physical", "kinematic", "dynamic", "force", "energy of", "momentum", "collision", "velocity", "acceleration", "inertia", "equilibrium", "work of", "power of", "spring force")) return null;
+      // Yield to Motion Linguistics — linguistic analysis is not curation.
+      if (has(msg, "linguistics", "linguistic", "phoneme", "phonology", "morpheme", "morphology", "syntax", "syntactic", "semantic", "semantics", "pragmatic", "pragmatics", "prosody", "discourse", "speech act", "intonation", "language family")) return null;
+      // Yield to Motion Cinema — cinematic analysis is not curation.
+      if (has(msg, "cinema", "cinematic", "film", "movie", "mise-en-scène", "mise en scene", "camera movement", "camera angle", "narrative structure", "montage", "storyboard", "screenplay", "directing")) return null;
       return [
         {
           tool: "curate_motion",
@@ -1290,6 +1421,9 @@ const PATTERNS: CompositionPattern[] = [
     match: (msg, ctx) => {
       if (!ctx.hasComponents) return null;
       if (!has(msg, "audit", "wcag", "accessibility report", "compliance", "flash", "seizure", "pause stop hide", "distraction", "cognitive load", "motion sickness", "vestibular", "a11y audit")) return null;
+      // Yield to Motion Cognition — detailed cognitive load modeling with working memory,
+      // attention switching, perceptual grouping, and processing fluency analysis
+      if (has(msg, "working memory", "attention switching", "perceptual grouping", "processing fluency", "mental load", "mental effort")) return null;
       return [
         {
           tool: "audit_motion",
@@ -1343,7 +1477,952 @@ const PATTERNS: CompositionPattern[] = [
       ];
     },
   },
+
+  // --- Motion cohesion composition ---
+  {
+    name: "motion-cohesion",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "cohesion", "hierarchy", "focal point", "attention flow", "compositional balance", "synchronicity", "unified", "harmony", "visual weight", "cohesive")) return null;
+      return [
+        {
+          tool: "analyze_cohesion",
+          args: { projectId: ctx.projectId },
+          reason: "Analyze project-level cohesion — visual hierarchy, focal points, attention flow, compositional balance, and motion synchronicity",
+        },
+      ];
+    },
+  },
+
+  // --- Motion conflict detection composition ---
+  {
+    name: "motion-conflict-detector",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "conflict", "collision", "overlap", "clash", "timeline problem", "timing issue", "gap", "redundant", "anomaly", "dead time")) return null;
+      return [
+        {
+          tool: "detect_conflicts",
+          args: { projectId: ctx.projectId },
+          reason: "Detect structural conflicts in the timeline — property conflicts, transform collisions, timing gaps, timing collisions, and duration anomalies",
+        },
+      ];
+    },
+  },
+
+  // --- Motion variant comparator composition ---
+  {
+    name: "motion-comparator",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "compare", "versus", "vs", "best variant", "recommend", "rank", "evaluate variants", "a/b test", "which is better")) return null;
+      return [
+        {
+          tool: "compare_variants",
+          args: { projectId: ctx.projectId },
+          reason: "Compare all variants across five criteria — accessibility, performance, novelty, consistency, and clarity — and recommend the best option",
+        },
+      ];
+    },
+  },
+
+  // --- Motion evolution: evolutionary optimization ---
+  {
+    name: "motion-evolution",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "evolve", "evolution", "optimize", "breed", "natural selection", "genetic", "fitness", "survival of the fittest", "iteratively improve", "evolutionary")) return null;
+      // Yield to Motion Genealogy — tracing genealogy/lineage/ancestry is
+      // historical analysis, not evolutionary optimization.
+      if (has(msg, "genealogy", "genealogical", "lineage", "ancestry", "ancestor", "descendant", "phylogenetic", "common ancestor", "analyze the genealogy", "analyze the lineage", "analyze the ancestry")) return null;
+      const strategyM = msg.match(/\b(playful|accessible|performant|harmonious|balanced)\b/);
+      const strategy = strategyM ? strategyM[1] : "balanced";
+      const apply = has(msg, "apply", "commit", "use the best", "make it so");
+      return [
+        {
+          tool: "evolve_motion",
+          args: { projectId: ctx.projectId, strategy, apply },
+          reason: `Evolve the motion spec across multiple generations using the ${strategy} strategy — breeds progressively better animations via selection, crossover, and mutation`,
+        },
+      ];
+    },
+  },
+
+  // --- List evolution strategies ---
+  {
+    name: "list-evolution-strategies",
+    match: (msg, _ctx) => {
+      if (!has(msg, "evolution strateg", "evolve strateg", "list evolution", "what strateg", "available strateg", "optimization strateg")) return null;
+      return [
+        {
+          tool: "list_evolution_strategies",
+          args: {},
+          reason: "List all available evolution strategies — balanced, playful, accessible, performant, and harmonious",
+        },
+      ];
+    },
+  },
+
+  // --- Motion perception: predict viewer response ---
+  {
+    name: "motion-perception",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "how will", "perceive", "viewer response", "emotional response", "cognitive load", "memorab", "attention retention", "brand perception", "how will viewers", "how does it feel")) return null;
+      // Yield to Motion Cognition — detailed cognitive load modeling with working memory,
+      // attention switching, perceptual grouping, and processing fluency analysis
+      if (has(msg, "working memory", "attention switching", "perceptual grouping", "processing fluency", "mental load", "mental effort")) return null;
+      return [
+        {
+          tool: "predict_perception",
+          args: { projectId: ctx.projectId },
+          reason: "Predict how viewers will cognitively and emotionally respond to the motion composition",
+        },
+      ];
+    },
+  },
+
+  // --- Motion semantics: list concepts ---
+  {
+    name: "list-semantic-concepts",
+    match: (msg, _ctx) => {
+      // Guard: plural "emotions" refers to emotion profiles, not semantic concepts
+      if (has(msg, "emotions")) return null;
+      if (!has(msg, "what emotion", "what concept", "list semantic", "list concept", "available emotion", "motion concept", "what feeling", "semantic concept")) return null;
+      const categoryM = msg.match(/\b(emotion|brand|energy|aesthetic)\b/);
+      const category = categoryM ? categoryM[1] : undefined;
+      return [
+        {
+          tool: "list_semantic_concepts",
+          args: category ? { category } : {},
+          reason: `List semantic concepts${category ? ` in the ${category} category` : ""} that can be mapped to motion parameters`,
+        },
+      ];
+    },
+  },
+
+  // --- Motion semantics: infer intent ---
+  {
+    name: "infer-semantic-intent",
+    match: (msg, _ctx) => {
+      if (!has(msg, "make it feel", "should feel", "feel like", "give it a sense", "convey", "express the", "emotion of", "mood of", "feeling of")) return null;
+      return [
+        {
+          tool: "infer_intent",
+          args: { description: msg },
+          reason: "Infer semantic intent from the natural language description and generate a matching motion profile",
+        },
+      ];
+    },
+  },
+
+  // --- Motion semantics: blend concepts ---
+  {
+    name: "blend-semantic-concepts",
+    match: (msg, _ctx) => {
+      if (!has(msg, "blend", "combine", "mix", "merge", "hybrid")) return null;
+      const conceptM = msg.match(/\b(trust|urgency|luxury|playful|innovation|calm|energy|mystery|minimal|celebration)\b/g);
+      if (!conceptM || conceptM.length < 2) return null;
+      const weightM = msg.match(/(\d+)%/);
+      const weightA = weightM ? parseInt(weightM[1], 10) / 100 : 0.5;
+      return [
+        {
+          tool: "blend_concepts",
+          args: { conceptA: conceptM[0], conceptB: conceptM[1], weightA },
+          reason: `Blend ${conceptM[0]} and ${conceptM[1]} into a hybrid motion profile`,
+        },
+      ];
+    },
+  },
+
+  // --- Motion physics: simulate ---
+  {
+    name: "physics-simulate",
+    match: (msg, _ctx) => {
+      if (!has(msg, "physics", "spring", "gravity", "projectile", "friction", "pendulum")) return null;
+      // Guard: when the user wants to *analyze* the composition through
+      // physics principles (rather than generate a new simulation), defer
+      // to the analyze-physics composition so a physics report is produced.
+      if (has(msg, "analyze", "examine", "study", "inspect", "investigate", "measure", "calculate", "report on", "tell me about", "describe the", "of the motion", "of the composition", "of the animation")) return null;
+
+      let simType = "spring";
+      if (has(msg, "gravity", "drop", "fall")) simType = "gravity";
+      else if (has(msg, "projectile", "throw", "arc", "trajectory")) simType = "projectile";
+      else if (has(msg, "friction", "slide", "decelerate")) simType = "friction";
+      else if (has(msg, "pendulum", "swing")) simType = "pendulum";
+
+      // Extract numeric parameters
+      const config: Record<string, number> = {};
+      const stiffnessM = msg.match(/stiffness\s*(\d+)/);
+      if (stiffnessM) config.stiffness = parseInt(stiffnessM[1], 10);
+      const dampingM = msg.match(/damping\s*(\d+)/);
+      if (dampingM) config.damping = parseInt(dampingM[1], 10);
+      const massM = msg.match(/mass\s*(\d+(?:\.\d+)?)/);
+      if (massM) config.mass = parseFloat(massM[1]);
+      const durM = msg.match(/(\d+)\s*ms/);
+      if (durM) config.durationMs = parseInt(durM[1], 10);
+      const heightM = msg.match(/height\s*(\d+)/);
+      if (heightM) config.initialHeight = parseInt(heightM[1], 10);
+      const angleM = msg.match(/angle\s*(\d+)/);
+      if (angleM) config.angle = parseInt(angleM[1], 10);
+
+      return [
+        {
+          tool: "simulate_physics",
+          args: { type: simType, config: Object.keys(config).length > 0 ? config : undefined },
+          reason: `Run a ${simType} physics simulation${Object.keys(config).length > 0 ? " with custom parameters" : ""} and generate motion keyframes from the physical model`,
+        },
+      ];
+    },
+  },
+
+  // --- Motion physics: list presets ---
+  {
+    name: "list-physics-presets",
+    match: (msg, _ctx) => {
+      if (!has(msg, "physics preset", "list physics", "what physics", "available physics", "physics simulation")) return null;
+      return [
+        {
+          tool: "list_physics_presets",
+          args: {},
+          reason: "List all available physics simulation presets and types",
+        },
+      ];
+    },
+  },
+
+  // --- Motion physics: run named preset ---
+  {
+    name: "run-physics-preset",
+    match: (msg, _ctx) => {
+      const presetM = msg.match(/\b(spring-snappy|spring-gentle|spring-bouncy|gravity-drop|gravity-slam|projectile-arc|projectile-high|friction-slide|friction-glide|pendulum-swing)\b/);
+      if (!presetM) return null;
+      return [
+        {
+          tool: "run_physics_preset",
+          args: { presetId: presetM[1] },
+          reason: `Run the ${presetM[1]} physics preset and generate a motion component`,
+        },
+      ];
+    },
+  },
+
+  // --- Emotion Intelligence compositions ---
+  {
+    name: "list-emotions",
+    match: (msg) => {
+      if (!has(msg, "emotion")) return null;
+      if (!has(msg, "list", "show", "available", "all", "what")) return null;
+      return [
+        {
+          tool: "list_emotions",
+          args: {},
+          reason: "List all available emotion profiles with VAD coordinates and motion parameters",
+        },
+      ];
+    },
+  },
+  {
+    name: "synthesize-from-emotion",
+    match: (msg) => {
+      const m = msg.match(/\b(?:make|create|generate|synthesize)\s+(?:a\s+)?(?:motion|animation)\s+(?:that\s+(?:feels?|conveys?|expresses?)\s+)?(\w+)/i);
+      if (!m) return null;
+      const emotionWords = ["joy", "calm", "anger", "fear", "surprise", "trust", "anticipation", "power", "melancholy", "serenity", "playful", "mystery", "urgency", "luxury", "excitement", "sadness"];
+      const word = m[1].toLowerCase();
+      if (!emotionWords.includes(word)) return null;
+      return [
+        {
+          tool: "synthesize_from_emotion",
+          args: { emotionId: word },
+          reason: `Synthesize motion parameters from the "${word}" emotion`,
+        },
+      ];
+    },
+  },
+  {
+    name: "plan-emotion-journey",
+    match: (msg) => {
+      if (!has(msg, "emotion")) return null;
+      if (!has(msg, "journey", "arc", "sequence")) return null;
+      return [
+        {
+          tool: "plan_emotion_journey",
+          args: { emotionIds: ["calm", "anticipation", "excitement", "joy"], totalDurationMs: 5000 },
+          reason: "Plan an emotion journey across a timeline",
+        },
+      ];
+    },
+  },
+
+  // --- Adaptive Learning compositions ---
+  {
+    name: "get-taste-profile",
+    match: (msg) => {
+      if (!has(msg, "taste")) return null;
+      if (!has(msg, "profile", "preference", "learning")) return null;
+      return [
+        {
+          tool: "get_taste_profile",
+          args: {},
+          reason: "Get the user's learned motion taste profile",
+        },
+      ];
+    },
+  },
+  {
+    name: "recommend-for-project",
+    match: (msg) => {
+      if (!has(msg, "recommend", "suggest")) return null;
+      if (!has(msg, "motion", "animation", "parameter")) return null;
+      return [
+        {
+          tool: "recommend_for_project",
+          args: {},
+          reason: "Recommend motion parameters based on learned preferences",
+        },
+      ];
+    },
+  },
+
+  // --- Contextual Awareness compositions ---
+  {
+    name: "auto-detect-context",
+    match: (msg) => {
+      if (!has(msg, "context")) return null;
+      if (!has(msg, "detect", "auto", "sense", "what is")) return null;
+      return [
+        {
+          tool: "auto_detect_context",
+          args: {},
+          reason: "Auto-detect the current motion context from available signals",
+        },
+      ];
+    },
+  },
+  {
+    name: "list-context-options",
+    match: (msg) => {
+      if (!has(msg, "context")) return null;
+      if (!has(msg, "option", "choice", "dimension", "list", "show")) return null;
+      return [
+        {
+          tool: "list_context_options",
+          args: {},
+          reason: "List all available context options",
+        },
+      ];
+    },
+  },
+
+  // --- Motion Collaboration compositions ---
+  {
+    name: "list-collaboration-modules",
+    match: (msg) => {
+      if (!has(msg, "collaboration")) return null;
+      if (!has(msg, "module", "list", "show", "what", "available")) return null;
+      return [
+        {
+          tool: "list_collaboration_modules",
+          args: {},
+          reason: "List all available collaboration modules",
+        },
+      ];
+    },
+  },
+  {
+    name: "execute-collaboration",
+    match: (msg) => {
+      if (!has(msg, "collaboration", "collaborate")) return null;
+      if (has(msg, "plan", "design") && !has(msg, "execute", "run")) return null;
+      return [
+        {
+          tool: "execute_collaboration",
+          args: { request: msg },
+          reason: "Execute a multi-module collaboration to produce a unified motion design",
+        },
+      ];
+    },
+  },
+  {
+    name: "plan-collaboration",
+    match: (msg) => {
+      if (!has(msg, "collaboration")) return null;
+      if (!has(msg, "plan", "design")) return null;
+      return [
+        {
+          tool: "plan_collaboration",
+          args: { request: msg },
+          reason: "Plan a multi-module collaboration for the complex motion request",
+        },
+      ];
+    },
+  },
+
+  // --- Motion Resonance compositions ---
+  {
+    name: "analyze-resonance",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "resonance", "resonate", "cognitive alignment", "emotional alignment", "rhythmic alignment")) return null;
+      if (has(msg, "tune", "optimize", "improve", "fix")) return null;
+      return [
+        {
+          tool: "analyze_resonance",
+          args: { projectId: ctx.projectId },
+          reason: "Analyze the resonance between the project's motion and the viewer's cognitive/emotional state",
+        },
+      ];
+    },
+  },
+  {
+    name: "tune-resonance",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "resonance", "resonate")) return null;
+      if (!has(msg, "tune", "optimize", "improve", "fix", "maximize")) return null;
+      return [
+        {
+          tool: "tune_resonance",
+          args: { projectId: ctx.projectId },
+          reason: "Tune motion parameters to maximize resonance with the viewer's state",
+        },
+      ];
+    },
+  },
+
+  // --- Motion Synesthesia compositions ---
+  {
+    name: "translate-synesthesia",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "synesthesia", "synesthetic", "multi-sensory", "multisensory", "sound like", "feel like", "taste like", "color of this motion", "color of the motion")) return null;
+      return [
+        {
+          tool: "translate_synesthesia",
+          args: { projectId: ctx.projectId },
+          reason: "Translate the project's motion into a multi-sensory experience — color, sound, and texture",
+        },
+      ];
+    },
+  },
+  {
+    name: "map-sensory-to-motion",
+    match: (msg, _ctx) => {
+      if (!has(msg, "motion from", "motion for a", "map a", "convert a", "translate a")) return null;
+      const modalityMatch = msg.match(/\b(color|sound|texture|emotion)\b/);
+      if (!modalityMatch) return null;
+      const valueMatch = msg.match(/#([0-9a-f]{3,6})|\b([A-G]#?\d)\b|\b(smooth|rough|soft|hard|liquid|granular|crystalline|elastic)\b|\b(joy|calm|anger|fear|surprise|trust|anticipation|sadness)\b/i);
+      return [
+        {
+          tool: "map_sensory_to_motion",
+          args: {
+            modality: modalityMatch[1].toLowerCase(),
+            value: valueMatch ? (valueMatch[1] || valueMatch[2] || valueMatch[3] || valueMatch[4] || "#3366cc") : "#3366cc",
+          },
+          reason: `Map a ${modalityMatch[1]} input to motion parameters for cross-modal design`,
+        },
+      ];
+    },
+  },
+
+  // --- Motion Dream compositions ---
+  {
+    name: "list-dream-concepts",
+    match: (msg) => {
+      if (!has(msg, "dream")) return null;
+      if (!has(msg, "concept", "list", "show", "what", "available")) return null;
+      return [
+        {
+          tool: "list_dream_concepts",
+          args: {},
+          reason: "List all available dream concepts used as seeds for generative creativity",
+        },
+      ];
+    },
+  },
+  {
+    name: "dream-from-prompt",
+    match: (msg, _ctx) => {
+      // Must mention "dream" or surrealist keywords
+      if (!has(msg, "dream", "imagine", "fantasize", "hallucinate", "surreal")) return null;
+      // Skip dream sequence requests
+      if (has(msg, "sequence", "series")) return null;
+      return [
+        {
+          tool: "dream_from_prompt",
+          args: { projectId: _ctx.projectId, prompt: msg },
+          reason: "Generate a dream-like motion variation from the prompt using surrealist concept juxtaposition",
+        },
+      ];
+    },
+  },
+  {
+    name: "dream-sequence",
+    match: (msg, _ctx) => {
+      if (!has(msg, "dream")) return null;
+      if (!has(msg, "sequence", "series")) return null;
+      const lengthMatch = msg.match(/(\d+)\s*(?:motion|step|part)/);
+      return [
+        {
+          tool: "generate_dream_sequence",
+          args: {
+            projectId: _ctx.projectId,
+            length: lengthMatch ? parseInt(lengthMatch[1], 10) : 3,
+          },
+          reason: "Generate a dream sequence — multiple dream motions composed into a narrative thread",
+        },
+      ];
+    },
+  },
+
+  // --- Motion Harmonics compositions ---
+  {
+    name: "analyze-harmonics",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "harmonic", "harmonics", "harmony", "frequency", "spectrum", "overtone", "consonance", "dissonance")) return null;
+      if (has(msg, "find", "partner", "compatible", "match")) return null;
+      return [
+        {
+          tool: "analyze_harmonics",
+          args: { projectId: ctx.projectId },
+          reason: "Analyze the harmonic structure of the composition — extract frequency signatures and compute consonance between components",
+        },
+      ];
+    },
+  },
+  {
+    name: "find-harmonics",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "harmonic", "harmony", "harmonize")) return null;
+      if (!has(msg, "find", "partner", "compatible", "match", "pair")) return null;
+      return [
+        {
+          tool: "find_harmonics",
+          args: { projectId: ctx.projectId, componentId: "" },
+          reason: "Find components that harmonize with the selected component",
+        },
+      ];
+    },
+  },
+
+  // --- Motion Entropy compositions ---
+  {
+    name: "analyze-entropy",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "entropy", "information theory", "information content", "predictability", "redundancy", "information density")) return null;
+      if (has(msg, "hotspot", "most varied", "least varied")) return null;
+      return [
+        {
+          tool: "analyze_entropy",
+          args: { projectId: ctx.projectId },
+          reason: "Apply Shannon's information theory to the composition — measure entropy, mutual information, and predictability",
+        },
+      ];
+    },
+  },
+  {
+    name: "identify-hotspots",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "hotspot", "most varied", "least varied", "most informative", "redundant pair")) return null;
+      return [
+        {
+          tool: "identify_information_hotspots",
+          args: { projectId: ctx.projectId },
+          reason: "Identify the most and least varied motion properties, plus redundant component pairs",
+        },
+      ];
+    },
+  },
+
+  // --- Motion Cognition compositions ---
+  {
+    name: "analyze-cognitive-load",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "cognitive load", "cognitive", "working memory", "attention switching", "perceptual grouping", "processing fluency", "mental load", "mental effort")) return null;
+      return [
+        {
+          tool: "analyze_cognitive_load",
+          args: { projectId: ctx.projectId },
+          reason: "Model the cognitive load the composition imposes on the viewer — working memory, attention switching, grouping, fluency",
+        },
+      ];
+    },
+  },
+
+  // --- Motion Topology compositions ---
+  {
+    name: "analyze-topology",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "topology", "topological", "connected component", "temporal hole", "euler characteristic", "genus", "compactness", "connectivity")) return null;
+      if (has(msg, "path", "route", "between")) return null;
+      return [
+        {
+          tool: "analyze_topology",
+          args: { projectId: ctx.projectId },
+          reason: "Analyze the topological structure of the composition — connected components, temporal holes, Euler characteristic, genus",
+        },
+      ];
+    },
+  },
+  {
+    name: "find-temporal-path",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "path", "route", "between")) return null;
+      if (!has(msg, "topology", "topological", "temporal", "overlap")) return null;
+      return [
+        {
+          tool: "find_temporal_path",
+          args: { projectId: ctx.projectId, fromId: "", toId: "" },
+          reason: "Find the shortest temporal path between two components through overlapping neighbors",
+        },
+      ];
+    },
+  },
+
+  // --- Motion Poetics compositions ---
+  {
+    name: "analyze-poetics",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "poetic", "poetics", "meter", "iambic", "trochaic", "dactylic", "anapestic", "stanza", "caesura", "enjambment", "sonnet", "haiku", "free verse", "blank verse", "rhythm of the motion", "poetic form")) return null;
+      return [
+        {
+          tool: "analyze_poetics",
+          args: { projectId: ctx.projectId },
+          reason: "Apply poetic meter and form to the composition — detect feet, stanzas, caesuras, enjambments, and classify the poetic form",
+        },
+      ];
+    },
+  },
+
+  // --- Motion Ecology compositions ---
+  {
+    name: "analyze-ecosystem",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "ecosystem", "ecology", "ecological", "species", "biodiversity", "symbiotic", "parasitic", "predator-prey", "trophic", "carrying capacity", "niche")) return null;
+      return [
+        {
+          tool: "analyze_ecosystem",
+          args: { projectId: ctx.projectId },
+          reason: "Model the composition as a living ecosystem — classify species, detect relationships, compute biodiversity and health",
+        },
+      ];
+    },
+  },
+
+  // --- Motion Calligraphy compositions ---
+  {
+    name: "analyze-calligraphy",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "calligraphy", "calligraphic", "brush stroke", "brushwork", "ink flow", "penmanship", "cursive", "regular script", "running script", "wild script", "stroke quality", "calligraphic character")) return null;
+      return [
+        {
+          tool: "analyze_calligraphy",
+          args: { projectId: ctx.projectId },
+          reason: "Analyze the composition as calligraphic art — evaluate stroke quality, pressure, velocity, fluency, ink flow, and overall character",
+        },
+      ];
+    },
+  },
+
+  // --- Motion Mythology compositions ---
+  {
+    name: "analyze-mythology",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "mythology", "mythic", "mythological", "hero's journey", "heros journey", "monomyth", "archetype", "archetypal", "shadow archetype", "mentor archetype", "threshold guardian", "boon", "transformation myth", "narrative archetype")) return null;
+      return [
+        {
+          tool: "analyze_mythology",
+          args: { projectId: ctx.projectId },
+          reason: "Interpret the composition through mythological lens — detect hero's journey stages, archetypal patterns, narrative structure, and emotional boon",
+        },
+      ];
+    },
+  },
+
+  // --- Motion Weather compositions ---
+  {
+    name: "analyze-weather",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "weather", "storm", "storm pattern", "atmospheric pressure", "weather system", "weather forecast", "climate", "front activity", "calm period", "wind speed", "humidity", "forecast the", "meteorological")) return null;
+      return [
+        {
+          tool: "analyze_weather",
+          args: { projectId: ctx.projectId },
+          reason: "Model the composition as a weather system — detect pressure, wind, fronts, storms, calm periods, and forecast emotional climate",
+        },
+      ];
+    },
+  },
+
+  // --- Motion Alchemy compositions ---
+  {
+    name: "analyze-alchemy",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "alchemy", "alchemical", "transmutation", "magnum opus", "philosopher's stone", "nigredo", "albedo", "citrinitas", "rubedo", "prima materia", "crucible", "hermetic", "alchemy of", "alchemically")) return null;
+      return [
+        {
+          tool: "analyze_alchemy",
+          args: { projectId: ctx.projectId },
+          reason: "Interpret the composition through alchemical transformation — detect the four magnum opus stages, operations, prima materia, and philosopher's stone",
+        },
+      ];
+    },
+  },
+
+  // --- Motion Architecture compositions ---
+  {
+    name: "analyze-architecture",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "architecture", "architectural", "structural role", "foundation", "facade", "load-bearing", "proportion", "golden ratio", "hierarchy of", "material honesty", "brutalist", "modernist", "baroque", "gothic", "deconstructivist", "building", "structure of")) return null;
+      // Yield to Motion Astronomy — galactic/celestial structure is
+      // astronomical, not architectural.
+      if (has(msg, "astronomy", "astronomical", "celestial", "cosmos", "cosmic", "constellation", "galaxy", "galactic", "stellar", "spectral", "supernova", "black hole", "nebula", "pulsar", "star system", "light-years", "light years", "orbital period", "luminosity")) return null;
+      // Yield to Motion Chemistry — molecular structure is chemical.
+      if (has(msg, "chemistry", "chemical", "molecule", "molecular", "atom", "atomic", "bond", "reaction", "catalyst", "inhibitor", "compound", "covalent", "ionic", "metallic", "hydrogen bond", "van der waals", "synthesis", "decomposition", "displacement", "combustion", "ph of", "acidity", "alkalinity", "enthalpy", "entropy of", "equilibrium", "state of matter", "plasma", "periodic")) return null;
+      // Yield to Motion Musicology — musical form/structure is musical.
+      if (has(msg, "musicology", "musical", "melody", "melodic", "harmony", "harmonic", "rhythm", "rhythmic", "tempo", "bpm", "chord", "phrase", "key signature", "time signature", "scale of", "pitch of", "dynamics of", "crescendo", "decrescendo", "sonata", "rondo", "aaba")) return null;
+      // Yield to Motion Botany — plant structure is botanical.
+      if (has(msg, "botany", "botanical", "plant", "leaf", "leaves", "stem", "flower", "petal", "root", "canopy", "germination", "seedling", "phenology", "biomass", "tropism", "vine", "shrub")) return null;
+      // Yield to Motion Geology — geological strata structure is geological.
+      if (has(msg, "geology", "geological", "stratum", "strata", "sedimentary", "igneous", "metamorphic", "volcanic", "alluvial", "tectonic", "earthquake", "uplift", "fault line", "faulting", "erosion", "deposition", "mineral", "epoch", "canyon", "plateau", "mountain range", "rock layer", "crust")) return null;
+      return [
+        {
+          tool: "analyze_architecture",
+          args: { projectId: ctx.projectId },
+          reason: "Analyze the composition as a built structure — classify structural roles, proportion, hierarchy, spatial organization, style, and integrity",
+        },
+      ];
+    },
+  },
+
+  // --- Motion Cartography compositions ---
+  {
+    name: "analyze-cartography",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "cartography", "cartographic", "terrain", "elevation", "contour", "landmark", "compass direction", "biome", "territory", "map the", "topography", "landscape of")) return null;
+      // Yield to Motion Astronomy — mapping the cosmos/constellations is
+      // astronomical, not cartographic.
+      if (has(msg, "astronomy", "astronomical", "celestial", "cosmos", "cosmic", "constellation", "galaxy", "galactic", "stellar", "spectral", "supernova", "black hole", "nebula", "pulsar", "star system", "light-years", "light years", "orbital period", "luminosity")) return null;
+      // Yield to Motion Chemistry — mapping molecular structure is chemical.
+      if (has(msg, "chemistry", "chemical", "molecule", "molecular", "atom", "atomic", "bond", "reaction", "catalyst", "inhibitor", "compound", "covalent", "ionic", "metallic", "hydrogen bond", "van der waals", "synthesis", "decomposition", "displacement", "combustion", "ph of", "acidity", "alkalinity", "enthalpy", "entropy of", "equilibrium", "state of matter", "plasma", "periodic")) return null;
+      // Yield to Motion Musicology — musical landscape is musical.
+      if (has(msg, "musicology", "musical", "melody", "melodic", "harmony", "harmonic", "rhythm", "rhythmic", "tempo", "bpm", "chord", "phrase", "key signature", "time signature", "scale of", "pitch of", "dynamics of", "crescendo", "decrescendo", "sonata", "rondo", "aaba")) return null;
+      // Yield to Motion Botany — botanical landscape is botanical.
+      if (has(msg, "botany", "botanical", "plant", "leaf", "leaves", "stem", "flower", "petal", "root", "canopy", "germination", "seedling", "phenology", "biomass", "tropism", "vine", "shrub")) return null;
+      // Yield to Motion Geology — geological terrain is geological.
+      if (has(msg, "geology", "geological", "stratum", "strata", "sedimentary", "igneous", "metamorphic", "volcanic", "alluvial", "tectonic", "earthquake", "uplift", "fault line", "faulting", "erosion", "deposition", "mineral", "epoch", "canyon", "plateau", "mountain range", "rock layer", "crust")) return null;
+      return [
+        {
+          tool: "analyze_cartography",
+          args: { projectId: ctx.projectId },
+          reason: "Map the composition as cartographic terrain — compute elevation, contours, landmarks, routes, territories, compass, and scale",
+        },
+      ];
+    },
+  },
+
+  // --- Motion Genealogy compositions ---
+  {
+    name: "analyze-genealogy",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "genealogy", "genealogical", "lineage", "ancestry", "ancestor", "descendant", "evolutionary", "phylogenetic", "genetic trait", "mutation", "common ancestor", "evolution of")) return null;
+      return [
+        {
+          tool: "analyze_genealogy",
+          args: { projectId: ctx.projectId },
+          reason: "Trace the evolutionary lineage of motion patterns — extract genetic traits, detect ancestry, build phylogenetic tree, and analyze diversity",
+        },
+      ];
+    },
+  },
+
+  // --- Motion Astronomy compositions ---
+  {
+    name: "analyze-astronomy",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "astronomy", "astronomical", "celestial", "cosmos", "cosmic", "constellation", "galaxy", "galactic", "stellar", "spectral", "supernova", "black hole", "nebula", "pulsar", "star system", "light-years", "light years", "orbit of", "orbital", "magnitude of", "luminosity")) return null;
+      return [
+        {
+          tool: "analyze_astronomy",
+          args: { projectId: ctx.projectId },
+          reason: "Map the composition as celestial phenomena — classify celestial bodies, spectral types, constellations, cosmic events, and galactic structure",
+        },
+      ];
+    },
+  },
+
+  // --- Motion Chemistry compositions ---
+  {
+    name: "analyze-chemistry",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "chemistry", "chemical", "molecule", "molecular", "atom", "atomic", "bond", "reaction", "catalyst", "inhibitor", "compound", "covalent", "ionic", "metallic", "hydrogen bond", "van der waals", "synthesis", "decomposition", "displacement", "combustion", "ph of", "acidity", "alkalinity", "enthalpy", "entropy of", "equilibrium", "state of matter", "plasma", "periodic")) return null;
+      return [
+        {
+          tool: "analyze_chemistry",
+          args: { projectId: ctx.projectId },
+          reason: "Analyze the composition as a chemical system — extract atoms, build molecules, detect bonds, classify reactions, identify catalysts and inhibitors, and compute pH, temperature, entropy, enthalpy, and equilibrium",
+        },
+      ];
+    },
+  },
+
+  // --- Motion Musicology compositions ---
+  {
+    name: "analyze-musicology",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "musicology", "musical", "melody", "melodic", "harmony", "harmonic", "rhythm", "rhythmic", "tempo", "bpm", "chord", "phrase", "key signature", "time signature", "scale of", "pitch of", "dynamics of", "crescendo", "decrescendo", "sonata", "rondo", "aaba", "orchestration", "counterpoint", "articulation")) return null;
+      return [
+        {
+          tool: "analyze_musicology",
+          args: { projectId: ctx.projectId },
+          reason: "Analyze the composition as a musical score — extract notes, detect chords, identify phrases, compute rhythm and tempo, analyze dynamics, determine form, and detect key and scale",
+        },
+      ];
+    },
+  },
+
+  // --- Motion Botany compositions ---
+  {
+    name: "analyze-botany",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "botany", "botanical", "plant", "organ", "leaf", "leaves", "stem", "flower", "petal", "root", "branch", "canopy", "germination", "seedling", "phenology", "biomass", "tropism", "photosynth", "vine", "shrub", "tree-like", "growth pattern", "branching")) return null;
+      return [
+        {
+          tool: "analyze_botany",
+          args: { projectId: ctx.projectId },
+          reason: "Analyze the composition as a botanical system — classify organs, detect branching, analyze canopy and root system, build phenology timeline, determine life form, and compute biomass, diversity, and vitality",
+        },
+      ];
+    },
+  },
+
+  // --- Motion Geology compositions ---
+  {
+    name: "analyze-geology",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "geology", "geological", "stratum", "strata", "sedimentary", "igneous", "metamorphic", "volcanic", "alluvial", "tectonic", "earthquake", "uplift", "fault line", "faulting", "erosion", "deposition", "mineral", "epoch", "topology of", "terrain of", "canyon", "plateau", "mountain range", "rock layer", "crust")) return null;
+      return [
+        {
+          tool: "analyze_geology",
+          args: { projectId: ctx.projectId },
+          reason: "Analyze the composition as a geological formation — classify strata, detect tectonic events, identify fault lines, analyze mineral composition, divide epochs, and examine surface topology",
+        },
+      ];
+    },
+  },
+
+  // --- Motion Physics compositions ---
+  {
+    name: "analyze-physics",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      // Yield to simulate_physics when the user wants to *generate* motion
+      if (has(msg, "simulate", "generate", "create", "run", "preset")) return null;
+      if (!has(msg, "physics", "physical", "kinematic", "dynamic", "force", "energy", "momentum", "collision", "velocity", "acceleration", "inertia", "equilibrium", "work of", "power of", "friction", "gravity", "spring force")) return null;
+      return [
+        {
+          tool: "analyze_physics",
+          args: { projectId: ctx.projectId },
+          reason: "Analyze the composition through physics principles — compute kinematics, dynamics, energy, momentum, detect collisions, and analyze equilibrium",
+        },
+      ];
+    },
+  },
+
+  // --- Motion Linguistics compositions ---
+  {
+    name: "analyze-linguistics",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "linguistics", "linguistic", "phoneme", "phonology", "morpheme", "morphology", "syntax", "syntactic", "semantic", "semantics", "pragmatic", "pragmatics", "prosody", "discourse", "clause", "phrase structure", "speech act", "intonation", "stress pattern", "rhythm of speech", "register of", "language family")) return null;
+      return [
+        {
+          tool: "analyze_linguistics",
+          args: { projectId: ctx.projectId },
+          reason: "Analyze the composition as a linguistic utterance — extract phonemes, classify morphemes, build syntactic phrases and clauses, analyze prosody, determine semantics, identify speech acts, and trace discourse coherence",
+        },
+      ];
+    },
+  },
+
+  // --- Motion Cinema compositions ---
+  {
+    name: "analyze-cinema",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "cinema", "cinematic", "film", "movie", "shot", "scene", "cut", "transition", "mise-en-scène", "mise en scene", "camera movement", "camera angle", "narrative structure", "pacing of", "montage", "genre of", "close-up", "wide shot", "pan", "tilt", "dolly", "zoom", "crane", "storyboard", "screenplay", "directing")) return null;
+      return [
+        {
+          tool: "analyze_cinema",
+          args: { projectId: ctx.projectId },
+          reason: "Analyze the composition as a cinematic sequence — classify shots, detect cuts and transitions, determine camera movement, analyze mise-en-scène, identify narrative structure, compute pacing, classify montage type, and detect genre",
+        },
+      ];
+    },
+  },
 ];
+
+/**
+ * Pre-check for collaboration requests. These must be handled before any
+ * other pattern, because collaboration requests often contain keywords
+ * (spring, physics, mobile, etc.) that would otherwise match more
+ * specific patterns and hijack the request.
+ */
+function matchCollaborationFirst(normalized: string): ComposedTool[] | null {
+  if (!has(normalized, "collaboration", "collaborate")) return null;
+
+  // List modules: "list collaboration modules", "what collaboration modules are available"
+  if (has(normalized, "module", "list", "show", "what", "available")) {
+    return [
+      {
+        tool: "list_collaboration_modules",
+        args: {},
+        reason: "List all available collaboration modules",
+      },
+    ];
+  }
+
+  // Plan only: "plan a collaboration", "design a collaboration" (without execute/run)
+  if (has(normalized, "plan", "design") && !has(normalized, "execute", "run")) {
+    return [
+      {
+        tool: "plan_collaboration",
+        args: { request: normalized },
+        reason: "Plan a multi-module collaboration for the complex motion request",
+      },
+    ];
+  }
+
+  // Execute (default when "collaboration/collaborate" is present without "plan/design" only)
+  return [
+    {
+      tool: "execute_collaboration",
+      args: { request: normalized },
+      reason: "Execute a multi-module collaboration to produce a unified motion design",
+    },
+  ];
+}
 
 /**
  * Attempt to compose a multi-tool pipeline from a user message.
@@ -1357,6 +2436,18 @@ export function composeTools(
 ): CompositionResult {
   const normalized = norm(message);
   const ctx: MatchContext = { projectId, hasComponents };
+
+  // Collaboration requests are checked first so that keywords like
+  // "spring", "physics", "mobile" inside a collaboration request don't
+  // hijack the routing to more specific patterns.
+  const collaborationTools = matchCollaborationFirst(normalized);
+  if (collaborationTools) {
+    return {
+      matched: true,
+      tools: collaborationTools,
+      patternName: "collaboration-priority",
+    };
+  }
 
   for (const pattern of PATTERNS) {
     const tools = pattern.match(normalized, ctx);
