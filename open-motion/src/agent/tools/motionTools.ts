@@ -105,6 +105,9 @@ import {
   getStoryboardStats,
 } from "../../motion/storyboard.js";
 import type { StoryboardBeat } from "../../motion/storyboard.js";
+import { planSequence, optimizeTransitions, summarizeSequence, type NarrativeArcId } from "../../motion/motionSequencePlanner.js";
+import { getTheme, applyTheme, analyzeThemeCompatibility } from "../../motion/motionThemeSystem.js";
+import { generateVariants, compareVariants, summarizeVariants } from "../../motion/motionVariantGenerator.js";
 import { getPreset } from "./presets.js";
 import type { ToolContext, ToolResult } from "./registry.js";
 
@@ -4461,8 +4464,119 @@ export const motionExecutors: Partial<Record<ToolName, Executor>> = {
         width: asset.width,
         height: asset.height,
         generated: asset.generated,
-        seed: asset.seed,
-        tags: asset.tags,
+      seed: asset.seed,
+      tags: asset.tags,
+      },
+    };
+  },
+
+  plan_sequence: (args, ctx) => {
+    const description = String(args.description ?? "");
+    if (!description) {
+      return { ok: false, summary: "description is required", specChanged: false };
+    }
+    const spec = getProjectSpec(ctx.projectId);
+    const sequence = planSequence({
+      description,
+      arc: args.arc as NarrativeArcId | undefined,
+      totalDurationMs: args.totalDurationMs ? Number(args.totalDurationMs) : undefined,
+      sceneCount: args.sceneCount ? Number(args.sceneCount) : undefined,
+      fps: args.fps ? Number(args.fps) : undefined,
+      baseSpec: spec ?? undefined,
+    });
+    const optimized = args.optimize !== false ? optimizeTransitions(sequence) : sequence;
+    const summary = summarizeSequence(optimized);
+    return {
+      ok: true,
+      summary,
+      specChanged: false,
+      data: {
+        id: optimized.id,
+        name: optimized.name,
+        arc: optimized.arc,
+        totalDurationMs: optimized.totalDurationMs,
+        totalFrames: optimized.totalFrames,
+        sceneCount: optimized.scenes.length,
+        scenes: optimized.scenes,
+        pacing: optimized.pacing,
+        emotionalArc: optimized.emotionalArc,
+        timeline: optimized.timeline,
+        summary,
+      },
+    };
+  },
+
+  apply_motion_theme: (args, ctx) => {
+    const themeId = String(args.themeId ?? "");
+    const theme = getTheme(themeId);
+    if (!theme) {
+      return { ok: false, summary: `theme "${themeId}" not found`, specChanged: false };
+    }
+    const spec = getProjectSpec(ctx.projectId);
+    if (!spec) return { ok: false, summary: `project ${ctx.projectId} not found`, specChanged: false };
+    if (spec.components.length === 0) {
+      return { ok: false, summary: "no components to theme — add content first", specChanged: false };
+    }
+    const compatibility = analyzeThemeCompatibility(spec, theme);
+    const apply = (args.apply as boolean) ?? false;
+    if (apply) {
+      const themed = applyTheme(spec, theme);
+      for (const comp of themed.components) {
+        patchComponent(ctx.projectId, comp.id, {
+          easing: comp.easing,
+          durationMs: comp.durationMs,
+          delayMs: comp.delayMs,
+        });
+      }
+    }
+    return {
+      ok: true,
+      summary: `Theme "${theme.name}" (${theme.personality}) ${apply ? "applied" : "previewed"} — ${compatibility.score}% compatible, ${compatibility.suggestions.length} suggestion(s)`,
+      specChanged: apply,
+      data: {
+        themeId: theme.id,
+        themeName: theme.name,
+        personality: theme.personality,
+        applied: apply,
+        compatibility,
+      },
+    };
+  },
+
+  generate_variants: (args, ctx) => {
+    const spec = getProjectSpec(ctx.projectId);
+    if (!spec) return { ok: false, summary: `project ${ctx.projectId} not found`, specChanged: false };
+    if (spec.components.length === 0) {
+      return { ok: false, summary: "no components to generate variants from", specChanged: false };
+    }
+    const count = args.count ? Number(args.count) : 4;
+    const strategies = args.strategies as unknown as string[] | undefined;
+    const seed = args.seed ? Number(args.seed) : undefined;
+    const variants = generateVariants(spec, {
+      count,
+      strategies: strategies as never,
+      seed,
+    });
+    if (variants.length < 2) {
+      return { ok: false, summary: "could not generate enough variants", specChanged: false };
+    }
+    const comparison = compareVariants(variants[0], variants[1]);
+    const summary = summarizeVariants(variants);
+    return {
+      ok: true,
+      summary,
+      specChanged: false,
+      data: {
+        variants: variants.map((v) => ({
+          id: v.id,
+          name: v.name,
+          strategy: v.strategy,
+          changes: v.changes,
+          spec: v.spec,
+        })),
+        count: variants.length,
+        comparison,
+        summary,
       },
     };
   },
