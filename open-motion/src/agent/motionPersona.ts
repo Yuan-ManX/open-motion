@@ -373,10 +373,11 @@ export function applyPersona(
     // 4. Property alignment — strip avoided properties from keyframes.
     if (persona.avoidedProperties.length > 0) {
       for (const kf of comp.keyframes) {
+        const props = kf.properties as Record<string, string | number>;
         for (const avoided of persona.avoidedProperties) {
-          if (avoided in kf.properties) {
-            const before = String(kf.properties[avoided]);
-            delete kf.properties[avoided];
+          if (avoided in props) {
+            const before = String(props[avoided]);
+            delete props[avoided];
             adjustments.push({
               componentId: comp.id,
               componentName: comp.name,
@@ -488,12 +489,13 @@ function scoreComponent(comp: MotionComponent, persona: MotionPersona): { score:
 
   // Easing alignment.
   if (comp.easing.type === "preset") {
-    if (persona.preferredEasings.some((e) => e.type === "preset" && e.name === comp.easing.name)) {
+    const easingName = comp.easing.name;
+    if (persona.preferredEasings.some((e) => e.type === "preset" && e.name === easingName)) {
       score += 15;
-      reasons.push(`easing ${comp.easing.name} is preferred`);
-    } else if (persona.avoidedEasings.includes(comp.easing.name)) {
+      reasons.push(`easing ${easingName} is preferred`);
+    } else if (persona.avoidedEasings.includes(easingName)) {
       score -= 20;
-      reasons.push(`easing ${comp.easing.name} is avoided`);
+      reasons.push(`easing ${easingName} is avoided`);
     }
   }
 
