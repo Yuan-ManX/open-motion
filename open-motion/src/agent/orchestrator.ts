@@ -165,7 +165,212 @@ import {
   compareVariants,
   formatComparisonReport,
 } from "./motionComparator.js";
-import { patchComponent } from "../db/repositories/components.js";
+import {
+  evolveMotion,
+  listEvolutionStrategies,
+  getEvolutionConfig,
+} from "./motionEvolution.js";
+import {
+  predictPerception,
+  formatPerceptionReport,
+} from "./motionPerception.js";
+import {
+  listSemanticConcepts,
+  inferIntent,
+  blendConcepts,
+  formatProfile,
+} from "./motionSemantics.js";
+import {
+  simulateSpring,
+  simulateGravityDrop,
+  simulateProjectile,
+  simulateFriction,
+  simulatePendulum,
+  listPhysicsPresets,
+  listPhysicsTypes,
+  runPreset,
+} from "./motionPhysics.js";
+import {
+  generatePathMotion,
+  listPathPresets,
+  listPathTypes,
+  runPathPreset,
+} from "./motionPath.js";
+import {
+  encodeMotion,
+  listCodecFormats,
+  type CodecFormat,
+} from "./motionCodec.js";
+import {
+  extractStyleDNA,
+  transferStyle as transferMotionStyle,
+  blendStyles,
+  describeStyle,
+  compareStyles,
+  listStyleArchetypes,
+  applyArchetype,
+} from "./motionStyleTransfer.js";
+import {
+  buildKnowledgeGraph,
+  queryConcept,
+  findRelated,
+  findPath,
+  searchConcepts,
+  suggestConnections,
+  recommendNext,
+  analyzeGraph,
+  formatGraphReport,
+} from "./motionKnowledgeGraph.js";
+import {
+  runAllTests,
+  runTestsByCategory,
+  runTestSuite,
+  listTestSuites,
+  formatTestReport,
+} from "./motionTesting.js";
+import {
+  synthesizeFromEmotion,
+  detectEmotionFromMotion,
+  blendEmotions,
+  planEmotionJourney,
+  listEmotions,
+  getEmotion,
+  formatEmotionReport,
+  formatDetectionReport,
+  formatBlendReport,
+  formatJourneyReport,
+} from "./motionEmotion.js";
+import {
+  recordMotionObservation,
+  getProjectTasteProfile,
+  recommendForProject,
+  formatTasteProfile,
+  formatRecommendation,
+} from "./motionAdaptive.js";
+import {
+  computeContextAdjustments,
+  adaptComponentForContext,
+  autoDetectContext,
+  listContextOptions,
+  detectTimeOfDay,
+  formatContextReport,
+  formatAdaptationReport,
+} from "./motionContext.js";
+import {
+  planCollaboration,
+  listCollaborationModules,
+  collaborate,
+  formatCollaborationPlan,
+  formatCollaborationResult,
+} from "./motionCollaboration.js";
+import {
+  analyzeResonance,
+  tuneForResonance,
+  defaultViewerState,
+  formatResonanceReport,
+  type ViewerState,
+} from "./motionResonance.js";
+import {
+  translateSpec as translateSynesthesia,
+  mapSensoryToMotion,
+  formatSynestheticReport,
+} from "./motionSynesthesia.js";
+import {
+  dreamFromPrompt,
+  generateDreamSequence,
+  listDreamConcepts,
+  formatDreamReport,
+  formatDreamSequenceReport,
+} from "./motionDream.js";
+import {
+  analyzeHarmonics,
+  findHarmonics as findHarmonicsForComponent,
+  formatHarmonicsReport,
+} from "./motionHarmonics.js";
+import {
+  analyzeEntropy,
+  identifyInformationHotspots,
+  formatEntropyReport,
+} from "./motionEntropy.js";
+import {
+  analyzeCognitiveLoad,
+  formatCognitionReport,
+} from "./motionCognition.js";
+import {
+  analyzeTopology,
+  findTemporalPath,
+  formatTopologyReport,
+} from "./motionTopology.js";
+import {
+  analyzePoetics,
+  formatPoeticsReport,
+} from "./motionPoetics.js";
+import {
+  analyzeEcosystem,
+  formatEcosystemReport,
+} from "./motionEcology.js";
+import {
+  analyzeCalligraphy,
+  formatCalligraphyReport,
+} from "./motionCalligraphy.js";
+import {
+  analyzeMythology,
+  formatMythologyReport,
+} from "./motionMythology.js";
+import {
+  analyzeWeather,
+  formatWeatherReport,
+} from "./motionWeather.js";
+import {
+  analyzeAlchemy,
+  formatAlchemyReport,
+} from "./motionAlchemy.js";
+import {
+  analyzeArchitecture,
+  formatArchitectureReport,
+} from "./motionArchitecture.js";
+import {
+  analyzeCartography,
+  formatCartographyReport,
+} from "./motionCartography.js";
+import {
+  analyzeGenealogy,
+  formatGenealogyReport,
+} from "./motionGenealogy.js";
+import {
+  analyzeAstronomy,
+  formatAstronomyReport,
+} from "./motionAstronomy.js";
+import {
+  analyzeChemistry,
+  formatChemistryReport,
+} from "./motionChemistry.js";
+import {
+  analyzeMusicology,
+  formatMusicologyReport,
+} from "./motionMusicology.js";
+import {
+  analyzeBotany,
+  formatBotanyReport,
+} from "./motionBotany.js";
+import {
+  analyzeGeology,
+  formatGeologyReport,
+} from "./motionGeology.js";
+import {
+  analyzePhysics,
+  formatPhysicsReport,
+} from "./motionPhysics.js";
+import {
+  analyzeLinguistics,
+  formatLinguisticsReport,
+} from "./motionLinguistics.js";
+import {
+  analyzeCinema,
+  formatCinemaReport,
+} from "./motionCinema.js";
+import { patchComponent, createComponent } from "../db/repositories/components.js";
+import { createId, now } from "../utils/id.js";
 import { logger } from "../utils/logger.js";
 
 const MAX_ITERATIONS = 12;
@@ -520,7 +725,88 @@ async function executeMotionIntelligenceTool(
     tool !== "list_export_targets" &&
     tool !== "analyze_cohesion" &&
     tool !== "detect_conflicts" &&
-    tool !== "compare_variants"
+    tool !== "compare_variants" &&
+    tool !== "evolve_motion" &&
+    tool !== "list_evolution_strategies" &&
+    tool !== "predict_perception" &&
+    tool !== "list_semantic_concepts" &&
+    tool !== "infer_intent" &&
+    tool !== "blend_concepts" &&
+    tool !== "simulate_physics" &&
+    tool !== "list_physics_presets" &&
+    tool !== "run_physics_preset" &&
+    tool !== "list_physics_types" &&
+    tool !== "generate_path_motion" &&
+    tool !== "list_path_presets" &&
+    tool !== "run_path_preset" &&
+    tool !== "list_path_types" &&
+    tool !== "encode_motion" &&
+    tool !== "list_codec_formats" &&
+    tool !== "extract_style_dna" &&
+    tool !== "transfer_project_style" &&
+    tool !== "blend_styles" &&
+    tool !== "describe_style" &&
+    tool !== "compare_styles" &&
+    tool !== "list_style_archetypes" &&
+    tool !== "apply_style_archetype" &&
+    tool !== "build_knowledge_graph" &&
+    tool !== "query_concept" &&
+    tool !== "find_related" &&
+    tool !== "find_concept_path" &&
+    tool !== "search_concepts" &&
+    tool !== "suggest_connections" &&
+    tool !== "recommend_next" &&
+    tool !== "analyze_graph" &&
+    tool !== "run_all_tests" &&
+    tool !== "run_tests_by_category" &&
+    tool !== "run_test_suite" &&
+    tool !== "list_test_suites" &&
+    tool !== "synthesize_from_emotion" &&
+    tool !== "detect_emotion" &&
+    tool !== "blend_emotions" &&
+    tool !== "plan_emotion_journey" &&
+    tool !== "list_emotions" &&
+    tool !== "get_taste_profile" &&
+    tool !== "recommend_for_project" &&
+    tool !== "record_motion_observation" &&
+    tool !== "compute_context_adjustments" &&
+    tool !== "adapt_component_for_context" &&
+    tool !== "auto_detect_context" &&
+    tool !== "list_context_options" &&
+    tool !== "plan_collaboration" &&
+    tool !== "execute_collaboration" &&
+    tool !== "list_collaboration_modules" &&
+    tool !== "analyze_resonance" &&
+    tool !== "tune_resonance" &&
+    tool !== "translate_synesthesia" &&
+    tool !== "map_sensory_to_motion" &&
+    tool !== "dream_from_prompt" &&
+    tool !== "generate_dream_sequence" &&
+    tool !== "list_dream_concepts" &&
+    tool !== "analyze_harmonics" &&
+    tool !== "find_harmonics" &&
+    tool !== "analyze_entropy" &&
+    tool !== "identify_information_hotspots" &&
+    tool !== "analyze_cognitive_load" &&
+    tool !== "analyze_topology" &&
+    tool !== "find_temporal_path" &&
+    tool !== "analyze_poetics" &&
+    tool !== "analyze_ecosystem" &&
+    tool !== "analyze_calligraphy" &&
+    tool !== "analyze_mythology" &&
+    tool !== "analyze_weather" &&
+    tool !== "analyze_alchemy" &&
+    tool !== "analyze_architecture" &&
+    tool !== "analyze_cartography" &&
+    tool !== "analyze_genealogy" &&
+    tool !== "analyze_astronomy" &&
+    tool !== "analyze_chemistry" &&
+    tool !== "analyze_musicology" &&
+    tool !== "analyze_botany" &&
+    tool !== "analyze_geology" &&
+    tool !== "analyze_physics" &&
+    tool !== "analyze_linguistics" &&
+    tool !== "analyze_cinema"
   ) {
     return null;
   }
@@ -533,6 +819,276 @@ async function executeMotionIntelligenceTool(
       summary: `${intents.length} narrative intents available: ${intents.map((i) => i.intent).join(", ")}`,
       specChanged: false,
       data: { kind: "story_intents", intents },
+    };
+  }
+
+  // List evolution strategies does not require a spec.
+  if (tool === "list_evolution_strategies") {
+    const strategies = listEvolutionStrategies();
+    return {
+      ok: true,
+      summary: `${strategies.length} evolution strategies available: ${strategies.map((s) => s.name).join(", ")}`,
+      specChanged: false,
+      data: { kind: "evolution_strategies", strategies },
+    };
+  }
+
+  // Predict viewer perception of the motion.
+  // (Moved below — requires spec to be loaded first.)
+
+  // List semantic concepts that can be mapped to motion.
+  if (tool === "list_semantic_concepts") {
+    const category = typeof args.category === "string" ? args.category : undefined;
+    const all = listSemanticConcepts();
+    const filtered = category ? all.filter((c) => c.category === category) : all;
+    return {
+      ok: true,
+      summary: `${filtered.length} semantic concepts available: ${filtered.map((c) => c.label).join(", ")}`,
+      specChanged: false,
+      data: {
+        kind: "semantic_concepts",
+        concepts: filtered.map((c) => ({
+          id: c.id,
+          label: c.label,
+          category: c.category,
+          description: c.description,
+          keywords: c.keywords,
+        })),
+      },
+    };
+  }
+
+  // Infer semantic intent from a natural language description.
+  if (tool === "infer_intent") {
+    const description = typeof args.description === "string" ? args.description : "";
+    if (!description) {
+      return {
+        ok: false,
+        summary: "description is required to infer intent",
+        specChanged: false,
+      };
+    }
+    const intent = inferIntent(description);
+    return {
+      ok: true,
+      summary: `${intent.summary}\n\nSuggested profile:\n${formatProfile(intent.suggestedProfile)}`,
+      specChanged: false,
+      data: { kind: "inferred_intent", intent },
+    };
+  }
+
+  // Blend two semantic concepts into a hybrid motion profile.
+  if (tool === "blend_concepts") {
+    const conceptA = typeof args.conceptA === "string" ? args.conceptA : "";
+    const conceptB = typeof args.conceptB === "string" ? args.conceptB : "";
+    if (!conceptA || !conceptB) {
+      return {
+        ok: false,
+        summary: "both conceptA and conceptB are required",
+        specChanged: false,
+      };
+    }
+    const weightA = typeof args.weightA === "number" ? args.weightA : 0.5;
+    try {
+      const blend = blendConcepts(conceptA, conceptB, weightA);
+      return {
+        ok: true,
+        summary: `Blended ${blend.recipe}\n\n${formatProfile(blend.profile)}`,
+        specChanged: false,
+        data: { kind: "blended_concept", blend },
+      };
+    } catch {
+      return {
+        ok: false,
+        summary: `Unknown concept id — use list_semantic_concepts to see available options`,
+        specChanged: false,
+      };
+    }
+  }
+
+  // Run a physics simulation and generate motion keyframes.
+  if (tool === "simulate_physics") {
+    const simType = typeof args.type === "string" ? args.type : "spring";
+    const simConfig = typeof args.config === "object" && args.config !== null
+      ? args.config as Record<string, number>
+      : {};
+    let result;
+    switch (simType) {
+      case "spring": result = simulateSpring(simConfig); break;
+      case "gravity": result = simulateGravityDrop(simConfig); break;
+      case "projectile": result = simulateProjectile(simConfig); break;
+      case "friction": result = simulateFriction(simConfig); break;
+      case "pendulum": result = simulatePendulum(simConfig); break;
+      default:
+        return {
+          ok: false,
+          summary: `Unknown physics type: ${simType}. Available: spring, gravity, projectile, friction, pendulum`,
+          specChanged: false,
+        };
+    }
+    const ts = now();
+    const componentId = createId("c_");
+    createComponent({
+      ...result.component,
+      id: componentId,
+      projectId,
+      createdAt: ts,
+      updatedAt: ts,
+    });
+    return {
+      ok: true,
+      summary: result.summary,
+      specChanged: true,
+      data: { kind: "physics_simulation", simulationType: simType, samples: result.samples.length },
+      editorCommands: [
+        { command: "select_component", args: { componentId } },
+        { command: "refresh_canvas", args: {} },
+      ],
+    };
+  }
+
+  // List physics presets.
+  if (tool === "list_physics_presets") {
+    const presets = listPhysicsPresets();
+    const types = listPhysicsTypes();
+    return {
+      ok: true,
+      summary: `${presets.length} physics presets available across ${types.length} simulation types`,
+      specChanged: false,
+      data: { kind: "physics_presets", presets, types },
+    };
+  }
+
+  // Run a named physics preset.
+  if (tool === "run_physics_preset") {
+    const presetId = typeof args.presetId === "string" ? args.presetId : "";
+    if (!presetId) {
+      return {
+        ok: false,
+        summary: "presetId is required — use list_physics_presets to see available options",
+        specChanged: false,
+      };
+    }
+    const result = runPreset(presetId);
+    if (!result) {
+      return {
+        ok: false,
+        summary: `Unknown preset: ${presetId}`,
+        specChanged: false,
+      };
+    }
+    const ts = now();
+    const componentId = createId("c_");
+    createComponent({
+      ...result.component,
+      id: componentId,
+      projectId,
+      createdAt: ts,
+      updatedAt: ts,
+    });
+    return {
+      ok: true,
+      summary: result.summary,
+      specChanged: true,
+      data: { kind: "physics_simulation", presetId, samples: result.samples.length },
+      editorCommands: [
+        { command: "select_component", args: { componentId } },
+        { command: "refresh_canvas", args: {} },
+      ],
+    };
+  }
+
+  // Generate motion along a mathematical path.
+  if (tool === "generate_path_motion") {
+    const pathType = typeof args.type === "string" ? args.type : "lissajous";
+    const pathConfig: Record<string, unknown> = { type: pathType };
+    if (typeof args.durationMs === "number") pathConfig.durationMs = args.durationMs;
+    if (typeof args.samples === "number") pathConfig.samples = args.samples;
+    if (typeof args.scale === "number") pathConfig.scale = args.scale;
+    if (typeof args.loop === "boolean") pathConfig.loop = args.loop;
+    const result = generatePathMotion(pathConfig);
+    const ts = now();
+    const componentId = createId("c_");
+    createComponent({
+      ...result.component,
+      id: componentId,
+      projectId,
+      createdAt: ts,
+      updatedAt: ts,
+    });
+    return {
+      ok: true,
+      summary: result.summary,
+      specChanged: true,
+      data: { kind: "path_motion", pathType, pointCount: result.points.length },
+      editorCommands: [
+        { command: "select_component", args: { componentId } },
+        { command: "refresh_canvas", args: {} },
+      ],
+    };
+  }
+
+  // List path motion presets.
+  if (tool === "list_path_presets") {
+    const presets = listPathPresets();
+    const types = listPathTypes();
+    return {
+      ok: true,
+      summary: `${presets.length} path presets available across ${types.length} path types`,
+      specChanged: false,
+      data: { kind: "path_presets", presets, types },
+    };
+  }
+
+  // Run a named path preset.
+  if (tool === "run_path_preset") {
+    const presetId = typeof args.presetId === "string" ? args.presetId : "";
+    if (!presetId) {
+      return {
+        ok: false,
+        summary: "presetId is required — use list_path_presets to see available options",
+        specChanged: false,
+      };
+    }
+    const result = runPathPreset(presetId);
+    if (!result) {
+      return {
+        ok: false,
+        summary: `Unknown preset: ${presetId}`,
+        specChanged: false,
+      };
+    }
+    const ts = now();
+    const componentId = createId("c_");
+    createComponent({
+      ...result.component,
+      id: componentId,
+      projectId,
+      createdAt: ts,
+      updatedAt: ts,
+    });
+    return {
+      ok: true,
+      summary: result.summary,
+      specChanged: true,
+      data: { kind: "path_motion", presetId, pointCount: result.points.length },
+      editorCommands: [
+        { command: "select_component", args: { componentId } },
+        { command: "refresh_canvas", args: {} },
+      ],
+    };
+  }
+
+  // Encode motion to a standard format (requires spec — moved below).
+
+  // List codec formats.
+  if (tool === "list_codec_formats") {
+    const formats = listCodecFormats();
+    return {
+      ok: true,
+      summary: `${formats.length} codec formats available: ${formats.map((f) => f.name).join(", ")}`,
+      specChanged: false,
+      data: { kind: "codec_formats", formats },
     };
   }
 
@@ -610,6 +1166,88 @@ async function executeMotionIntelligenceTool(
       ok: false,
       summary: "no project spec available for Motion Intelligence analysis",
       specChanged: false,
+    };
+  }
+
+  // Predict viewer perception of the motion (requires spec).
+  if (tool === "predict_perception") {
+    if (spec.components.length === 0) {
+      return {
+        ok: false,
+        summary: "no components to analyze — add content first",
+        specChanged: false,
+      };
+    }
+    const report = predictPerception(spec);
+    return {
+      ok: true,
+      summary: formatPerceptionReport(report),
+      specChanged: false,
+      data: { kind: "perception", report },
+    };
+  }
+
+  // Encode motion to a standard format (requires spec).
+  if (tool === "encode_motion") {
+    const format = typeof args.format === "string" ? args.format as CodecFormat : "css";
+    const minify = args.minify === true;
+    const result = encodeMotion(spec, format, { minify });
+    return {
+      ok: true,
+      summary: result.summary,
+      specChanged: false,
+      data: {
+        kind: "codec",
+        format: result.format,
+        output: result.output,
+        mimeType: result.mimeType,
+        fileExtension: result.fileExtension,
+      },
+    };
+  }
+
+  if (tool === "evolve_motion") {
+    if (spec.components.length === 0) {
+      return {
+        ok: false,
+        summary: "no components to evolve — add content first",
+        specChanged: false,
+      };
+    }
+    const strategyId = typeof args.strategy === "string" ? args.strategy : "balanced";
+    const config = getEvolutionConfig(strategyId);
+    if (typeof args.generations === "number") config.generations = args.generations;
+    if (typeof args.populationSize === "number") config.populationSize = args.populationSize;
+    if (typeof args.mutationRate === "number") config.mutationRate = args.mutationRate;
+    const result = evolveMotion(spec, config);
+    const apply = args.apply === true;
+    if (apply && result.improvement > 0) {
+      for (const comp of result.best.spec.components) {
+        patchComponent(projectId, comp.id, {
+          easing: comp.easing,
+          durationMs: comp.durationMs,
+          delayMs: comp.delayMs,
+          iterationCount: comp.iterationCount,
+          direction: comp.direction,
+        });
+      }
+    }
+    return {
+      ok: true,
+      summary: result.summary,
+      specChanged: apply && result.improvement > 0,
+      data: {
+        kind: "evolution",
+        best: {
+          generation: result.best.generation,
+          origin: result.best.origin,
+          fitness: result.best.fitness,
+        },
+        history: result.history,
+        improvement: result.improvement,
+        applied: apply && result.improvement > 0,
+      },
+      editorCommands: apply && result.improvement > 0 ? [{ command: "refresh_canvas", args: {} }] : undefined,
     };
   }
 
@@ -1352,32 +1990,1245 @@ async function executeMotionIntelligenceTool(
     };
   }
 
-  // transfer_style
-  const sourceComponentId = typeof args.sourceComponentId === "string" ? args.sourceComponentId : "";
-  const targetComponentId = typeof args.targetComponentId === "string" ? args.targetComponentId : "";
-  const source = spec.components.find((c) => c.id === sourceComponentId);
-  const target = spec.components.find((c) => c.id === targetComponentId);
-  if (!source || !target) {
+  // transfer_style (component-level)
+  if (tool === "transfer_style") {
+    const sourceComponentId = typeof args.sourceComponentId === "string" ? args.sourceComponentId : "";
+    const targetComponentId = typeof args.targetComponentId === "string" ? args.targetComponentId : "";
+    const source = spec.components.find((c) => c.id === sourceComponentId);
+    const target = spec.components.find((c) => c.id === targetComponentId);
+    if (!source || !target) {
+      return {
+        ok: false,
+        summary: `source ${sourceComponentId} or target ${targetComponentId} not found for style transfer`,
+        specChanged: false,
+      };
+    }
+    const result = transferStyle(source, target);
     return {
-      ok: false,
-      summary: `source ${sourceComponentId} or target ${targetComponentId} not found for style transfer`,
+      ok: true,
+      summary: formatStyleTransferReport(result, source.name, target.name),
       specChanged: false,
+      data: {
+        kind: "style_transfer",
+        sourceComponentId: source.id,
+        targetComponentId: target.id,
+        transferred: result.transferred,
+        preserved: result.preserved,
+        component: result.component,
+      },
     };
   }
-  const result = transferStyle(source, target);
-  return {
-    ok: true,
-    summary: formatStyleTransferReport(result, source.name, target.name),
-    specChanged: false,
-    data: {
-      kind: "style_transfer",
-      sourceComponentId: source.id,
-      targetComponentId: target.id,
-      transferred: result.transferred,
-      preserved: result.preserved,
-      component: result.component,
-    },
-  };
+
+  // --- Style Transfer Engine (project-level) ---
+
+  // List style archetypes (no spec required).
+  if (tool === "list_style_archetypes") {
+    const archetypes = listStyleArchetypes();
+    return {
+      ok: true,
+      summary: `${archetypes.length} style archetypes available: ${archetypes.map((a) => a.name).join(", ")}`,
+      specChanged: false,
+      data: { kind: "style_archetypes", archetypes },
+    };
+  }
+
+  // Build knowledge graph (no spec required).
+  if (tool === "build_knowledge_graph") {
+    const graph = buildKnowledgeGraph();
+    return {
+      ok: true,
+      summary: formatGraphReport(graph),
+      specChanged: false,
+      data: { kind: "knowledge_graph", graph },
+    };
+  }
+
+  // List test suites (no spec required).
+  if (tool === "list_test_suites") {
+    const suites = listTestSuites();
+    return {
+      ok: true,
+      summary: `${suites.length} test suites available across ${new Set(suites.map((s) => s.category)).size} categories`,
+      specChanged: false,
+      data: { kind: "test_suites", suites },
+    };
+  }
+
+  // Query a concept from the knowledge graph.
+  if (tool === "query_concept") {
+    const conceptId = String(args.conceptId ?? "");
+    const graph = buildKnowledgeGraph();
+    const concept = queryConcept(graph, conceptId);
+    if (!concept) {
+      return { ok: false, summary: `concept '${conceptId}' not found`, specChanged: false };
+    }
+    const c = concept;
+    return {
+      ok: true,
+      summary: `${c.label} (${c.category}): ${c.description}`,
+      specChanged: false,
+      data: { kind: "concept", concept: c },
+    };
+  }
+
+  // Find related concepts.
+  if (tool === "find_related") {
+    const conceptId = String(args.conceptId ?? "");
+    const relationship = typeof args.relationship === "string" ? args.relationship as never : undefined;
+    const graph = buildKnowledgeGraph();
+    const related = findRelated(graph, conceptId, relationship);
+    return {
+      ok: true,
+      summary: `${related.length} related concepts for '${conceptId}'`,
+      specChanged: false,
+      data: { kind: "related_concepts", conceptId, related },
+    };
+  }
+
+  // Find path between two concepts.
+  if (tool === "find_concept_path") {
+    const fromId = String(args.fromId ?? "");
+    const toId = String(args.toId ?? "");
+    const graph = buildKnowledgeGraph();
+    const path = findPath(graph, fromId, toId);
+    return {
+      ok: true,
+      summary: path.length > 0 ? `Path: ${path.join(" → ")}` : `No path found between '${fromId}' and '${toId}'`,
+      specChanged: false,
+      data: { kind: "concept_path", fromId, toId, path },
+    };
+  }
+
+  // Search concepts by keyword.
+  if (tool === "search_concepts") {
+    const query = String(args.query ?? "");
+    const graph = buildKnowledgeGraph();
+    const results = searchConcepts(graph, query);
+    return {
+      ok: true,
+      summary: `${results.length} concepts matching '${query}'`,
+      specChanged: false,
+      data: { kind: "concept_search", query, results },
+    };
+  }
+
+  // Suggest connections between concepts.
+  if (tool === "suggest_connections") {
+    const conceptIds = Array.isArray(args.conceptIds)
+      ? (args.conceptIds as unknown[]).filter((id): id is string => typeof id === "string")
+      : [];
+    const graph = buildKnowledgeGraph();
+    const suggestions = suggestConnections(graph, conceptIds);
+    return {
+      ok: true,
+      summary: `${suggestions.length} connection suggestions`,
+      specChanged: false,
+      data: { kind: "connection_suggestions", suggestions },
+    };
+  }
+
+  // Recommend next concept to explore.
+  if (tool === "recommend_next") {
+    const usedConceptIds = Array.isArray(args.usedConceptIds)
+      ? (args.usedConceptIds as unknown[]).filter((id): id is string => typeof id === "string")
+      : [];
+    const graph = buildKnowledgeGraph();
+    const recommendations = recommendNext(graph, usedConceptIds);
+    return {
+      ok: true,
+      summary: `Top recommendations: ${recommendations.slice(0, 5).map((c) => c.label).join(", ")}`,
+      specChanged: false,
+      data: { kind: "recommendations", recommendations },
+    };
+  }
+
+  // Analyze graph structure.
+  if (tool === "analyze_graph") {
+    const graph = buildKnowledgeGraph();
+    const analysis = analyzeGraph(graph);
+    return {
+      ok: true,
+      summary: `Graph: ${analysis.nodeCount} nodes, ${analysis.edgeCount} edges, ${analysis.clusters.length} clusters, density ${analysis.density.toFixed(3)}`,
+      specChanged: false,
+      data: { kind: "graph_analysis", analysis },
+    };
+  }
+
+  // Extract style DNA from the current project.
+  if (tool === "extract_style_dna") {
+    const dna = extractStyleDNA(spec!);
+    const description = describeStyle(dna);
+    return {
+      ok: true,
+      summary: description,
+      specChanged: false,
+      data: { kind: "style_dna", dna, description },
+    };
+  }
+
+  // Describe the project's motion style.
+  if (tool === "describe_style") {
+    const dna = extractStyleDNA(spec!);
+    const description = describeStyle(dna);
+    return {
+      ok: true,
+      summary: description,
+      specChanged: false,
+      data: { kind: "style_description", description, dna },
+    };
+  }
+
+  // Transfer style from one project to another.
+  if (tool === "transfer_project_style") {
+    const sourceProjectId = String(args.sourceProjectId ?? "");
+    const sourceSpec = getProjectSpec(sourceProjectId);
+    if (!sourceSpec) {
+      return { ok: false, summary: `source project ${sourceProjectId} not found`, specChanged: false };
+    }
+    const options: Record<string, unknown> = {};
+    if (typeof args.easingStrength === "number") options.easingStrength = args.easingStrength;
+    if (typeof args.tempoStrength === "number") options.tempoStrength = args.tempoStrength;
+    if (typeof args.energyStrength === "number") options.energyStrength = args.energyStrength;
+    if (typeof args.colorStrength === "number") options.colorStrength = args.colorStrength;
+    const result = transferMotionStyle(sourceSpec, spec!, options);
+    return {
+      ok: true,
+      summary: `Transferred style from project ${sourceProjectId} to ${projectId}`,
+      specChanged: true,
+      data: { kind: "style_transfer_result", result },
+      editorCommands: [{ command: "refresh_canvas", args: {} }],
+    };
+  }
+
+  // Blend styles of two projects.
+  if (tool === "blend_styles") {
+    const projectIdA = String(args.projectIdA ?? "");
+    const projectIdB = String(args.projectIdB ?? "");
+    const ratio = typeof args.ratio === "number" ? args.ratio : 0.5;
+    const specA = getProjectSpec(projectIdA);
+    const specB = getProjectSpec(projectIdB);
+    if (!specA || !specB) {
+      return { ok: false, summary: "both projects must exist", specChanged: false };
+    }
+    const blendedDna = blendStyles(specA, specB!, ratio);
+    const description = describeStyle(blendedDna);
+    return {
+      ok: true,
+      summary: `Blended style (ratio ${ratio}): ${description}`,
+      specChanged: false,
+      data: { kind: "blended_style", dna: blendedDna, description },
+    };
+  }
+
+  // Compare styles of two projects.
+  if (tool === "compare_styles") {
+    const projectIdA = String(args.projectIdA ?? "");
+    const projectIdB = String(args.projectIdB ?? "");
+    const specA = getProjectSpec(projectIdA);
+    const specB = getProjectSpec(projectIdB);
+    if (!specA || !specB) {
+      return { ok: false, summary: "both projects must exist", specChanged: false };
+    }
+    const dnaA = extractStyleDNA(specA!);
+    const dnaB = extractStyleDNA(specB!);
+    const comparison = compareStyles(dnaA, dnaB);
+    return {
+      ok: true,
+      summary: `Style similarity: ${(comparison.overallSimilarity * 100).toFixed(1)}% (${comparison.verdict})`,
+      specChanged: false,
+      data: { kind: "style_comparison", comparison },
+    };
+  }
+
+  // Apply a style archetype to the project.
+  if (tool === "apply_style_archetype") {
+    const archetypeId = String(args.archetypeId ?? "");
+    const result = applyArchetype(archetypeId, spec!);
+    return {
+      ok: true,
+      summary: `Applied '${archetypeId}' archetype to project`,
+      specChanged: true,
+      data: { kind: "archetype_applied", archetypeId, result },
+      editorCommands: [{ command: "refresh_canvas", args: {} }],
+    };
+  }
+
+  // Run all motion quality tests.
+  if (tool === "run_all_tests") {
+    const report = runAllTests(spec!);
+    return {
+      ok: true,
+      summary: formatTestReport(report),
+      specChanged: false,
+      data: { kind: "test_report", report },
+    };
+  }
+
+  // Run tests by category.
+  if (tool === "run_tests_by_category") {
+    const category = typeof args.category === "string" ? args.category as never : "accessibility";
+    const results = runTestsByCategory(spec!, category);
+    return {
+      ok: true,
+      summary: `${results.length} ${category} test suites run. Passed: ${results.filter((r) => r.passed).length}/${results.length}`,
+      specChanged: false,
+      data: { kind: "test_results_category", category, results },
+    };
+  }
+
+  // Run a single test suite.
+  if (tool === "run_test_suite") {
+    const suiteId = String(args.suiteId ?? "");
+    const result = runTestSuite(spec!, suiteId);
+    if (!result) {
+      return { ok: false, summary: `test suite '${suiteId}' not found`, specChanged: false };
+    }
+    return {
+      ok: true,
+      summary: `${result.suiteName}: ${result.passed ? "PASSED" : "FAILED"} (score: ${result.score}/100)`,
+      specChanged: false,
+      data: { kind: "test_result", result },
+    };
+  }
+
+  // ------------------------------------------------------------------------
+  // Emotion Intelligence tools
+  // ------------------------------------------------------------------------
+
+  // List all available emotions.
+  if (tool === "list_emotions") {
+    const category = typeof args.category === "string" ? args.category as never : undefined;
+    const emotions = listEmotions(category);
+    return {
+      ok: true,
+      summary: `${emotions.length} emotion profiles available: ${emotions.map((e) => e.name).join(", ")}`,
+      specChanged: false,
+      data: {
+        kind: "emotions",
+        emotions: emotions.map((e) => ({
+          id: e.id,
+          name: e.name,
+          category: e.category,
+          description: e.description,
+          vad: e.vad,
+        })),
+      },
+    };
+  }
+
+  // Synthesize motion from an emotion.
+  if (tool === "synthesize_from_emotion") {
+    const emotionId = String(args.emotionId ?? "");
+    const result = synthesizeFromEmotion(emotionId);
+    if (!result) {
+      return { ok: false, summary: `emotion '${emotionId}' not found`, specChanged: false };
+    }
+    return {
+      ok: true,
+      summary: result.summary,
+      specChanged: false,
+      data: {
+        kind: "emotion_synthesis",
+        emotion: { id: result.emotion.id, name: result.emotion.name },
+        easing: result.easing,
+        durationMs: result.durationMs,
+        intensity: result.intensity,
+        transformType: result.transformType,
+        keyframes: result.keyframes,
+        palette: result.palette,
+        report: formatEmotionReport(result),
+      },
+    };
+  }
+
+  // Detect emotion from an existing motion component.
+  if (tool === "detect_emotion") {
+    const componentId = String(args.componentId ?? "");
+    const component = spec?.components.find((c) => c.id === componentId);
+    if (!component) {
+      return { ok: false, summary: `component '${componentId}' not found`, specChanged: false };
+    }
+    const result = detectEmotionFromMotion(component);
+    return {
+      ok: true,
+      summary: result.summary,
+      specChanged: false,
+      data: {
+        kind: "emotion_detection",
+        emotionId: result.emotionId,
+        emotionName: result.emotionName,
+        confidence: result.confidence,
+        vad: result.vad,
+        scores: result.scores,
+        report: formatDetectionReport(result),
+      },
+    };
+  }
+
+  // Blend multiple emotions.
+  if (tool === "blend_emotions") {
+    const emotions = Array.isArray(args.emotions) ? args.emotions : [];
+    const result = blendEmotions(
+      emotions.map((e: { emotionId: string; weight: number }) => ({
+        emotionId: String(e.emotionId),
+        weight: Number(e.weight),
+      })),
+    );
+    if (!result) {
+      return { ok: false, summary: "failed to blend emotions — check emotion ids", specChanged: false };
+    }
+    return {
+      ok: true,
+      summary: result.summary,
+      specChanged: false,
+      data: {
+        kind: "emotion_blend",
+        vad: result.vad,
+        motion: result.motion,
+        components: result.components,
+        keyframes: result.keyframes,
+        report: formatBlendReport(result),
+      },
+    };
+  }
+
+  // Plan an emotion journey.
+  if (tool === "plan_emotion_journey") {
+    const emotionIds = Array.isArray(args.emotionIds) ? args.emotionIds.map(String) : [];
+    const totalDurationMs = typeof args.totalDurationMs === "number" ? args.totalDurationMs : 5000;
+    const result = planEmotionJourney(emotionIds, totalDurationMs);
+    if (!result) {
+      return { ok: false, summary: "failed to plan journey — check emotion ids", specChanged: false };
+    }
+    return {
+      ok: true,
+      summary: result.summary,
+      specChanged: false,
+      data: {
+        kind: "emotion_journey",
+        steps: result.steps,
+        totalDurationMs: result.totalDurationMs,
+        vadTrajectory: result.vadTrajectory,
+        report: formatJourneyReport(result),
+      },
+    };
+  }
+
+  // ------------------------------------------------------------------------
+  // Adaptive Learning tools
+  // ------------------------------------------------------------------------
+
+  // Get the user's taste profile.
+  if (tool === "get_taste_profile") {
+    const profile = getProjectTasteProfile(projectId);
+    return {
+      ok: true,
+      summary: profile.summary,
+      specChanged: false,
+      data: {
+        kind: "taste_profile",
+        profile,
+        report: formatTasteProfile(profile),
+      },
+    };
+  }
+
+  // Get a recommendation based on learned preferences.
+  if (tool === "recommend_for_project") {
+    const rec = recommendForProject(projectId);
+    if (!rec) {
+      return {
+        ok: true,
+        summary: "Not enough observations yet to make a recommendation. Interact with more motion components to build a taste profile.",
+        specChanged: false,
+        data: { kind: "recommendation", recommendation: null },
+      };
+    }
+    return {
+      ok: true,
+      summary: rec.summary,
+      specChanged: false,
+      data: {
+        kind: "recommendation",
+        recommendation: rec,
+        report: formatRecommendation(rec),
+      },
+    };
+  }
+
+  // Record a motion observation.
+  if (tool === "record_motion_observation") {
+    const componentId = String(args.componentId ?? "");
+    const action = typeof args.action === "string" ? args.action as never : "created";
+    const component = spec?.components.find((c) => c.id === componentId);
+    if (!component) {
+      return { ok: false, summary: `component '${componentId}' not found`, specChanged: false };
+    }
+    recordMotionObservation(projectId, { component, action });
+    const profile = getProjectTasteProfile(projectId);
+    return {
+      ok: true,
+      summary: `Recorded ${action} for "${component.name}". ${profile.summary}`,
+      specChanged: false,
+      data: { kind: "observation_recorded", action, componentId, profileSummary: profile.summary },
+    };
+  }
+
+  // ------------------------------------------------------------------------
+  // Contextual Awareness tools
+  // ------------------------------------------------------------------------
+
+  // List context options.
+  if (tool === "list_context_options") {
+    const options = listContextOptions();
+    return {
+      ok: true,
+      summary: "Context options available across 6 dimensions",
+      specChanged: false,
+      data: { kind: "context_options", options },
+    };
+  }
+
+  // Auto-detect the current context.
+  if (tool === "auto_detect_context") {
+    const result = autoDetectContext();
+    return {
+      ok: true,
+      summary: result.summary,
+      specChanged: false,
+      data: { kind: "context_detected", context: result.context },
+    };
+  }
+
+  // Compute context adjustments.
+  if (tool === "compute_context_adjustments") {
+    const context = {
+      device: (typeof args.device === "string" ? args.device : "desktop") as never,
+      performance: (typeof args.performance === "string" ? args.performance : "high") as never,
+      timeOfDay: (typeof args.timeOfDay === "string" ? args.timeOfDay : detectTimeOfDay()) as never,
+      ambientLight: (typeof args.ambientLight === "string" ? args.ambientLight : "normal") as never,
+      userState: (typeof args.userState === "string" ? args.userState : "casual") as never,
+    };
+    const adjustments = computeContextAdjustments(context);
+    return {
+      ok: true,
+      summary: adjustments.summary,
+      specChanged: false,
+      data: {
+        kind: "context_adjustments",
+        context,
+        adjustments,
+        report: formatContextReport(context, adjustments),
+      },
+    };
+  }
+
+  // Adapt a component for a specific context.
+  if (tool === "adapt_component_for_context") {
+    const componentId = String(args.componentId ?? "");
+    const component = spec?.components.find((c) => c.id === componentId);
+    if (!component) {
+      return { ok: false, summary: `component '${componentId}' not found`, specChanged: false };
+    }
+    const context = {
+      device: (typeof args.device === "string" ? args.device : "desktop") as never,
+      performance: (typeof args.performance === "string" ? args.performance : "high") as never,
+      timeOfDay: (typeof args.timeOfDay === "string" ? args.timeOfDay : detectTimeOfDay()) as never,
+      ambientLight: (typeof args.ambientLight === "string" ? args.ambientLight : "normal") as never,
+      userState: (typeof args.userState === "string" ? args.userState : "casual") as never,
+    };
+    const result = adaptComponentForContext(component, context);
+    // Apply the adapted component to the spec
+    patchComponent(projectId, result.component.id, result.component);
+    return {
+      ok: true,
+      summary: result.summary,
+      specChanged: true,
+      data: {
+        kind: "context_adaptation",
+        componentId: result.component.id,
+        adjustments: result.adjustments,
+        report: formatAdaptationReport(result),
+      },
+      editorCommands: [
+        { command: "select_component", args: { componentId: result.component.id } },
+        { command: "refresh_canvas", args: {} },
+      ],
+    };
+  }
+
+  // ------------------------------------------------------------------------
+  // Motion Collaboration tools
+  // ------------------------------------------------------------------------
+
+  // List all collaboration modules.
+  if (tool === "list_collaboration_modules") {
+    const modules = listCollaborationModules();
+    return {
+      ok: true,
+      summary: `${modules.length} collaboration modules available: ${modules.map((m) => m.name).join(", ")}`,
+      specChanged: false,
+      data: {
+        kind: "collaboration_modules",
+        modules: modules.map((m) => ({
+          id: m.id,
+          name: m.name,
+          specialty: m.specialty,
+          triggerKeywords: m.triggerKeywords,
+        })),
+      },
+    };
+  }
+
+  // Plan a collaboration.
+  if (tool === "plan_collaboration") {
+    const request = typeof args.request === "string" ? args.request : "";
+    const plan = planCollaboration(request);
+    return {
+      ok: true,
+      summary: plan.summary,
+      specChanged: false,
+      data: {
+        kind: "collaboration_plan",
+        plan,
+        report: formatCollaborationPlan(plan),
+      },
+    };
+  }
+
+  // Execute a collaboration.
+  if (tool === "execute_collaboration") {
+    const request = typeof args.request === "string" ? args.request : "";
+    const result = collaborate(request);
+    // Create the component in the project
+    const ts = now();
+    const componentId = createId("c_");
+    createComponent({
+      ...result.component,
+      id: componentId,
+      projectId,
+      createdAt: ts,
+      updatedAt: ts,
+    });
+    return {
+      ok: true,
+      summary: result.summary,
+      specChanged: true,
+      data: {
+        kind: "collaboration_result",
+        componentId,
+        contributions: result.contributions,
+        conflictResolutions: result.conflictResolutions,
+        confidence: result.confidence,
+        report: formatCollaborationResult(result),
+      },
+      editorCommands: [
+        { command: "select_component", args: { componentId } },
+        { command: "refresh_canvas", args: {} },
+      ],
+    };
+  }
+
+  // ------------------------------------------------------------------------
+  // Motion Resonance tools
+  // ------------------------------------------------------------------------
+
+  // Analyze resonance between motion and viewer state.
+  if (tool === "analyze_resonance") {
+    const viewer = typeof args.viewerState === "object" && args.viewerState !== null
+      ? args.viewerState as ViewerState
+      : defaultViewerState();
+    const analysis = analyzeResonance(spec, viewer);
+    return {
+      ok: true,
+      summary: analysis.summary,
+      specChanged: false,
+      data: {
+        kind: "resonance_analysis",
+        analysis,
+        report: formatResonanceReport(analysis),
+      },
+    };
+  }
+
+  // Tune motion for optimal resonance.
+  if (tool === "tune_resonance") {
+    const viewer = typeof args.viewerState === "object" && args.viewerState !== null
+      ? args.viewerState as ViewerState
+      : defaultViewerState();
+    const result = tuneForResonance(spec, viewer);
+    // Apply the tuned spec to the project
+    for (const adj of result.adjustments) {
+      const comp = spec.components.find((c) => c.id === adj.componentId);
+      if (!comp) continue;
+      if (adj.field === "durationMs" && typeof adj.newValue === "number") {
+        patchComponent(projectId, adj.componentId, { durationMs: adj.newValue });
+      } else if (adj.field === "easing") {
+        patchComponent(projectId, adj.componentId, { easing: adj.newValue as never });
+      }
+    }
+    return {
+      ok: true,
+      summary: result.summary,
+      specChanged: result.adjustments.length > 0,
+      data: {
+        kind: "resonance_tuning",
+        adjustments: result.adjustments,
+        report: result.summary,
+      },
+      editorCommands: result.adjustments.length > 0
+        ? [{ command: "refresh_canvas", args: {} }]
+        : [],
+    };
+  }
+
+  // ------------------------------------------------------------------------
+  // Motion Synesthesia tools
+  // ------------------------------------------------------------------------
+
+  // Translate motion to multi-sensory experience.
+  if (tool === "translate_synesthesia") {
+    const experience = translateSynesthesia(spec);
+    return {
+      ok: true,
+      summary: experience.summary,
+      specChanged: false,
+      data: {
+        kind: "synesthetic_experience",
+        experience,
+        report: formatSynestheticReport(experience),
+      },
+    };
+  }
+
+  // Map a sensory input to motion parameters.
+  if (tool === "map_sensory_to_motion") {
+    const modality = args.modality as "color" | "sound" | "texture" | "emotion";
+    const value = typeof args.value === "string" ? args.value : String(args.value ?? "");
+    const mapping = mapSensoryToMotion(modality, value);
+    return {
+      ok: true,
+      summary: mapping.rationale,
+      specChanged: false,
+      data: {
+        kind: "sensory_to_motion_mapping",
+        mapping,
+      },
+    };
+  }
+
+  // ------------------------------------------------------------------------
+  // Motion Dream tools
+  // ------------------------------------------------------------------------
+
+  // List all dream concepts.
+  if (tool === "list_dream_concepts") {
+    const concepts = listDreamConcepts();
+    return {
+      ok: true,
+      summary: `${concepts.length} dream concepts available: ${concepts.map((c) => c.name).join(", ")}`,
+      specChanged: false,
+      data: {
+        kind: "dream_concepts",
+        concepts: concepts.map((c) => ({
+          id: c.id,
+          name: c.name,
+          category: c.category,
+          triggerWords: c.triggerWords,
+        })),
+      },
+    };
+  }
+
+  // Generate a dream motion from a prompt.
+  if (tool === "dream_from_prompt") {
+    const prompt = typeof args.prompt === "string" ? args.prompt : "";
+    const dream = dreamFromPrompt(prompt);
+    const ts = now();
+    const componentId = createId("c_");
+    createComponent({
+      ...dream.component,
+      id: componentId,
+      projectId,
+      createdAt: ts,
+      updatedAt: ts,
+    });
+    return {
+      ok: true,
+      summary: dream.description,
+      specChanged: true,
+      data: {
+        kind: "dream_motion",
+        componentId,
+        technique: dream.technique,
+        sourceConcepts: dream.sourceConcepts,
+        novelty: dream.novelty,
+        report: formatDreamReport(dream),
+      },
+      editorCommands: [
+        { command: "select_component", args: { componentId } },
+        { command: "refresh_canvas", args: {} },
+      ],
+    };
+  }
+
+  // Generate a dream sequence.
+  if (tool === "generate_dream_sequence") {
+    const length = typeof args.length === "number" ? Math.min(8, Math.max(1, args.length)) : 3;
+    const seed = typeof args.seed === "string" ? args.seed : undefined;
+    const sequence = generateDreamSequence(length, seed);
+    // Create all components in the project
+    const componentIds: string[] = [];
+    const ts = now();
+    for (const motion of sequence.motions) {
+      const componentId = createId("c_");
+      createComponent({
+        ...motion.component,
+        id: componentId,
+        projectId,
+        createdAt: ts,
+        updatedAt: ts,
+      });
+      componentIds.push(componentId);
+    }
+    return {
+      ok: true,
+      summary: sequence.summary,
+      specChanged: true,
+      data: {
+        kind: "dream_sequence",
+        title: sequence.title,
+        componentIds,
+        narrative: sequence.narrative,
+        novelty: sequence.novelty,
+        motions: sequence.motions.map((m) => ({
+          technique: m.technique,
+          sourceConcepts: m.sourceConcepts,
+          novelty: m.novelty,
+          description: m.description,
+        })),
+        report: formatDreamSequenceReport(sequence),
+      },
+      editorCommands: componentIds.length > 0
+        ? [
+            { command: "select_component", args: { componentId: componentIds[0] } },
+            { command: "refresh_canvas", args: {} },
+          ]
+        : [],
+    };
+  }
+
+  // --- Motion Harmonics Engine ---
+
+  // Analyze harmonic structure of the composition.
+  if (tool === "analyze_harmonics") {
+    const analysis = analyzeHarmonics(spec);
+    return {
+      ok: true,
+      summary: analysis.summary,
+      specChanged: false,
+      data: {
+        kind: "harmonics_analysis",
+        analysis,
+        report: formatHarmonicsReport(analysis),
+      },
+    };
+  }
+
+  // Find harmonizing partners for a specific component.
+  if (tool === "find_harmonics") {
+    const componentId = typeof args.componentId === "string" ? args.componentId : "";
+    const result = findHarmonicsForComponent(spec, componentId);
+    return {
+      ok: true,
+      summary: result.target
+        ? `${result.compatible.length} consonant, ${result.dissonant.length} dissonant partner(s) for ${componentId}`
+        : `Component ${componentId} is not cyclic — no harmonic analysis available`,
+      specChanged: false,
+      data: {
+        kind: "harmonics_partners",
+        target: result.target,
+        compatible: result.compatible,
+        dissonant: result.dissonant,
+      },
+    };
+  }
+
+  // --- Motion Entropy Engine ---
+
+  // Analyze information-theoretic structure.
+  if (tool === "analyze_entropy") {
+    const analysis = analyzeEntropy(spec);
+    return {
+      ok: true,
+      summary: analysis.summary,
+      specChanged: false,
+      data: {
+        kind: "entropy_analysis",
+        analysis,
+        report: formatEntropyReport(analysis),
+      },
+    };
+  }
+
+  // Identify information hotspots.
+  if (tool === "identify_information_hotspots") {
+    const hotspots = identifyInformationHotspots(spec);
+    return {
+      ok: true,
+      summary: `Hotspots: ${hotspots.mostVaried.length} most varied, ${hotspots.leastVaried.length} least varied, ${hotspots.redundantPairs.length} redundant pair(s)`,
+      specChanged: false,
+      data: {
+        kind: "information_hotspots",
+        hotspots,
+      },
+    };
+  }
+
+  // --- Motion Cognition Engine ---
+
+  // Analyze cognitive load.
+  if (tool === "analyze_cognitive_load") {
+    const analysis = analyzeCognitiveLoad(spec);
+    return {
+      ok: true,
+      summary: analysis.summary,
+      specChanged: false,
+      data: {
+        kind: "cognitive_load_analysis",
+        analysis,
+        report: formatCognitionReport(analysis),
+      },
+    };
+  }
+
+  // --- Motion Topology Engine ---
+
+  // Analyze topological structure.
+  if (tool === "analyze_topology") {
+    const analysis = analyzeTopology(spec);
+    return {
+      ok: true,
+      summary: analysis.summary,
+      specChanged: false,
+      data: {
+        kind: "topology_analysis",
+        analysis,
+        report: formatTopologyReport(analysis),
+      },
+    };
+  }
+
+  // Find temporal path between two components.
+  if (tool === "find_temporal_path") {
+    const fromId = typeof args.fromId === "string" ? args.fromId : "";
+    const toId = typeof args.toId === "string" ? args.toId : "";
+    const result = findTemporalPath(spec, fromId, toId);
+    return {
+      ok: true,
+      summary: result
+        ? `Path found: ${result.path.length} hops, ${result.totalOverlapMs}ms total overlap`
+        : `No temporal path between ${fromId} and ${toId}`,
+      specChanged: false,
+      data: {
+        kind: "temporal_path",
+        path: result?.path ?? [],
+        totalOverlapMs: result?.totalOverlapMs ?? 0,
+        found: result !== null,
+      },
+    };
+  }
+
+  // --- Motion Poetics Engine ---
+
+  // Analyze poetic structure.
+  if (tool === "analyze_poetics") {
+    const analysis = analyzePoetics(spec);
+    return {
+      ok: true,
+      summary: analysis.summary,
+      specChanged: false,
+      data: {
+        kind: "poetics_analysis",
+        analysis,
+        report: formatPoeticsReport(analysis),
+      },
+    };
+  }
+
+  // --- Motion Ecology Engine ---
+
+  // Analyze ecosystem structure.
+  if (tool === "analyze_ecosystem") {
+    const analysis = analyzeEcosystem(spec);
+    return {
+      ok: true,
+      summary: analysis.summary,
+      specChanged: false,
+      data: {
+        kind: "ecosystem_analysis",
+        analysis,
+        report: formatEcosystemReport(analysis),
+      },
+    };
+  }
+
+  // --- Motion Calligraphy Engine ---
+
+  // Analyze the composition as calligraphic art.
+  if (tool === "analyze_calligraphy") {
+    const analysis = analyzeCalligraphy(spec);
+    return {
+      ok: true,
+      summary: analysis.summary,
+      specChanged: false,
+      data: {
+        kind: "calligraphy_analysis",
+        analysis,
+        report: formatCalligraphyReport(analysis),
+      },
+    };
+  }
+
+  // --- Motion Mythology Engine ---
+
+  // Interpret the composition through mythological lens.
+  if (tool === "analyze_mythology") {
+    const analysis = analyzeMythology(spec);
+    return {
+      ok: true,
+      summary: analysis.summary,
+      specChanged: false,
+      data: {
+        kind: "mythology_analysis",
+        analysis,
+        report: formatMythologyReport(analysis),
+      },
+    };
+  }
+
+  // --- Motion Weather Engine ---
+
+  // Model the composition as a weather system.
+  if (tool === "analyze_weather") {
+    const analysis = analyzeWeather(spec);
+    return {
+      ok: true,
+      summary: analysis.summary,
+      specChanged: false,
+      data: {
+        kind: "weather_analysis",
+        analysis,
+        report: formatWeatherReport(analysis),
+      },
+    };
+  }
+
+  // --- Motion Alchemy Engine ---
+
+  // Interpret the composition through alchemical transformation.
+  if (tool === "analyze_alchemy") {
+    const analysis = analyzeAlchemy(spec);
+    return {
+      ok: true,
+      summary: analysis.summary,
+      specChanged: false,
+      data: {
+        kind: "alchemy_analysis",
+        analysis,
+        report: formatAlchemyReport(analysis),
+      },
+    };
+  }
+
+  // --- Motion Architecture Engine ---
+
+  // Analyze the composition as a built structure.
+  if (tool === "analyze_architecture") {
+    const analysis = analyzeArchitecture(spec);
+    return {
+      ok: true,
+      summary: analysis.summary,
+      specChanged: false,
+      data: {
+        kind: "architecture_analysis",
+        analysis,
+        report: formatArchitectureReport(analysis),
+      },
+    };
+  }
+
+  // --- Motion Cartography Engine ---
+
+  // Map the composition as cartographic terrain.
+  if (tool === "analyze_cartography") {
+    const analysis = analyzeCartography(spec);
+    return {
+      ok: true,
+      summary: analysis.summary,
+      specChanged: false,
+      data: {
+        kind: "cartography_analysis",
+        analysis,
+        report: formatCartographyReport(analysis),
+      },
+    };
+  }
+
+  // --- Motion Genealogy Engine ---
+
+  // Trace the evolutionary lineage of motion patterns.
+  if (tool === "analyze_genealogy") {
+    const analysis = analyzeGenealogy(spec);
+    return {
+      ok: true,
+      summary: analysis.summary,
+      specChanged: false,
+      data: {
+        kind: "genealogy_analysis",
+        analysis,
+        report: formatGenealogyReport(analysis),
+      },
+    };
+  }
+
+  // --- Motion Astronomy Engine ---
+
+  // Map the composition as celestial phenomena.
+  if (tool === "analyze_astronomy") {
+    const analysis = analyzeAstronomy(spec);
+    return {
+      ok: true,
+      summary: analysis.summary,
+      specChanged: false,
+      data: {
+        kind: "astronomy_analysis",
+        analysis,
+        report: formatAstronomyReport(analysis),
+      },
+    };
+  }
+
+  // --- Motion Chemistry Engine ---
+
+  // Analyze the composition as a chemical system.
+  if (tool === "analyze_chemistry") {
+    const analysis = analyzeChemistry(spec);
+    return {
+      ok: true,
+      summary: analysis.summary,
+      specChanged: false,
+      data: {
+        kind: "chemistry_analysis",
+        analysis,
+        report: formatChemistryReport(analysis),
+      },
+    };
+  }
+
+  // --- Motion Musicology Engine ---
+
+  // Analyze the composition as a musical score.
+  if (tool === "analyze_musicology") {
+    const analysis = analyzeMusicology(spec);
+    return {
+      ok: true,
+      summary: analysis.summary,
+      specChanged: false,
+      data: {
+        kind: "musicology_analysis",
+        analysis,
+        report: formatMusicologyReport(analysis),
+      },
+    };
+  }
+
+  // --- Motion Botany Engine ---
+
+  // Analyze the composition as a botanical system.
+  if (tool === "analyze_botany") {
+    const analysis = analyzeBotany(spec);
+    return {
+      ok: true,
+      summary: analysis.summary,
+      specChanged: false,
+      data: {
+        kind: "botany_analysis",
+        analysis,
+        report: formatBotanyReport(analysis),
+      },
+    };
+  }
+
+  // --- Motion Geology Engine ---
+
+  // Analyze the composition as a geological formation.
+  if (tool === "analyze_geology") {
+    const analysis = analyzeGeology(spec);
+    return {
+      ok: true,
+      summary: analysis.summary,
+      specChanged: false,
+      data: {
+        kind: "geology_analysis",
+        analysis,
+        report: formatGeologyReport(analysis),
+      },
+    };
+  }
+
+  // --- Motion Physics Engine ---
+
+  // Analyze the composition through physics principles.
+  if (tool === "analyze_physics") {
+    const analysis = analyzePhysics(spec);
+    return {
+      ok: true,
+      summary: analysis.summary,
+      specChanged: false,
+      data: {
+        kind: "physics_analysis",
+        analysis,
+        report: formatPhysicsReport(analysis),
+      },
+    };
+  }
+
+  // --- Motion Linguistics Engine ---
+
+  // Analyze the composition as a linguistic utterance.
+  if (tool === "analyze_linguistics") {
+    const analysis = analyzeLinguistics(spec);
+    return {
+      ok: true,
+      summary: analysis.summary,
+      specChanged: false,
+      data: {
+        kind: "linguistics_analysis",
+        analysis,
+        report: formatLinguisticsReport(analysis),
+      },
+    };
+  }
+
+  // --- Motion Cinema Engine ---
+
+  // Analyze the composition as a cinematic sequence.
+  if (tool === "analyze_cinema") {
+    const analysis = analyzeCinema(spec);
+    return {
+      ok: true,
+      summary: analysis.summary,
+      specChanged: false,
+      data: {
+        kind: "cinema_analysis",
+        analysis,
+        report: formatCinemaReport(analysis),
+      },
+    };
+  }
+
+  return null;
 }
 
 /**
@@ -1878,7 +3729,13 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
         logger.warn("tool is currently unreliable — recent failures detected", { tool: call.tool });
       }
       const toolStart = Date.now();
-      const { result } = await executeToolWithGuardrails(call.tool as string, call.args as Record<string, unknown>, { projectId }, onEvent);
+      // Motion Intelligence tools are handled inline (not in the tool registry).
+      const miResult = await executeMotionIntelligenceTool(
+        call.tool,
+        call.args as Record<string, unknown>,
+        projectId,
+      );
+      const result = miResult ?? (await executeToolWithGuardrails(call.tool as string, call.args as Record<string, unknown>, { projectId }, onEvent)).result;
       const toolDurationMs = Date.now() - toolStart;
       // Record analytics for observability and recovery heuristics
       recordToolExecution(projectId, call.tool, result.ok, toolDurationMs);
