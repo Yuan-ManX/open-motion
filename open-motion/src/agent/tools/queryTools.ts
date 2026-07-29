@@ -14,12 +14,48 @@ import { analyzeIntelligence } from "../../motion/intelligence.js";
 import { adaptMotion, generateResponsiveCss, previewAdaptations } from "../../motion/adaptive.js";
 import { synthesizeMotion, morphToPattern, synthesizeCustomWaveform, listGenerativePatterns } from "../../motion/synthesis.js";
 import { createStorytellingPlan, analyzePacing, applyStorytellingPlan, listStoryGenres } from "../../motion/storytelling.js";
+import { searchRecipes } from "../../motion/recipes.js";
+import { listStylePresets } from "../../motion/stylePresets.js";
+import { listShaderEffects } from "../../motion/shaders.js";
 import { publicBaseUrl } from "../../config.js";
 import { generateMedia, isModalityAvailable } from "../provider/generation.js";
-import { MODEL_REGISTRY, findModel, modelsByProvider, modelsByModality } from "../provider/registry.js";
+import { MODEL_REGISTRY, modelsByProvider, modelsByModality } from "../provider/registry.js";
+import { routeSkill, listSkills, getSkillsSummary } from "../skillsRouter.js";
+import { listThemes, getThemesByPersonality } from "../../motion/motionThemeSystem.js";
+import { listRhythmPatterns, getRhythmPatternsByCategory, computeRhythmTiming, applyRhythmToItems, visualizeRhythm } from "../../motion/rhythmPatterns.js";
+import { listArcTemplates } from "../../motion/motionSequencePlanner.js";
 import type { ToolContext, ToolResult } from "./registry.js";
 
 type Executor = (args: Record<string, unknown>, ctx: ToolContext) => ToolResult | Promise<ToolResult>;
+
+/** Score relevance of a catalog entry against a query. */
+function scoreCatalogMatch(query: string, fields: string[]): number {
+  let maxScore = 0;
+  for (const field of fields) {
+    if (!field) continue;
+    const lower = field.toLowerCase();
+    if (lower === query) {
+      maxScore = Math.max(maxScore, 100);
+    } else if (lower.startsWith(query)) {
+      maxScore = Math.max(maxScore, 80);
+    } else if (lower.includes(query)) {
+      maxScore = Math.max(maxScore, 60);
+    } else {
+      const words = lower.split(/\s+/);
+      for (const word of words) {
+        if (word.startsWith(query)) {
+          maxScore = Math.max(maxScore, 40);
+          break;
+        }
+        if (word.includes(query) && query.length >= 3) {
+          maxScore = Math.max(maxScore, 20);
+          break;
+        }
+      }
+    }
+  }
+  return maxScore;
+}
 
 /** Classify an easing into a short DNA token. */
 function easingDnaToken(easing: Easing | undefined): string {
@@ -1004,6 +1040,208 @@ export const queryExecutors: Partial<Record<ToolName, Executor>> = {
       summary: `${models.length} model(s) available`,
       specChanged: false,
       data: { models },
+    };
+  },
+  search_catalog: (args) => {
+    const query = String(args.query ?? "").toLowerCase().trim();
+    const limit = Math.min(Number(args.limit) || 10, 50);
+    if (!query) {
+      return { ok: false, summary: "query is required", specChanged: false };
+    }
+    const results: Array<{ type: string; id: string; name: string; description: string; score: number }> = [];
+
+    // Search recipes
+    for (const r of searchRecipes(query, limit)) {
+      results.push({ type: "recipe", id: r.id, name: r.name, description: r.description ?? "", score: 80 });
+    }
+    // Search style presets
+    for (const s of listStylePresets()) {
+      const score = scoreCatalogMatch(query, [s.name, s.description ?? "", ...(s.tags ?? [])]);
+      if (score > 0) results.push({ type: "style", id: s.id, name: s.name, description: s.description ?? "", score });
+    }
+    // Search shaders
+    for (const sh of listShaderEffects()) {
+      const score = scoreCatalogMatch(query, [sh.name, sh.description, sh.category]);
+      if (score > 0) results.push({ type: "shader", id: sh.id, name: sh.name, description: sh.description, score });
+    }
+    // Search choreography patterns
+    for (const cp of CHOREOGRAPHY_PATTERNS) {
+      const score = scoreCatalogMatch(query, [cp.name, cp.description]);
+      if (score > 0) results.push({ type: "choreography", id: cp.id, name: cp.name, description: cp.description, score });
+    }
+    // Search story genres
+    for (const g of listStoryGenres()) {
+      const score = scoreCatalogMatch(query, [g.name, g.description]);
+      if (score > 0) results.push({ type: "story-genre", id: g.id, name: g.name, description: g.description, score });
+    }
+
+    results.sort((a, b) => b.score - a.score);
+    const limited = results.slice(0, limit);
+    return {
+      ok: true,
+      summary: `${results.length} catalog match(es) for "${query}"`,
+      specChanged: false,
+      data: {
+        results: limited,
+        total: results.length,
+        query,
+      },
+    };
+  },
+  route_skill: (args) => {
+    const userInput = String(args.userInput ?? "");
+    if (!userInput) {
+      return { ok: false, summary: "userInput is required", specChanged: false };
+    }
+    const result = routeSkill(userInput);
+    return {
+      ok: true,
+      summary: `Routed to "${result.primary.name}" (intent: ${result.intent}, confidence: ${(result.confidence * 100).toFixed(0)}%) with ${result.supporting.length} supporting skill(s)`,
+      specChanged: false,
+      data: {
+        intent: result.intent,
+        confidence: result.confidence,
+        primary: {
+          id: result.primary.id,
+          name: result.primary.name,
+          description: result.primary.description,
+          category: result.primary.category,
+          complexity: result.primary.complexity,
+          tools: result.primary.tools,
+          estimatedSteps: result.primary.estimatedSteps,
+        },
+        supporting: result.supporting.map((s) => ({
+          id: s.id,
+          name: s.name,
+          description: s.description,
+          tools: s.tools,
+        })),
+        plan: result.plan,
+      },
+    };
+  },
+  list_skills: (args) => {
+    const category = args.category as "creation" | "analysis" | "optimization" | "export" | "editing" | "intelligence" | undefined;
+    const skills = listSkills(category);
+    const summary = getSkillsSummary();
+    return {
+      ok: true,
+      summary: `${skills.length} skill(s)${category ? ` in ${category}` : ""} — ${summary.totalSkills} total across ${Object.keys(summary.byCategory).length} categories`,
+      specChanged: false,
+      data: {
+        skills: skills.map((s) => ({
+          id: s.id,
+          name: s.name,
+          description: s.description,
+          category: s.category,
+          complexity: s.complexity,
+          tools: s.tools,
+          mockAvailable: s.mockAvailable,
+          estimatedSteps: s.estimatedSteps,
+        })),
+        summary,
+      },
+    };
+  },
+
+  list_narrative_arcs: () => {
+    const arcs = listArcTemplates();
+    return {
+      ok: true,
+      summary: `${arcs.length} narrative arc templates available`,
+      specChanged: false,
+      data: {
+        arcs: arcs.map((a) => ({
+          id: a.id,
+          name: a.name,
+          description: a.description,
+          defaultSceneCount: a.defaultSceneCount,
+          toneProgression: a.toneProgression,
+        })),
+        count: arcs.length,
+      },
+    };
+  },
+
+  list_motion_themes: (args) => {
+    const personality = args.personality as ReturnType<typeof Object.keys>[0] | undefined;
+    const themes = personality
+      ? getThemesByPersonality(personality as never)
+      : listThemes();
+    return {
+      ok: true,
+      summary: `${themes.length} motion theme(s) available${personality ? ` for personality "${personality}"` : ""}`,
+      specChanged: false,
+      data: {
+        themes: themes.map((t) => ({
+          id: t.id,
+          name: t.name,
+          personality: t.personality,
+          description: t.description,
+          tags: t.tags,
+          easingFamily: {
+            standard: t.easingFamily.standard.type === "preset" ? t.easingFamily.standard.name : "bezier",
+            spring: t.easingFamily.spring,
+          },
+          timingScale: t.timingScale,
+          vocabulary: t.vocabulary,
+        })),
+        count: themes.length,
+      },
+    };
+  },
+
+  list_rhythm_patterns: (args) => {
+    const category = args.category as never | undefined;
+    const patterns = category
+      ? getRhythmPatternsByCategory(category)
+      : listRhythmPatterns();
+    return {
+      ok: true,
+      summary: `${patterns.length} rhythm pattern(s) available${category ? ` in category "${category}"` : ""}`,
+      specChanged: false,
+      data: {
+        patterns: patterns.map((p) => ({
+          id: p.id,
+          name: p.name,
+          description: p.description,
+          category: p.category,
+          bpm: p.bpm,
+          timeSignature: `${p.beatsPerMeasure}/${p.beatValue}`,
+          beatMultipliers: p.beatMultipliers,
+          accents: p.accents,
+          tags: p.tags,
+        })),
+        count: patterns.length,
+      },
+    };
+  },
+
+  apply_rhythm: (args) => {
+    const patternId = String(args.patternId) as never;
+    const itemCount = Number(args.itemCount);
+    if (!patternId || itemCount <= 0) {
+      return { ok: false, summary: "patternId and itemCount (positive) are required", specChanged: false };
+    }
+    const bpm = args.bpm ? Number(args.bpm) : undefined;
+    const scale = args.scale ? Number(args.scale) : undefined;
+    const result = applyRhythmToItems(patternId, itemCount, { bpm, scale });
+    const timing = computeRhythmTiming(patternId, { beatCount: itemCount, bpm, scale });
+    const visualization = visualizeRhythm(timing);
+    return {
+      ok: true,
+      summary: `Rhythm "${patternId}" applied to ${itemCount} items: ${result.totalMs}ms total, delays=[${result.delays.slice(0, 8).join(", ")}${result.delays.length > 8 ? "..." : ""}]`,
+      specChanged: false,
+      data: {
+        patternId,
+        delays: result.delays,
+        accents: result.accents,
+        totalMs: result.totalMs,
+        bpm: timing.bpm,
+        beatTimes: timing.beatTimes,
+        beatAccents: timing.beatAccents,
+        visualization,
+      },
     };
   },
 };
