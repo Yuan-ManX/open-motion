@@ -3597,6 +3597,27 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
         onEvent({ type: "session_summary", summary });
       }
 
+      // Emit proactive follow-up suggestions for the composed tool path.
+      // Without this, toolComposer-matched requests (including all analysis
+      // engines) would skip the proactive engine entirely.
+      const lastComposedTool = allToolCalls.length > 0 ? allToolCalls[allToolCalls.length - 1].tool : null;
+      const lastComposedOk = allToolResults.length > 0 ? allToolResults[allToolResults.length - 1].ok : false;
+      if (lastComposedTool) {
+        const freshForProactive = getProjectSpec(projectId);
+        if (freshForProactive) {
+          const lastComp = freshForProactive.components[freshForProactive.components.length - 1];
+          const suggestions = suggestProactive({
+            spec: freshForProactive,
+            lastTool: lastComposedTool as string,
+            lastToolOk: lastComposedOk,
+            lastComponentId: lastComp?.id,
+          });
+          if (suggestions.length > 0) {
+            onEvent({ type: "proactive_suggestion", suggestions });
+          }
+        }
+      }
+
       onEvent({ type: "done", message: summaryText, tokensIn: 0, tokensOut: 0 });
       return;
     }
