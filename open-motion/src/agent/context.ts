@@ -46,6 +46,11 @@ export function assembleAgentContext(projectId: string, userMessage?: string, mo
   if (memoryContext && (memoryContext.projectMemory || memoryContext.relevantSkills)) {
     basePrompt += memoryContext.projectMemory + memoryContext.relevantSkills;
   }
+  // Failure lessons are surfaced separately so the agent sees prior tool
+  // failures for this project and applies known recoveries.
+  if (memoryContext && memoryContext.failureMemory) {
+    basePrompt += memoryContext.failureMemory;
+  }
 
   // Semantic memory search: find relevant past conversation entries
   if (userMessage) {
