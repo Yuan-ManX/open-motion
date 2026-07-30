@@ -300,7 +300,7 @@ export function resolvePresetName(raw: string): string | null {
   return PRESET_ALIASES[normalized] ?? null;
 }
 
-const INTENT_PATTERNS: { type: IntentType; match: RegExp }[] = [
+export const INTENT_PATTERNS: { type: IntentType; match: RegExp }[] = [
   { type: "export", match: /\b(export|download|导出|下载)\b/i },
   { type: "describe", match: /\b(describe|what.*look|explain|dna|characterize)\b|描述|什么样/i },
   { type: "analysis", match: /\b(analyze|review|critique|quality|is this good|score|insight)\b/i },
