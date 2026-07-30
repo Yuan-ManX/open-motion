@@ -10,6 +10,7 @@ import {
   type AgentMemoryEntry,
   type GeneratedSkill,
 } from "../../db/repositories/memory.js";
+import { formatFailureMemory } from "./failureMemory.js";
 
 /**
  * Multi-level persistent memory system.
@@ -17,26 +18,33 @@ import {
  * Layer 1 — Session memory: in-memory transcript window (handled by store.ts).
  * Layer 2 — Project memory: cross-session facts, decisions, and preferences stored in DB.
  * Layer 3 — Skill memory: auto-generated skill documents from successful task sequences.
+ * Layer 4 — Failure memory: episodic lessons from prior tool failures so the
+ *           agent applies known recoveries instead of repeating mistakes.
  *
- * This module assembles layers 2 and 3 into context strings injected into the system prompt,
+ * This module assembles layers 2-4 into context strings injected into the system prompt,
  * so the agent retains knowledge across server restarts and session boundaries.
  */
 
 export interface MemoryContext {
   projectMemory: string;
   relevantSkills: string;
+  /** Prior failure lessons for this project, formatted for the system prompt. */
+  failureMemory: string;
   totalEntries: number;
 }
 
 /** Assemble persistent memory context for the system prompt. */
 export function assembleMemoryContext(projectId: string, userMessage: string): MemoryContext {
-  const projectEntries = listMemory(projectId);
+  // Failure-layer entries carry JSON payloads and are surfaced via a
+  // dedicated formatter below — exclude them from the regular project
+  // memory list so they do not appear as raw JSON in the prompt.
+  const projectEntries = listMemory(projectId).filter((e) => e.layer !== "failure");
   const skillResults = searchGeneratedSkills(userMessage);
 
   // Also search project memory for keywords from the user message
   const keywords = userMessage.toLowerCase().split(/\s+/).filter((w) => w.length > 3).slice(0, 5);
   const searched = keywords.length > 0
-    ? searchMemory(projectId, keywords[0])
+    ? searchMemory(projectId, keywords[0]).filter((e) => e.layer !== "failure")
     : [];
 
   const allEntries = [...projectEntries];
@@ -46,10 +54,12 @@ export function assembleMemoryContext(projectId: string, userMessage: string): M
 
   const projectMemory = formatProjectMemory(allEntries);
   const relevantSkills = formatSkills(skillResults);
+  const failureMemory = formatFailureMemory(projectId);
 
   return {
     projectMemory,
     relevantSkills,
+    failureMemory,
     totalEntries: projectEntries.length,
   };
 }
