@@ -172,7 +172,12 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
   }
 
   // --- Spring physics: "spring with stiffness 200, damping 15" ---
-  if (/\bspring\b|弹簧/i.test(userText)) {
+  // Only tune an existing component's spring when the user is clearly adjusting
+  // parameters, not requesting a new physics simulation. When "physics",
+  // "simulate", or "generate" appears, defer to the simulate_physics handler
+  // below so a new component with sampled keyframes is created.
+  if (/\bspring\b|弹簧/i.test(userText) &&
+      !/\b(physics|simulate|generate|animat(e|ion))\b/i.test(userText)) {
     const stiffM = userText.match(/stiffness\s*(\d+)/i);
     const dampM = userText.match(/damping\s*(\d+)/i);
     const massM = userText.match(/mass\s*(\d+(?:\.\d+)?)/i);
@@ -507,6 +512,73 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     push("suggest_next", {}, "Here are some context-aware suggestions for what to do next.");
   }
 
+  // --- Search catalog (find presets, recipes, shaders, patterns) ---
+  const catalogMatch = userText.match(/\b(?:search|find|show|browse|list)\s+(?:for\s+)?(.+?)(?:\s+(?:preset|recipe|shader|pattern|effect|style|choreography))?\s*(?:in|from|within)?\s*(?:the\s+)?(?:catalog|library)?\b/i);
+  if (catalogMatch && /\b(search|find|show|browse|list)\b/i.test(userText) && /\b(preset|recipe|shader|pattern|effect|style|choreography|catalog|library)\b/i.test(userText)) {
+    const searchQuery = catalogMatch[1]?.trim() || "fade";
+    push("search_catalog", { query: searchQuery, limit: 10 },
+      `Found 8 catalog matches for "${searchQuery}" — 3 recipes, 2 style presets, 2 shaders, 1 choreography pattern. Top match: ${searchQuery} recipe (score: 80).`);
+  }
+
+  // --- Run motion pipeline (automated motion generation) ---
+  if (/\b(automate|auto.?generate|pipeline|generate.*motion|create.*sequence|make.*animation)\b/i.test(userText)) {
+    const desc = userText.replace(/^(?:please\s+)?(?:can you\s+)?(?:automate|auto.?generate|pipeline|generate|create|make)\s+/i, "").trim() || "playful bounce-in";
+    push("run_motion_pipeline", { projectId: "", description: desc },
+      `Ran automated pipeline for "${desc}": intent analyzed → template selected → easing synthesized → timing configured → choreography applied → principles validated. Generated 3 components in 45ms.`);
+  }
+
+  // --- Compose sequence (arrange components in sequence/parallel/stagger) ---
+  if (/\b(arrange|compose|sequence|parallel|stagger)\s+(?:these|the|all|components?)?\b/i.test(userText)) {
+    const type = /parallel/i.test(userText) ? "parallel" : /stagger/i.test(userText) ? "stagger" : "sequence";
+    push("compose_sequence", { projectId: "", type, componentIds: [], stepMs: 80, gapMs: 0 },
+      `Composed 3 components as ${type} — total 2400ms, 144 frames at 60fps.`);
+  }
+
+  // --- Seek to frame (deterministic frame inspection) ---
+  const seekFrameM = userText.match(/\b(?:seek|go|jump|skip)\s*(?:to\s+)?frame\s*(\d+)|frame\s*(\d+)|第\s*(\d+)\s*帧|跳到.*帧\s*(\d+)/i);
+  if (seekFrameM) {
+    const frame = parseInt(seekFrameM[1] || seekFrameM[2] || seekFrameM[3] || seekFrameM[4] || "0", 10);
+    push("seek_to_frame", { projectId: "", frame },
+      `Seeked to frame ${frame}. Snapshot: 2 active components visible, 0 hidden. Transform and opacity resolved at t=${(frame / 60).toFixed(3)}s.`);
+  }
+
+  // --- Render frame range (sample frames across a range) ---
+  if (/\b(render|sample|preview)\s+(?:frames?|range|animation)|渲染.*帧|预览.*帧/i.test(userText)) {
+    const rangeM = userText.match(/(\d+)\s*(?:to|-|–|~)\s*(\d+)/);
+    const startFrame = rangeM ? parseInt(rangeM[1], 10) : 0;
+    const endFrame = rangeM ? parseInt(rangeM[2], 10) : 120;
+    push("render_frames", { projectId: "", startFrame, endFrame, sampleStep: 5 },
+      `Rendered ${Math.ceil((endFrame - startFrame + 1) / 5)} sample frames from ${startFrame} to ${endFrame} at 60fps. Thumbnail frame identified at frame ${Math.floor((startFrame + endFrame) / 2)}.`);
+  }
+
+  // --- Export HTML composition (self-contained seek-protocol HTML) ---
+  if (/\b(export|generate|create|build)\s+(?:html|composition|self.?contained)|html\s+composition|导出.*html/i.test(userText)) {
+    push("export_html_composition", { projectId: "", includeControls: true, loop: true },
+      `Generated self-contained HTML composition with seek protocol (window.__om.seek). Includes playback controls, keyboard shortcuts, and WAAPI keyframes. Size: 12.4 KB.`);
+  }
+
+  // --- Resolve media (find or generate audio/image/video assets) ---
+  if (/\b(find|resolve|need|add|get)\s+(?:a\s+|an\s+|the\s+)?(background\s*music|sound\s*effect|voiceover|audio|image|video|icon|logo|color\s*grade|lut)|背景音乐|音效|配音/i.test(userText)) {
+    const isAudio = /\b(music|sound|audio|voiceover)\b|背景音乐|音效|配音/i.test(userText);
+    const isImage = /\bimage\b/i.test(userText);
+    const modality = isAudio ? "audio" : isImage ? "image" : "video";
+    const purpose = /\bbackground/i.test(userText) ? "background-music" : /\bvoiceover\b/i.test(userText) ? "voiceover" : "sound-effect";
+    push("resolve_media", { modality, purpose, description: userText.slice(0, 60), allowGeneration: true },
+      `Resolved ${modality} asset from catalog: "cinematic-tension-01" (2.4s, source: catalog). URL ready for composition.`);
+  }
+
+  // --- Route skill (intent-to-skill routing) ---
+  if (/\b(which|what)\s+skill|route\s+(?:my|this)\s+(?:request|intent)|skill\s+for|推荐.*技能|哪个技能/i.test(userText)) {
+    push("route_skill", { userInput: userText },
+      `Routed to skill "create_entrance" (confidence: 87%). Workflow: create_entrance → apply_choreography → analyze_motion. Related skills: apply_brand_pack, optimize_timing.`);
+  }
+
+  // --- List skills (show available skills) ---
+  if (/\b(list|show|available|all)\s+skills?|列出.*技能|有哪些技能/i.test(userText)) {
+    push("list_skills", {},
+      `21 skills available across 6 categories: 4 creation, 3 analysis, 3 optimization, 3 export, 3 editing, 5 intelligence. Use route_skill to find the right one for your task.`);
+  }
+
   // --- Set motion path (orbit, circle, ellipse, line, bezier, SVG path syntax) ---
   if (/\b(orbit|circle|ellipse|along.*path|trajectory|fly across|move in a|motion\s+path|path\s*[:=])\b/i.test(userText) && state.firstComponentId) {
     // Detect explicit SVG path data (M/L/Q/C/Z commands with coordinates).
@@ -660,6 +732,69 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
       "Analyzed the narrative coherence of the motion composition.");
   }
 
+  // --- Cross-disciplinary analysis engines (fallback when toolComposer misses) ---
+  // Each engine interprets the composition through a distinct disciplinary lens.
+  if (/\b(astronom|celestial|cosmos|cosmic|constellation|galaxy|galactic|stellar|spectral|supernova|black.?hole|nebula|pulsar|orbital|luminosit)\b/i.test(userText)) {
+    push("analyze_astronomy", { projectId: "" },
+      "Mapped the composition as celestial phenomena — spectral types, orbital periods, cosmic events.");
+  }
+  if (/\b(chemistr|chemical|molecule|molecular|\batom\b|atomic|\bbond\b|reaction|catalyst|inhibitor|compound|covalent|ionic|metallic|hydrogen.?bond|enthalp|entropy|equilibrium|periodic)\b/i.test(userText)) {
+    push("analyze_chemistry", { projectId: "" },
+      "Analyzed the composition as a chemical system — bonds, reactions, catalysts, energetics.");
+  }
+  if (/\b(musicolog|musical|melod|harmon|chord|phrase|key.?signature|time.?signature|scale|pitch|dynamics|crescendo|decrescendo|sonata|rondo)\b/i.test(userText)) {
+    push("analyze_musicology", { projectId: "" },
+      "Analyzed the composition as a musical score — melody, harmony, rhythm, dynamics.");
+  }
+  if (/\b(botan|botanical|\bplant\b|\bleaf\b|leaves|\bstem\b|flower|petal|\broot\b|canopy|germination|seedling|phenology|biomass|tropism|\bvine\b|\bshrub\b)\b/i.test(userText)) {
+    push("analyze_botany", { projectId: "" },
+      "Analyzed the composition as a botanical system — organs, branching, growth rhythms.");
+  }
+  if (/\b(geolog|geological|stratum|strata|sedimentar|igneous|metamorphic|volcanic|alluvial|tectonic|earthquake|uplift|fault|erosion|deposition|mineral|epoch|canyon|plateau|crust)\b/i.test(userText)) {
+    push("analyze_geology", { projectId: "" },
+      "Analyzed the composition as a geological formation — strata, tectonics, erosion, minerals.");
+  }
+  if (/\b(alchem|alchemical|transmutation|magnum.?opus|philosopher.?s.?stone|nigredo|albedo|citrinitas|rubedo|prima.?materia|crucible|hermetic)\b/i.test(userText)) {
+    push("analyze_alchemy", { projectId: "" },
+      "Interpreted the composition through alchemical transformation — four phases, operations, philosopher's stone.");
+  }
+  if (/\b(architect|architectural|structural.?role|foundation|facade|load.?bearing|proportion|golden.?ratio|hierarchy|material.?honesty|brutalist|modernist|baroque|gothic|deconstructivist)\b/i.test(userText)) {
+    push("analyze_architecture", { projectId: "" },
+      "Analyzed the composition as a built structure — structural roles, proportion, hierarchy.");
+  }
+  if (/\b(cartograph|cartographic|elevation|contour|landmark|biome|compass|terrain|topograph|map.*composition|coordinates)\b/i.test(userText)) {
+    push("analyze_cartography", { projectId: "" },
+      "Mapped the composition as cartographic terrain — elevation, contours, landmarks, biomes.");
+  }
+  if (/\b(genealog|genealogical|ancestry|phylogen|evolutionary.?lineage|trait.*inherit|genetic.*diversity|lineage.*tree|descent)\b/i.test(userText)) {
+    push("analyze_genealogy", { projectId: "" },
+      "Traced the evolutionary lineage of motion patterns — traits, ancestry, phylogeny.");
+  }
+  if (/\b(calligraph|calligraphic|brush.?stroke|brushwork|ink.?flow|penmanship|cursive|regular.?script|running.?script|wild.?script|stroke.?quality)\b/i.test(userText)) {
+    push("analyze_calligraphy", { projectId: "" },
+      "Analyzed the composition as calligraphic art — stroke quality, pressure, velocity, fluency.");
+  }
+  if (/\b(mytholog|mythic|mythological|hero.?s.?journey|monomyth|archetype|archetypal|shadow.?archetype|mentor.?archetype|threshold.?guardian|\bboon\b|transformation.?myth)\b/i.test(userText)) {
+    push("analyze_mythology", { projectId: "" },
+      "Interpreted the composition through mythological lens — hero's journey, archetypal patterns.");
+  }
+  if (/\b(weather|storm|atmospheric.?pressure|weather.?system|weather.?forecast|climate|front.?activity|calm.?period|wind.?speed|humidity|meteorolog)\b/i.test(userText)) {
+    push("analyze_weather", { projectId: "" },
+      "Modeled the composition as a weather system — pressure, fronts, storms, calm periods.");
+  }
+  if (/\b(physics|physical|kinematic|dynamic|\bforce\b|energy.*of|momentum|collision|velocity|acceleration|inertia|equilibrium|work.*of|power.*of|spring.?force)\b/i.test(userText)) {
+    push("analyze_physics", { projectId: "" },
+      "Analyzed the composition through physics principles — kinematics, dynamics, energy, momentum.");
+  }
+  if (/\b(linguistic|linguistics|phoneme|phonology|morpheme|morphology|syntax|syntactic|semantic|semantics|pragmatic|pragmatics|prosody|discourse|speech.?act|intonation|language.?family)\b/i.test(userText)) {
+    push("analyze_linguistics", { projectId: "" },
+      "Analyzed the composition as a linguistic utterance — phonemes, morphemes, syntax, semantics.");
+  }
+  if (/\b(cinema|cinematic|\bfilm\b|\bmovie\b|mise.-en.-scène|camera.?movement|camera.?angle|narrative.?structure|montage|storyboard|screenplay|directing)\b/i.test(userText)) {
+    push("analyze_cinema", { projectId: "" },
+      "Analyzed the composition as a cinematic sequence — shots, cuts, camera, mise-en-scène.");
+  }
+
   // --- Adaptive Motion: adapt for device/viewport, preview, responsive CSS ---
   if (/\b(responsive.*css|css.*responsive|generate.*css|export.*css|media.*query|@media)\b/i.test(userText)) {
     push("generate_responsive_css", { projectId: "" },
@@ -719,6 +854,164 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     const genre = genreM ? genreM[1].toLowerCase() : "hero";
     push("create_story_arc", { projectId: "", genre, totalDurationMs: 10000 },
       `Created a ${genre} story arc with beats, emotional tones, and pacing analysis.`);
+  }
+
+  // --- Narrative sequence planning: multi-scene sequences ---
+  if (/\b(plan.*sequence|sequence.*plan|multi.?scene|scene.*plan|narrative.*sequence|story.*sequence|plan.*narrative|decompose.*story)\b/i.test(userText)) {
+    const arcM = userText.match(/\b(hero.?journey|product.?launch|tutorial|product.?reveal|emotional.?arc|action.?sequence|documentary|celebration)\b/i);
+    const arc = arcM ? arcM[1].replace(/\s+/g, "-").toLowerCase() : undefined;
+    const durM = userText.match(/(\d+)\s*(?:s|sec|seconds?)\b/i);
+    const totalDurationMs = durM ? Number(durM[1]) * 1000 : 8000;
+    push("plan_sequence", { projectId: "", description: userText, arc, totalDurationMs, optimize: true },
+      `Planned a multi-scene narrative sequence${arc ? ` using the ${arc} arc` : ""} with emotional tones, transitions, and pacing analysis.`);
+  } else if (/\b(narrative.*arc.*template|list.*arc|arc.*template|story.*template|available.*arc)\b/i.test(userText)) {
+    push("list_narrative_arcs", {},
+      "Listed all available narrative arc templates — hero journey, product launch, tutorial, and more.");
+  }
+
+  // --- Motion themes: coordinated motion identity ---
+  if (/\b(apply.*theme|use.*theme|set.*theme|make.*luxurious|make.*precise|make.*playful.*theme|motion.*identity|coordinated.*motion)\b/i.test(userText)) {
+    const themeM = userText.match(/\b(precision.?tech|organic.?flow|playful.?bounce|dramatic.?cinematic|minimal.?clean|luxurious.?elegant|warm.?friendly|technical.?data)\b/i);
+    const themeId = themeM ? themeM[1].replace(/\s+/g, "-").toLowerCase() : "precision-tech";
+    const apply = /\bapply\b/i.test(userText);
+    push("apply_motion_theme", { projectId: "", themeId, apply },
+      `${apply ? "Applied" : "Previewed"} the ${themeId} motion theme${apply ? " across all components" : " — call again with 'apply' to commit"}.`);
+  } else if (/\b(motion.*theme|theme.*list|list.*theme|available.*theme|motion.*personality)\b/i.test(userText)) {
+    push("list_motion_themes", {},
+      "Listed all motion themes — each coordinates easing families, timing scales, and choreography rules.");
+  }
+
+  // --- Rhythm patterns: musical-inspired timing ---
+  if (/\b(apply.*rhythm|use.*rhythm|rhythm.*pattern.*apply|stagger.*rhythm|heartbeat.*stagger|swing.*stagger|waltz.*timing)\b/i.test(userText)) {
+    const patternM = userText.match(/\b(steady.?beat|syncopated|swing|rubato|polyrhythm|gallop|waltz|fanfare|heartbeat|wave.?flow|accelerando|decelerando)\b/i);
+    const patternId = patternM ? patternM[1].replace(/\s+/g, "-").toLowerCase() : "steady-beat";
+    const countM = userText.match(/(\d+)\s*(?:items?|components?|elements?|layers?)\b/i);
+    const itemCount = countM ? Number(countM[1]) : 5;
+    const bpmM = userText.match(/(\d+)\s*bpm\b/i);
+    const bpm = bpmM ? Number(bpmM[1]) : undefined;
+    push("apply_rhythm", { patternId, itemCount, bpm },
+      `Applied the ${patternId} rhythm to ${itemCount} items${bpm ? ` at ${bpm} BPM` : ""} — generated stagger delays and accents.`);
+  } else if (/\b(rhythm.*pattern|list.*rhythm|available.*rhythm|beat.*pattern|musical.*timing)\b/i.test(userText)) {
+    push("list_rhythm_patterns", {},
+      "Listed all rhythm patterns — steady beat, syncopated, swing, waltz, heartbeat, and more.");
+  }
+
+  // --- A/B variant generation: explore multiple design directions ---
+  if (/\b(generate.*variant|A.?B.*test|variant.*comparison|explore.*alternative|multiple.*variation|design.*direction|compare.*variant)\b/i.test(userText)) {
+    const countM = userText.match(/(\d+)\s*(?:variants?|variations?|options?|directions?)\b/i);
+    const count = countM ? Number(countM[1]) : 4;
+    push("generate_variants", { projectId: "", count },
+      `Generated ${count} A/B motion variants exploring different easing, timing, intensity, and direction strategies.`);
+  }
+
+  // --- Motion evolution: handled by toolComposer, but also provide mock fallback ---
+  if (/\b(evolve|evolution|evolutionary|breed|genetic.*algorithm|natural.*selection|survival.*fittest|iteratively.*improve)\b/i.test(userText)) {
+    const strategyM = userText.match(/\b(playful|accessible|performant|harmonious|balanced)\b/i);
+    const strategy = strategyM ? strategyM[1] : "balanced";
+    const apply = /\b(apply|commit|use.*best|make.*so)\b/i.test(userText);
+    push("evolve_motion", { projectId: "", strategy, apply },
+      `Evolved the motion spec across 8 generations using the ${strategy} strategy — applied selection, crossover, and mutation to breed a fitter animation.`);
+  } else if (/\b(evolution.*strateg|evolve.*strateg|list.*evolution|what.*strateg|available.*strateg|optimization.*strateg)\b/i.test(userText)) {
+    push("list_evolution_strategies", {},
+      "Listed 5 evolution strategies — balanced, playful, accessible, performant, and harmonious.");
+  }
+
+  // --- Motion perception: predict viewer response ---
+  if (/\b(how.*feel|perceiv|viewer.*response|emotional.*response|cognitive.*load|memorab|attention.*retention|brand.*perception|how.*will.*viewers)\b/i.test(userText)) {
+    if (state.firstComponentId) {
+      push("predict_perception", { projectId: "" },
+        "Analyzed viewer perception — the composition projects a premium personality with moderate energy and good memorability.");
+    }
+  }
+
+  // --- Motion semantics: list concepts ---
+  if (/\b(what.*emotion|what.*concept|list.*semantic|list.*concept|available.*emotion|motion.*concept|what.*feeling)\b/i.test(userText)) {
+    push("list_semantic_concepts", {},
+      "Listed 10 semantic concepts — trust, urgency, luxury, playful, innovation, calm, energy, mystery, minimal, and celebration.");
+  }
+
+  // --- Motion semantics: infer intent from description ---
+  if (/\b(make.*feel|should.*feel|feel.*like|give.*sense|convey|express|emotion.*of|mood.*of)\b/i.test(userText)) {
+    const desc = userText;
+    push("infer_intent", { description: desc },
+      `Inferred semantic intent from your description and generated a matching motion profile.`);
+  }
+
+  // --- Motion semantics: blend concepts ---
+  if (/\b(blend|combine|mix|merge|hybrid).*\b(trust|urgency|luxury|playful|innovation|calm|energy|mystery|minimal|celebration)\b/i.test(userText)) {
+    const conceptM = userText.match(/\b(trust|urgency|luxury|playful|innovation|calm|energy|mystery|minimal|celebration)\b/gi);
+    if (conceptM && conceptM.length >= 2) {
+      push("blend_concepts", { conceptA: conceptM[0].toLowerCase(), conceptB: conceptM[1].toLowerCase() },
+        `Blended ${conceptM[0]} and ${conceptM[1]} into a hybrid motion profile.`);
+    }
+  }
+
+  // --- Motion physics: simulate ---
+  if (/\b(physics|spring|gravity|projectile|friction|pendulum|bounce.*physics|物理|弹簧|重力|抛体|摩擦|摆)\b/i.test(userText)) {
+    let simType = "spring";
+    if (/\b(gravity|drop|fall|重力|下落)\b/i.test(userText)) simType = "gravity";
+    else if (/\b(projectile|throw|arc|抛|轨迹)\b/i.test(userText)) simType = "projectile";
+    else if (/\b(friction|slide|decelerat|摩擦|减速)\b/i.test(userText)) simType = "friction";
+    else if (/\b(pendulum|swing|摆|钟摆)\b/i.test(userText)) simType = "pendulum";
+    push("simulate_physics", { type: simType, config: {} },
+      `Generated a ${simType} physics simulation with sampled keyframes.`);
+  }
+
+  // --- Motion physics: list presets ---
+  if (/\b(physics.*preset|preset.*physics|list.*physics|what.*physics|available.*physics|物理.*预设)\b/i.test(userText)) {
+    push("list_physics_presets", {},
+      "Listed 10 physics presets across 5 simulation types (spring, gravity, projectile, friction, pendulum).");
+  }
+
+  // --- Motion physics: run named preset ---
+  if (/\b(spring-snappy|spring-gentle|spring-bouncy|gravity-drop|gravity-slam|projectile-arc|projectile-high|friction-slide|friction-glide|pendulum-swing)\b/i.test(userText)) {
+    const presetM = userText.match(/\b(spring-snappy|spring-gentle|spring-bouncy|gravity-drop|gravity-slam|projectile-arc|projectile-high|friction-slide|friction-glide|pendulum-swing)\b/i);
+    if (presetM) {
+      push("run_physics_preset", { presetId: presetM[1].toLowerCase() },
+        `Ran the ${presetM[1]} physics preset and generated motion keyframes.`);
+    }
+  }
+
+  // --- Motion path: generate motion along mathematical curves ---
+  if (/\b(path.*motion|motion.*path|along.*curve|bezier.*path|lissajous|spiral.*path|helix.*path|generate.*path|路径.*运动|沿.*曲线)\b/i.test(userText)) {
+    const pathTypeM = userText.match(/\b(bezier|lissajous|spiral|helix|circle|ellipse|figure.?8|heart|infinite)\b/i);
+    const pathType = pathTypeM ? pathTypeM[1].toLowerCase().replace(/[-\s]/g, "") : "lissajous";
+    const durM = userText.match(/(\d+)\s*ms/);
+    const samplesM = userText.match(/(\d+)\s*samples/);
+    push("generate_path_motion", {
+      type: pathType,
+      durationMs: durM ? Number(durM[1]) : 2000,
+      samples: samplesM ? Number(samplesM[1]) : 40,
+      scale: 1,
+      loop: /loop|循环/.test(userText),
+    }, `Generated a ${pathType} path motion with sampled position keyframes.`);
+  }
+
+  // --- Motion path: list presets ---
+  if (/\b(path.*preset|preset.*path|list.*path|available.*path|路径.*预设)\b/i.test(userText)) {
+    push("list_path_presets", {},
+      "Listed 10 motion path presets across 5 curve types (bezier, lissajous, spiral, helix, figure-8).");
+  }
+
+  // --- Motion path: run named preset ---
+  const pathPresetM = userText.match(/\b(bezier-arc|lissajous-8|spiral-out|helix-rise|figure-8|circle-loop|ellipse-orbit|heart-pulse|infinite-loop|wave-path)\b/i);
+  if (pathPresetM) {
+    push("run_path_preset", { presetId: pathPresetM[1].toLowerCase() },
+      `Ran the ${pathPresetM[1]} path preset and generated trajectory keyframes.`);
+  }
+
+  // --- Motion codec: encode motion to external format ---
+  if (/\b(encode.*motion|export.*lottie|export.*css|export.*waapi|export.*smil|export.*gsap|export.*react.*spring|codec|编码.*运动|导出.*格式)\b/i.test(userText)) {
+    const fmtM = userText.match(/\b(lottie|css|waapi|smil|gsap|react.?spring)\b/i);
+    const format = fmtM ? fmtM[1].toLowerCase().replace(/[-\s]/g, "") : "lottie";
+    push("encode_motion", { format, projectId: "", fps: 60, optimize: true },
+      `Encoded the motion to ${format.toUpperCase()} format with optional optimisation.`);
+  }
+
+  // --- Motion codec: list supported formats ---
+  if (/\b(codec.*format|list.*format|supported.*format|available.*format|支持的.*格式)\b/i.test(userText)) {
+    push("list_codec_formats", {},
+      "Listed 6 supported codec formats: Lottie, CSS, WAAPI, SMIL, GSAP, React Spring.");
   }
 
   // --- Create variant ---
@@ -3182,6 +3475,871 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     const providerM = userText.match(/\b(?:from|via|provider)\s+(\w+)/i);
     push("list_models", { provider: providerM ? providerM[1] : undefined },
       "Here are the available AI models across all configured providers, with their capabilities and modalities.");
+  }
+
+  // --- Editor control: canvas viewport ---
+  if (/\b(?:zoom\s+in|zoom\s+to\s+(\d+)%|zoom\s+to\s+(\d*\.?\d+)x)\b/i.test(userText)) {
+    const pctM = userText.match(/zoom\s+to\s+(\d+)%/i);
+    const xM = userText.match(/zoom\s+to\s+(\d*\.?\d+)x/i);
+    const zoom = xM ? Number(xM[1]) : (pctM ? Number(pctM[1]) / 100 : 2);
+    push("editor_zoom_canvas", { zoom },
+      `Zoomed the canvas to ${zoom}x.`);
+  } else if (/\bzoom\s+out\b/i.test(userText)) {
+    push("editor_zoom_canvas", { zoom: 0.5 },
+      "Zoomed the canvas out to 50%.");
+  }
+  if (/\b(?:fit\s+to\s+screen|fit\s+all|frame\s+everything)\b/i.test(userText)) {
+    push("editor_fit_to_screen", {},
+      "Fit all components to the visible canvas area.");
+  }
+  if (/\b(?:reset\s+view|reset\s+zoom)\b/i.test(userText)) {
+    push("editor_reset_view", {},
+      "Reset the canvas view to 100% at origin.");
+  }
+  if (/\b(?:pan\s+(?:left|right|up|down|to))\b/i.test(userText)) {
+    const panM = userText.match(/pan\s+(?:to\s+)?(?:x?:?\s*(-?\d+)[, ]+y?:?\s*(-?\d+))/i);
+    const x = panM ? Number(panM[1]) : 100;
+    const y = panM ? Number(panM[2]) : 0;
+    push("editor_pan_canvas", { x, y },
+      `Panned the canvas to (${x}, ${y}).`);
+  }
+
+  // --- Editor control: timeline playback ---
+  if (/\b(?:go\s+to|set\s+playhead|scrub\s+to|jump\s+to)\s+(\d+)\s*(ms|milliseconds?)?\b/i.test(userText)) {
+    const timeM = userText.match(/(?:go\s+to|set\s+playhead|scrub\s+to|jump\s+to)\s+(\d+)/i);
+    if (timeM) {
+      push("editor_set_playhead", { timeMs: Number(timeM[1]) },
+        `Moved the playhead to ${timeM[1]}ms.`);
+    }
+  }
+  if (/\b(?:play\s+(?:at\s+)?(\d*\.?\d+)x|(\d*\.?\d+)x\s+speed|slow\s+motion|half\s+speed)\b/i.test(userText)) {
+    const speedM = userText.match(/(?:play\s+at\s+)?(\d*\.?\d+)x/i);
+    const speed = speedM ? Number(speedM[1]) : 0.5;
+    push("editor_set_playback_speed", { speed },
+      `Set playback speed to ${speed}x.`);
+  }
+  if (/\b(?:^|\s)(play|start\s+playback|play\s+the\s+animation)\b/i.test(userText) && !/\bplayback\s+speed\b/i.test(userText)) {
+    push("editor_play", {},
+      "Started timeline playback.");
+  }
+  if (/\b(?:pause|stop\s+playback|freeze)\b/i.test(userText)) {
+    push("editor_pause", {},
+      "Paused timeline playback.");
+  }
+
+  // --- Editor control: toggles ---
+  if (/\b(?:show|hide)\s+rulers\b/i.test(userText)) {
+    push("editor_toggle_rulers", { enabled: /show/i.test(userText) },
+      /show/i.test(userText) ? "Showed canvas rulers." : "Hid canvas rulers.");
+  }
+  if (/\b(?:enable|disable|turn\s+on|turn\s+off)\s+snap(?:ping)?\b/i.test(userText)) {
+    push("editor_toggle_snap", { enabled: /enable|turn\s+on/i.test(userText) },
+      `${/enable|turn\s+on/i.test(userText) ? "Enabled" : "Disabled"} snap-to-grid.`);
+  }
+  if (/\b(?:auto.?keyframe|record\s+keyframes?\s+automatically)\b/i.test(userText)) {
+    push("editor_toggle_auto_keyframe", { enabled: !/\b(?:off|disable)\b/i.test(userText) },
+      `${!/\b(?:off|disable)\b/i.test(userText) ? "Enabled" : "Disabled"} auto-keyframe mode.`);
+  }
+  if (/\b(?:onion.?skin|ghost\s+frames?|motion\s+trail)\b/i.test(userText)) {
+    push("editor_toggle_onion_skin", { enabled: !/\b(?:off|disable|hide)\b/i.test(userText) },
+      `${!/\b(?:off|disable|hide)\b/i.test(userText) ? "Enabled" : "Disabled"} onion skinning.`);
+  }
+
+  // --- Editor control: selection ---
+  if (/\b(?:clear\s+selection|deselect\s+all|unselect\s+all)\b/i.test(userText)) {
+    push("editor_clear_selection", {},
+      "Cleared the component selection.");
+  }
+
+  // --- Editor control: right panel ---
+  if (/\b(?:open|switch\s+to|show)\s+(?:the\s+)?(?:design|motion|intel|assets|output)\s+(?:panel|tab|group)\b/i.test(userText)) {
+    const catM = userText.match(/(?:design|motion|intel|assets|output)/i);
+    if (catM) {
+      push("editor_set_panel", { category: catM[0].toLowerCase() },
+        `Switched the right panel to the ${catM[0].toLowerCase()} group.`);
+    }
+  }
+  if (/\b(?:collapse|expand|hide|show)\s+(?:the\s+)?(?:right\s+)?panel\b/i.test(userText)) {
+    push("editor_toggle_panel", { collapsed: /collapse|hide/i.test(userText) },
+      `${/collapse|hide/i.test(userText) ? "Collapsed" : "Expanded"} the right panel.`);
+  }
+
+  // --- Editor control: overlays ---
+  if (/\b(?:open|show)\s+(?:the\s+)?(?:preview|fullscreen)\b/i.test(userText)) {
+    push("editor_open_overlay", { overlay: "preview", open: true },
+      "Opened the fullscreen preview overlay.");
+  }
+  if (/\b(?:open|show)\s+(?:the\s+)?(?:export|export\s+dialog)\b/i.test(userText)) {
+    push("editor_open_overlay", { overlay: "export", open: true },
+      "Opened the export dialog.");
+  }
+  if (/\b(?:open|show)\s+(?:the\s+)?(?:templates?|template\s+gallery)\b/i.test(userText)) {
+    push("editor_open_overlay", { overlay: "templates", open: true },
+      "Opened the templates gallery.");
+  }
+  if (/\b(?:open|show)\s+(?:the\s+)?(?:settings?|preferences?)\b/i.test(userText)) {
+    push("editor_open_overlay", { overlay: "settings", open: true },
+      "Opened the settings panel.");
+  }
+  if (/\b(?:open|show)\s+(?:the\s+)?command\s+palette\b/i.test(userText)) {
+    push("editor_open_overlay", { overlay: "command_palette", open: true },
+      "Opened the command palette.");
+  }
+
+  // --- Editor control: undo / redo ---
+  if (/\b(?:^|\s)(undo|revert\s+that|go\s+back\s+a\s+step)\b/i.test(userText)) {
+    push("editor_undo", {},
+      "Undid the last editor action.");
+  }
+  if (/\b(?:^|\s)(redo|repeat\s+the\s+undo|bring\s+it\s+back)\b/i.test(userText)) {
+    push("editor_redo", {},
+      "Redid the last undone editor action.");
+  }
+
+  // --- Editor control: artboard ---
+  if (/\b(?:set\s+)?(?:canvas|artboard)\s+(?:to\s+)?(\d+)\s*[x×]\s*(\d+)\b/i.test(userText)) {
+    const sizeM = userText.match(/(?:canvas|artboard)\s+(?:to\s+)?(\d+)\s*[x×]\s*(\d+)/i);
+    if (sizeM) {
+      const bgM = userText.match(/(?:background|bg)\s+(?:to\s+)?(#[0-9a-f]{3,8}|\w+)/i);
+      push("editor_set_artboard",
+        { width: Number(sizeM[1]), height: Number(sizeM[2]), background: bgM ? bgM[1] : undefined },
+        `Set the artboard to ${sizeM[1]}x${sizeM[2]}${bgM ? ` with background ${bgM[1]}` : ""}.`);
+    }
+  }
+
+  // --- Editor control: replay ---
+  if (/\b(?:replay|play\s+again|restart\s+playback|replay\s+the\s+animation)\b/i.test(userText)) {
+    push("editor_trigger_replay", {},
+      "Replaying the animation from the start.");
+  }
+
+  // --- Editor control: motion paths ---
+  if (/\b(?:show\s+motion\s+paths|show\s+trajectories|show\s+animation\s+paths)\b/i.test(userText)) {
+    push("editor_toggle_motion_paths", { enabled: true },
+      "Showing motion paths for animated components.");
+  } else if (/\b(?:hide\s+motion\s+paths|hide\s+trajectories)\b/i.test(userText)) {
+    push("editor_toggle_motion_paths", { enabled: false },
+      "Hid motion paths.");
+  } else if (/\btoggle\s+motion\s+paths\b/i.test(userText)) {
+    push("editor_toggle_motion_paths", {},
+      "Toggled motion paths.");
+  }
+
+  // --- Editor control: performance monitor ---
+  if (/\b(?:show\s+performance|check\s+fps|show\s+fps|performance\s+monitor)\b/i.test(userText)) {
+    push("editor_toggle_performance_monitor", { enabled: true },
+      "Showing the performance monitor overlay.");
+  } else if (/\b(?:hide\s+performance|hide\s+fps)\b/i.test(userText)) {
+    push("editor_toggle_performance_monitor", { enabled: false },
+      "Hid the performance monitor.");
+  }
+
+  // --- Editor control: solo ---
+  if (/\b(?:solo\s+(\w+)|isolate\s+(\w+)|focus\s+on\s+(?:just\s+)?(?:the\s+)?(\w+))\b/i.test(userText)) {
+    const soloM = userText.match(/(?:solo|isolate|focus\s+on\s+(?:just\s+)?(?:the\s+)?)\s+(\S+)/i);
+    if (soloM) {
+      push("editor_set_solo", { componentId: soloM[1] },
+        `Soloed "${soloM[1]}".`);
+    }
+  } else if (/\b(?:clear\s+solo|unsolo)\b/i.test(userText)) {
+    push("editor_set_solo", { componentId: null },
+      "Cleared solo.");
+  }
+
+  // --- Editor control: sidebar ---
+  if (/\b(?:collapse\s+sidebar|hide\s+sidebar|collapse\s+left\s+panel)\b/i.test(userText)) {
+    push("editor_toggle_sidebar", { collapsed: true },
+      "Collapsed the left sidebar.");
+  } else if (/\b(?:show\s+sidebar|expand\s+sidebar|show\s+left\s+panel)\b/i.test(userText)) {
+    push("editor_toggle_sidebar", { collapsed: false },
+      "Expanded the left sidebar.");
+  } else if (/\btoggle\s+sidebar\b/i.test(userText)) {
+    push("editor_toggle_sidebar", {},
+      "Toggled the left sidebar.");
+  }
+
+  // --- Editor control: timeline commands ---
+  if (/\b(?:copy|paste|duplicate|delete|group|ungroup|bring\s+to\s+front|send\s+to\s+back)\b/i.test(userText)) {
+    const cmdM = userText.match(/\b(copy|paste|duplicate|delete|group|ungroup|bring\s+to\s+front|send\s+to\s+back)\b/i);
+    if (cmdM) {
+      push("editor_timeline_command", { action: cmdM[1].replace(/\s+/g, "_") },
+        `Executed timeline command: ${cmdM[1]}.`);
+    }
+  }
+
+  // --- Editor control: toggle selection ---
+  if (/\b(?:toggle\s+(?:selection\s+for\s+)?(\w+)|also\s+select\s+(\w+))\b/i.test(userText)) {
+    const selM = userText.match(/(?:toggle\s+(?:selection\s+for\s+)?|also\s+select\s+)(\S+)/i);
+    if (selM) {
+      push("editor_toggle_selection", { componentId: selM[1] },
+        `Toggled selection for "${selM[1]}".`);
+    }
+  }
+
+  // --- Editor control: skills / shortcuts ---
+  if (/\b(?:open\s+skills|show\s+skills|browse\s+skills)\b/i.test(userText)) {
+    push("editor_open_skills", { open: true },
+      "Opened the skills panel.");
+  } else if (/\b(?:close\s+skills)\b/i.test(userText)) {
+    push("editor_open_skills", { open: false },
+      "Closed the skills panel.");
+  }
+  if (/\b(?:show\s+shortcuts|open\s+shortcuts|keyboard\s+shortcuts)\b/i.test(userText)) {
+    push("editor_open_shortcuts", { open: true },
+      "Opened the keyboard shortcuts overlay.");
+  }
+
+  // --- Editor control: loop region ---
+  if (/\b(?:loop\s+(?:from\s+)?(\d+)\s*(?:ms|milliseconds?)?\s*(?:to\s+|[-–]\s*)(\d+)\s*(?:ms|milliseconds?)?|set\s+loop\s+region\s+(\d+)\s*(?:to|-|–)\s*(\d+))\b/i.test(userText)) {
+    const loopM = userText.match(/(?:loop\s+(?:from\s+)?|set\s+loop\s+region\s+)(\d+)\s*(?:ms|milliseconds?)?\s*(?:to\s+|[-–]\s*)(\d+)/i);
+    if (loopM) {
+      push("editor_set_loop_region", { startMs: Number(loopM[1]), endMs: Number(loopM[2]) },
+        `Set loop region from ${loopM[1]}ms to ${loopM[2]}ms.`);
+    }
+  } else if (/\b(?:clear\s+loop|remove\s+loop|stop\s+looping|disable\s+loop)\b/i.test(userText)) {
+    push("editor_clear_loop_region", {},
+      "Cleared the loop region.");
+  }
+
+  // --- Editor control: track order ---
+  if (/\b(?:reorder\s+tracks|sort\s+tracks|change\s+track\s+order)\b/i.test(userText)) {
+    push("editor_set_track_order", { trackIds: [] },
+      "Track order update requested (no specific ids provided).");
+  }
+
+  // --- Style Transfer: list archetypes ---
+  if (/\b(?:list|show|available|all)\s+(?:style\s+)?archetypes?|what\s+archetypes|archetype\s+list/i.test(userText)) {
+    push("list_style_archetypes", {},
+      "Available style archetypes: Minimalist, Energetic, Cinematic, Playful, Corporate, Organic, Mechanical, Elegant. Each archetype packages easing, tempo, energy, and color defaults.");
+  }
+
+  // --- Style Transfer: extract style DNA ---
+  if (/\b(?:extract|analyze|get)\s+(?:the\s+)?style\s+dna\b|\bstyle\s+dna\b/i.test(userText)) {
+    push("extract_style_dna", { projectId: "" },
+      "Extracted style DNA: easing bias toward bounce/tempo, mid-fast tempo (120 BPM), high energy, warm color palette. Signature traits captured as a reusable fingerprint.");
+  }
+
+  // --- Style Transfer: describe style ---
+  if (/\b(?:describe|explain|what(?:'s|s| is))\s+(?:the\s+)?(?:motion\s+)?style\b|\bstyle\s+description\b/i.test(userText)) {
+    push("describe_style", { projectId: "" },
+      "Style description: a snappy, high-energy motion with bouncy easing, short durations, and warm accent colors. Feels playful and confident.");
+  }
+
+  // --- Style Transfer: transfer style from another project ---
+  if (/\b(?:transfer|copy|apply)\s+(?:the\s+)?style\s+from\s+(?:project\s+)?([\w-]+)/i.test(userText)) {
+    const transferM = userText.match(/\b(?:transfer|copy|apply)\s+(?:the\s+)?style\s+from\s+(?:project\s+)?([\w-]+)/i);
+    if (transferM) {
+      push("transfer_project_style",
+        { projectId: "", sourceProjectId: transferM[1], easingStrength: 0.8, tempoStrength: 0.7, energyStrength: 0.6, colorStrength: 0.5 },
+        `Transferred style from project ${transferM[1]}: easing, tempo, energy, and color palette applied to the current project.`);
+    }
+  }
+
+  // --- Style Transfer: blend styles of two projects ---
+  if (/\b(?:blend|mix|merge)\s+(?:the\s+)?styles?\s+(?:of\s+)?(?:projects?\s+)?([\w-]+)\s+(?:and|with|,)\s+([\w-]+)/i.test(userText)) {
+    const blendM = userText.match(/\b(?:blend|mix|merge)\s+(?:the\s+)?styles?\s+(?:of\s+)?(?:projects?\s+)?([\w-]+)\s+(?:and|with|,)\s+([\w-]+)/i);
+    if (blendM) {
+      const ratioM = userText.match(/\b(?:ratio|weight)\s*(\d+(?:\.\d+)?)|(\d+(?:\.\d+)?)\s*(?:\/|:)\s*(\d+(?:\.\d+)?)|(\d+)\s*%/);
+      let ratio = 0.5;
+      if (ratioM) {
+        if (ratioM[1]) ratio = Math.min(1, Number(ratioM[1]) / 100);
+        else if (ratioM[2] && ratioM[3]) ratio = Number(ratioM[2]) / (Number(ratioM[2]) + Number(ratioM[3]));
+        else if (ratioM[5]) ratio = Math.min(1, Number(ratioM[5]) / 100);
+      }
+      push("blend_styles",
+        { projectIdA: blendM[1], projectIdB: blendM[2], ratio },
+        `Blended styles of ${blendM[1]} and ${blendM[2]} at ratio ${ratio}: merged easing, tempo, and energy into a combined DNA.`);
+    }
+  }
+
+  // --- Style Transfer: compare styles of two projects ---
+  if (/\b(?:compare|contrast)\s+(?:the\s+)?styles?\s+(?:of\s+)?(?:projects?\s+)?([\w-]+)\s+(?:and|with|vs\.?|,)\s+([\w-]+)/i.test(userText)) {
+    const cmpM = userText.match(/\b(?:compare|contrast)\s+(?:the\s+)?styles?\s+(?:of\s+)?(?:projects?\s+)?([\w-]+)\s+(?:and|with|vs\.?|,)\s+([\w-]+)/i);
+    if (cmpM) {
+      push("compare_styles",
+        { projectIdA: cmpM[1], projectIdB: cmpM[2] },
+        `Compared styles of ${cmpM[1]} and ${cmpM[2]}: overall similarity 72% — shared tempo and easing family, divergent energy and color palette.`);
+    }
+  }
+
+  // --- Style Transfer: apply a style archetype ---
+  const archetypeM = userText.match(/\b(?:apply|use|set|switch\s+to)\s+(?:the\s+)?(minimalist|energetic|cinematic|playful|corporate|organic|mechanical|elegant)\s+archetype\b|\barchetype\s+(minimalist|energetic|cinematic|playful|corporate|organic|mechanical|elegant)\b/i);
+  if (archetypeM) {
+    const archetypeId = (archetypeM[1] || archetypeM[2]).toLowerCase();
+    push("apply_style_archetype",
+      { projectId: "", archetypeId },
+      `Applied '${archetypeId}' archetype: easing, duration, and color defaults updated across all components for a coherent look.`);
+  }
+
+  // --- Knowledge Graph: build the full graph ---
+  if (/\b(?:build|show|get|view)\s+(?:the\s+)?(?:motion\s+)?knowledge\s+graph\b|\bknowledge\s+graph\b|\bmotion\s+graph\b/i.test(userText)) {
+    push("build_knowledge_graph", {},
+      "Built the motion knowledge graph: concept nodes (bounce, stagger, easing, anticipation, etc.) connected by enables, complements, requires, and specializes relationships.");
+  }
+
+  // --- Knowledge Graph: query a single concept ---
+  const queryConceptM = userText.match(/\b(?:query|what\s+is|tell\s+me\s+about|explain)\s+(?:the\s+)?(?:concept\s+)?([\w-]+)\s*(?:concept)?\s*(?:in\s+the\s+graph)?\b/i);
+  if (queryConceptM && /\b(?:concept|graph|knowledge)\b/i.test(userText)) {
+    const conceptId = queryConceptM[1].toLowerCase();
+    push("query_concept", { conceptId },
+      `Concept '${conceptId}': label, category, description, and tags from the knowledge graph.`);
+  }
+
+  // --- Knowledge Graph: find related concepts ---
+  if (/\b(?:find|show|list)\s+(?:the\s+)?related\s+(?:concepts?|nodes?)\s+(?:for|to|of)\s+([\w-]+)|related\s+(?:to|for)\s+([\w-]+)/i.test(userText)) {
+    const relatedM = userText.match(/(?:for|to|of)\s+([\w-]+)|related\s+(?:to|for)\s+([\w-]+)/i);
+    if (relatedM) {
+      const conceptId = (relatedM[1] || relatedM[2]).toLowerCase();
+      push("find_related", { conceptId },
+        `Related concepts for '${conceptId}': nodes connected via enables, complements, requires, and specializes edges.`);
+    }
+  }
+
+  // --- Knowledge Graph: find path between two concepts ---
+  if (/\b(?:find|show)\s+(?:the\s+)?path\s+(?:between|from)\s+([\w-]+)\s+(?:and|to)\s+([\w-]+)|path\s+from\s+([\w-]+)\s+to\s+([\w-]+)/i.test(userText)) {
+    const pathM = userText.match(/(?:between|from)\s+([\w-]+)\s+(?:and|to)\s+([\w-]+)/i);
+    if (pathM) {
+      const fromId = pathM[1].toLowerCase();
+      const toId = pathM[2].toLowerCase();
+      push("find_concept_path", { fromId, toId },
+        `Path from '${fromId}' to '${toId}': a chain of concept nodes connected by relationship edges.`);
+    }
+  }
+
+  // --- Knowledge Graph: search concepts by keyword ---
+  const searchConceptM = userText.match(/\b(?:search|find)\s+(?:motion\s+)?concepts?\s+(?:for|matching|containing|about)\s+(.+?)(?:$|\.)|search\s+concepts?\s+(.+)$/i);
+  if (searchConceptM && /\bconcepts?\b/i.test(userText)) {
+    const query = (searchConceptM[1] || searchConceptM[2] || "").trim() || "bounce";
+    push("search_concepts", { query },
+      `Search results for '${query}': matching concept nodes with relevance scores.`);
+  }
+
+  // --- Knowledge Graph: suggest connections between concepts ---
+  if (/\b(?:suggest|propose|recommend)\s+(?:the\s+)?connections?\s+(?:between|for)\s+(.+)|connection\s+suggestions?\s+for\s+(.+)/i.test(userText)) {
+    const connM = userText.match(/(?:between|for)\s+(.+)/i);
+    if (connM) {
+      const conceptIds = connM[1].split(/[\s,]+and[\s,]+|[\s,]+/i).map((s) => s.trim().toLowerCase()).filter(Boolean);
+      push("suggest_connections", { conceptIds },
+        `Connection suggestions for ${conceptIds.join(", ")}: potential relationships worth exploring between these concepts.`);
+    }
+  }
+
+  // --- Knowledge Graph: recommend next concept to explore ---
+  if (/\b(?:recommend|suggest)\s+(?:the\s+)?next\s+(?:concept|step|thing)|what\s+(?:concept|step)\s+next|what\s+should\s+i\s+(?:learn|explore|try)\s+next\b/i.test(userText)) {
+    push("recommend_next", { usedConceptIds: [] },
+      "Top recommendations for what to explore next: concepts that complement and extend what you have already used.");
+  }
+
+  // --- Knowledge Graph: analyze graph structure ---
+  if (/\b(?:analyze|analyse)\s+(?:the\s+)?(?:knowledge\s+)?graph|graph\s+(?:analysis|stats|statistics|structure)\b/i.test(userText)) {
+    push("analyze_graph", {},
+      "Graph analysis: node count, edge count, clusters, density, and the most connected hub concepts.");
+  }
+
+  // --- Testing: list available test suites ---
+  if (/\b(?:list|show|available|all)\s+(?:the\s+)?test\s+suites?|what\s+tests?\s+(?:are\s+)?available|test\s+suite\s+list/i.test(userText)) {
+    push("list_test_suites", {},
+      "Test suites available across 6 categories (accessibility, performance, visual, principles, timing, consistency): each suite has an id, name, category, and description.");
+  }
+
+  // --- Testing: run all tests ---
+  if (/\b(?:run|execute|start)\s+(?:all|every|the\s+full\s+set\s+of\s+)?(?:the\s+)?tests?\s*(?:suite|suites)?|run\s+full\s+test|test\s+everything|full\s+test\s+(?:run|suite)\b/i.test(userText)) {
+    push("run_all_tests", { projectId: "" },
+      "Ran all test suites: overall score, per-suite pass/fail counts, and a list of failures with fix suggestions.");
+  }
+
+  // --- Testing: run tests by category ---
+  const categoryM = userText.match(/\b(?:run|execute)\s+(?:the\s+)?(accessibility|performance|visual|principles|timing|consistency)\s+tests?\b/i);
+  if (categoryM) {
+    const category = categoryM[1].toLowerCase();
+    push("run_tests_by_category", { projectId: "", category: category as never },
+      `Ran ${category} test suites: per-suite pass/fail status, scores, and specific failure details.`);
+  }
+
+  // --- Testing: run a single test suite ---
+  const suiteM = userText.match(/\b(?:run|execute)\s+(?:the\s+)?test\s+suite\s+([\w-]+)|run\s+(?:test\s+)?([\w-]+)\s+suite\b/i);
+  if (suiteM && /\b(?:suite|test)\b/i.test(userText)) {
+    const suiteId = (suiteM[1] || suiteM[2]).toLowerCase();
+    push("run_test_suite", { projectId: "", suiteId },
+      `Ran test suite '${suiteId}': pass/fail status, score out of 100, and any failing checks with messages.`);
+  }
+
+  // ------------------------------------------------------------------------
+  // Emotion Intelligence intent patterns
+  // ------------------------------------------------------------------------
+
+  // --- List emotions ---
+  if (/\b(?:list|show|what)\s+(?:all\s+)?(?:the\s+)?(?:available\s+)?emotions?\b|emotion\s+(?:list|options|profiles?)|情感|情绪/i.test(userText)) {
+    push("list_emotions", {},
+      "16 emotion profiles available: joy, excitement, calm, sadness, anger, fear, surprise, trust, anticipation, power, melancholy, serenity, playful, mystery, urgency, luxury — each with VAD coordinates and motion parameters.");
+  }
+
+  // --- Synthesize motion from emotion ---
+  const emotionSynthM = userText.match(/\b(?:make|create|generate|synthesize)\s+(?:a\s+)?(?:motion|animation)\s+(?:that\s+(?:feels?|conveys?|expresses?)\s+)?(\w+)|(\w+)\s+(?:motion|animation|feeling|emotion)\b/i);
+  const emotionWords = ["joy", "calm", "anger", "fear", "surprise", "trust", "anticipation", "power", "melancholy", "serenity", "playful", "mystery", "urgency", "luxury", "excitement", "sad", "happy", "angry", "afraid", "peaceful", "energetic", "快乐", "平静", "愤怒", "恐惧", "惊讶", "信任", "期待", "力量", "忧郁", "安详", "顽皮", "神秘", "紧急", "奢华"];
+  if (emotionSynthM) {
+    const word = (emotionSynthM[1] || emotionSynthM[2] || "").toLowerCase();
+    if (emotionWords.includes(word) || emotionWords.some((ew) => word.includes(ew))) {
+      // Map common words to emotion IDs
+      const emotionId = word === "sad" ? "sadness" : word === "happy" ? "joy" : word === "angry" ? "anger" : word === "afraid" ? "fear" : word === "peaceful" ? "calm" : word === "energetic" ? "excitement" : word;
+      push("synthesize_from_emotion", { projectId: "", emotionId },
+        `Synthesized "${emotionId}" motion: easing, duration, intensity, keyframes, and color palette matched to the emotional tone.`);
+    }
+  }
+
+  // --- Detect emotion from component ---
+  if (/\b(?:detect|analyze|what\s+emotion|what\s+feeling)\s+(?:the\s+)?emotion\b|emotion\s+(?:of|from)\s+(?:the\s+)?(?:component|animation|motion)/i.test(userText)) {
+    const cid = ensureComponent();
+    push("detect_emotion", { projectId: "", componentId: cid },
+      `Detected emotional tone of component: VAD coordinates, closest matching emotion, and confidence score.`);
+  }
+
+  // --- Blend emotions ---
+  if (/\b(?:blend|mix|combine)\s+emotions?\b/i.test(userText)) {
+    push("blend_emotions", {
+      projectId: "",
+      emotions: [
+        { emotionId: "calm", weight: 0.6 },
+        { emotionId: "joy", weight: 0.4 },
+      ],
+    },
+    "Blended emotions: combined VAD coordinates, blended motion parameters, and per-emotion weight breakdown.");
+  }
+
+  // --- Plan emotion journey ---
+  if (/\b(?:plan|design|create)\s+(?:an?\s+)?emotion\s+(?:journey|arc|sequence)|emotion\s+journey\b|情感.*旅程/i.test(userText)) {
+    push("plan_emotion_journey", {
+      projectId: "",
+      emotionIds: ["calm", "anticipation", "excitement", "joy"],
+      totalDurationMs: 5000,
+    },
+    "Planned 4-step emotion journey: calm → anticipation → excitement → joy over 5000ms with VAD trajectory.");
+  }
+
+  // ------------------------------------------------------------------------
+  // Adaptive Learning intent patterns
+  // ------------------------------------------------------------------------
+
+  // --- Get taste profile ---
+  if (/\b(?:get|show|what\s+is)\s+(?:my\s+)?(?:taste\s+profile|preferences?|learning\s+profile)\b|taste\s+profile\b|偏好|学习/i.test(userText)) {
+    push("get_taste_profile", { projectId: "" },
+      "Taste profile: observation count, preferred easings, duration buckets, intensity range, and taste drift detection.");
+  }
+
+  // --- Get recommendation ---
+  if (/\b(?:recommend|suggest)\s+(?:motion|animation|parameters?)|what\s+(?:motion|parameters?)\s+(?:should|do)\s+i\s+use\b/i.test(userText)) {
+    push("recommend_for_project", { projectId: "" },
+      "Recommendation based on learned preferences: easing, duration, intensity, palette, and confidence score.");
+  }
+
+  // --- Record observation ---
+  if (/\b(?:record|log|track)\s+(?:motion\s+)?observation\b/i.test(userText)) {
+    const cid = ensureComponent();
+    push("record_motion_observation", { projectId: "", componentId: cid, action: "accepted" },
+      `Recorded observation for component: adaptive learning engine updated the taste profile.`);
+  }
+
+  // ------------------------------------------------------------------------
+  // Contextual Awareness intent patterns
+  // ------------------------------------------------------------------------
+
+  // --- List context options ---
+  if (/\b(?:list|show|what)\s+(?:the\s+)?context\s+options\b|context\s+(?:options|choices|dimensions)\b|上下文|环境/i.test(userText)) {
+    push("list_context_options", {},
+      "Context options: 6 device classes, 3 performance tiers, 4 times of day, 4 ambient light levels, 4 user states, 6 palette modes.");
+  }
+
+  // --- Auto-detect context ---
+  if (/\b(?:auto.?detect|detect|sense)\s+(?:the\s+)?context\b|what\s+(?:is\s+)?my\s+context\b/i.test(userText)) {
+    push("auto_detect_context", {},
+      "Auto-detected context: device class, performance tier, time of day, ambient light, and user state from available signals.");
+  }
+
+  // --- Compute context adjustments ---
+  if (/\b(?:compute|calculate|get)\s+(?:context\s+)?adjustments\b|adapt\s+(?:for|to)\s+(?:mobile|tablet|desktop|watch|kiosk|tv|low\s+power|high\s+performance|night|day|bright|dim|dark|focused|rushed|relaxed)\b/i.test(userText)) {
+    push("compute_context_adjustments", {
+      projectId: "",
+      device: /mobile/i.test(userText) ? "mobile" : /tablet/i.test(userText) ? "tablet" : "desktop",
+      performance: /low\s+power|low\s+performance/i.test(userText) ? "low" : "high",
+      timeOfDay: /night/i.test(userText) ? "night" : "afternoon",
+      ambientLight: /dark/i.test(userText) ? "dark" : /dim/i.test(userText) ? "dim" : "normal",
+      userState: /focused/i.test(userText) ? "focused" : /rushed/i.test(userText) ? "rushed" : /relaxed/i.test(userText) ? "relaxed" : "casual",
+    },
+    "Computed context adjustments: duration multiplier, intensity multiplier, palette mode, max concurrent animations, and transform simplification.");
+  }
+
+  // --- Adapt component for context ---
+  if (/\b(?:adapt|optimize)\s+(?:a\s+)?(?:component|motion|animation)\s+for\s+(?:context|mobile|tablet|desktop|watch|night|day|low\s+power)\b/i.test(userText)) {
+    const cid = ensureComponent();
+    push("adapt_component_for_context", {
+      projectId: "",
+      componentId: cid,
+      device: /mobile/i.test(userText) ? "mobile" : /tablet/i.test(userText) ? "tablet" : "desktop",
+      performance: /low\s+power/i.test(userText) ? "low" : "high",
+      timeOfDay: /night/i.test(userText) ? "night" : "afternoon",
+      ambientLight: /dark/i.test(userText) ? "dark" : "normal",
+      userState: "casual",
+    },
+    "Adapted component for context: adjusted duration, intensity, easing, palette, and transforms to match the target environment.");
+  }
+
+  // ------------------------------------------------------------------------
+  // Motion Collaboration intent patterns
+  // ------------------------------------------------------------------------
+
+  // --- List collaboration modules ---
+  if (/\b(?:list|show|what)\s+(?:the\s+)?collaboration\s+modules?\b|collaboration\s+modules?\b|协作.*模块/i.test(userText)) {
+    push("list_collaboration_modules", {},
+      "8 collaboration modules available: Emotion Intelligence, Physics Engine, Style Transfer, Context Awareness, Semantic Engine, Choreographer, Path Generator, Perception Predictor.");
+  }
+
+  // --- Plan collaboration ---
+  if (/\b(?:plan|design)\s+(?:a\s+)?collaboration\b/i.test(userText)) {
+    push("plan_collaboration", {
+      projectId: "",
+      request: userText,
+    },
+    "Collaboration plan: decomposed the request into sub-tasks for specialized motion intelligence modules with dependency tracking.");
+  }
+
+  // --- Execute collaboration ---
+  if (/\b(?:execute|run|collaborate)\s+(?:a\s+)?collaboration\b|collaborate\s+on\b/i.test(userText)) {
+    push("execute_collaboration", {
+      projectId: "",
+      request: userText,
+    },
+    "Executed multi-module collaboration: coordinated motion intelligences merged into a unified motion design with conflict resolution.");
+  }
+
+  // ------------------------------------------------------------------------
+  // Motion Resonance intents
+  // ------------------------------------------------------------------------
+
+  // --- Analyze resonance ---
+  if (/\b(?:analyze|check|measure)\s+(?:the\s+)?resonance\b|resonance\s+(?:analysis|check|score)\b|how\s+(?:well\s+)?does\s+this\s+motion\s+(?:resonate|align)\b/i.test(userText)) {
+    push("analyze_resonance", {
+      projectId: "",
+    },
+    "Analyzed motion resonance with the viewer's cognitive and emotional state — computed cognitive, emotional, and rhythmic alignment scores with dissonance detection and tuning recommendations.");
+  }
+
+  // --- Tune resonance ---
+  if (/\b(?:tune|optimize|maximize|improve)\s+(?:the\s+)?resonance\b|resonance\s+(?:tuning|optimization)\b|make\s+it\s+resonate\b/i.test(userText)) {
+    push("tune_resonance", {
+      projectId: "",
+    },
+    "Tuned motion parameters for optimal resonance — adjusted durations and easings based on cognitive load, arousal, valence, and fatigue.");
+  }
+
+  // ------------------------------------------------------------------------
+  // Motion Synesthesia intents
+  // ------------------------------------------------------------------------
+
+  // --- Translate synesthesia ---
+  if (/\b(?:translate|map|convert)\s+(?:the\s+)?motion\s+(?:to|into)\s+(?:synesth|sensory|multi-sensory)|synesthesia|what\s+(?:does|would)\s+this\s+motion\s+(?:sound|feel|taste)\s+like\b/i.test(userText)) {
+    push("translate_synesthesia", {
+      projectId: "",
+    },
+    "Translated motion into a multi-sensory experience — mapped each component to color, sound, and texture for cross-modal design exploration.");
+  }
+
+  // --- Map sensory to motion ---
+  if (/\b(?:map|convert)\s+(?:a\s+)?(color|sound|texture|emotion)\s+(?:to|into)\s+motion\b|motion\s+from\s+(?:a\s+)?(color|sound|texture|emotion)\b/i.test(userText)) {
+    const modalityMatch = userText.match(/\b(color|sound|texture|emotion)\b/i);
+    const valueMatch = userText.match(/#([0-9a-f]{3,6})|\b([A-G]#?\d)\b|\b(smooth|rough|soft|hard|liquid|granular|crystalline|elastic)\b|\b(joy|calm|anger|fear|surprise|trust|anticipation|sadness)\b/i);
+    push("map_sensory_to_motion", {
+      modality: modalityMatch ? modalityMatch[1].toLowerCase() : "color",
+      value: valueMatch ? (valueMatch[1] || valueMatch[2] || valueMatch[3] || valueMatch[4] || "#3366cc") : "#3366cc",
+    },
+    "Reverse-mapped a sensory input to motion parameters — enabled designing motion from non-visual sensory inputs.");
+  }
+
+  // ------------------------------------------------------------------------
+  // Motion Dream intents
+  // ------------------------------------------------------------------------
+
+  // --- List dream concepts ---
+  if (/\b(?:list|show|what)\s+(?:the\s+)?dream\s+concepts?\b|dream\s+concepts?\b|available\s+dream\b/i.test(userText)) {
+    push("list_dream_concepts", {},
+      "10 dream concepts available: Tide, Crystal, Smoke, Firework, Orbit, Origami, Pulse, Spiral, Aurora, Neuron.");
+  }
+
+  // --- Dream from prompt ---
+  if (/\b(?:dream|dreaming|imagine|fantasize|hallucinate)\s+(?:a\s+|an\s+|some\s+|about\s+)?(?:motion|animation)?\s*(.+)/i.test(userText) && !/\bsequence\b/i.test(userText)) {
+    push("dream_from_prompt", {
+      projectId: "",
+      prompt: userText,
+    },
+    "Generated a dream-like motion variation from the prompt using surrealist concept juxtaposition and mutation techniques.");
+  }
+
+  // --- Generate dream sequence ---
+  if (/\b(?:dream|generate)\s+(?:a\s+)?(?:sequence|series)|dream\s+sequence\b/i.test(userText)) {
+    const lengthMatch = userText.match(/(\d+)\s*(?:motion|step|part)/);
+    push("generate_dream_sequence", {
+      projectId: "",
+      length: lengthMatch ? parseInt(lengthMatch[1], 10) : 3,
+    },
+    "Generated a dream sequence — multiple dream motions composed into a narrative thread traversing multiple concepts via juxtaposition and mutation.");
+  }
+
+  // ------------------------------------------------------------------------
+  // Motion Harmonics intents
+  // ------------------------------------------------------------------------
+
+  // --- Find harmonics partners ---
+  if (/\b(?:find|show)\s+(?:the\s+)?harmon(?:ic|y|izing|ize)?\s+(?:partner|match|pair|component)|harmon(?:ic|y|ize)\s+(?:with|for)\b/i.test(userText)) {
+    push("find_harmonics", {
+      projectId: "",
+      componentId: "",
+    },
+    "Found harmonizing partners for the component — consonant and dissonant pairs based on frequency ratio analysis.");
+  }
+  // --- Analyze harmonics ---
+  else if (/\b(?:analyze|check|inspect|examine)\s+(?:the\s+)?harmon(?:ic|y)|harmon(?:ic|y|ics)\s+(?:analysis|check|report|structure)|frequency\s+(?:spectrum|signature|analysis)|overtone\s+series|consonance\s+(?:analysis|check)|dissonance\s+(?:analysis|check)\b/i.test(userText)) {
+    push("analyze_harmonics", {
+      projectId: "",
+    },
+    "Analyzed harmonic structure — extracted frequency signatures, computed consonance/dissonance between components, and revealed the hidden musical structure of looping motion.");
+  }
+
+  // ------------------------------------------------------------------------
+  // Motion Entropy intents
+  // ------------------------------------------------------------------------
+
+  // --- Identify information hotspots ---
+  if (/\b(?:identify|find|show)\s+(?:the\s+)?(?:information\s+)?hotspot|most\s+varied|least\s+varied|most\s+informative|redundant\s+pair\b/i.test(userText)) {
+    push("identify_information_hotspots", {
+      projectId: "",
+    },
+    "Identified information hotspots — most varied and least varied motion properties, plus redundant component pairs that share too much design information.");
+  }
+  // --- Analyze entropy ---
+  else if (/\b(?:analyze|compute|measure)\s+(?:the\s+)?entropy|entropy\s+(?:analysis|check|report)|information\s+(?:theory|content|density)|predictability\s+(?:check|analysis|score)|redundancy\s+(?:check|analysis|score)\b/i.test(userText)) {
+    push("analyze_entropy", {
+      projectId: "",
+    },
+    "Applied Shannon's information theory to the composition — measured property entropy, mutual information between components, information density over time, and overall predictability vs redundancy.");
+  }
+
+  // ------------------------------------------------------------------------
+  // Motion Cognition intents
+  // ------------------------------------------------------------------------
+
+  // --- Analyze cognitive load ---
+  if (/\b(?:analyze|measure|estimate|compute)\s+(?:the\s+)?cognitive\s+load|cognitive\s+load\s+(?:analysis|check|score|report)|working\s+memory\s+(?:demand|load|check)|attention\s+switching\s+(?:cost|check|analysis)|perceptual\s+grouping\s+(?:analysis|check)|processing\s+fluency\s+(?:check|analysis)|mental\s+(?:load|effort)\s+(?:check|analysis|score)\b/i.test(userText)) {
+    push("analyze_cognitive_load", {
+      projectId: "",
+    },
+    "Modeled the cognitive load the composition imposes on the viewer — working memory demand (Miller's 7±2), attention switching cost, Gestalt perceptual grouping, and processing fluency.");
+  }
+
+  // ------------------------------------------------------------------------
+  // Motion Topology intents
+  // ------------------------------------------------------------------------
+
+  // --- Find temporal path ---
+  if (/\b(?:find|show)\s+(?:the\s+)?(?:temporal\s+)?path\s+(?:between|from)|shortest\s+path\s+(?:between|through)|temporal\s+path\b/i.test(userText)) {
+    push("find_temporal_path", {
+      projectId: "",
+      fromId: "",
+      toId: "",
+    },
+    "Found the shortest temporal path between two components through overlapping neighbors — revealed how motion propagates through the composition.");
+  }
+  // --- Analyze topology ---
+  else if (/\b(?:analyze|examine|inspect)\s+(?:the\s+)?topology|topolog(?:y|ical)\s+(?:analysis|structure|report|check)|connected\s+component|temporal\s+hole|euler\s+characteristic|genus\s+(?:of|check)|compactness\s+(?:check|score)|connectivity\s+(?:check|score|analysis)\b/i.test(userText)) {
+    push("analyze_topology", {
+      projectId: "",
+    },
+    "Analyzed the topological structure of the composition — connected components, temporal holes, Euler characteristic, genus, connectivity, and compactness of the temporal space.");
+  }
+
+  // ------------------------------------------------------------------------
+  // Motion Poetics intents
+  // ------------------------------------------------------------------------
+
+  if (/\b(?:analyze|examine|inspect)\s+(?:the\s+)?(?:poetic|poetics|meter|rhythm)|poetic\s+(?:analysis|structure|form|meter)|poetics\s+(?:analysis|report)|(?:iambic|trochaic|dactylic|anapestic)\s+meter|stanza\s+(?:structure|analysis)|caesura|enjambment|sonnet|haiku|free\s+verse|blank\s+verse\b/i.test(userText)) {
+    push("analyze_poetics", {
+      projectId: "",
+    },
+    "Applied poetic meter and form to the composition — detected poetic feet (iamb, trochee, dactyl, anapest), stanzas, caesuras, enjambments, and classified the form (sonnet, haiku, free verse).");
+  }
+
+  // ------------------------------------------------------------------------
+  // Motion Ecology intents
+  // ------------------------------------------------------------------------
+
+  if (/\b(?:analyze|model|examine)\s+(?:the\s+)?(?:ecosystem|ecology|ecological)|ecosystem\s+(?:analysis|report|health|model)|ecology\s+(?:of|analysis|report)|biodiversity\s+(?:check|score|analysis)|symbiotic|parasitic|predator-prey|trophic\s+level|carrying\s+capacity|species\s+(?:classification|distribution)\b/i.test(userText)) {
+    push("analyze_ecosystem", {
+      projectId: "",
+    },
+    "Modeled the composition as a living ecosystem — classified species, detected symbiotic/parasitic/predator-prey relationships, computed biodiversity, and assessed ecosystem health and stability.");
+  }
+
+  // ------------------------------------------------------------------------
+  // Motion Calligraphy intents
+  // ------------------------------------------------------------------------
+
+  if (/\b(?:analyze|examine|inspect)\s+(?:the\s+)?calligraph(?:y|ic)|calligraphic\s+(?:analysis|structure|stroke|character)|brush\s+stroke|ink\s+flow|penmanship|stroke\s+quality\b/i.test(userText)) {
+    push("analyze_calligraphy", {
+      projectId: "",
+    },
+    "Analyzed the composition as calligraphic art — evaluated stroke quality, pressure, velocity, fluency, ink flow, and overall character (regular/running/cursive/wild).");
+  }
+
+  // ------------------------------------------------------------------------
+  // Motion Mythology intents
+  // ------------------------------------------------------------------------
+
+  if (/\b(?:analyze|examine|interpret)\s+(?:the\s+)?mytholog(?:y|ical)|mythic\s+(?:structure|journey|archetype|pattern)|hero'?s\s+journey|monomyth|shadow\s+archetype|mentor\s+archetype|threshold\s+guardian\b/i.test(userText)) {
+    push("analyze_mythology", {
+      projectId: "",
+    },
+    "Interpreted the composition through mythological lens — detected hero's journey stages, archetypal patterns, narrative structure, theme, tension curve, and emotional boon.");
+  }
+
+  // ------------------------------------------------------------------------
+  // Motion Weather intents
+  // ------------------------------------------------------------------------
+
+  if (/\b(?:analyze|model|examine)\s+(?:the\s+)?weather|weather\s+(?:system|pattern|forecast)|atmospheric\s+pressure|storm\s+pattern|calm\s+period|front\s+activity|climate\s+classification\b/i.test(userText)) {
+    push("analyze_weather", {
+      projectId: "",
+    },
+    "Modeled the composition as a weather system — detected pressure, wind, fronts, storms, calm periods, and forecast emotional climate.");
+  }
+
+  // ------------------------------------------------------------------------
+  // Motion Alchemy intents
+  // ------------------------------------------------------------------------
+
+  if (/\b(?:analyze|interpret|examine)\s+(?:the\s+)?alchem(?:y|ical)|alchemical\s+(?:analysis|transformation|stages)|transmutation|magnum\s+opus|philosopher'?s\s+stone|nigredo|albedo|citrinitas|rubedo|prima\s+materia|hermetic\s+principle\b/i.test(userText)) {
+    push("analyze_alchemy", {
+      projectId: "",
+    },
+    "Interpreted the composition through alchemical transformation — detected the four magnum opus stages, alchemical operations, prima materia, philosopher's stone, and Hermes principle.");
+  }
+
+  // ------------------------------------------------------------------------
+  // Motion Architecture intents
+  // ------------------------------------------------------------------------
+
+  if (/\b(?:analyze|examine|evaluate)\s+(?:the\s+)?architectur(?:e|al)|architectural\s+(?:analysis|style|structure)|structural\s+(?:role|integrity)|load-bearing|proportion\s+analysis|golden\s+ratio|hierarchy\s+of|material\s+honesty\b/i.test(userText)) {
+    push("analyze_architecture", {
+      projectId: "",
+    },
+    "Analyzed the composition as a built structure — classified structural roles, proportion, hierarchy, spatial organization, architectural style, and structural integrity.");
+  }
+
+  // ------------------------------------------------------------------------
+  // Motion Cartography intents
+  // ------------------------------------------------------------------------
+
+  if (/\b(?:map|analyze|examine)\s+(?:the\s+)?(?:cartography|terrain|topography|landscape)\s+of|cartograph(?:y|ic)\s+(?:analysis|map)|elevation\s+profile|contour\s+line|landmark\s+detection|compass\s+direction|biome\s+classification|territory\s+mapping\b/i.test(userText)) {
+    push("analyze_cartography", {
+      projectId: "",
+    },
+    "Mapped the composition as cartographic terrain — computed elevation profile, contour lines, landmarks, routes, territories (biomes), compass direction, and scale level.");
+  }
+
+  // ------------------------------------------------------------------------
+  // Motion Genealogy intents
+  // ------------------------------------------------------------------------
+
+  if (/\b(?:trace|analyze|examine)\s+(?:the\s+)?(?:genealogy|lineage|ancestry|evolution)\s+of|genealog(?:y|ical)\s+(?:analysis|tree)|evolutionary\s+(?:pattern|lineage|tree)|phylogenetic\s+tree|genetic\s+(?:trait|diversity)|ancestry\s+link|common\s+ancestor|mutation\s+rate\b/i.test(userText)) {
+    push("analyze_genealogy", {
+      projectId: "",
+    },
+    "Traced the evolutionary lineage of motion patterns — extracted genetic traits, detected ancestry relationships, built a phylogenetic tree, classified the evolutionary pattern, and analyzed genetic diversity and inheritance.");
+  }
+
+  // ------------------------------------------------------------------------
+  // Motion Astronomy intents
+  // ------------------------------------------------------------------------
+
+  if (/\b(?:map|analyze|examine)\s+(?:the\s+)?(?:astronomy|cosmos|cosmic|celestial)\s+of|astronom(?:y|ic|ical)\s+(?:analysis|map)|celestial\s+(?:body|bodies|classification)|spectral\s+type|constellation\s+detection|galactic\s+structure|cosmic\s+event|supernova\s+detection|black\s+hole\s+mapping|nebula\s+classification|pulsar\s+detection|star\s+system|orbital\s+period|luminosity\s+profile|stellar\s+classification\b/i.test(userText)) {
+    push("analyze_astronomy", {
+      projectId: "",
+    },
+    "Mapped the composition as celestial phenomena — classified components as celestial bodies, assigned spectral types, detected constellations and cosmic events, and classified the galactic structure.");
+  }
+
+  // ------------------------------------------------------------------------
+  // Motion Chemistry intents
+  // ------------------------------------------------------------------------
+
+  if (/\b(?:analyze|examine)\s+(?:the\s+)?(?:chemistry|chemical|reactions?)\s+of|chemistr(?:y|ic)\s+(?:analysis|system)|molecular\s+(?:analysis|structure|formula)|atomic\s+(?:structure|number|mass)|bond\s+(?:detection|type|classification)|reaction\s+(?:type|classification|detection)|catalyst\s+(?:detection|identification)|inhibitor\s+detection|compound\s+(?:detection|classification)|covalent\s+bond|ionic\s+bond|metallic\s+bond|hydrogen\s+bond|van\s+der\s+waals|synthesis\s+reaction|decomposition\s+reaction|displacement\s+reaction|combustion\s+reaction|ph\s+(?:of|level|balance)|acidity\s+level|alkalinity\s+level|enthalpy\s+(?:of|calculation)|entropy\s+(?:of|calculation)|equilibrium\s+constant|state\s+of\s+matter|periodic\s+(?:table|position)\b/i.test(userText)) {
+    push("analyze_chemistry", {
+      projectId: "",
+    },
+    "Analyzed the composition as a chemical system — extracted atoms and molecules, detected bonds, classified reactions, identified catalysts and inhibitors, and computed pH, temperature, entropy, enthalpy, and equilibrium.");
+  }
+
+  // ------------------------------------------------------------------------
+  // Motion Musicology intents
+  // ------------------------------------------------------------------------
+
+  if (/\b(?:analyze|examine)\s+(?:the\s+)?(?:musicology|musical|melody|harmony|rhythm)\s+of|musicolog(?:y|ic)\s+(?:analysis|score)|melodic\s+(?:analysis|contour|phrase)|harmonic\s+(?:analysis|progression|complexity)|rhythmic\s+(?:analysis|vitality|pattern)|tempo\s+(?:detection|analysis)|bpm\s+(?:detection|calculation)|chord\s+(?:detection|classification|progression)|phrase\s+(?:detection|analysis|contour)|key\s+(?:detection|signature)|time\s+signature|scale\s+(?:detection|classification)|dynamics\s+(?:analysis|change)|crescendo\s+detection|decrescendo\s+detection|sonata\s+form|rondo\s+form|aaba\s+form|orchestration\s+analysis|musical\s+form\b/i.test(userText)) {
+    push("analyze_musicology", {
+      projectId: "",
+    },
+    "Analyzed the composition as a musical score — extracted notes with pitch and velocity, detected chords and harmonic progressions, identified melodic phrases and contours, computed rhythm and tempo, analyzed dynamics, determined musical form, and detected key and scale.");
+  }
+
+  // ------------------------------------------------------------------------
+  // Motion Botany intents
+  // ------------------------------------------------------------------------
+
+  if (/\b(?:analyze|examine)\s+(?:the\s+)?(?:botany|botanical|plant|organs?)\s+of|botan(?:y|ic)\s+(?:analysis|system)|plant\s+(?:organ|structure|growth|classification)|leaf\s+(?:classification|analysis)|stem\s+analysis|flower\s+(?:classification|analysis)|root\s+(?:system|analysis)|branch(?:ing)?\s+(?:structure|analysis|pattern)|canopy\s+(?:analysis|shape|density)|germination\s+(?:stage|analysis)|seedling\s+(?:stage|analysis)|phenology\s+(?:timeline|analysis|stage)|biomass\s+(?:calculation|analysis)|tropism\s+(?:analysis|direction)|photosynth(?:esis)?\s+(?:analysis|level)|vine\s+classification|shrub\s+classification|tree-like\s+structure|growth\s+pattern\s+analysis\b/i.test(userText)) {
+    push("analyze_botany", {
+      projectId: "",
+    },
+    "Analyzed the composition as a botanical system — classified organs (leaf/stem/flower/root/branch), detected branching structure, analyzed canopy shape and density, examined root system, built phenology timeline, determined life form, and computed biomass, diversity, and vitality.");
+  }
+
+  // ------------------------------------------------------------------------
+  // Motion Geology intents
+  // ------------------------------------------------------------------------
+
+  if (/\b(?:analyze|examine)\s+(?:the\s+)?(?:geology|geological|strata|formation)\s+of|geolog(?:y|ic|ical)\s+(?:analysis|formation|system)|strat(?:um|a|igraph)\s+(?:analysis|classification)|sedimentary\s+(?:rock|layer|analysis)|igneous\s+(?:rock|layer|analysis)|metamorphic\s+(?:rock|layer|analysis)|volcanic\s+(?:activity|eruption|analysis)|alluvial\s+(?:deposit|analysis)|tectonic\s+(?:event|activity|analysis)|earthquake\s+(?:detection|analysis)|uplift\s+(?:detection|analysis)|fault\s+(?:line|detection|analysis|classification)|erosion\s+(?:rate|analysis)|deposition\s+(?:rate|analysis)|mineral\s+(?:composition|analysis|classification)|epoch\s+(?:division|analysis|classification)|topology\s+(?:analysis|classification|of)|canyon\s+(?:formation|analysis)|plateau\s+(?:formation|analysis)|mountain\s+(?:range|formation|analysis)|rock\s+layer\s+(?:classification|analysis)\b/i.test(userText)) {
+    push("analyze_geology", {
+      projectId: "",
+    },
+    "Analyzed the composition as a geological formation — classified strata (sedimentary/igneous/metamorphic/volcanic/alluvial), detected tectonic events (earthquake/uplift/faulting), identified fault lines, analyzed mineral composition, divided geological epochs, and examined surface topology.");
+  }
+
+  // ------------------------------------------------------------------------
+  // Motion Physics intents
+  // ------------------------------------------------------------------------
+
+  if (/\b(?:analyze|examine)\s+(?:the\s+)?(?:physics|physical|kinematic|dynamic|forces?)\s+of|physic(?:s|al)\s+(?:analysis|system|principles)|kinematic\s+(?:analysis|state|profile)|dynamic\s+(?:analysis|force)|force\s+(?:detection|analysis|type|profile)|energy\s+(?:analysis|kinetic|potential|dissipation|profile)|momentum\s+(?:linear|angular|analysis|conservation)|collision\s+(?:detection|type|analysis)|velocity\s+(?:profile|analysis|distribution)|acceleration\s+(?:profile|analysis|peak)|inertia\s+(?:analysis|system)|equilibrium\s+(?:analysis|state|type)|work\s+(?:calculation|analysis|energy)|power\s+(?:analysis|calculation|transfer)|friction\s+(?:force|analysis|coefficient)|gravity\s+(?:force|analysis|drop)|spring\s+force\s+(?:analysis|profile)|net\s+force\s+(?:analysis|calculation)\b/i.test(userText)) {
+    push("analyze_physics", {
+      projectId: "",
+    },
+    "Analyzed the composition through physics principles — computed kinematics (displacement/velocity/acceleration/jerk), dynamics (applied/friction/gravity/spring forces), energy (kinetic/potential/dissipation/efficiency), momentum (linear/angular/impulse), detected collisions (elastic/inelastic/partially-elastic/near-miss), and analyzed equilibrium (static/dynamic/unstable/metadata) with system inertia, total work, and average power.");
+  }
+
+  // ------------------------------------------------------------------------
+  // Motion Linguistics intents
+  // ------------------------------------------------------------------------
+
+  if (/\b(?:analyze|examine)\s+(?:the\s+)?(?:linguistics|linguistic|phonology|morphology|syntax|semantics?|pragmatics?|prosody|discourse)\s+of|linguist(?:ics?|ic)\s+(?:analysis|utterance|structure)|phonolog(?:y|ic)\s+(?:analysis|pattern)|phoneme\s+(?:extraction|classification|analysis)|morpholog(?:y|ic)\s+(?:analysis|structure|classification)|morpheme\s+(?:classification|analysis|type)|synt(?:ax|actic)\s+(?:analysis|structure|phrase|clause)|semantic\s+(?:analysis|role|polarity|modality|tense|aspect)|pragmat(?:ics?|ic)\s+(?:analysis|speech\s+act|force)|prosod(?:y|ic)\s+(?:analysis|pattern|stress|intonation|rhythm|tempo)|discourse\s+(?:analysis|coherence|relation|rhetorical)|clause\s+(?:detection|analysis|type)|phrase\s+(?:structure|detection|analysis)|speech\s+act\s+(?:detection|classification)|intonation\s+(?:contour|analysis|pattern)|stress\s+pattern\s+(?:analysis|detection)|language\s+family\s+(?:detection|classification)|register\s+(?:analysis|classification)\b/i.test(userText)) {
+    push("analyze_linguistics", {
+      projectId: "",
+    },
+    "Analyzed the composition as a linguistic utterance — extracted phonemes (plosive/fricative/affricate/nasal/liquid/vowel/diphthong/sibilant) with place/manner/voicing, classified morphemes (root/prefix/suffix/infix) by lexical category (noun/verb/adjective/adverb), built syntactic phrases (NP/VP/AP/AdvP) and clauses (declarative/interrogative/imperative/exclamative/subjunctive), analyzed prosody (stress pattern/intonation/tempo/rhythm/pauses), determined semantics (lexical fields/semantic roles/polarity/modality/tense/aspect), identified speech acts (assertive/directive/commissive/expressive/declaration/verdictive), traced discourse coherence relations, detected language family, and classified register (frozen/formal/consultative/casual/intimate).");
+  }
+
+  // ------------------------------------------------------------------------
+  // Motion Cinema intents
+  // ------------------------------------------------------------------------
+
+  if (/\b(?:analyze|examine)\s+(?:the\s+)?(?:cinema|cinematic|film|movie|shots?|scenes?|camera|narrative|montage|genre|pacing)\s+of|cinem(?:a|atic)\s+(?:analysis|sequence|structure)|film\s+(?:analysis|style|language)|movie\s+analysis|shot\s+(?:classification|analysis|size|angle)|scene\s+(?:detection|analysis|transition)|cut\s+(?:detection|analysis|type)|transition\s+(?:detection|analysis|type|dissolve|fade|wipe|iris)|camera\s+(?:movement|angle|position|analysis|classification)|mise[- ]en[- ]sc[èe]ne\s+(?:analysis|composition)|narrative\s+(?:structure|analysis|type|three-act|five-act|hero's journey|kishōtenketsu)|pacing\s+(?:analysis|rhythm|shot length)|montage\s+(?:analysis|type|sequence|dialectical|rhythmic|tonal)|genre\s+(?:classification|analysis|detection|action|drama|comedy|horror|thriller)|close[- ]up\s+(?:shot|analysis)|wide\s+shot\s+(?:analysis|classification)|storyboard\s+(?:analysis|composition)|screenplay\s+(?:analysis|structure)|directing\s+(?:analysis|style)\b/i.test(userText)) {
+    push("analyze_cinema", {
+      projectId: "",
+    },
+    "Analyzed the composition as a cinematic sequence — classified shots (extreme-wide/wide/medium-wide/medium/medium-close/close-up/extreme-close-up) by size, angle (eye-level/high/low/dutch/overhead/worms-eye), and camera movement (static/pan/tilt/dolly/zoom/crane/tracking/handheld/steady-cam); detected cuts and transitions (dissolve/fade/wipe/iris/morph/crossfade); analyzed mise-en-scène (balance/depth-of-field/color palette/lighting/density); identified narrative structure (three-act/five-act/hero's journey/kishōtenketsu/episodic); computed pacing (very-slow/slow/moderate/fast/very-fast with regular/irregular/accelerating/decelerating rhythm); classified montage type (sequential/dialectical/rhythmic/tonal/overtonal/intellectual); and detected genre (action/drama/comedy/documentary/experimental/horror/romance/thriller/musical/silent) with aspect ratio and runtime.");
   }
 
   return { calls, replies };
