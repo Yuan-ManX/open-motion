@@ -40,7 +40,8 @@ export type ExtendedProvider =
   | "perplexity" | "openrouter" | "zhipu" | "qwen" | "yi" | "deepseek"
   | "flux" | "ideogram" | "suno" | "assemblyai" | "replicate"
   | "leonardo" | "recraft" | "kling" | "hailuo" | "playht" | "voyage"
-  | "cartesia" | "fal" | "deepinfra" | "modelscope" | "minimax" | "baai";
+  | "cartesia" | "fal" | "deepinfra" | "modelscope" | "minimax" | "baai"
+  | "ai21" | "cloudflare";
 
 /** A model entry in the registry. */
 export interface ModelEntry {
@@ -1224,6 +1225,48 @@ export const MODEL_REGISTRY: ModelEntry[] = [
     generationModality: "text-to-embedding",
     description: "Multi-function, multi-lingual, multi-granularity embedding",
   },
+  // — AI21 Labs (Jamba) —
+  {
+    id: "jamba-1.5-large",
+    name: "Jamba 1.5 Large",
+    provider: "ai21",
+    contextWindow: 256000,
+    capabilities: { text: true, vision: false, audioInput: false, audioOutput: false, imageGeneration: false, videoGeneration: false, code: true, toolUse: true, streaming: true, reasoning: false },
+    description: "AI21's hybrid SSM-Transformer model with 256K context",
+  },
+  {
+    id: "jamba-1.5-mini",
+    name: "Jamba 1.5 Mini",
+    provider: "ai21",
+    contextWindow: 256000,
+    capabilities: { text: true, vision: false, audioInput: false, audioOutput: false, imageGeneration: false, videoGeneration: false, code: true, toolUse: true, streaming: true, reasoning: false },
+    description: "Compact Jamba model for high-throughput workloads",
+  },
+  // — Cloudflare Workers AI —
+  {
+    id: "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    name: "Llama 3.3 70B (Cloudflare)",
+    provider: "cloudflare",
+    contextWindow: 128000,
+    capabilities: { text: true, vision: false, audioInput: false, audioOutput: false, imageGeneration: false, videoGeneration: false, code: true, toolUse: true, streaming: true, reasoning: false },
+    description: "Fast Llama 3.3 inference on Cloudflare's edge network",
+  },
+  {
+    id: "@cf/meta/llama-3.1-8b-instruct",
+    name: "Llama 3.1 8B (Cloudflare)",
+    provider: "cloudflare",
+    contextWindow: 128000,
+    capabilities: { text: true, vision: false, audioInput: false, audioOutput: false, imageGeneration: false, videoGeneration: false, code: true, toolUse: true, streaming: true, reasoning: false },
+    description: "Lightweight Llama on Cloudflare Workers AI",
+  },
+  {
+    id: "@cf/qwen/qwq-32b",
+    name: "QwQ 32B (Cloudflare)",
+    provider: "cloudflare",
+    contextWindow: 32000,
+    capabilities: { text: true, vision: false, audioInput: false, audioOutput: false, imageGeneration: false, videoGeneration: false, code: true, toolUse: true, streaming: true, reasoning: true },
+    description: "Qwen QwQ reasoning model on Cloudflare edge",
+  },
 ];
 
 /** Find a model by ID. */
@@ -1251,4 +1294,10 @@ export function modelsByModality(modality: GenerationModality): ModelEntry[] {
 /** Get all unique provider names from the registry. */
 export function getAllProviders(): string[] {
   return Array.from(new Set(MODEL_REGISTRY.map((m) => m.provider)));
+}
+
+/** Get the context window size (in tokens) for a specific model. */
+export function getModelContextWindow(modelId: string): number | undefined {
+  const entry = findModel(modelId);
+  return entry?.contextWindow;
 }
