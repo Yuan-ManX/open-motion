@@ -1,4 +1,4 @@
-import type { ChatEvent } from "@openmotion/shared";
+import type { ChatEvent, ToolName } from "@openmotion/shared";
 import type { ChatOptions, ChatResult, LlmProvider, LlmToolCall } from "./provider/types.js";
 import { OpenAIProviderError } from "./provider/openai.js";
 import { assembleAgentContext } from "./context.js";
@@ -6,7 +6,8 @@ import { buildToolSpecs } from "./tools/schema.js";
 import { executeTool, type ToolContext, type ToolResult } from "./tools/registry.js";
 import { addMemory, listMemory, restoreMemory, compressMemory } from "./memory/store.js";
 import { buildPlan } from "./planner.js";
-import { think } from "./reasoning.js";
+import { think, reevaluateConstraints } from "./reasoning.js";
+import { reflectOnSuccess } from "./motionReflection.js";
 import {
   decomposeGoal,
   startToolGoal,
@@ -17,13 +18,21 @@ import {
 import { addMessage } from "../db/repositories/messages.js";
 import { getProjectSpec } from "../db/repositories/projects.js";
 import { remember } from "./memory/persistentMemory.js";
+import { recordFailure, searchFailureMemory } from "./memory/failureMemory.js";
+import { resetForTurn as resetScratch, addScratch } from "./memory/workingMemory.js";
+import { recordGoalFromMessage, completeGoalByCategory, type GoalCategory } from "./memory/goalContinuity.js";
+import { verifyMotion, formatVerificationReport } from "./motionVerification.js";
+import { replanAfterFailure } from "./replanner.js";
 import { extractSkill } from "./memory/skillGenerator.js";
 import { suggestProactive } from "./proactiveEngine.js";
 import { recordToolExecution, isToolUnreliable } from "./analytics.js";
 import { generateSessionSummary } from "./sessionSummary.js";
 import { composeTools, composedToToolCalls } from "./toolComposer.js";
 import { capture, isSpecMutating } from "./checkpointManager.js";
+import { getCached, setCached, invalidateProject } from "./toolResultCache.js";
+import { selectTools } from "./toolSelector.js";
 import { runPreHooks, runPostHooks } from "./pluginHooks.js";
+import { analyzeToolDependencies } from "./toolDependencyAnalyzer.js";
 import {
   createParentBudget,
   consume,
@@ -375,6 +384,24 @@ import { logger } from "../utils/logger.js";
 
 const MAX_ITERATIONS = 12;
 
+/**
+ * Maps verification claim keywords to goal-ledger categories so a passing
+ * assertion can advance the matching cross-turn goal to "done". Kept narrow
+ * to the categories the verification engine actually asserts on.
+ */
+const GOAL_CATEGORY_KEYWORDS: Array<{ category: GoalCategory; pattern: RegExp }> = [
+  { category: "easing", pattern: /easing family/i },
+  { category: "timing", pattern: /duration/i },
+  { category: "other", pattern: /loop|infinitely/i },
+  { category: "choreography", pattern: /stagger|delay/i },
+  { category: "color", pattern: /color|background/i },
+  { category: "other", pattern: /3D transform/i },
+  { category: "creation", pattern: /component.*exist/i },
+  { category: "shader", pattern: /shader/i },
+  { category: "path", pattern: /translateX.*translateY|path/i },
+  { category: "other", pattern: /trigger/i },
+];
+
 export interface OrchestrateOptions {
   projectId: string;
   userMessage: string;
@@ -452,7 +479,19 @@ async function executeToolWithGuardrails(
   const warnings: string[] = [];
   let checkpointId: string | undefined;
 
-  // 0. External MCP routing: namespaced tool names ("serverId__toolName")
+  // 0. Tool result cache: short-circuit read-only idempotent calls that were
+  // already answered within this turn. The cache is invalidated the moment a
+  // spec-mutating tool runs (see step 4), so a stale read after a mutation is
+  // impossible. This dedupe is especially valuable when the model re-asks for
+  // get_motion_spec / list_templates after every spec change.
+  if (!isSpecMutating(tool) && !tool.includes("__")) {
+    const cached = getCached(ctx.projectId, tool, args);
+    if (cached) {
+      return { result: cached, warnings, checkpointId };
+    }
+  }
+
+  // 0b. External MCP routing: namespaced tool names ("serverId__toolName")
   // bypass the local registry entirely and call the external server.
   if (tool.includes("__")) {
     const externalResult = await routeNamespacedExternalCall(tool, args);
@@ -526,6 +565,17 @@ async function executeToolWithGuardrails(
     { projectId: ctx.projectId, tool: tool as never, args: pre.args },
     result,
   );
+
+  // 5. Cache maintenance: store read-only successes for dedupe; invalidate the
+  // entire project cache the moment a spec-mutating tool succeeds so the next
+  // read sees the fresh state. Failures are never cached.
+  if (result.ok) {
+    if (result.specChanged || isSpecMutating(tool)) {
+      invalidateProject(ctx.projectId);
+    } else if (!tool.includes("__")) {
+      setCached(ctx.projectId, tool, args, result);
+    }
+  }
 
   return { result, warnings, checkpointId };
 }
@@ -806,7 +856,8 @@ async function executeMotionIntelligenceTool(
     tool !== "analyze_geology" &&
     tool !== "analyze_physics" &&
     tool !== "analyze_linguistics" &&
-    tool !== "analyze_cinema"
+    tool !== "analyze_cinema" &&
+    tool !== "verify_motion"
   ) {
     return null;
   }
@@ -1166,6 +1217,32 @@ async function executeMotionIntelligenceTool(
       ok: false,
       summary: "no project spec available for Motion Intelligence analysis",
       specChanged: false,
+    };
+  }
+
+  // Verify the current motion against the user's stated intent by compiling
+  // the request into testable assertions and evaluating each one. The intent
+  // defaults to the most recent user message when not explicitly supplied.
+  if (tool === "verify_motion") {
+    const explicitIntent = typeof args.intent === "string" ? args.intent : "";
+    const intent = explicitIntent || (() => {
+      const mem = listMemory(projectId);
+      const lastUser = [...mem].reverse().find((m) => m.role === "user");
+      return lastUser?.content ?? "";
+    })();
+    if (!intent) {
+      return {
+        ok: false,
+        summary: "No intent to verify against — pass an `intent` argument or run after a user message.",
+        specChanged: false,
+      };
+    }
+    const report = verifyMotion(intent, spec);
+    return {
+      ok: true,
+      summary: formatVerificationReport(report),
+      specChanged: false,
+      data: { kind: "verification", report },
     };
   }
 
@@ -3254,14 +3331,31 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
   // Auto-extract persistent facts from the user message (preference detection)
   autoExtractMemory(projectId, userMessage);
 
+  // Reset the per-turn working-memory scratchpad so notes from the previous
+  // turn do not bleed into this one. The scratchpad is surfaced in the system
+  // prompt (not the conversation window) to keep the transcript focused.
+  resetScratch(projectId);
+
+  // Cross-turn goal continuity: when the user issues a multi-step directive
+  // across turns, record the step so the agent retains the broader trajectory.
+  const newGoal = recordGoalFromMessage(projectId, userMessage);
+  if (newGoal) {
+    addScratch(projectId, "decision", `Recorded multi-turn goal: ${newGoal.label}`);
+  }
+
   // Emit a lightweight plan so the user sees the agent's intended steps before
   // tool execution begins. Rule-based so it works in mock mode without an LLM.
   const initialSpec = getProjectSpec(projectId);
   let goalTree: GoalTree | null = null;
+  // Snapshot of constraints from the initial thinking trace. Used after spec
+  // mutations to detect NEW constraints that appeared as a result of the
+  // agent's own edits so the agent can adjust mid-turn.
+  let initialConstraints: string[] = [];
   if (initialSpec) {
     // Structured thinking trace: analyze the request, evaluate constraints,
     // consider options, and commit to an approach — all before planning.
     const trace = think(userMessage, initialSpec);
+    initialConstraints = trace.constraints;
     onEvent({
       type: "thinking",
       text: trace.text,
@@ -3280,7 +3374,22 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
     onEvent({ type: "goal", root: serializeGoal(goalTree) });
   }
 
-  const tools = buildToolSpecs();
+  const allToolSpecs = buildToolSpecs();
+  // Dynamic tool surface: prune the full tool list down to the subset
+  // relevant to the classified intent(s). Falls back to the full list when
+  // the intent is unknown or the selector returns null. This reduces prompt
+  // size and focuses the model's attention on applicable tools.
+  const selectedNames = selectTools(userMessage, allToolSpecs.map((t) => t.name as ToolName));
+  const tools = selectedNames
+    ? allToolSpecs.filter((t) => selectedNames.includes(t.name as ToolName))
+    : allToolSpecs;
+  if (selectedNames) {
+    logger.info("tool surface pruned by intent", {
+      total: allToolSpecs.length,
+      selected: tools.length,
+      intents: selectedNames.length,
+    });
+  }
   // Augment the tool surface with any tools from connected external MCP
   // servers. Their names are namespaced ("serverId__toolName") so the LLM
   // can call them like any native tool and the orchestrator routes the call
@@ -3306,6 +3415,10 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
   }
   const allToolCalls: LlmToolCall[] = [];
   const allToolResults: ToolResult[] = [];
+  // Tracks the most recent success-reflection verdict so the final `done`
+  // event can incorporate it into the confidence score. Undefined when no
+  // success-reflection has fired (e.g., conversational or failed turns).
+  let lastSuccessAchieved: boolean | undefined;
   const componentCountBefore = initialSpec?.components.length ?? 0;
 
   // Subagent delegation routing: when the user asks for exploration, comparison,
@@ -3375,7 +3488,7 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
         onEvent({ type: "session_summary", summary });
       }
 
-      onEvent({ type: "done", message: summaryText, tokensIn: 0, tokensOut: 0 });
+      onEvent({ type: "done", message: summaryText, tokensIn: 0, tokensOut: 0, confidence: computeConfidence(allToolResults, null, lastSuccessAchieved) });
       return;
     }
   }
@@ -3453,7 +3566,7 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
         componentCountAfter,
       });
       onEvent({ type: "session_summary", summary });
-      onEvent({ type: "done", message: summaryText, tokensIn: 0, tokensOut: 0 });
+      onEvent({ type: "done", message: summaryText, tokensIn: 0, tokensOut: 0, confidence: computeConfidence(allToolResults, null, lastSuccessAchieved) });
       return;
     }
   }
@@ -3618,7 +3731,7 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
         }
       }
 
-      onEvent({ type: "done", message: summaryText, tokensIn: 0, tokensOut: 0 });
+      onEvent({ type: "done", message: summaryText, tokensIn: 0, tokensOut: 0, confidence: computeConfidence(allToolResults, null, lastSuccessAchieved) });
       return;
     }
   }
@@ -3700,7 +3813,7 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
         });
         onEvent({ type: "session_summary", summary });
       }
-      onEvent({ type: "done", message: assistantText, tokensIn, tokensOut });
+      onEvent({ type: "done", message: assistantText, tokensIn, tokensOut, confidence: computeConfidence(allToolResults, budget, lastSuccessAchieved) });
       return;
     }
 
@@ -3723,7 +3836,12 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
     let lastSuccessfulTool: string | null = null;
     let lastComponentId: string | undefined;
     const failedTools: string[] = [];
-    for (const call of toolCalls) {
+
+    // Execute a single tool call end-to-end: placeholder resolution, goal
+    // linking, guardrails, analytics, memory, and event emission. Captures
+    // the outer tracking variables by closure so both the sequential and
+    // parallel paths share one implementation.
+    const runCall = async (call: LlmToolCall): Promise<void> => {
       // Resolve __last__ placeholder to the most recently created component.
       // This lets providers chain create + property-tuning calls (e.g.,
       // set_template followed by set_color targeting the new component).
@@ -3736,7 +3854,7 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
         } else {
           // No component exists yet — skip this tool call gracefully.
           logger.warn("__last__ placeholder could not resolve — no component exists", { tool: call.tool });
-          continue;
+          return;
         }
       }
       // Link this tool call to its corresponding goal so progress is visible.
@@ -3805,6 +3923,26 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
         lastSuccessfulTool = call.tool;
       }
       if (!result.ok) failedTools.push(call.tool);
+    };
+
+    // Group calls into batches: parallelizable independent calls may run
+    // concurrently within a batch; sequential batches (spec-mutating tools,
+    // __last__ placeholder users, MCP namespaced) run one at a time so spec
+    // mutation ordering and placeholder resolution stay deterministic.
+    const batches = analyzeToolDependencies(toolCalls);
+    for (const batch of batches) {
+      if (batch.parallel && batch.calls.length > 1) {
+        onEvent({
+          type: "parallel_tool_batch",
+          count: batch.calls.length,
+          tools: batch.calls.map((c) => c.tool as string),
+        });
+        await Promise.all(batch.calls.map(runCall));
+      } else {
+        for (const call of batch.calls) {
+          await runCall(call);
+        }
+      }
     }
 
     // Self-reflection: if any tools failed, analyze and suggest a correction
@@ -3822,11 +3960,76 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
         role: "system",
         content: `Self-reflection: ${reflection.text} Suggested action: ${reflection.suggestion}`,
       });
+      // Episodic failure memory: persist the lesson so future turns and
+      // sessions can apply the known recovery instead of repeating the
+      // mistake. Then surface any prior (more specific) lesson for the same
+      // tool so the agent has the cumulative context in one place.
+      const lastFailedTool = failedTools[failedTools.length - 1];
+      const lastFailedResult = allToolResults.filter((r) => !r.ok).slice(-1)[0];
+      const failureSummary = lastFailedResult?.summary ?? "unknown error";
+      recordFailure(lastFailedTool, failureSummary, reflection.suggestion, projectId);
+      const prior = searchFailureMemory(lastFailedTool, failureSummary, projectId);
+      if (prior && prior.occurrenceCount > 1) {
+        addMemory(projectId, {
+          role: "system",
+          content: `Prior failure lesson for ${lastFailedTool} (seen ${prior.occurrenceCount}x): ${prior.errorPattern}. Recovery: ${prior.suggestion}`,
+        });
+      }
+
+      // Adaptive replanning: regenerate remaining steps from the current spec
+      // plus the failure context. Conservative — only fires when at least one
+      // tool failed AND there are >= 2 iterations left to act. Emits a fresh
+      // "plan" event so the UI refreshes the adjusted trajectory.
+      const successfulToolsThisTurn = allToolCalls
+        .filter((_, i) => allToolResults[i]?.ok)
+        .map((c) => c.tool as string);
+      const freshSpecForReplan = getProjectSpec(projectId);
+      const replan = replanAfterFailure({
+        userMessage,
+        spec: freshSpecForReplan,
+        failedTools,
+        failureSuggestion: reflection.suggestion,
+        budgetRemaining: budget.remaining,
+        successfulToolsThisTurn,
+      });
+      if (replan.replanned && replan.steps.length > 0) {
+        onEvent({
+          type: "plan",
+          steps: replan.steps.map((s) => ({ tool: s.tool, description: s.description })),
+          summary: replan.summary,
+        });
+        addMemory(projectId, {
+          role: "system",
+          content: `Adaptive replan: ${replan.summary} (${replan.reason})`,
+        });
+      }
     }
 
     if (anySpecChanged) {
       const fresh = getProjectSpec(projectId);
       if (fresh) onEvent({ type: "spec_update", components: fresh.components, project: fresh.project });
+      // Mid-loop constraint re-evaluation: detect NEW constraints that
+      // appeared as a result of the agent's edits this turn. If any are new
+      // (not present in the initial thinking trace), surface them as a
+      // thinking event so the agent adjusts before the next iteration. Only
+      // spec-state constraints fire here — user-intent constraints (gated on
+      // the message text) are intentionally silent on re-evaluation.
+      if (fresh) {
+        const currentConstraints = reevaluateConstraints(fresh);
+        const newConstraints = currentConstraints.filter(
+          (c: string) => !initialConstraints.includes(c),
+        );
+        if (newConstraints.length > 0) {
+          onEvent({
+            type: "thinking",
+            text: `Re-evaluated constraints after edits: ${newConstraints.join(" ")}`,
+            analysis: "",
+            constraints: newConstraints,
+            options: [],
+            chosenApproach: "",
+          });
+        }
+      }
       // Proactive suggestions: surface 0-3 contextual next-step prompts tied
       // to the just-completed tool and the fresh spec state. Hidden by the UI
       // when empty, so callers see it only when there's something worth saying.
@@ -3839,6 +4042,58 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
         });
         if (suggestions.length > 0) {
           onEvent({ type: "proactive_suggestion", suggestions });
+        }
+      }
+      // Success-reflection: when the turn completed without tool failures and
+      // the spec changed, evaluate whether the change actually achieves the
+      // user's stated intent. Complements the failure-reflection block above
+      // and reuses the existing `reflection` ChatEvent so the UI needs no
+      // new wiring. The empty `failedTools` array signals a success-path
+      // reflection to clients.
+      if (fresh && failedTools.length === 0) {
+        const successTools = allToolCalls
+          .filter((_, i) => allToolResults[i]?.ok)
+          .map((c) => c.tool);
+        const successReflection = reflectOnSuccess(userMessage, fresh, successTools);
+        lastSuccessAchieved = successReflection.achieved;
+        // Structured verification: compile the user's request into testable
+        // assertions and evaluate each against the resulting spec. Produces
+        // concrete pass/fail evidence the agent can act on, complementing the
+        // heuristic success-reflection above.
+        const verification = verifyMotion(userMessage, fresh);
+        if (verification.assertions.length > 0) {
+          addScratch(projectId, "verification", formatVerificationReport(verification));
+        }
+        // Advance the cross-turn goal ledger: when verification confirms the
+        // intent, mark the matching goal as done so the next turn knows the
+        // step is complete. Verification covers the same action categories the
+        // goal ledger records (easing, timing, loop, color, choreography, etc.)
+        // so completing the in-progress goal of the same family is safe.
+        if (verification.achieved) {
+          const passedClaims = verification.assertions
+            .filter((a) => a.verdict === "pass")
+            .map((a) => a.claim)
+            .join(" ");
+          for (const cat of GOAL_CATEGORY_KEYWORDS) {
+            if (cat.pattern.test(passedClaims)) {
+              completeGoalByCategory(projectId, cat.category);
+            }
+          }
+        }
+        if (successReflection.text.length > 0 || verification.summary.length > 0) {
+          const reflectionText = [successReflection.text, verification.summary].filter((s) => s.length > 0).join(" ");
+          onEvent({
+            type: "reflection",
+            text: reflectionText,
+            failedTools: [],
+            suggestion: successReflection.suggestion || verification.summary || undefined,
+          });
+          addMemory(projectId, {
+            role: "system",
+            content: `Success-reflection: ${successReflection.text}` +
+              (verification.summary ? ` Verification: ${verification.summary}` : "") +
+              (successReflection.suggestion ? ` Refinement: ${successReflection.suggestion}` : ""),
+          });
         }
       }
     } else if (lastSuccessfulTool) {
@@ -3874,6 +4129,32 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
     message: `agent exceeded its tool-call budget (${budget.consumed}/${budget.initial} iterations) without a final reply`,
     recoverable: true,
   });
+}
+
+/**
+ * Compute a 0..1 confidence score for an agent turn. Combines three signals:
+ *   1. Tool success ratio — primary indicator.
+ *   2. Success-reflection verdict — small boost when intent was confirmed,
+ *      small penalty when the reflection engine flagged a mismatch.
+ *   3. Remaining iteration budget — small boost for clean exits with headroom.
+ *
+ * Pure conversational turns (no tool calls) return a neutral 0.5 since there
+ * is nothing objective to measure. Rule-based so mock mode stays functional.
+ */
+function computeConfidence(
+  toolResults: ToolResult[],
+  budget: { remaining: number; initial: number } | null,
+  achieved?: boolean,
+): number {
+  if (toolResults.length === 0) return 0.5;
+  const ok = toolResults.filter((r) => r.ok).length;
+  let c = ok / toolResults.length;
+  if (achieved === true) c = Math.min(1, c + 0.1);
+  else if (achieved === false) c = Math.max(0, c - 0.1);
+  if (budget && budget.initial > 0) {
+    c = Math.min(1, c + (budget.remaining / budget.initial) * 0.05);
+  }
+  return Math.round(c * 100) / 100;
 }
 
 /**
