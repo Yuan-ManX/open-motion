@@ -5,6 +5,8 @@ import { buildMessages } from "./memory/memory.js";
 import { assembleMemoryContext } from "./memory/persistentMemory.js";
 import { listMemory } from "./memory/store.js";
 import { semanticSearch, formatRelevantMemory } from "./memory/semanticSearch.js";
+import { formatScratchForContext } from "./memory/workingMemory.js";
+import { formatGoalContinuity } from "./memory/goalContinuity.js";
 import { formatAnalyticsContext } from "./analytics.js";
 import { getModelContextWindow } from "./provider/registry.js";
 import type { LlmMessage } from "./provider/types.js";
@@ -69,6 +71,15 @@ export function assembleAgentContext(projectId: string, userMessage?: string, mo
   if (analyticsCtx) {
     basePrompt += "\n" + analyticsCtx;
   }
+
+  // Working memory: transient per-turn scratchpad so the agent retains
+  // intermediate hypotheses, verification verdicts, and partial findings
+  // across mid-turn re-assemblies without polluting the conversation window.
+  basePrompt += formatScratchForContext(projectId);
+
+  // Goal continuity: cross-turn intent ledger so multi-step directives
+  // ("make it bouncy, then add a gradient, then export") survive across turns.
+  basePrompt += formatGoalContinuity(projectId);
 
   // Look up context window for token-aware message selection
   const contextWindow = model ? getModelContextWindow(model) : undefined;
