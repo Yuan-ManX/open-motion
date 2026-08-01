@@ -1,5 +1,5 @@
 import { TOOL_NAMES, TOOL_INPUT_SCHEMAS, TOOL_DESCRIPTIONS } from "@openmotion/shared";
-import type { z, ZodTypeAny } from "zod";
+import { z, type ZodTypeAny } from "zod";
 import { listProjects } from "../db/repositories/projects.js";
 import { executeTool } from "../agent/tools/registry.js";
 import { logger } from "../utils/logger.js";
@@ -21,8 +21,16 @@ function defaultProjectId(): string | null {
   return projects[0]?.id ?? null;
 }
 
-function toMcpShape(schema: z.ZodObject<z.ZodRawShape>): Record<string, ZodTypeAny> {
-  const shape = schema.shape as Record<string, ZodTypeAny>;
+function toMcpShape(schema: z.ZodTypeAny): Record<string, ZodTypeAny> {
+  // Unwrap optional/nullable wrappers to reach the underlying object.
+  let inner: z.ZodTypeAny = schema;
+  while (inner instanceof z.ZodOptional || inner instanceof z.ZodNullable) {
+    inner = inner._def.innerType;
+  }
+  if (!(inner instanceof z.ZodObject)) {
+    return {};
+  }
+  const shape = inner.shape as Record<string, ZodTypeAny>;
   const next: Record<string, ZodTypeAny> = { ...shape };
   if (next.projectId) {
     next.projectId = next.projectId.optional();
