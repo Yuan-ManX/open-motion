@@ -831,6 +831,40 @@ function pushToolSpecific(
         kind: "polish",
       });
       break;
+
+    // --- Cross-disciplinary analysis follow-ups ---
+    // Each engine reveals a distinct facet; suggest exploring another lens
+    // or applying the insight to refine the composition.
+    case "analyze_physics":
+    case "analyze_chemistry":
+    case "analyze_astronomy":
+    case "analyze_geology":
+    case "analyze_musicology":
+    case "analyze_botany":
+    case "analyze_weather":
+    case "analyze_cartography":
+    case "analyze_genealogy":
+    case "analyze_linguistics":
+    case "analyze_cinema":
+    case "analyze_alchemy":
+    case "analyze_architecture":
+    case "analyze_calligraphy":
+    case "analyze_mythology":
+      out.push({
+        title: "Explore another lens",
+        reason: "Each discipline reveals a different facet — cross-pollinate insights for richer composition.",
+        tool: "analyze_physics",
+        prompt: "Analyze the motion through a different discipline",
+        kind: "diversify",
+      });
+      out.push({
+        title: "Apply the insight",
+        reason: "Use the analysis findings to refine the motion parameters.",
+        tool: "refine_motion",
+        prompt: "Refine the motion based on the analysis",
+        kind: "refine",
+      });
+      break;
   }
 
   // Avoid unused-parameter lint when target is empty.
