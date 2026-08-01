@@ -7,6 +7,7 @@ import { exportExecutors } from "./exportTools.js";
 import { versionExecutors } from "./versionTools.js";
 import { pipelineExecutors } from "./pipelineTools.js";
 import { agentExecutors } from "./agentTools.js";
+import { editorExecutors } from "./editorTools.js";
 
 export interface ToolContext {
   projectId: string;
@@ -17,6 +18,8 @@ export interface ToolResult {
   summary: string;
   specChanged?: boolean;
   data?: unknown;
+  /** Editor commands to emit to the frontend for immediate UI control. */
+  editorCommands?: Array<{ command: string; args: Record<string, unknown> }>;
 }
 
 export type ToolExecutor = (
@@ -24,7 +27,7 @@ export type ToolExecutor = (
   ctx: ToolContext,
 ) => ToolResult | Promise<ToolResult>;
 
-/** Merged executor table across query / motion / export / version / agent tool families. */
+/** Merged executor table across query / motion / export / version / agent / editor tool families. */
 const EXECUTORS: Partial<Record<ToolName, ToolExecutor>> = {
   ...queryExecutors,
   ...motionExecutors,
@@ -32,6 +35,7 @@ const EXECUTORS: Partial<Record<ToolName, ToolExecutor>> = {
   ...versionExecutors,
   ...pipelineExecutors,
   ...agentExecutors,
+  ...editorExecutors,
 };
 
 /**
