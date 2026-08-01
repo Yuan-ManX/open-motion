@@ -313,3 +313,112 @@ export function saveBrandPack(
   const updated = writeBrandPacks(tokens, [...packs, pack]);
   return { pack, tokens: updated };
 }
+
+export interface BrandPackRecommendation {
+  pack: BrandPack;
+  score: number;
+  reasons: string[];
+}
+
+/**
+ * Recommend brand packs stored in a project's tokens, ranked by suitability
+ * to a natural-language hint. Scoring mirrors recommendExportPresets:
+ *   - keyword match against name/description/signaturePatterns (strong signal)
+ *   - personality alignment when the hint mentions energy/formal/playful/precise
+ *
+ * Returns all packs with scores and reasoning; the caller picks the top N.
+ * Parallel to recommendExportPresets in exportPresets.ts.
+ */
+export function recommendBrandPacks(
+  tokens: Record<string, string | number>,
+  hint?: string,
+): BrandPackRecommendation[] {
+  const packs = readBrandPacks(tokens);
+  const lower = hint?.toLowerCase().trim() ?? "";
+
+  // Detect desired personality from hint keywords. Each axis is a -1..+1
+  // signal (undefined = no signal).
+  const wantsEnergy = /energetic|lively|vivid|fast|punchy|dynamic/i.test(lower)
+    ? 1
+    : /calm|quiet|subtle|gentle|slow|restful/i.test(lower)
+      ? -1
+      : undefined;
+  const wantsFormal = /formal|professional|business|enterprise|corporate|serious/i.test(lower)
+    ? 1
+    : /casual|informal|playful|fun|friendly/i.test(lower)
+      ? -1
+      : undefined;
+  const wantsPlayful = /playful|fun|joyful|delightful|whimsy|toy|game|kid/i.test(lower)
+    ? 1
+    : /serious|strict|sober|somber/i.test(lower)
+      ? -1
+      : undefined;
+  const wantsPrecision = /precise|exact|technical|mechanical|systematic|accurate/i.test(lower)
+    ? 1
+    : /organic|natural|free|loose|flowing/i.test(lower)
+      ? -1
+      : undefined;
+
+  const recommendations: BrandPackRecommendation[] = [];
+  for (const pack of packs) {
+    let score = 50;
+    const reasons: string[] = [];
+
+    // Keyword hint boost (strong signal) — match against name, description,
+    // and signature pattern names/descriptions.
+    if (lower) {
+      const haystack = [
+        pack.name,
+        pack.description,
+        ...pack.signaturePatterns.map((p) => `${p.name} ${p.description}`),
+      ].join(" ").toLowerCase();
+      // Tokenize the hint and reward word overlaps.
+      const hintWords = lower.split(/\s+/).filter((w) => w.length >= 3);
+      let hits = 0;
+      for (const w of hintWords) {
+        if (haystack.includes(w)) hits++;
+      }
+      if (hits > 0) {
+        const boost = Math.min(40, hits * 12);
+        score += boost;
+        reasons.push(`matches ${hits} hint keyword(s)`);
+      }
+    }
+
+    // Personality alignment — reward packs whose personality matches the
+    // signals detected in the hint.
+    if (wantsEnergy !== undefined) {
+      const aligned = wantsEnergy > 0 ? pack.personality.energy >= 6 : pack.personality.energy <= 4;
+      if (aligned) {
+        score += 15;
+        reasons.push(`${wantsEnergy > 0 ? "high" : "low"} energy matches hint`);
+      }
+    }
+    if (wantsFormal !== undefined) {
+      const aligned = wantsFormal > 0 ? pack.personality.formality >= 6 : pack.personality.formality <= 4;
+      if (aligned) {
+        score += 15;
+        reasons.push(`${wantsFormal > 0 ? "high" : "low"} formality matches hint`);
+      }
+    }
+    if (wantsPlayful !== undefined) {
+      const aligned = wantsPlayful > 0 ? pack.personality.playfulness >= 6 : pack.personality.playfulness <= 4;
+      if (aligned) {
+        score += 15;
+        reasons.push(`${wantsPlayful > 0 ? "playful" : "restrained"} tone matches hint`);
+      }
+    }
+    if (wantsPrecision !== undefined) {
+      const aligned = wantsPrecision > 0 ? pack.personality.precision >= 6 : pack.personality.precision <= 4;
+      if (aligned) {
+        score += 15;
+        reasons.push(`${wantsPrecision > 0 ? "precise" : "organic"} character matches hint`);
+      }
+    }
+
+    recommendations.push({ pack, score, reasons });
+  }
+
+  recommendations.sort((a, b) => b.score - a.score);
+  return recommendations;
+}
