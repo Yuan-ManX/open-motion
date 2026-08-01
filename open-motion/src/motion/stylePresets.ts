@@ -1,4 +1,4 @@
-import type { Easing } from "@openmotion/shared";
+import type { Easing, MotionComponent } from "@openmotion/shared";
 import { easingPreset } from "@openmotion/shared";
 
 /**
@@ -199,4 +199,30 @@ export function getStylePreset(id: string): StylePreset | undefined {
 
 export function listStylePresets(): StylePreset[] {
   return STYLE_PRESETS;
+}
+
+/**
+ * Apply a style preset to a set of components, returning per-component patches
+ * that map the preset's easing/durationMs/iterationCount/direction onto each.
+ * The caller is responsible for persisting the patches. Original components
+ * are not mutated.
+ *
+ * Presets express an aesthetic "mood"; applying them overrides the per-component
+ * timing/easing/direction so the whole composition shares one feel. Component
+ * identity (name, selector, keyframes, trigger) is preserved.
+ */
+export function applyStylePresetToComponents(
+  preset: StylePreset,
+  components: MotionComponent[],
+): Partial<MotionComponent>[] {
+  // Uniform patch per component — preserves the array shape so callers can zip
+  // patches back to components by index, and so future enhancements can vary
+  // the patch (e.g. preserve exit easings) without changing the signature.
+  const patch: Partial<MotionComponent> = {
+    easing: preset.easing,
+    durationMs: preset.durationMs,
+    iterationCount: preset.iterationCount,
+    direction: preset.direction,
+  };
+  return components.map(() => ({ ...patch }));
 }
