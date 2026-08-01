@@ -57,7 +57,7 @@ export type ProviderName =
   | "luma" | "meshy" | "tripo" | "flux" | "ideogram" | "suno" | "assemblyai"
   | "replicate" | "leonardo" | "recraft" | "kling" | "hailuo" | "playht"
   | "voyage" | "cartesia" | "fal" | "deepinfra" | "modelscope" | "minimax"
-  | "baai" | "deepinfra";
+  | "baai" | "ai21" | "cloudflare";
 
 /** A single chunk emitted during streaming chat. */
 export interface ChatStreamChunk {
