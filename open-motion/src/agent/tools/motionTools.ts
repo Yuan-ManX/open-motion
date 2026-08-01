@@ -15,7 +15,7 @@ import { analyzeMotion, suggestNext } from "../../motion/analysis.js";
 import { getStylePreset } from "../../motion/stylePresets.js";
 import { generateHarmony, isHexColor } from "../../motion/colorHarmony.js";
 import { analyzeRestraint, formatRestraintReport } from "../../motion/restraint.js";
-import { listRecipes, getRecipe, searchRecipes, checkRecipeAvoidance, type MotionRecipe } from "../../motion/recipes.js";
+import { listRecipes, getRecipe, searchRecipes, checkRecipeAvoidance, inferRecipeAvoidanceContext, type MotionRecipe } from "../../motion/recipes.js";
 import { remember } from "../memory/persistentMemory.js";
 import { searchMemory, listGeneratedSkills } from "../../db/repositories/memory.js";
 import { compileGrammar, applyCompiledGrammar, GRAMMAR_EXAMPLES } from "../../motion/grammar.js";
@@ -250,10 +250,17 @@ export const motionExecutors: Partial<Record<ToolName, Executor>> = {
   set_loop: (args, ctx) => {
     const componentId = String(args.componentId);
     const iterationCount = args.iterationCount as number | "infinite";
-    const direction = args.direction as ComponentPatch["direction"];
     const current = getComponent(ctx.projectId, componentId);
     if (!current) return fail(`component ${componentId} not found`);
-    patchComponent(ctx.projectId, componentId, { iterationCount, direction });
+    // Only include direction in the patch when the caller actually supplied
+    // one. Spreading { direction: undefined } would overwrite the existing
+    // direction with undefined, which SQLite cannot bind to the non-null
+    // direction column (binding error on parameter 6).
+    const patch: ComponentPatch = { iterationCount };
+    if (args.direction !== undefined && args.direction !== null) {
+      patch.direction = args.direction as ComponentPatch["direction"];
+    }
+    patchComponent(ctx.projectId, componentId, patch);
     const loopLabel = iterationCount === "infinite" ? "loop forever" : `repeat ${iterationCount} times`;
     return ok(`set "${current.name}" to ${loopLabel}`);
   },
@@ -3281,13 +3288,7 @@ export const motionExecutors: Partial<Record<ToolName, Executor>> = {
     // Check avoidance conditions against current project context
     const spec = getProjectSpec(ctx.projectId);
     if (spec) {
-      const hasBounce = spec.components.some((c) => c.easing?.type === "preset" && /bounce|elastic/.test(c.easing.name));
-      const isProfessional = spec.components.some((c) => /professional|calm|minimal/.test(c.name.toLowerCase()));
-      const avoidance = checkRecipeAvoidance(recipe, {
-        componentCount: spec.components.length,
-        hasBounce,
-        isProfessional,
-      });
+      const avoidance = checkRecipeAvoidance(recipe, inferRecipeAvoidanceContext(spec));
       if (avoidance.shouldAvoid) {
         return fail(`recipe "${recipe.name}" should be avoided here: ${avoidance.reasons.join("; ")}`);
       }
