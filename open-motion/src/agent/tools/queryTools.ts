@@ -17,6 +17,9 @@ import { createStorytellingPlan, analyzePacing, applyStorytellingPlan, listStory
 import { searchRecipes } from "../../motion/recipes.js";
 import { listStylePresets } from "../../motion/stylePresets.js";
 import { listShaderEffects } from "../../motion/shaders.js";
+import { listPresetPacks } from "../../motion/presetPacks.js";
+import { EXPORT_PRESETS } from "../../motion/exportPresets.js";
+import { PRESETS, PRESET_NAMES } from "./presets.js";
 import { publicBaseUrl } from "../../config.js";
 import { generateMedia, isModalityAvailable } from "../provider/generation.js";
 import { MODEL_REGISTRY, modelsByProvider, modelsByModality } from "../provider/registry.js";
@@ -1054,10 +1057,54 @@ export const queryExecutors: Partial<Record<ToolName, Executor>> = {
     for (const r of searchRecipes(query, limit)) {
       results.push({ type: "recipe", id: r.id, name: r.name, description: r.description ?? "", score: 80 });
     }
+    // Search templates
+    for (const t of TEMPLATES) {
+      const score = scoreCatalogMatch(query, [t.id, t.name, t.description, t.category, ...(t.tags ?? [])]);
+      if (score > 0) results.push({ type: "template", id: t.id, name: t.name, description: t.description, score });
+    }
     // Search style presets
     for (const s of listStylePresets()) {
       const score = scoreCatalogMatch(query, [s.name, s.description ?? "", ...(s.tags ?? [])]);
       if (score > 0) results.push({ type: "style", id: s.id, name: s.name, description: s.description ?? "", score });
+    }
+    // Search preset packs (curated template bundles)
+    for (const p of listPresetPacks()) {
+      const score = scoreCatalogMatch(query, [p.name, p.description, ...(p.tags ?? [])]);
+      if (score > 0) results.push({ type: "preset-pack", id: p.id, name: p.name, description: p.description, score });
+    }
+    // Search animation presets (shake/wiggle/float/glow/heartbeat/typewriter)
+    for (const name of PRESET_NAMES) {
+      const preset = PRESETS[name];
+      const description = `${name} animation preset — ${preset.keyframes.length} keyframes, ${preset.durationMs}ms, ${preset.iterationCount === "infinite" ? "looping" : "one-shot"}`;
+      const score = scoreCatalogMatch(query, [name, description]);
+      if (score > 0) results.push({ type: "animation-preset", id: name, name, description, score });
+    }
+    // Search export presets (platform-aware export profiles)
+    for (const e of EXPORT_PRESETS) {
+      const score = scoreCatalogMatch(query, [
+        e.name,
+        e.description,
+        e.platform,
+        e.format,
+        ...(e.keywords ?? []),
+        ...(e.recommendedFor ?? []),
+      ]);
+      if (score > 0) results.push({ type: "export-preset", id: e.id, name: e.name, description: e.description, score });
+    }
+    // Search rhythm patterns
+    for (const r of listRhythmPatterns()) {
+      const score = scoreCatalogMatch(query, [r.name, r.description, r.category]);
+      if (score > 0) results.push({ type: "rhythm", id: r.id, name: r.name, description: r.description, score });
+    }
+    // Search motion themes
+    for (const t of listThemes()) {
+      const score = scoreCatalogMatch(query, [t.name, t.description, t.personality]);
+      if (score > 0) results.push({ type: "motion-theme", id: t.id, name: t.name, description: t.description, score });
+    }
+    // Search narrative arcs
+    for (const a of listArcTemplates()) {
+      const score = scoreCatalogMatch(query, [a.name, a.description]);
+      if (score > 0) results.push({ type: "narrative-arc", id: a.id, name: a.name, description: a.description, score });
     }
     // Search shaders
     for (const sh of listShaderEffects()) {
