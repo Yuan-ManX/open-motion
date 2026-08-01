@@ -941,8 +941,8 @@ const PATTERNS: CompositionPattern[] = [
       if (has(msg, "cognitive load", "working memory", "attention switching", "perceptual grouping", "processing fluency", "mental load", "mental effort")) return null;
       // Yield to Motion Topology — topology/connected components/euler characteristic analysis
       if (has(msg, "topology", "topological", "connected component", "temporal hole", "euler characteristic", "genus", "compactness")) return null;
-      // Yield to Motion Poetics — poetic meter/form/rhythm analysis
-      if (has(msg, "poetic", "poetics", "meter", "iambic", "trochaic", "dactylic", "anapestic", "stanza", "caesura", "enjambment", "sonnet", "haiku", "free verse", "blank verse", "rhythm of the motion", "poetic form")) return null;
+      // Yield to Motion Poetics — poetic meter/form analysis
+      if (has(msg, "poetic", "poetics", "meter", "iambic", "trochaic", "dactylic", "anapestic", "stanza", "caesura", "enjambment", "sonnet", "haiku", "free verse", "blank verse", "poetic form")) return null;
       // Yield to Motion Ecology — ecosystem/ecology/biodiversity/species analysis
       if (has(msg, "ecosystem", "ecology", "ecological", "biodiversity", "symbiotic", "parasitic", "predator-prey", "trophic", "carrying capacity", "niche")) return null;
       // Yield to Motion Calligraphy — calligraphic/brush/stroke/ink analysis
@@ -974,7 +974,10 @@ const PATTERNS: CompositionPattern[] = [
       // Yield to Motion Linguistics — linguistics/phonology/syntax/semantics analysis
       if (has(msg, "linguistics", "linguistic", "phoneme", "phonology", "morpheme", "morphology", "syntax", "syntactic", "semantic", "semantics", "pragmatic", "pragmatics", "prosody", "discourse", "clause", "phrase structure", "speech act", "intonation", "stress pattern", "rhythm of speech", "register of", "language family")) return null;
       // Yield to Motion Cinema — cinema/film/shot/camera analysis
-      if (has(msg, "cinema", "cinematic", "film", "movie", "shot", "scene", "cut", "transition", "mise-en-scène", "mise en scene", "camera movement", "camera angle", "narrative structure", "pacing of", "montage", "genre of", "close-up", "wide shot", "pan", "tilt", "dolly", "zoom", "crane", "storyboard", "screenplay", "directing")) return null;
+      if (has(msg, "cinema", "cinematic", "film", "movie", "shot", "scene", "cut", "transition", "mise-en-scène", "mise en scene", "camera movement", "camera angle", "narrative structure", "montage", "genre of", "close-up", "wide shot", "pan", "tilt", "dolly", "zoom", "crane", "storyboard", "screenplay", "directing")) return null;
+      // Yield to core intelligence tools — emotion/rhythm/narrative/pacing/
+      // mood/restraint/principles/visual-context have dedicated analysis tools.
+      if (has(msg, "emotion", "emotional", "mood of", "rhythm of", "narrative of", "pacing of", "restraint of", "principles of", "visual context", "visual layout", "visual quality")) return null;
       return [
         {
           tool: "critique_motion",
@@ -1405,6 +1408,9 @@ const PATTERNS: CompositionPattern[] = [
     name: "motion-strategist",
     match: (msg, ctx) => {
       if (!has(msg, "strategy", "strategize", "motion plan", "motion philosophy", "timing philosophy", "easing palette", "rhythm pattern", "accessibility stance", "archetype", "motion language", "motion direction", "overall approach")) return null;
+      // Yield to Motion Mythology — when mythology context is present,
+      // "archetype" means mythological archetype, not strategic archetype.
+      if (has(msg, "mythology", "mythic", "mythological", "hero's journey", "heros journey", "monomyth", "shadow archetype", "mentor archetype", "threshold guardian", "transformation myth", "narrative archetype")) return null;
       return [
         {
           tool: "strategize_motion",
@@ -1606,6 +1612,10 @@ const PATTERNS: CompositionPattern[] = [
     name: "infer-semantic-intent",
     match: (msg, _ctx) => {
       if (!has(msg, "make it feel", "should feel", "feel like", "give it a sense", "convey", "express the", "emotion of", "mood of", "feeling of")) return null;
+      // Guard: when the user wants to *analyze* mood/emotion/feeling (rather
+      // than generate motion from a description), defer to the dedicated
+      // analysis tools (analyze_mood, analyze_emotion).
+      if (has(msg, "analyze", "examine", "study", "inspect", "check", "report on", "tell me about", "describe the", "of the motion", "of the composition", "of the animation")) return null;
       return [
         {
           tool: "infer_intent",
@@ -2371,12 +2381,140 @@ const PATTERNS: CompositionPattern[] = [
     name: "analyze-cinema",
     match: (msg, ctx) => {
       if (!ctx.hasComponents) return null;
-      if (!has(msg, "cinema", "cinematic", "film", "movie", "shot", "scene", "cut", "transition", "mise-en-scène", "mise en scene", "camera movement", "camera angle", "narrative structure", "pacing of", "montage", "genre of", "close-up", "wide shot", "pan", "tilt", "dolly", "zoom", "crane", "storyboard", "screenplay", "directing")) return null;
+      if (!has(msg, "cinema", "cinematic", "film", "movie", "shot", "scene", "cut", "transition", "mise-en-scène", "mise en scene", "camera movement", "camera angle", "narrative structure", "montage", "genre of", "close-up", "wide shot", "pan", "tilt", "dolly", "zoom", "crane", "storyboard", "screenplay", "directing")) return null;
       return [
         {
           tool: "analyze_cinema",
           args: { projectId: ctx.projectId },
           reason: "Analyze the composition as a cinematic sequence — classify shots, detect cuts and transitions, determine camera movement, analyze mise-en-scène, identify narrative structure, compute pacing, classify montage type, and detect genre",
+        },
+      ];
+    },
+  },
+
+  // --- Core intelligence: emotion analysis ---
+  {
+    name: "analyze-emotion",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "emotion", "emotional", "feeling of", "feel of", "emotional arc", "emotional journey", "emotional impact", "emotional tone")) return null;
+      return [
+        {
+          tool: "analyze_emotion",
+          args: { projectId: ctx.projectId },
+          reason: "Analyze the emotional content — extract emotional beats, determine the dominant emotion, classify the emotional arc, and measure emotional range",
+        },
+      ];
+    },
+  },
+
+  // --- Core intelligence: rhythm analysis ---
+  {
+    name: "analyze-rhythm",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "rhythm of", "rhythmic", "beat of", "tempo of", "groove of", "rhythmic pattern", "rhythm analysis")) return null;
+      return [
+        {
+          tool: "analyze_rhythm",
+          args: { projectId: ctx.projectId },
+          reason: "Analyze the visual rhythm — extract rhythmic beats, compute tempo (BPM), classify rhythm type, measure regularity and groove, and detect rhythmic conflicts",
+        },
+      ];
+    },
+  },
+
+  // --- Core intelligence: narrative analysis ---
+  {
+    name: "analyze-narrative",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "narrative of", "narrative arc", "story arc", "story structure", "three-act", "five-act", "narrative structure", "plot of", "storytelling of")) return null;
+      return [
+        {
+          tool: "analyze_narrative",
+          args: { projectId: ctx.projectId },
+          reason: "Analyze the narrative structure — identify story segments/acts, detect complete arcs, compute pacing and coherence scores, and suggest narrative improvements",
+        },
+      ];
+    },
+  },
+
+  // --- Core intelligence: pacing analysis ---
+  {
+    name: "analyze-pacing",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "pacing of", "pace of", "pacing analysis", "too fast", "too slow", "pacing score", "timing pace")) return null;
+      return [
+        {
+          tool: "analyze_pacing",
+          args: { projectId: ctx.projectId },
+          reason: "Analyze the pacing — compute pacing score, detect timing distribution, evaluate rhythm of delivery, and suggest pacing improvements",
+        },
+      ];
+    },
+  },
+
+  // --- Core intelligence: mood analysis ---
+  {
+    name: "analyze-mood",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "mood of", "mood analysis", "vibe of", "atmosphere of", "tone of the motion", "mood profile")) return null;
+      return [
+        {
+          tool: "analyze_mood",
+          args: { projectId: ctx.projectId },
+          reason: "Analyze the mood — detect the dominant mood, measure energy and valence, and generate a mood profile with personality traits",
+        },
+      ];
+    },
+  },
+
+  // --- Core intelligence: restraint analysis ---
+  {
+    name: "analyze-restraint",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "restraint of", "restraint analysis", "restraint score", "motion density", "too much motion", "overanimated", "busy motion")) return null;
+      return [
+        {
+          tool: "analyze_restraint",
+          args: { projectId: ctx.projectId },
+          reason: "Analyze motion restraint — compute a restraint score, detect excess motion density, identify over-animated areas, and recommend simplifications",
+        },
+      ];
+    },
+  },
+
+  // --- Core intelligence: principles analysis ---
+  {
+    name: "analyze-principles",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "principles of", "animation principles", "principle analysis", "squash and stretch", "anticipation principle", "follow through", "staging principle", "appeal principle", "slow in slow out", "arcs principle", "secondary action")) return null;
+      return [
+        {
+          tool: "analyze_principles",
+          args: { projectId: ctx.projectId },
+          reason: "Analyze against the 12 animation principles — check squash & stretch, anticipation, staging, follow-through, overlapping action, slow in/out, arcs, secondary action, timing, exaggeration, solid drawing, and appeal",
+        },
+      ];
+    },
+  },
+
+  // --- Core intelligence: visual context analysis ---
+  {
+    name: "analyze-visual-context",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      if (!has(msg, "visual context", "visual layout", "visual quality", "layout balance", "spacing consistency", "visual hierarchy", "canvas layout", "composition balance", "visual review", "canvas look", "spatial layout")) return null;
+      return [
+        {
+          tool: "analyze_visual_context",
+          args: { projectId: ctx.projectId },
+          reason: "Analyze the visual context — compute visual balance, spacing consistency, hierarchy, color palette distribution, overlap detection, and alignment, returning a 0-100 visual quality score",
         },
       ];
     },
@@ -2389,6 +2527,42 @@ const PATTERNS: CompositionPattern[] = [
  * (spring, physics, mobile, etc.) that would otherwise match more
  * specific patterns and hijack the request.
  */
+/**
+ * Pre-check for core intelligence analysis requests. These must be handled
+ * before any other pattern, because keywords like "mood", "emotion",
+ * "rhythm", "pacing" inside analysis requests would otherwise match
+ * semantic-intent, template, or critique patterns and hijack the routing.
+ */
+function matchAnalysisFirst(normalized: string, ctx: MatchContext): ComposedTool[] | null {
+  if (!ctx.hasComponents) return null;
+  // Only intercept when the user explicitly wants to analyze/examine.
+  if (!has(normalized, "analyze", "examine", "study", "inspect", "investigate")) return null;
+
+  const checks: Array<{ keywords: string[]; tool: string; reason: string }> = [
+    { keywords: ["emotion", "emotional", "emotional arc", "emotional journey"], tool: "analyze_emotion", reason: "Analyze the emotional content — extract emotional beats, determine the dominant emotion, classify the emotional arc, and measure emotional range" },
+    { keywords: ["rhythm of", "rhythmic", "beat of", "tempo of", "groove of"], tool: "analyze_rhythm", reason: "Analyze the visual rhythm — extract rhythmic beats, compute tempo (BPM), classify rhythm type, measure regularity and groove, and detect rhythmic conflicts" },
+    { keywords: ["narrative of", "narrative arc", "story arc", "story structure", "narrative structure"], tool: "analyze_narrative", reason: "Analyze the narrative structure — identify story segments/acts, detect complete arcs, compute pacing and coherence scores, and suggest narrative improvements" },
+    { keywords: ["pacing of", "pace of", "pacing analysis", "pacing score"], tool: "analyze_pacing", reason: "Analyze the pacing — compute pacing score, detect timing distribution, evaluate rhythm of delivery, and suggest pacing improvements" },
+    { keywords: ["mood of", "mood analysis", "mood profile"], tool: "analyze_mood", reason: "Analyze the mood — detect the dominant mood, measure energy and valence, and generate a mood profile with personality traits" },
+    { keywords: ["restraint of", "restraint analysis", "restraint score", "motion density"], tool: "analyze_restraint", reason: "Analyze motion restraint — compute a restraint score, detect excess motion density, identify over-animated areas, and recommend simplifications" },
+    { keywords: ["principles of", "animation principles", "principle analysis", "squash and stretch", "follow through"], tool: "analyze_principles", reason: "Analyze against the 12 animation principles — check squash & stretch, anticipation, staging, follow-through, overlapping action, slow in/out, arcs, secondary action, timing, exaggeration, solid drawing, and appeal" },
+    { keywords: ["visual context", "visual layout", "visual quality", "layout balance", "spacing consistency", "visual hierarchy"], tool: "analyze_visual_context", reason: "Analyze the visual context — compute visual balance, spacing consistency, hierarchy, color palette distribution, overlap detection, and alignment, returning a 0-100 visual quality score" },
+  ];
+
+  for (const check of checks) {
+    if (has(normalized, ...check.keywords)) {
+      return [
+        {
+          tool: check.tool,
+          args: { projectId: ctx.projectId },
+          reason: check.reason,
+        },
+      ];
+    }
+  }
+  return null;
+}
+
 function matchCollaborationFirst(normalized: string): ComposedTool[] | null {
   if (!has(normalized, "collaboration", "collaborate")) return null;
 
@@ -2446,6 +2620,18 @@ export function composeTools(
       matched: true,
       tools: collaborationTools,
       patternName: "collaboration-priority",
+    };
+  }
+
+  // Core intelligence analysis requests are checked early so that keywords
+  // like "mood", "emotion", "rhythm" inside an analysis request don't get
+  // hijacked by template, semantics, or critique patterns.
+  const analysisTools = matchAnalysisFirst(normalized, ctx);
+  if (analysisTools) {
+    return {
+      matched: true,
+      tools: analysisTools,
+      patternName: "analysis-priority",
     };
   }
 
