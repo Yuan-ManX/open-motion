@@ -4,7 +4,7 @@ import { now } from "../../utils/id.js";
 export interface AgentMemoryEntry {
   id: string;
   projectId: string;
-  layer: "project" | "skill" | "preference";
+  layer: "project" | "skill" | "preference" | "failure";
   key: string;
   value: string;
   tags: string[];
@@ -116,6 +116,17 @@ export function searchMemory(projectId: string, query: string, limit = 5): Agent
 export function updateMemoryRelevance(id: string, relevance: number): void {
   const db = getDb();
   db.prepare(`UPDATE agent_memory SET relevance = ?, updated_at = ? WHERE id = ?`).run(relevance, now(), id);
+}
+
+/** Update both the value payload and the relevance score in one call. */
+export function updateMemoryEntry(id: string, value: string, relevance: number): void {
+  const db = getDb();
+  db.prepare(`UPDATE agent_memory SET value = ?, relevance = ?, updated_at = ? WHERE id = ?`).run(
+    value,
+    relevance,
+    now(),
+    id,
+  );
 }
 
 export function deleteMemory(id: string): void {
