@@ -72,6 +72,24 @@ export function think(userMessage: string, spec: MotionSpec): ThinkingTrace {
   };
 }
 
+/**
+ * Re-evaluate spec-state constraints mid-turn. Used after spec mutations to
+ * detect NEW constraints that appeared as a result of the agent's own edits
+ * — so the agent can adjust before completing the turn.
+ *
+ * Unlike the initial think() pass, this does NOT consider the user message
+ * text: only spec-state signals fire (restraint budget, simultaneous starts,
+ * easing monotony, density, keyframe cost, vestibular risk, etc.). The
+ * text-gated constraints (accessibility intent, "fast/snappy" requests) are
+ * user-intent signals, not spec-state signals, so they correctly stay silent
+ * on re-evaluation.
+ *
+ * Returns the list of current spec-state constraints.
+ */
+export function reevaluateConstraints(spec: MotionSpec): string[] {
+  return evaluateConstraints("", spec);
+}
+
 function analyzeRequest(text: string, spec: MotionSpec): string {
   const parts: string[] = [];
 
