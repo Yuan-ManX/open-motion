@@ -22,6 +22,11 @@ import { recordFailure, searchFailureMemory } from "./memory/failureMemory.js";
 import { resetForTurn as resetScratch, addScratch } from "./memory/workingMemory.js";
 import { recordGoalFromMessage, completeGoalByCategory, type GoalCategory } from "./memory/goalContinuity.js";
 import { verifyMotion, formatVerificationReport } from "./motionVerification.js";
+import {
+  selfCorrectMotion,
+  formatSelfCorrectionReport,
+  type SelfCorrectionReport,
+} from "./motionSelfCorrect.js";
 import { replanAfterFailure } from "./replanner.js";
 import { extractSkill } from "./memory/skillGenerator.js";
 import { suggestProactive } from "./proactiveEngine.js";
@@ -113,6 +118,11 @@ import {
   forecastMotion,
   formatForecastReport,
 } from "./motionForecast.js";
+import {
+  deliberateMotion,
+  formatJuryReport,
+} from "./motionJury.js";
+import { analyzeBudget, formatAttentionBudgetReport } from "./motionBudget.js";
 import {
   negotiateIntent,
   formatNegotiationReport,
@@ -857,7 +867,8 @@ async function executeMotionIntelligenceTool(
     tool !== "analyze_physics" &&
     tool !== "analyze_linguistics" &&
     tool !== "analyze_cinema" &&
-    tool !== "verify_motion"
+    tool !== "verify_motion" &&
+    tool !== "self_correct"
   ) {
     return null;
   }
@@ -1243,6 +1254,52 @@ async function executeMotionIntelligenceTool(
       summary: formatVerificationReport(report),
       specChanged: false,
       data: { kind: "verification", report },
+    };
+  }
+
+  // Self-correct: close the verification loop by applying the concrete
+  // remediation patch for each failed required assertion, then re-verifying.
+  // Mirrors auto_fix_accessibility: compute fixes on a clone, then apply them
+  // to the live project via patchComponent so the canvas reflects the change.
+  if (tool === "self_correct") {
+    if (spec.components.length === 0) {
+      return {
+        ok: false,
+        summary: "no components to self-correct — add content first",
+        specChanged: false,
+      };
+    }
+    const explicitIntent = typeof args.intent === "string" ? args.intent : "";
+    const intent = explicitIntent || (() => {
+      const mem = listMemory(projectId);
+      const lastUser = [...mem].reverse().find((m) => m.role === "user");
+      return lastUser?.content ?? "";
+    })();
+    if (!intent) {
+      return {
+        ok: false,
+        summary: "No intent to self-correct against — pass an `intent` argument or run after a user message.",
+        specChanged: false,
+      };
+    }
+    const report = selfCorrectMotion(intent, spec);
+    const apply = args.apply !== false; // default true
+    let specChanged = false;
+    if (apply && report.applied.length > 0) {
+      for (const fix of report.applied) {
+        patchComponent(projectId, fix.componentId, fix.patch);
+      }
+      specChanged = true;
+    }
+    return {
+      ok: true,
+      summary: formatSelfCorrectionReport(report),
+      specChanged,
+      data: {
+        kind: "self_correction",
+        report,
+        applied: apply,
+      },
     };
   }
 
@@ -3419,6 +3476,10 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
   // event can incorporate it into the confidence score. Undefined when no
   // success-reflection has fired (e.g., conversational or failed turns).
   let lastSuccessAchieved: boolean | undefined;
+  // Bounded auto self-correction guard: ensures the verification-driven
+  // correction pass fires at most once per turn, even when multiple
+  // spec-changing iterations occur. Prevents a fix/verify oscillation.
+  let autoSelfCorrectedThisTurn = false;
   const componentCountBefore = initialSpec?.components.length ?? 0;
 
   // Subagent delegation routing: when the user asks for exploration, comparison,
@@ -4060,9 +4121,53 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
         // assertions and evaluate each against the resulting spec. Produces
         // concrete pass/fail evidence the agent can act on, complementing the
         // heuristic success-reflection above.
-        const verification = verifyMotion(userMessage, fresh);
+        let verification = verifyMotion(userMessage, fresh);
         if (verification.assertions.length > 0) {
           addScratch(projectId, "verification", formatVerificationReport(verification));
+        }
+        // Auto self-correction: when the agent's edits succeeded (no tool
+        // failures) yet verification shows required-assertion gaps, the work
+        // missed the intent. Close the loop once per turn by applying the
+        // concrete remediation patches directly to the live spec, then
+        // re-verify so the goal ledger and reflection below report the
+        // corrected state. Bounded to a single pass per turn.
+        if (
+          !verification.achieved &&
+          !autoSelfCorrectedThisTurn &&
+          verification.assertions.some(
+            (a) => a.severity === "required" && a.verdict === "fail" && a.kind.length > 0,
+          )
+        ) {
+          autoSelfCorrectedThisTurn = true;
+          try {
+            const correction = selfCorrectMotion(userMessage, fresh);
+            if (correction.applied.length > 0) {
+              for (const fix of correction.applied) {
+                patchComponent(projectId, fix.componentId, fix.patch);
+              }
+              const correctedSpec = getProjectSpec(projectId);
+              if (correctedSpec) {
+                onEvent({
+                  type: "spec_update",
+                  components: correctedSpec.components,
+                  project: correctedSpec.project,
+                });
+                addScratch(projectId, "self_correction", formatSelfCorrectionReport(correction));
+                addMemory(projectId, {
+                  role: "system",
+                  content: `Auto self-correction: ${formatSelfCorrectionReport(correction)}`,
+                });
+                verification = verifyMotion(userMessage, correctedSpec);
+              }
+            }
+          } catch (err) {
+            // The self-correction pass is best-effort: if it throws, log the
+            // lesson and continue so the turn still completes normally.
+            addMemory(projectId, {
+              role: "system",
+              content: `Auto self-correction skipped due to error: ${err instanceof Error ? err.message : String(err)}`,
+            });
+          }
         }
         // Advance the cross-turn goal ledger: when verification confirms the
         // intent, mark the matching goal as done so the next turn knows the
@@ -4080,8 +4185,52 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
             }
           }
         }
-        if (successReflection.text.length > 0 || verification.summary.length > 0) {
-          const reflectionText = [successReflection.text, verification.summary].filter((s) => s.length > 0).join(" ");
+        // Jury meta-cognition: when the success-reflection could not confirm
+        // the intent was achieved, convene a multi-perspective jury to surface
+        // the trade-offs a single verdict would hide. Best-effort — never
+        // blocks the turn from completing. Re-fetch the spec in case the
+        // auto-self-correction pass above patched components in place.
+        let jurySummary = "";
+        if (!successReflection.achieved) {
+          try {
+            const latestSpec = getProjectSpec(projectId);
+            if (latestSpec) {
+              const jury = deliberateMotion(latestSpec, userMessage);
+              jurySummary = ` Jury: ${jury.summary}`;
+              addScratch(projectId, "finding", formatJuryReport(jury));
+            }
+          } catch (err) {
+            addMemory(projectId, {
+              role: "system",
+              content: `Jury deliberation skipped due to error: ${err instanceof Error ? err.message : String(err)}`,
+            });
+          }
+        }
+        // Attention-budget probe: when the success-reflection could not
+        // confirm the intent, check whether the composition is over its
+        // attention budget — an over-budget composition often reads as
+        // incoherent, which is a likely cause of the unmet intent.
+        // Best-effort — never blocks the turn from completing.
+        let budgetSummary = "";
+        if (!successReflection.achieved) {
+          try {
+            const latestSpec = getProjectSpec(projectId);
+            if (latestSpec && latestSpec.components.length > 0) {
+              const budget = analyzeBudget(latestSpec);
+              if (budget.overBudget) {
+                budgetSummary = ` Attention budget exceeded: demand ${budget.totalDemand} / budget ${budget.budget} (${Math.round(budget.utilization * 100)}% utilized). ${budget.reallocations.length} reallocation(s) available.`;
+                addScratch(projectId, "finding", formatAttentionBudgetReport(budget));
+              }
+            }
+          } catch (err) {
+            addMemory(projectId, {
+              role: "system",
+              content: `Budget probe skipped due to error: ${err instanceof Error ? err.message : String(err)}`,
+            });
+          }
+        }
+        if (successReflection.text.length > 0 || verification.summary.length > 0 || jurySummary.length > 0 || budgetSummary.length > 0) {
+          const reflectionText = [successReflection.text, verification.summary, jurySummary, budgetSummary].filter((s) => s.length > 0).join(" ");
           onEvent({
             type: "reflection",
             text: reflectionText,
@@ -4092,6 +4241,8 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
             role: "system",
             content: `Success-reflection: ${successReflection.text}` +
               (verification.summary ? ` Verification: ${verification.summary}` : "") +
+              (jurySummary ? jurySummary : "") +
+              (budgetSummary ? budgetSummary : "") +
               (successReflection.suggestion ? ` Refinement: ${successReflection.suggestion}` : ""),
           });
         }
