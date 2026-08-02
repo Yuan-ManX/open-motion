@@ -32,7 +32,8 @@ export type ScratchKind =
   | "verification" // a structured check verdict from motionVerification
   | "finding" // a partial observation from a tool result
   | "decision" // a committed choice (e.g. "apply spring easing")
-  | "deferred"; // an idea parked for a later turn
+  | "deferred" // an idea parked for a later turn
+  | "self_correction"; // a remediation pass applied after verification failed
 
 export interface ScratchEntry {
   /** Category controlling how the note is rendered in the prompt. */
