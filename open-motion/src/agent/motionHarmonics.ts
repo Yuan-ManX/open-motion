@@ -3,7 +3,7 @@
  * harmonic relationships between components.
  *
  * This original AI-native module treats each motion component as a periodic
- * waveform and applies Fourier-inspired decomposition to extract its
+ * waveform and applies Fourier decomposition to extract its
  * frequency signature. It then computes harmonic relationships (consonance,
  * dissonance, octave equivalence) between components, revealing the hidden
  * musical structure of a motion composition.
