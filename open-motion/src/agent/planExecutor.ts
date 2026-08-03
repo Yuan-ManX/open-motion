@@ -11,7 +11,7 @@
  * Complex multi-step requests — identified by intent classification —
  * route through here for a reviewable, cancellable experience.
  *
- * Action vocabulary (inspired by professional editing workflows):
+ * Action vocabulary (aligned with professional editing workflows):
  *   - create_layer      Add a new layer (text, shape, image, video, audio)
  *   - apply_template    Apply a named template
  *   - apply_preset      Apply a stackable preset (entrance/emphasis/exit)
