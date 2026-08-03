@@ -52,6 +52,15 @@ export function TimelineSequencer() {
     [sorted, projectId],
   );
 
+  // Hooks must run before any early return — compute ruler marks unconditionally.
+  const maxDuration = Math.max(totalDuration, 1000);
+  const rulerMarks = useMemo(() => {
+    const step = maxDuration > 5000 ? 1000 : maxDuration > 2000 ? 500 : 250;
+    const marks: number[] = [];
+    for (let t = 0; t <= maxDuration; t += step) marks.push(t);
+    return marks;
+  }, [maxDuration]);
+
   if (!projectId) {
     return (
       <div className="px-4 py-6 text-center text-xs text-gray-600">
@@ -61,13 +70,6 @@ export function TimelineSequencer() {
   }
 
   const send = useChatStore.getState().send;
-  const maxDuration = Math.max(totalDuration, 1000);
-  const rulerMarks = useMemo(() => {
-    const step = maxDuration > 5000 ? 1000 : maxDuration > 2000 ? 500 : 250;
-    const marks: number[] = [];
-    for (let t = 0; t <= maxDuration; t += step) marks.push(t);
-    return marks;
-  }, [maxDuration]);
 
   return (
     <div className="flex flex-col h-full">
