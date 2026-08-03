@@ -21,14 +21,16 @@ export const CROSS_DISCIPLINARY_ENGINES: string[] = [
  * can list them without scanning the filesystem.
  */
 export const MOTION_X_ENGINES: string[] = [
-  "Adaptive", "Auditor", "AutoFix", "Choreographer", "Codec", "Cognition",
-  "Cohesion", "Collaboration", "Comparator", "Conflict", "Context",
-  "Critique", "Curator", "Dialect", "Dream", "Ecology", "Emotion",
-  "Entropy", "Evolution", "ExportOptimizer", "Forecast", "Genome",
-  "Harmonics", "Intelligence", "KnowledgeGraph", "Lineage", "Negotiation",
-  "Path", "Perception", "Persona", "Poetics", "Profiler", "Reflection",
-  "Remix", "Resonance", "Semantics", "Strategist", "Storytelling",
-  "StyleTransfer", "Synesthesia", "Synthesis", "Testing", "Topology",
+  "Adaptive", "Auditor", "AutoFix", "Budget", "Calibration", "CausalInference",
+  "Choreographer", "Codec", "Cognition", "Cohesion", "Collaboration",
+  "Comparator", "Conflict", "Context", "Critique", "Curator", "Dialect",
+  "Dream", "Ecology", "Emotion", "Entropy", "Evolution", "ExportOptimizer",
+  "Forecast", "Genome", "Harmonics", "Intelligence", "Jury", "KnowledgeGraph",
+  "LayerGraph", "Lineage", "Narrative", "Negotiation", "Path", "Perception",
+  "Persona", "Poetics", "Profiler", "Recipes", "Reflection", "Remix",
+  "Resonance", "Semantics", "ShaderField", "Skills", "StateGraph",
+  "Strategist", "Storytelling", "StyleTransfer", "Synesthesia", "Synthesis",
+  "Testing", "Thermodynamics", "Topology", "Trajectory",
 ];
 
 export interface CapabilityManifest {
