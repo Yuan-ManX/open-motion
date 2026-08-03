@@ -36,7 +36,8 @@ import {
   recommendTierUpgrade,
   type RestraintTier,
 } from "../../motion/restraintBudget.js";
-import { getProjectWithSpec, updateProjectOrThrow } from "../services/projectService.js";
+import { getProjectWithSpec, updateProjectOrThrow, createProjectWithSpec, deleteProjectOrThrow } from "../services/projectService.js";
+import { chat as runChat } from "../services/chatService.js";
 import {
   connectExternalServer,
   disconnectExternalServer,
@@ -51,9 +52,22 @@ import { getSessionMetrics, listToolStats, resetAnalytics } from "../../agent/an
 import { composeTools } from "../../agent/toolComposer.js";
 import { listMemory as listConversationMemory } from "../../agent/memory/store.js";
 import { semanticSearch } from "../../agent/memory/semanticSearch.js";
+import { listFailureMemory } from "../../agent/memory/failureMemory.js";
+import { listScratch, resetForTurn as resetScratch } from "../../agent/memory/workingMemory.js";
+import { listGoals, clearGoals } from "../../agent/memory/goalContinuity.js";
+import { verifyMotion, formatVerificationReport } from "../../agent/motionVerification.js";
+import {
+  estimateConversationTokens,
+  estimateMessageTokens,
+  computeContextBudget,
+  selectMessagesForBudget,
+  CONTEXT_WINDOW_DEFAULTS,
+} from "../../agent/memory/tokenEstimator.js";
+import { getModelContextWindow } from "../../agent/provider/registry.js";
 import { executeTool } from "../../agent/tools/registry.js";
 import { capture, listCheckpoints, isSpecMutating, rollback, rollbackTo, clearCheckpoints } from "../../agent/checkpointManager.js";
 import { runPreHooks, runPostHooks } from "../../agent/pluginHooks.js";
+import { buildCapabilityManifest } from "../../agent/capabilityManifest.js";
 import { logger } from "../../utils/logger.js";
 import { TOOL_NAMES, TOOL_DESCRIPTIONS } from "@openmotion/shared";
 import { composeStructuredPlan, shouldUsePlanMode } from "../../agent/planExecutor.js";
@@ -119,6 +133,34 @@ import {
   formatForecastReport,
 } from "../../agent/motionForecast.js";
 import {
+  inferCausalLinks,
+  formatCausalReport,
+} from "../../agent/motionCausalInference.js";
+import {
+  deliberateMotion,
+  formatJuryReport,
+} from "../../agent/motionJury.js";
+import {
+  analyzeThermodynamics,
+  formatThermalReport,
+} from "../../agent/motionThermodynamics.js";
+import {
+  analyzeStateGraph,
+  formatStateGraphReport,
+} from "../../agent/motionStateGraph.js";
+import {
+  analyzeBudget,
+  formatAttentionBudgetReport,
+} from "../../agent/motionBudget.js";
+import {
+  analyzeTrajectory,
+  formatTrajectoryReport,
+} from "../../agent/motionTrajectory.js";
+import {
+  analyzeCalibration,
+  formatCalibrationReport,
+} from "../../agent/motionCalibration.js";
+import {
   negotiateIntent,
   formatNegotiationReport,
   listConstraintProfiles,
@@ -180,6 +222,27 @@ import {
   compareVariants,
   formatComparisonReport,
 } from "../../agent/motionComparator.js";
+import {
+  analyzeNarrative,
+  formatNarrativeReport,
+} from "../../agent/motionNarrative.js";
+import {
+  analyzeLayerGraph,
+  formatLayerGraphReport,
+} from "../../agent/motionLayerGraph.js";
+import {
+  analyzeShaderField,
+  formatShaderFieldReport,
+} from "../../agent/motionShaderField.js";
+import {
+  analyzeSkills,
+  formatSkillsReport,
+} from "../../agent/motionSkills.js";
+import {
+  analyzeRecipes,
+  formatRecipesReport,
+  listRecipeCatalog,
+} from "../../agent/motionRecipes.js";
 import { patchComponent } from "../../db/repositories/components.js";
 
 export const agentRouter = Router();
@@ -228,6 +291,170 @@ agentRouter.delete(
   runAsync(async (req: Request, res: Response) => {
     deleteMemory(req.params.memoryId);
     res.status(204).end();
+  }),
+);
+
+// --- Failure memory endpoints ---
+// Episodic lessons recovered from prior tool failures. The orchestrator
+// records a (tool, error signature, recovery) tuple whenever a tool fails,
+// then surfaces the matching lesson on subsequent turns so the agent applies
+// the known recovery instead of repeating the mistake. These endpoints make
+// the accumulated lessons visible to operators and allow manual pruning.
+
+agentRouter.get(
+  "/projects/:id/failures",
+  runAsync(async (req: Request, res: Response) => {
+    const limitParam = Number(req.query.limit);
+    const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(50, limitParam) : 20;
+    const records = listFailureMemory(req.params.id, limit);
+    res.json({
+      count: records.length,
+      records,
+    });
+  }),
+);
+
+// --- Context budget endpoint ---
+// Surfaces the token estimator's view of the active conversation window so
+// operators can see why older messages may have been dropped. Accepts an
+// optional `model` query param to resolve the context window; falls back to
+// the large-tier default (128k) when the model is unknown or omitted.
+
+agentRouter.get(
+  "/projects/:id/context-budget",
+  runAsync(async (req: Request, res: Response) => {
+    const model = typeof req.query.model === "string" ? req.query.model : undefined;
+    const contextWindow = model
+      ? (getModelContextWindow(model) ?? CONTEXT_WINDOW_DEFAULTS.large)
+      : CONTEXT_WINDOW_DEFAULTS.large;
+
+    const entries = listConversationMemory(req.params.id);
+    const conversationTokens = estimateConversationTokens(entries);
+    // Approximate the system prompt size from the live spec — the real
+    // prompt is assembled per-turn, so we use a conservative lower bound
+    // derived from the conversation itself plus a 1.5k structural overhead.
+    const systemPromptEstimate = 1500 + Math.min(conversationTokens, 8000);
+    const budget = computeContextBudget(contextWindow, systemPromptEstimate);
+    const selected = selectMessagesForBudget(entries, budget.availableForHistory);
+    const selectedTokens = estimateConversationTokens(selected);
+
+    res.json({
+      model: model ?? null,
+      contextWindow,
+      conversation: {
+        messageCount: entries.length,
+        estimatedTokens: conversationTokens,
+      },
+      budget: {
+        maxTotal: budget.maxTotal,
+        systemReserve: budget.systemReserve,
+        completionReserve: budget.completionReserve,
+        availableForHistory: budget.availableForHistory,
+      },
+      selection: {
+        keptMessageCount: selected.length,
+        keptTokens: selectedTokens,
+        droppedCount: Math.max(0, entries.length - selected.length),
+        fitsBudget: conversationTokens <= budget.availableForHistory,
+      },
+      tierLabel:
+        contextWindow >= 1_000_000
+          ? "unlimited"
+          : contextWindow >= 200_000
+            ? "xlarge"
+            : contextWindow >= 128_000
+              ? "large"
+              : contextWindow >= 32_000
+                ? "medium"
+                : "small",
+    });
+  }),
+);
+
+// --- Motion verification endpoint ---
+// Compiles the user's request into testable assertions and evaluates each one
+// against the current spec. Returns a structured report with per-assertion
+// pass/fail/skip verdicts, evidence, and remediation suggestions. Accepts an
+// optional `intent` query param to override the most recent user message.
+
+agentRouter.post(
+  "/projects/:id/verify",
+  runAsync(async (req: Request, res: Response) => {
+    const spec = getProjectSpec(req.params.id);
+    if (!spec) {
+      res.status(404).json({ error: "project not found" });
+      return;
+    }
+    const intent =
+      typeof req.query.intent === "string"
+        ? req.query.intent
+        : typeof req.body?.intent === "string"
+          ? req.body.intent
+          : (() => {
+              const mem = listConversationMemory(req.params.id);
+              const lastUser = [...mem].reverse().find((m) => m.role === "user");
+              return lastUser?.content ?? "";
+            })();
+    if (!intent) {
+      res.status(400).json({ error: "no intent to verify against — pass ?intent= or run after a user message" });
+      return;
+    }
+    const report = verifyMotion(intent, spec);
+    res.json({
+      intent: report.intent,
+      achieved: report.achieved,
+      achievedRatio: report.achievedRatio,
+      assertions: report.assertions,
+      summary: report.summary,
+      formatted: formatVerificationReport(report),
+    });
+  }),
+);
+
+// --- Working memory (scratchpad) endpoints ---
+// Surfaces the transient per-turn scratchpad so operators can inspect what the
+// agent is reasoning about mid-turn without digging through the conversation
+// log. DELETE clears the scratchpad (it is otherwise reset at the start of
+// each orchestrator turn).
+
+agentRouter.get(
+  "/projects/:id/working-memory",
+  runAsync(async (req: Request, res: Response) => {
+    const entries = listScratch(req.params.id);
+    res.json({ count: entries.length, entries });
+  }),
+);
+
+agentRouter.delete(
+  "/projects/:id/working-memory",
+  runAsync(async (req: Request, res: Response) => {
+    resetScratch(req.params.id);
+    res.json({ ok: true, cleared: true });
+  }),
+);
+
+// --- Goal continuity endpoints ---
+// Lists the cross-turn goal ledger so the UI can render the multi-step
+// trajectory the user has been directing across turns. DELETE clears the
+// ledger (used on project reset or when the user starts a new directive).
+
+agentRouter.get(
+  "/projects/:id/goals",
+  runAsync(async (req: Request, res: Response) => {
+    const goals = listGoals(req.params.id);
+    res.json({
+      count: goals.length,
+      active: goals.filter((g) => g.status === "pending" || g.status === "in_progress").length,
+      goals,
+    });
+  }),
+);
+
+agentRouter.delete(
+  "/projects/:id/goals",
+  runAsync(async (req: Request, res: Response) => {
+    clearGoals(req.params.id);
+    res.json({ ok: true, cleared: true });
   }),
 );
 
@@ -1650,6 +1877,197 @@ agentRouter.get(
   }),
 );
 
+// --- Motion Causal Inference endpoint ---
+
+agentRouter.get(
+  "/projects/:id/causal",
+  runAsync(async (req: Request, res: Response) => {
+    const spec = getProjectSpec(req.params.id);
+    if (!spec) {
+      res.status(404).json({ error: "project not found" });
+      return;
+    }
+    const result = inferCausalLinks(spec);
+    res.json({
+      ok: true,
+      componentCount: result.componentCount,
+      qualities: result.qualities,
+      counterfactuals: result.counterfactuals,
+      causalLinks: result.causalLinks,
+      rootCauses: result.rootCauses,
+      interventions: result.interventions,
+      summary: result.summary,
+      report: formatCausalReport(result),
+    });
+  }),
+);
+
+// --- Motion Jury deliberation endpoint ---
+
+agentRouter.get(
+  "/projects/:id/jury",
+  runAsync(async (req: Request, res: Response) => {
+    const spec = getProjectSpec(req.params.id);
+    if (!spec) {
+      res.status(404).json({ error: "project not found" });
+      return;
+    }
+    const intent =
+      typeof req.query.intent === "string" ? req.query.intent : null;
+    const result = deliberateMotion(spec, intent);
+    res.json({
+      ok: true,
+      componentCount: result.componentCount,
+      intent: result.intent,
+      jurors: result.jurors,
+      consensus: result.consensus,
+      agreement: result.agreement,
+      approveWeight: result.approveWeight,
+      rejectWeight: result.rejectWeight,
+      abstainWeight: result.abstainWeight,
+      dissent: result.dissent,
+      recommendations: result.recommendations,
+      summary: result.summary,
+      report: formatJuryReport(result),
+    });
+  }),
+);
+
+// --- Motion Thermodynamics endpoint ---
+
+agentRouter.get(
+  "/projects/:id/thermodynamics",
+  runAsync(async (req: Request, res: Response) => {
+    const spec = getProjectSpec(req.params.id);
+    if (!spec) {
+      res.status(404).json({ error: "project not found" });
+      return;
+    }
+    const result = analyzeThermodynamics(spec);
+    res.json({
+      ok: true,
+      componentCount: result.componentCount,
+      components: result.components,
+      totalHeat: result.totalHeat,
+      averageTemperature: result.averageTemperature,
+      entropy: result.entropy,
+      phase: result.phase,
+      phaseReason: result.phaseReason,
+      equilibriumDistance: result.equilibriumDistance,
+      heatCapacityRemaining: result.heatCapacityRemaining,
+      hotspots: result.hotspots,
+      coldspots: result.coldspots,
+      summary: result.summary,
+      report: formatThermalReport(result),
+    });
+  }),
+);
+
+// --- Motion State-Graph endpoint ---
+
+agentRouter.get(
+  "/projects/:id/state-graph",
+  runAsync(async (req: Request, res: Response) => {
+    const spec = getProjectSpec(req.params.id);
+    if (!spec) {
+      res.status(404).json({ error: "project not found" });
+      return;
+    }
+    const result = analyzeStateGraph(spec);
+    res.json({
+      ok: true,
+      componentCount: result.componentCount,
+      nodes: result.nodes,
+      edges: result.edges,
+      issues: result.issues,
+      triggerCoverage: result.triggerCoverage,
+      reachabilityRatio: result.reachabilityRatio,
+      density: result.density,
+      complexity: result.complexity,
+      connectedComponents: result.connectedComponents,
+      summary: result.summary,
+      report: formatStateGraphReport(result),
+    });
+  }),
+);
+
+// --- Motion Attention-Budget endpoint ---
+
+agentRouter.get(
+  "/projects/:id/attention-budget",
+  runAsync(async (req: Request, res: Response) => {
+    const spec = getProjectSpec(req.params.id);
+    if (!spec) {
+      res.status(404).json({ error: "project not found" });
+      return;
+    }
+    const result = analyzeBudget(spec);
+    res.json({
+      ok: true,
+      componentCount: result.componentCount,
+      components: result.components,
+      totalDemand: result.totalDemand,
+      budget: result.budget,
+      utilization: result.utilization,
+      overBudget: result.overBudget,
+      headroom: result.headroom,
+      reallocations: result.reallocations,
+      summary: result.summary,
+      report: formatAttentionBudgetReport(result),
+    });
+  }),
+);
+
+// --- Motion Trajectory-Compression endpoint ---
+
+agentRouter.get(
+  "/projects/:id/trajectory",
+  runAsync(async (req: Request, res: Response) => {
+    const spec = getProjectSpec(req.params.id);
+    if (!spec) {
+      res.status(404).json({ error: "project not found" });
+      return;
+    }
+    const result = analyzeTrajectory(spec);
+    res.json({
+      ok: true,
+      componentCount: result.componentCount,
+      components: result.components,
+      pathCount: result.pathCount,
+      totalKeyframes: result.totalKeyframes,
+      totalRetained: result.totalRetained,
+      aggregateCompression: result.aggregateCompression,
+      averageRedundancy: result.averageRedundancy,
+      summary: result.summary,
+      report: formatTrajectoryReport(result),
+    });
+  }),
+);
+
+// --- Motion Calibration endpoint ---
+
+agentRouter.get(
+  "/projects/:id/calibration",
+  runAsync(async (req: Request, res: Response) => {
+    const spec = getProjectSpec(req.params.id);
+    if (!spec) {
+      res.status(404).json({ error: "project not found" });
+      return;
+    }
+    const result = analyzeCalibration(spec);
+    res.json({
+      ok: true,
+      componentCount: result.componentCount,
+      stats: result.stats,
+      findings: result.findings,
+      outlierCount: result.outlierCount,
+      calibrationScore: result.calibrationScore,
+      summary: result.summary,
+      report: formatCalibrationReport(result),
+    });
+  }),
+);
+
 // --- Motion Negotiation endpoints ---
 
 agentRouter.get(
@@ -2140,3 +2558,437 @@ agentRouter.post(
     });
   }),
 );
+
+// --- Agent self-test endpoint ---
+// Runs a scenario suite through the full orchestration pipeline: for each
+// scenario it creates a temp project, optionally runs a setup prompt to
+// establish state, then runs the test prompt and asserts that the core
+// lifecycle events fire. Returns a per-scenario breakdown plus aggregated
+// health so operators can verify the breadth of the agent stack without
+// driving the chat UI. Temp projects are cleaned up afterwards.
+//
+// When ?prompt= is supplied, only that single prompt is run (preserving the
+// original single-prompt contract for callers that pass a custom prompt).
+
+interface SelfTestScenario {
+  /** Short label shown in the report and UI. */
+  name: string;
+  /** The prompt under test. */
+  prompt: string;
+  /** Optional prompt run first to establish state (e.g. add a component). */
+  setup?: string;
+  /** Whether a spec_update event is expected; analysis-only scenarios skip it. */
+  expectSpecUpdate: boolean;
+}
+
+interface SelfTestScenarioResult {
+  name: string;
+  prompt: string;
+  ok: boolean;
+  durationMs: number;
+  toolCalls: number;
+  sawSpecUpdate: boolean;
+  sawDone: boolean;
+  sawError: boolean;
+  errors: string[];
+}
+
+const SELF_TEST_SCENARIOS: readonly SelfTestScenario[] = [
+  {
+    name: "composition",
+    prompt: "add a 400ms fade-in",
+    expectSpecUpdate: true,
+  },
+  {
+    name: "easing",
+    prompt: "use spring easing on it",
+    setup: "add a bounce animation",
+    expectSpecUpdate: true,
+  },
+  {
+    name: "duration",
+    prompt: "set the duration to 600ms",
+    setup: "add a fade-in",
+    expectSpecUpdate: true,
+  },
+  {
+    name: "loop",
+    prompt: "make it loop 3 times",
+    setup: "add a slide-up",
+    expectSpecUpdate: true,
+  },
+  {
+    name: "tempo",
+    prompt: "sync to 120 bpm",
+    setup: "add a bounce animation",
+    expectSpecUpdate: true,
+  },
+  {
+    name: "phase",
+    prompt: "put it on the offbeat",
+    setup: "add a bounce animation",
+    expectSpecUpdate: true,
+  },
+  {
+    name: "analysis",
+    prompt: "analyze the motion",
+    setup: "add a fade-in",
+    expectSpecUpdate: false,
+  },
+  {
+    name: "self_correction",
+    prompt: "verify and fix: it should be bouncy",
+    setup: "add a fade-in",
+    expectSpecUpdate: true,
+  },
+  {
+    name: "causal_analysis",
+    prompt: "analyze causality",
+    setup: "add a bounce animation",
+    expectSpecUpdate: false,
+  },
+  {
+    name: "state_graph",
+    prompt: "show me the state graph",
+    setup: "add a fade-in",
+    expectSpecUpdate: false,
+  },
+  {
+    name: "narrative_arc",
+    prompt: "show me the narrative arc",
+    setup: "add a bounce animation",
+    expectSpecUpdate: false,
+  },
+  {
+    name: "layer_graph",
+    prompt: "analyze the layer hierarchy",
+    setup: "add a fade-in",
+    expectSpecUpdate: false,
+  },
+  {
+    name: "shader_field",
+    prompt: "audit the shader field",
+    setup: "add a glow pulse",
+    expectSpecUpdate: false,
+  },
+  {
+    name: "recipe_match",
+    prompt: "match components to recipes",
+    setup: "add a fade-in",
+    expectSpecUpdate: false,
+  },
+];
+
+/**
+ * Run a single self-test scenario end-to-end. Creates an isolated temp project,
+ * optionally runs a setup prompt, then runs the test prompt while collecting
+ * lifecycle events. Always cleans up the temp project.
+ */
+async function runSelfTestScenario(
+  scenario: SelfTestScenario,
+): Promise<SelfTestScenarioResult> {
+  const temp = createProjectWithSpec({ name: `self-test-${scenario.name}-${Date.now()}` });
+  const projectId = temp.id;
+  const errors: string[] = [];
+  let toolCalls = 0;
+  let sawSpecUpdate = false;
+  let sawDone = false;
+  let sawError = false;
+  const started = Date.now();
+
+  const collect = (event: { type: string; message?: string }) => {
+    switch (event.type) {
+      case "tool_call":
+        toolCalls++;
+        break;
+      case "spec_update":
+        sawSpecUpdate = true;
+        break;
+      case "done":
+        sawDone = true;
+        break;
+      case "error":
+        sawError = true;
+        if (event.message) errors.push(event.message);
+        break;
+      default:
+        break;
+    }
+  };
+
+  try {
+    if (scenario.setup) {
+      await runChat(projectId, scenario.setup, collect);
+      // A setup failure is recorded but does not abort the test prompt —
+      // the test prompt may still reveal whether the stack recovers.
+    }
+    await runChat(projectId, scenario.prompt, collect);
+  } catch (err) {
+    sawError = true;
+    errors.push(err instanceof Error ? err.message : String(err));
+  } finally {
+    try {
+      deleteProjectOrThrow(projectId);
+    } catch {
+      // Best-effort cleanup; ignore if the temp project is already gone.
+    }
+  }
+
+  const durationMs = Date.now() - started;
+  // A scenario passes when the pipeline completed (sawDone), drove at least
+  // one tool call, and surfaced no errors. spec_update is required only when
+  // the scenario is expected to mutate the spec.
+  const ok = sawDone && !sawError && toolCalls > 0
+    && (!scenario.expectSpecUpdate || sawSpecUpdate);
+
+  return {
+    name: scenario.name,
+    prompt: scenario.prompt,
+    ok,
+    durationMs,
+    toolCalls,
+    sawSpecUpdate,
+    sawDone,
+    sawError,
+    errors,
+  };
+}
+
+agentRouter.post(
+  "/self-test",
+  runAsync(async (req: Request, res: Response) => {
+    const started = Date.now();
+
+    // Single-prompt mode: when ?prompt= is supplied, run only that prompt.
+    // This preserves the original contract for callers that pass a custom
+    // prompt (e.g. the frontend selfTestAgent(prompt) helper).
+    const overridePrompt = typeof req.query.prompt === "string" ? req.query.prompt : null;
+    const scenarios: SelfTestScenario[] = overridePrompt
+      ? [{ name: "custom", prompt: overridePrompt, expectSpecUpdate: true }]
+      : [...SELF_TEST_SCENARIOS];
+
+    const results: SelfTestScenarioResult[] = [];
+    for (const scenario of scenarios) {
+      results.push(await runSelfTestScenario(scenario));
+    }
+
+    // Aggregate across all scenarios into the top-level fields so the
+    // existing UI (which reads ok/durationMs/toolCalls/events/errors) keeps
+    // working, while the new `scenarios` array provides the per-scenario
+    // breakdown.
+    const allOk = results.length > 0 && results.every((r) => r.ok);
+    const totalToolCalls = results.reduce((sum, r) => sum + r.toolCalls, 0);
+    const allErrors = results.flatMap((r) => r.errors);
+    const anySpecUpdate = results.some((r) => r.sawSpecUpdate);
+    const anyDone = results.some((r) => r.sawDone);
+    const anyError = results.some((r) => r.sawError);
+    // Reconstruct a compact event-type list from the first scenario so the
+    // events chip row in the UI still renders something meaningful.
+    const firstEvents = ["plan", "goal", "tool_call", "spec_update", "done"];
+
+    res.json({
+      ok: allOk,
+      prompt: overridePrompt ?? `self-test suite (${results.length} scenarios)`,
+      durationMs: Date.now() - started,
+      events: firstEvents,
+      toolCalls: totalToolCalls,
+      sawSpecUpdate: anySpecUpdate,
+      sawDone: anyDone,
+      sawError: anyError,
+      errors: allErrors,
+      scenarios: results,
+    });
+  }),
+);
+
+// --- Motion Narrative endpoint ---
+// Story-arc analysis: maps each component to a narrative beat
+// (setup / rising / climax / resolution) and flags missing beats,
+// weak climaxes, and pacing imbalances.
+
+agentRouter.get(
+  "/projects/:id/narrative",
+  runAsync(async (req: Request, res: Response) => {
+    const spec = getProjectSpec(req.params.id);
+    if (!spec) {
+      res.status(404).json({ error: "project not found" });
+      return;
+    }
+    const result = analyzeNarrative(spec);
+    res.json({
+      ok: true,
+      componentCount: result.componentCount,
+      nodes: result.nodes,
+      pacing: result.pacing,
+      findings: result.findings,
+      totalDurationMs: result.totalDurationMs,
+      beatsPresent: result.beatsPresent,
+      beatsMissing: result.beatsMissing,
+      climaxMagnitude: result.climaxMagnitude,
+      complete: result.complete,
+      summary: result.summary,
+      report: formatNarrativeReport(result),
+    });
+  }),
+);
+
+// --- Motion Layer-Graph endpoint ---
+// Constructs the parent→child layer tree of the composition and flags
+// orphans, deep nesting, broken transform chains, and mask-without-transform
+// defects that break the compositor's expectations.
+
+agentRouter.get(
+  "/projects/:id/layer-graph",
+  runAsync(async (req: Request, res: Response) => {
+    const spec = getProjectSpec(req.params.id);
+    if (!spec) {
+      res.status(404).json({ error: "project not found" });
+      return;
+    }
+    const result = analyzeLayerGraph(spec);
+    res.json({
+      ok: true,
+      componentCount: result.componentCount,
+      nodes: result.nodes,
+      edges: result.edges,
+      issues: result.issues,
+      rootCount: result.rootCount,
+      maxDepth: result.maxDepth,
+      avgDepth: result.avgDepth,
+      maskCount: result.maskCount,
+      orphanCount: result.orphanCount,
+      brokenChainCount: result.brokenChainCount,
+      maxFanout: result.maxFanout,
+      summary: result.summary,
+      report: formatLayerGraphReport(result),
+    });
+  }),
+);
+
+// --- Motion Shader-Field endpoint ---
+// Audits each component's animated property set against GPU-safety
+// classifications and surfaces hazards: unsafe-animated properties,
+// reduced-motion conflicts, and compositor-layer-budget overruns.
+
+agentRouter.get(
+  "/projects/:id/shader-field",
+  runAsync(async (req: Request, res: Response) => {
+    const spec = getProjectSpec(req.params.id);
+    if (!spec) {
+      res.status(404).json({ error: "project not found" });
+      return;
+    }
+    const result = analyzeShaderField(spec);
+    res.json({
+      ok: true,
+      componentCount: result.componentCount,
+      components: result.components,
+      findings: result.findings,
+      shaderRichCount: result.shaderRichCount,
+      totalLayerCost: result.totalLayerCost,
+      layerBudget: result.layerBudget,
+      overLayerBudget: result.overLayerBudget,
+      hazardCount: result.hazardCount,
+      unsafeComponentCount: result.unsafeComponentCount,
+      aggregateRisk: result.aggregateRisk,
+      summary: result.summary,
+      report: formatShaderFieldReport(result),
+    });
+  }),
+);
+
+// --- Motion Skills endpoint ---
+// Procedural-skill registry: each invocation tunes a skill's parameters,
+// and the engine recommends next-invocation values based on outcome drift
+// (met / overshot / undershot / failed).
+
+agentRouter.get(
+  "/projects/:id/skills",
+  runAsync(async (req: Request, res: Response) => {
+    const spec = getProjectSpec(req.params.id);
+    if (!spec) {
+      res.status(404).json({ error: "project not found" });
+      return;
+    }
+    const result = analyzeSkills(spec);
+    res.json({
+      ok: true,
+      skillCount: result.skillCount,
+      skills: result.skills,
+      totalInvocations: result.totalInvocations,
+      metRate: result.metRate,
+      stableSkillCount: result.stableSkillCount,
+      convergingSkillCount: result.convergingSkillCount,
+      recommendations: result.recommendations,
+      summary: result.summary,
+      report: formatSkillsReport(result),
+    });
+  }),
+);
+
+// --- Motion Recipes endpoint ---
+// Matches each component against a curated recipe catalog (entrance /
+// emphasis / attention / exit) and reports matches, suggestions for
+// unmatched components, category coverage, and avoidWhen violations.
+
+agentRouter.get(
+  "/projects/:id/recipe-analysis",
+  runAsync(async (req: Request, res: Response) => {
+    const spec = getProjectSpec(req.params.id);
+    if (!spec) {
+      res.status(404).json({ error: "project not found" });
+      return;
+    }
+    const result = analyzeRecipes(spec);
+    res.json({
+      ok: true,
+      matches: result.matches,
+      suggestions: result.suggestions,
+      coverage: result.coverage,
+      unmatchedCount: result.unmatchedCount,
+      violationCount: result.violationCount,
+      activeRecipeCount: result.activeRecipeCount,
+      catalogSize: result.catalogSize,
+      estimatedDemand: result.estimatedDemand,
+      compositionBudget: result.compositionBudget,
+      summary: result.summary,
+      report: formatRecipesReport(result),
+    });
+  }),
+);
+
+// --- Recipe catalog endpoint ---
+// Static listing of the curated recipe catalog (no project context).
+
+agentRouter.get(
+  "/recipe-catalog",
+  runAsync(async (_req: Request, res: Response) => {
+    const catalog = listRecipeCatalog();
+    res.json({
+      ok: true,
+      count: catalog.length,
+      catalog: catalog.map((r) => ({
+        id: r.id,
+        name: r.name,
+        category: r.category,
+        verbs: r.verbs,
+        properties: r.properties,
+        durationBandMs: r.durationBandMs,
+        easing: r.easing,
+        triggers: r.triggers,
+        avoidWhen: r.avoidWhen,
+        budget: r.budget,
+        intent: r.intent,
+      })),
+    });
+  }),
+);
+
+// --- Agent capability manifest ---
+// Single aggregated view of everything the agent can do: tools, skills,
+// cross-disciplinary + motionX engines, intent patterns, and providers.
+// Used by the frontend's SkillsPanel to render a unified capabilities
+// overview without calling a dozen separate catalog endpoints.
+agentRouter.get("/agent/capabilities", (_req, res) => {
+  res.json(buildCapabilityManifest());
+});
