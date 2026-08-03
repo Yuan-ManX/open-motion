@@ -199,6 +199,67 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     }
   }
 
+  // --- Tempo / beat sync: set project BPM and quantize durations to the beat grid ---
+  // tracked separately from globalTimingMatched so we can suppress the
+  // analyze_rhythm block below: when the user explicitly wants to SET/QUANTIZE
+  // the tempo (e.g. "sync to 120 bpm"), the rhythm-analysis tool would otherwise
+  // fire too (its regex also matches bpm/tempo/beat) and bury the set+quantize
+  // result under an analysis summary.
+  let tempoSetRequested = false;
+  if (/\b(bpm|tempo|beat\s*sync|on\s*the\s*beat|quantize)\b|节拍|节奏|拍子/i.test(userText)) {
+    const bpmMatch = userText.match(/\b(\d{2,3})\s*bpm\b|\b(?:tempo|bpm)\s*(\d{2,3})\b|(\d{2,3})\s*拍/i);
+    const bpm = bpmMatch ? Number(bpmMatch[1] ?? bpmMatch[2] ?? bpmMatch[3]) : 120;
+    if (bpm >= 20 && bpm <= 300) {
+      push("set_project_tempo", { bpm }, `Set project tempo to ${bpm} BPM.`);
+      push("quantize_to_tempo", {}, `Snapped every duration to the nearest beat division at ${bpm} BPM.`);
+      globalTimingMatched = true;
+      tempoSetRequested = true;
+    }
+  }
+
+  // --- Phase & polyrhythm: anchor start times to musical phases (downbeat /
+  // offbeat / backbeat) or distribute a group across a polyrhythmic cycle.
+  // Tracked separately so the analyze_rhythm block below can be suppressed —
+  // "polyrhythm"/"offbeat" would otherwise also match the rhythm-analysis
+  // keyword set and bury the phase-setting result under an analysis summary.
+  // Requires a project tempo; when the tempo block above did not set one, a
+  // default 120 BPM is established so the phase grid exists.
+  let phaseRequested = false;
+  if (/\b(phase|offbeat|downbeat|backbeat|on the and|polyrhythm|align to (?:the )?beat)\b|相位|错拍|弱拍/i.test(userText)) {
+    const bpmMatch = userText.match(/\b(\d{2,3})\s*bpm\b|\b(?:tempo|bpm)\s*(\d{2,3})\b|(\d{2,3})\s*拍/i);
+    const bpm = bpmMatch ? Number(bpmMatch[1] ?? bpmMatch[2] ?? bpmMatch[3]) : 120;
+    if (bpm >= 20 && bpm <= 300 && !tempoSetRequested) {
+      push("set_project_tempo", { bpm }, `Set project tempo to ${bpm} BPM so phases lock to a grid.`);
+    }
+    // Polyrhythm: "3:2 polyrhythm" → distribute every component across the cycle.
+    const polyM = userText.match(/\b(\d+)\s*[:：]\s*(\d+)\s*(?:polyrhythm|poly)\b|\bpolyrhythm\s*(\d+)\s*[:：]\s*(\d+)\b/i);
+    if (polyM || /\bpolyrhythm\b/i.test(userText)) {
+      const ids = state.componentIds.length > 0 ? state.componentIds : [ensureComponent()];
+      const cycleBeats = polyM ? Number(polyM[2] ?? polyM[4]) : 4;
+      const safeCycle = Math.min(16, Math.max(1, cycleBeats));
+      push("align_to_beat",
+        { mode: "polyrhythm", componentIds: ids, cycleBeats: safeCycle },
+        `Distributed ${ids.length} component(s) evenly across a ${safeCycle}-beat polyrhythmic cycle.`);
+    } else {
+      // Single/group phase: map common phrases to the label enum.
+      let label: string;
+      if (/\bdownbeat|on the beat|beat\s*1\b/i.test(userText)) {
+        label = "downbeat";
+      } else if (/\bbackbeat|beat\s*2\b/i.test(userText)) {
+        label = "backbeat";
+      } else if (/\bbeat\s*3\b/i.test(userText)) {
+        label = "beat3";
+      } else if (/\bbeat\s*4\b/i.test(userText)) {
+        label = "beat4";
+      } else {
+        label = "offbeat";
+      }
+      const cid = state.firstComponentId ?? ensureComponent();
+      push("set_phase", { componentId: cid, label }, `Anchored the component to the ${label} phase.`);
+    }
+    phaseRequested = true;
+  }
+
   // --- Duration: slower/faster/specific ---
   if (!globalTimingMatched) {
     if (/\b(slower|slow|more time)\b|慢|更慢/i.test(userText)) {
@@ -502,6 +563,20 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     push("describe_motion", {}, "Here's the Motion DNA and description for your current animation.");
   }
 
+  // --- Self-correct: close the verification loop by fixing detected gaps ---
+  // Triggered when the user asks the agent to fix its own work. The intent
+  // passed to the tool is the raw message so the verification engine can
+  // parse the desired character (e.g. "bouncy", "smooth", "loop") from it.
+  if (/\b(self.?correct|verify and fix|check and fix|fix it|correct it|fix the motion|you (?:didn|did not) do it right|fix your (?:work|mistake))\b/i.test(userText)) {
+    push("self_correct", { intent: userText },
+      "Ran a bounded self-correction pass: verified the motion against your intent, applied the concrete remediation for each failed assertion, and re-verified — the gap is now closed.");
+  }
+
+  // --- Verify motion (check your work, did you do it right) ---
+  if (/\b(verify|check your work|did you do it right|check it|check the motion)\b/i.test(userText) && !calls.some((c) => c.tool === "self_correct")) {
+    push("verify_motion", {}, "Verified the motion against your stated intent — here's the structured pass/fail report.");
+  }
+
   // --- Analyze motion (quality, timing, accessibility) ---
   if (/\b(analyze|review|critique|quality|is this good|score|insight)\b/i.test(userText)) {
     push("analyze_motion", {}, "Here's my analysis of your motion design — timing, easing, accessibility, and composition.");
@@ -723,7 +798,11 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     push("analyze_emotion", { projectId: "" },
       "Analyzed the emotional impact of the motion composition.");
   }
-  if (/\b(rhythm|tempo|\bbeat\b|groove|cadence|\bpulse\b|syncopat|accelerando|decelerando|\bbpm\b)\b/i.test(userText)) {
+  // Suppress rhythm analysis when the user explicitly asked to SET/QUANTIZE the
+  // tempo or set a phase/polyrhythm — those tool pairs already cover the beat
+  // intent, and analyze_rhythm's keyword set overlaps (bpm/tempo/beat/rhythm).
+  if (!tempoSetRequested && !phaseRequested
+      && /\b(rhythm|tempo|\bbeat\b|groove|cadence|\bpulse\b|syncopat|accelerando|decelerando|\bbpm\b)\b/i.test(userText)) {
     push("analyze_rhythm", { projectId: "" },
       "Analyzed the visual rhythm of the motion composition.");
   }
@@ -881,7 +960,7 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
       "Listed all motion themes — each coordinates easing families, timing scales, and choreography rules.");
   }
 
-  // --- Rhythm patterns: musical-inspired timing ---
+  // --- Rhythm patterns: musical timing ---
   if (/\b(apply.*rhythm|use.*rhythm|rhythm.*pattern.*apply|stagger.*rhythm|heartbeat.*stagger|swing.*stagger|waltz.*timing)\b/i.test(userText)) {
     const patternM = userText.match(/\b(steady.?beat|syncopated|swing|rubato|polyrhythm|gallop|waltz|fanfare|heartbeat|wave.?flow|accelerando|decelerando)\b/i);
     const patternId = patternM ? patternM[1].replace(/\s+/g, "-").toLowerCase() : "steady-beat";
