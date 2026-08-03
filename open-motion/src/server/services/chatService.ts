@@ -67,6 +67,7 @@ export async function chat(
     projectId,
     userMessage: message,
     provider,
+    model,
     onEvent: (event) => {
       if (onEvent) onEvent(event);
       switch (event.type) {
@@ -120,7 +121,7 @@ export async function chatStream(
   ensureProjectExists(projectId);
   const provider = await resolveProvider(model);
   onMeta(provider.name);
-  await orchestrate({ projectId, userMessage: message, provider, onEvent });
+  await orchestrate({ projectId, userMessage: message, provider, model, onEvent });
 }
 
 export function listProjectMessages(projectId: string) {
