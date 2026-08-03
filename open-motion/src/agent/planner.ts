@@ -752,6 +752,16 @@ export function buildPlan(userMessage: string, spec: MotionSpec): Plan {
     steps.push({ tool: "set_mood", description: "Apply a mood profile to translate emotional language into motion parameters" });
   }
 
+  // Motion Volition: decide whether to act, ask, defer, or refine.
+  if (/\b(should you|act or ask|clarif|volition|ready to act|confident|are you sure)\b/i.test(text)) {
+    steps.push({ tool: "decide_volition", description: "Decide whether to act, ask, defer, or refine before dispatching tools" });
+  }
+
+  // Motion Lexicon: translate intent into motion tokens and categories.
+  if (/\b(motion.*token|duration.*token|easing.*token|motion.*categor|lexicon|reduced.?motion.*mode)\b/i.test(text) || /(丝滑|高级|电影感|弹性|淡入|滑动|加载|翻页|打字|闪烁|缓出|缓入|弹簧)/.test(text)) {
+    steps.push({ tool: "translate_lexicon", description: "Translate the intent into duration/easing tokens and a motion category" });
+  }
+
   // Creative suggestions: context-aware next-step ideas with surprise mode.
   if (/\b(surprise|creative|inspire|ideas?|suggest)\s+(?:me\s+)?/i.test(text) || /\bwhat\s+(?:should|could|would|can)\s+i\b/i.test(text)) {
     const wantsSurprise = /\bsurprise\b/i.test(text);
