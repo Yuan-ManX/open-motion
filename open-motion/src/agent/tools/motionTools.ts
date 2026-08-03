@@ -47,6 +47,16 @@ import {
 } from "../../motion/projectRecipes.js";
 import { runMotionPipeline } from "../../motion/automationPipeline.js";
 import { flattenToTimeline, createComposition } from "../../motion/compositionEngine.js";
+import {
+  quantizeDuration,
+  divisionLabel,
+  isValidTempo,
+  resolvePhaseLabel,
+  phaseToDelayMs,
+  polyrhythmDelays,
+  quantizeDelay,
+  type BeatDivision,
+} from "../../motion/motionTempo.js";
 import { seekToFrame, renderFrameRange, findThumbnailFrame } from "../../motion/frameRenderer.js";
 import { generateHtmlComposition } from "../../motion/htmlComposition.js";
 import { resolveMedia } from "../../motion/mediaPipeline.js";
@@ -108,6 +118,13 @@ import type { StoryboardBeat } from "../../motion/storyboard.js";
 import { planSequence, optimizeTransitions, summarizeSequence, type NarrativeArcId } from "../../motion/motionSequencePlanner.js";
 import { getTheme, applyTheme, analyzeThemeCompatibility } from "../../motion/motionThemeSystem.js";
 import { generateVariants, compareVariants, summarizeVariants } from "../../motion/motionVariantGenerator.js";
+import { predictIntent, formatTelepathyReport, type TelepathyReport } from "../motionTelepathy.js";
+import { forecast, formatProphecyReport, type ProphecyReport } from "../motionProphecy.js";
+import { genesis, formatGenesisReport, type GenesisKind } from "../motionGenesis.js";
+import { analyzeSymbiosis, formatSymbiosisReport, type SymbiosisReport } from "../motionSymbiosis.js";
+import { reflect, formatConsciousnessReport, type ConsciousnessReport } from "../motionConsciousness.js";
+import { decide, formatVolitionReport, type VolitionReport } from "../motionVolition.js";
+import { translateLexicon, formatLexiconReport, type LexiconReport } from "../motionLexicon.js";
 import { getPreset } from "./presets.js";
 import type { ToolContext, ToolResult } from "./registry.js";
 
@@ -345,6 +362,141 @@ export const motionExecutors: Partial<Record<ToolName, Executor>> = {
       globalTiming: { ...project.globalTiming, totalDurationMs },
     });
     return ok(`set project total duration to ${totalDurationMs ?? "auto"}ms`);
+  },
+
+  set_project_tempo: (args, ctx) => {
+    const bpm = Number(args.bpm);
+    if (!isValidTempo(bpm)) return fail(`bpm ${bpm} out of range (20-300)`);
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    updateProject(ctx.projectId, {
+      globalTiming: { ...project.globalTiming, bpm },
+    });
+    return ok(`set project tempo to ${bpm} BPM`);
+  },
+
+  quantize_to_tempo: (args, ctx) => {
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const bpm = project.globalTiming?.bpm;
+    if (!bpm || !isValidTempo(bpm)) {
+      return fail(`no project tempo set — call set_project_tempo first`);
+    }
+    const forcedDivision = args.division != null ? (Number(args.division) as BeatDivision) : undefined;
+    const targets = args.componentId
+      ? listComponents(ctx.projectId).filter((c) => c.id === String(args.componentId))
+      : listComponents(ctx.projectId);
+    if (targets.length === 0) return fail(`no components to quantize`);
+    const changes: string[] = [];
+    for (const c of targets) {
+      const { ms, division } = quantizeDuration(c.durationMs, bpm, forcedDivision);
+      if (ms !== c.durationMs) {
+        patchComponent(ctx.projectId, c.id, { durationMs: ms });
+        changes.push(`${c.name}: ${c.durationMs}ms -> ${ms}ms (${divisionLabel(division)})`);
+      }
+    }
+    if (changes.length === 0) {
+      return ok(`all ${targets.length} component(s) already on the beat grid at ${bpm} BPM`);
+    }
+    return ok(`quantized ${changes.length}/${targets.length} component(s) to ${bpm} BPM:\n${changes.join("\n")}`);
+  },
+
+  set_phase: (args, ctx) => {
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const bpm = project.globalTiming?.bpm;
+    if (!bpm || !isValidTempo(bpm)) {
+      return fail(`no project tempo set — call set_project_tempo first`);
+    }
+    // Resolve phase: either a numeric beat offset or a named label.
+    const label = args.label != null ? String(args.label) : null;
+    const phaseBeatsArg = args.phaseBeats != null ? Number(args.phaseBeats) : null;
+    if (label == null && phaseBeatsArg == null) {
+      return fail(`provide either label or phaseBeats`);
+    }
+    if (label != null && phaseBeatsArg != null) {
+      return fail(`label and phaseBeats are mutually exclusive`);
+    }
+    let phaseBeats: number;
+    if (label != null) {
+      const resolved = resolvePhaseLabel(label);
+      if (resolved == null) return fail(`unknown phase label "${label}"`);
+      phaseBeats = resolved;
+    } else {
+      phaseBeats = phaseBeatsArg as number;
+    }
+    // Resolve targets: explicit componentId / componentIds, else all components.
+    const explicitIds = args.componentIds
+      ? (args.componentIds as string[]).map(String)
+      : args.componentId
+        ? [String(args.componentId)]
+        : listComponents(ctx.projectId).map((c) => c.id);
+    const targets = listComponents(ctx.projectId).filter((c) => explicitIds.includes(c.id));
+    if (targets.length === 0) return fail(`no components matched`);
+    const delayMs = phaseToDelayMs(bpm, phaseBeats);
+    const changes: string[] = [];
+    for (const c of targets) {
+      if (c.delayMs !== delayMs) {
+        patchComponent(ctx.projectId, c.id, { delayMs });
+        changes.push(`${c.name}: ${c.delayMs}ms -> ${delayMs}ms (phase ${phaseBeats})`);
+      }
+    }
+    if (changes.length === 0) {
+      return ok(`all ${targets.length} component(s) already on phase ${phaseBeats} at ${bpm} BPM`);
+    }
+    return ok(`anchored ${changes.length}/${targets.length} component(s) to phase ${phaseBeats} (${delayMs}ms) at ${bpm} BPM:\n${changes.join("\n")}`);
+  },
+
+  align_to_beat: (args, ctx) => {
+    const project = getProject(ctx.projectId);
+    if (!project) return fail(`project ${ctx.projectId} not found`);
+    const bpm = project.globalTiming?.bpm;
+    if (!bpm || !isValidTempo(bpm)) {
+      return fail(`no project tempo set — call set_project_tempo first`);
+    }
+    const mode = (args.mode as "snap" | "polyrhythm") ?? "snap";
+    const explicitIds = args.componentIds
+      ? (args.componentIds as string[]).map(String)
+      : null;
+    const all = listComponents(ctx.projectId).slice().sort((a, b) => a.orderIndex - b.orderIndex);
+    const targets = explicitIds
+      ? all.filter((c) => explicitIds.includes(c.id))
+      : all;
+    if (targets.length === 0) return fail(`no components to align`);
+
+    if (mode === "polyrhythm") {
+      const cycleBeats = args.cycleBeats != null ? Number(args.cycleBeats) : 4;
+      const rotation = args.rotation != null ? Number(args.rotation) : 0;
+      const delays = polyrhythmDelays(bpm, targets.length, cycleBeats, rotation);
+      const changes: string[] = [];
+      targets.forEach((c, i) => {
+        const delayMs = delays[i];
+        if (c.delayMs !== delayMs) {
+          patchComponent(ctx.projectId, c.id, { delayMs });
+          changes.push(`${c.name}: ${c.delayMs}ms -> ${delayMs}ms`);
+        }
+      });
+      const ratio = `${targets.length}:${cycleBeats}`;
+      if (changes.length === 0) {
+        return ok(`all ${targets.length} component(s) already on the ${ratio} polyrhythm at ${bpm} BPM`);
+      }
+      return ok(`distributed ${changes.length}/${targets.length} component(s) into a ${ratio} polyrhythm (${cycleBeats} beats) at ${bpm} BPM:\n${changes.join("\n")}`);
+    }
+
+    // snap mode
+    const forcedDivision = args.division != null ? (Number(args.division) as BeatDivision) : undefined;
+    const changes: string[] = [];
+    for (const c of targets) {
+      const { ms, division } = quantizeDelay(c.delayMs, bpm, forcedDivision);
+      if (ms !== c.delayMs) {
+        patchComponent(ctx.projectId, c.id, { delayMs: ms });
+        changes.push(`${c.name}: ${c.delayMs}ms -> ${ms}ms (${divisionLabel(division)})`);
+      }
+    }
+    if (changes.length === 0) {
+      return ok(`all ${targets.length} component(s) already start on the beat grid at ${bpm} BPM`);
+    }
+    return ok(`snapped ${changes.length}/${targets.length} start delay(s) to ${bpm} BPM:\n${changes.join("\n")}`);
   },
 
   add_layer: (args, ctx) => {
@@ -4580,5 +4732,151 @@ export const motionExecutors: Partial<Record<ToolName, Executor>> = {
         summary,
       },
     };
+  },
+
+  predict_intent: (args, ctx) => {
+    const partial = String(args.partial ?? "");
+    const topK = Number(args.topK ?? 5);
+    let spec: ReturnType<typeof getProjectSpec> = null;
+    if (args.projectId) {
+      try {
+        spec = getProjectSpec(String(args.projectId));
+      } catch {
+        // Spec is optional — prediction falls back to signal-only mode.
+      }
+    } else if (ctx.projectId) {
+      try {
+        spec = getProjectSpec(ctx.projectId);
+      } catch {
+        // Ignore — proceed without prior.
+      }
+    }
+    const report: TelepathyReport = predictIntent(partial, spec, topK);
+    const formatted = formatTelepathyReport(report);
+    return ok(formatted, false, report);
+  },
+
+  forecast_motion: (_args, ctx) => {
+    const spec = getProjectSpec(ctx.projectId);
+    if (!spec) return fail(`project ${ctx.projectId} not found`);
+    const report: ProphecyReport = forecast(spec);
+    const formatted = formatProphecyReport(report);
+    return ok(formatted, false, report);
+  },
+
+  genesis_motion: (args, ctx) => {
+    const kind = String(args.kind) as GenesisKind;
+    const result = genesis(kind, {
+      samples: args.samples != null ? Number(args.samples) : undefined,
+      durationMs: args.durationMs != null ? Number(args.durationMs) : undefined,
+      a: args.a != null ? Number(args.a) : undefined,
+      b: args.b != null ? Number(args.b) : undefined,
+      amplitude: args.amplitude != null ? Number(args.amplitude) : undefined,
+      damping: args.damping != null ? Number(args.damping) : undefined,
+      omega: args.omega != null ? Number(args.omega) : undefined,
+    });
+    // Persist each draft as a real component.
+    const ts = now();
+    const createdIds: string[] = [];
+    for (const d of result.components) {
+      const id = createId("c_");
+      createComponent({
+        ...d,
+        id,
+        projectId: ctx.projectId,
+        createdAt: ts,
+        updatedAt: ts,
+      });
+      createdIds.push(id);
+    }
+    const formatted = formatGenesisReport(result);
+    return ok(formatted, true, {
+      kind: result.kind,
+      componentIds: createdIds,
+      count: createdIds.length,
+      description: result.description,
+    });
+  },
+
+  analyze_symbiosis: (args, ctx) => {
+    const projectIdA = String(args.projectIdA ?? ctx.projectId ?? "");
+    const projectIdB = String(args.projectIdB ?? "");
+    if (!projectIdA) return fail("projectIdA is required");
+    if (!projectIdB) return fail("projectIdB is required");
+    if (projectIdA === projectIdB) {
+      return fail("symbiosis requires two distinct projects — pass different projectIdA and projectIdB");
+    }
+    const specA = getProjectSpec(projectIdA);
+    if (!specA) return fail(`project ${projectIdA} not found`);
+    const specB = getProjectSpec(projectIdB);
+    if (!specB) return fail(`project ${projectIdB} not found`);
+    const report: SymbiosisReport = analyzeSymbiosis(specA, specB);
+    const persistOffspring = Boolean(args.persistOffspring);
+    const persistedIds: string[] = [];
+    if (persistOffspring) {
+      const ts = now();
+      for (const child of report.offspring) {
+        const id = createId("c_");
+        createComponent({
+          ...child.draft,
+          id,
+          projectId: projectIdA,
+          createdAt: ts,
+          updatedAt: ts,
+        });
+        persistedIds.push(id);
+      }
+    }
+    const formatted = formatSymbiosisReport(report);
+    return ok(formatted, persistOffspring, {
+      relationship: report.relationship,
+      nicheOverlap: report.nicheOverlap,
+      complementarity: report.complementarity,
+      competition: report.competition,
+      fitness: report.fitness,
+      offspringCount: report.offspring.length,
+      persistedComponentIds: persistedIds,
+      persisted: persistOffspring,
+    });
+  },
+
+  reflect_consciousness: (_args, ctx) => {
+    const spec = getProjectSpec(ctx.projectId);
+    if (!spec) return fail(`project ${ctx.projectId} not found`);
+    const report: ConsciousnessReport = reflect(spec);
+    const formatted = formatConsciousnessReport(report);
+    return ok(formatted, false, report);
+  },
+
+  decide_volition: (args, ctx) => {
+    const partial = String(args.partial ?? "");
+    let spec: ReturnType<typeof getProjectSpec> = null;
+    if (args.projectId) {
+      try {
+        spec = getProjectSpec(String(args.projectId));
+      } catch {
+        // Spec is optional — volition falls back to input-only mode.
+      }
+    } else if (ctx.projectId) {
+      try {
+        spec = getProjectSpec(ctx.projectId);
+      } catch {
+        // Ignore — proceed without prior.
+      }
+    }
+    const history = {
+      consecutiveAsks: args.consecutiveAsks != null ? Number(args.consecutiveAsks) : 0,
+      repeatedKeyword: Boolean(args.repeatedKeyword),
+    };
+    const report: VolitionReport = decide(partial, spec, history);
+    const formatted = formatVolitionReport(report);
+    return ok(formatted, false, report);
+  },
+
+  translate_lexicon: (args, _ctx) => {
+    const input = String(args.input ?? "");
+    const report: LexiconReport = translateLexicon(input);
+    const formatted = formatLexiconReport(report);
+    return ok(formatted, false, report);
   },
 };
