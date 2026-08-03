@@ -1005,6 +1005,45 @@ const PATTERNS: CompositionPattern[] = [
     },
   },
 
+  // --- Verification-driven self-correction composition ---
+  // When the user explicitly asks the agent to verify its own work and fix
+  // any gaps, compose a single self_correct call. This closes the
+  // verification loop in one round-trip: verify -> remediate -> re-verify.
+  {
+    name: "self-correction",
+    match: (msg, ctx) => {
+      if (!ctx.hasComponents) return null;
+      // Guard: accessibility-specific fixes belong to motion-auto-fix,
+      // which is evaluated earlier in the pattern list. This guard is a
+      // safety net in case pattern ordering changes.
+      if (has(msg, "accessibility", "a11y", "vestibular", "seizure", "safe motion", "motion safety", "wcag", "make it safe", "make accessible")) return null;
+      // Guard: "fix the color/easing/duration" targets a specific property
+      // and should defer to the dedicated property tool via the mock provider.
+      if (/\bfix\s+(?:the\s+)?(?:color|colour|easing|duration|delay|loop|trigger|opacity|scale|rotation|position)\b/.test(msg)) return null;
+      // Guard: "fix the layout/spacing/alignment" is a visual-context concern.
+      if (/\bfix\s+(?:the\s+)?(?:layout|spacing|alignment|balance)\b/.test(msg)) return null;
+      // Match explicit self-correction / verify-and-fix requests only.
+      // Pure verify requests ("check your work", "did you do it right")
+      // are left to the mock provider's verify_motion handler so the user
+      // gets a read-only report without automatic patching.
+      const triggers = [
+        "self-correct", "self correct", "selfcorrect",
+        "verify and fix", "check and fix", "verify then fix",
+        "fix it", "correct it", "fix the motion",
+        "you didn't do it right", "you did not do it right",
+        "fix your work", "fix your mistake",
+      ];
+      if (!triggers.some((t) => msg.includes(t))) return null;
+      return [
+        {
+          tool: "self_correct",
+          args: { projectId: ctx.projectId, intent: msg, apply: true },
+          reason: "Close the verification loop: verify the motion against the stated intent, apply concrete remediation patches for each failed assertion, and re-verify",
+        },
+      ];
+    },
+  },
+
   // --- Motion persona composition ---
   {
     name: "motion-persona-detect",
@@ -2299,6 +2338,16 @@ const PATTERNS: CompositionPattern[] = [
     name: "analyze-musicology",
     match: (msg, ctx) => {
       if (!ctx.hasComponents) return null;
+      // Yield to set_project_tempo / quantize_to_tempo when the user explicitly
+      // wants to SET or QUANTIZE the tempo rather than analyze it. Without this
+      // guard, "sync to 120 bpm" matches the musicology keyword set (bpm/tempo)
+      // and pre-empts the tempo-setting tools in the mock provider.
+      // The same yield applies to phase / polyrhythm intents — "polyrhythm"
+      // contains the "rhythm" substring and would otherwise hijack set_phase /
+      // align_to_beat into a musicology analysis.
+      if (has(msg, "sync", "set tempo", "set bpm", "quantize", "lock to", "snap to", "on the beat", "phase", "offbeat", "downbeat", "backbeat", "polyrhythm", "on the and", "align to beat", "align to the beat")) {
+        return null;
+      }
       if (!has(msg, "musicology", "musical", "melody", "melodic", "harmony", "harmonic", "rhythm", "rhythmic", "tempo", "bpm", "chord", "phrase", "key signature", "time signature", "scale of", "pitch of", "dynamics of", "crescendo", "decrescendo", "sonata", "rondo", "aaba", "orchestration", "counterpoint", "articulation")) return null;
       return [
         {
