@@ -1,0 +1,136 @@
+/**
+ * Tidal Flow template — a realistic tidal wave that ebbs and flows with
+ * layered fluid dynamics, creating a calming, organic motion pattern.
+ *
+ * Multiple wave layers at different frequencies create interference patterns
+ * that mimic real fluid behavior, while a subtle reflection adds depth.
+ */
+
+import type { TemplateDef } from "./helper.js";
+import { easingPreset } from "@openmotion/shared";
+import { draft, kf } from "./helper.js";
+
+export const tidalFlowTemplate: TemplateDef = {
+  id: "tpl-tidal-flow",
+  name: "Tidal Flow",
+  category: "emphasis",
+  description:
+    "Realistic tidal wave with layered fluid dynamics — multiple wave layers create interference patterns while a subtle reflection adds depth. Calming, organic ambient motion.",
+  tags: ["tidal", "wave", "fluid", "flow", "ambient", "organic", "interference", "loop", "calm"],
+  build: () => [
+    draft("Tidal Stage", {
+      durationMs: 5000,
+      easing: easingPreset("linear"),
+      iterationCount: "infinite",
+      keyframes: [
+        kf(0, { opacity: 1 }),
+        kf(1, { opacity: 1 }),
+      ],
+      style: {
+        _content: "",
+        _tag: "div",
+        width: "400px",
+        height: "200px",
+        borderRadius: "16px",
+        backgroundColor: "#0a0a0a",
+        overflow: "hidden",
+        position: "relative",
+      },
+    }),
+    draft("Deep Layer", {
+      durationMs: 5000,
+      easing: easingPreset("ease-in-out"),
+      iterationCount: "infinite",
+      direction: "alternate",
+      keyframes: [
+        kf(0, { translateY: "70%", scaleX: 1, opacity: 0.3 }),
+        kf(0.5, { translateY: "50%", scaleX: 1.05, opacity: 0.5 }),
+        kf(1, { translateY: "60%", scaleX: 0.98, opacity: 0.35 }),
+      ],
+      style: {
+        _content: "",
+        _tag: "div",
+        width: "140%",
+        height: "180px",
+        borderRadius: "50%",
+        background: "linear-gradient(180deg, rgba(60,60,60,0.6), rgba(30,30,30,0.8))",
+        filter: "blur(20px)",
+        position: "absolute",
+        left: "-20%",
+        bottom: "0",
+      },
+    }),
+    draft("Mid Layer", {
+      durationMs: 4000,
+      delayMs: 300,
+      easing: easingPreset("ease-in-out"),
+      iterationCount: "infinite",
+      direction: "alternate",
+      keyframes: [
+        kf(0, { translateY: "60%", scaleX: 0.95, opacity: 0.5 }),
+        kf(0.5, { translateY: "40%", scaleX: 1.1, opacity: 0.7 }),
+        kf(1, { translateY: "50%", scaleX: 1, opacity: 0.55 }),
+      ],
+      style: {
+        _content: "",
+        _tag: "div",
+        width: "130%",
+        height: "140px",
+        borderRadius: "50%",
+        background: "linear-gradient(180deg, rgba(120,120,120,0.4), rgba(80,80,80,0.6))",
+        filter: "blur(12px)",
+        position: "absolute",
+        left: "-15%",
+        bottom: "0",
+      },
+    }),
+    draft("Surface Layer", {
+      durationMs: 3000,
+      delayMs: 600,
+      easing: easingPreset("ease-in-out"),
+      iterationCount: "infinite",
+      direction: "alternate",
+      keyframes: [
+        kf(0, { translateY: "50%", scaleX: 1, opacity: 0.6 }),
+        kf(0.5, { translateY: "30%", scaleX: 1.08, opacity: 0.85 }),
+        kf(1, { translateY: "40%", scaleX: 0.96, opacity: 0.65 }),
+      ],
+      style: {
+        _content: "",
+        _tag: "div",
+        width: "120%",
+        height: "100px",
+        borderRadius: "50%",
+        background: "linear-gradient(180deg, rgba(200,200,200,0.3), rgba(160,160,160,0.5))",
+        filter: "blur(6px)",
+        position: "absolute",
+        left: "-10%",
+        bottom: "0",
+      },
+    }),
+    draft("Highlight Crest", {
+      durationMs: 2500,
+      delayMs: 900,
+      easing: easingPreset("ease-in-out"),
+      iterationCount: "infinite",
+      direction: "alternate",
+      keyframes: [
+        kf(0, { translateY: "45%", opacity: 0.3, scale: 1 }),
+        kf(0.5, { translateY: "25%", opacity: 0.8, scale: 1.1 }),
+        kf(1, { translateY: "35%", opacity: 0.4, scale: 0.95 }),
+      ],
+      style: {
+        _content: "",
+        _tag: "div",
+        width: "100%",
+        height: "60px",
+        borderRadius: "50%",
+        background: "linear-gradient(180deg, rgba(255,255,255,0.15), rgba(255,255,255,0.05))",
+        filter: "blur(3px)",
+        position: "absolute",
+        left: "0",
+        bottom: "0",
+      },
+    }),
+  ],
+};
