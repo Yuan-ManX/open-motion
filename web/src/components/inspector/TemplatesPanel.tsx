@@ -1,7 +1,9 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import type { Template } from "@openmotion/shared";
 import * as api from "../../api/endpoints.js";
+import type { PresetPack, CatalogSearchResult, CatalogSummary } from "../../api/endpoints.js";
 import { useProjectStore } from "../../store/projectStore.js";
+import { useUiStore } from "../../store/uiStore.js";
 
 type CodeFormat = "react" | "framer" | "html" | "css";
 
@@ -21,6 +23,36 @@ interface SearchResultItem extends Template {
   matchedFields: string[];
 }
 
+// Unified catalog browse mode — searches every motion resource type
+// (recipes, templates, styles, preset-packs, animation presets, export
+// presets, rhythms, motion themes, narrative arcs, shaders, brand packs,
+// choreography patterns, story genres) through the single /catalog/search
+// endpoint. Lets users discover resources the agent can already see.
+type BrowseMode = "templates" | "catalog";
+
+// Short label and accent category for each catalog resource type, used by
+// the catalog browse mode to render compact type badges on every result.
+const CATALOG_TYPE_LABEL: Record<CatalogSearchResult["type"], string> = {
+  recipe: "Recipe",
+  template: "Template",
+  style: "Style",
+  "preset-pack": "Pack",
+  "animation-preset": "Anim",
+  "export-preset": "Export",
+  rhythm: "Rhythm",
+  "motion-theme": "Theme",
+  "narrative-arc": "Arc",
+  shader: "Shader",
+  "brand-pack": "Brand",
+  choreography: "Choreo",
+  "story-genre": "Genre",
+  "scene-pack": "Scene",
+  "color-palette": "Palette",
+  "platform-preset": "Platform",
+  "a11y-profile": "A11y",
+  "cursor-choreography": "Cursor",
+};
+
 /** Templates panel with Originkit-style code export and live customization. */
 export function TemplatesPanel() {
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -35,16 +67,148 @@ export function TemplatesPanel() {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [searchResults, setSearchResults] = useState<SearchResultItem[] | null>(null);
   const [searching, setSearching] = useState(false);
+  // Curated preset packs — fetched once on mount so the user can apply a
+  // themed bundle of templates in one click instead of picking each one.
+  const [packs, setPacks] = useState<PresetPack[]>([]);
+  const [packsOpen, setPacksOpen] = useState(false);
+  const [expandedPackId, setExpandedPackId] = useState<string | null>(null);
+  const [applyingPack, setApplyingPack] = useState(false);
+  // Unified catalog browse mode state. The catalog summary is fetched once
+  // on mount so the user always sees how many resources of each type exist,
+  // even before searching. Catalog search is debounced separately from the
+  // template-only search so the two modes never interfere. Browse mode is
+  // backed by uiStore so the Cmd+K command palette can switch this panel to
+  // catalog mode remotely.
+  const browseMode = useUiStore((s) => s.templatesBrowseMode);
+  const setBrowseMode = useUiStore((s) => s.setTemplatesBrowseMode);
+  const [catalogQuery, setCatalogQuery] = useState<string>("");
+  const [catalogResults, setCatalogResults] = useState<CatalogSearchResult[] | null>(null);
+  const [catalogSummary, setCatalogSummary] = useState<CatalogSummary | null>(null);
+  const [catalogSearching, setCatalogSearching] = useState(false);
+  const [copiedCatalogId, setCopiedCatalogId] = useState<string | null>(null);
+  const [appliedCatalogId, setAppliedCatalogId] = useState<string | null>(null);
   const loadProject = useProjectStore((s) => s.loadProject);
   const projectId = useProjectStore((s) => s.projectId);
   const components = useProjectStore((s) => s.components);
+  const selectedComponentId = useUiStore((s) => s.selectedComponentId);
 
   useEffect(() => {
     api.listTemplates().then((t) => {
       setTemplates(t);
       setLoading(false);
     }).catch(() => setLoading(false));
+    api.listPacks().then((r) => setPacks(r.packs)).catch(() => setPacks([]));
+    api.getCatalogSummary().then(setCatalogSummary).catch(() => setCatalogSummary(null));
   }, []);
+
+  // Debounced unified catalog search — only runs while in catalog mode so
+  // typing in template mode never triggers a cross-catalog round trip.
+  useEffect(() => {
+    if (browseMode !== "catalog") return;
+    const q = catalogQuery.trim();
+    if (!q) {
+      setCatalogResults(null);
+      setCatalogSearching(false);
+      return;
+    }
+    setCatalogSearching(true);
+    const handle = window.setTimeout(() => {
+      api.searchCatalog(q, 50)
+        .then((res) => setCatalogResults(res.results))
+        .catch(() => setCatalogResults([]))
+        .finally(() => setCatalogSearching(false));
+    }, 220);
+    return () => window.clearTimeout(handle);
+  }, [catalogQuery, browseMode]);
+
+  // Catalog results grouped by type, sorted by category size descending so
+  // the most relevant cluster surfaces first. Empty groups are omitted.
+  const catalogGrouped = useMemo(() => {
+    if (!catalogResults) return [];
+    const map = new Map<CatalogSearchResult["type"], CatalogSearchResult[]>();
+    for (const r of catalogResults) {
+      const arr = map.get(r.type) ?? [];
+      arr.push(r);
+      map.set(r.type, arr);
+    }
+    return Array.from(map.entries())
+      .map(([type, items]) => ({ type, items }))
+      .sort((a, b) => b.items.length - a.items.length);
+  }, [catalogResults]);
+
+  // Template results in catalog mode can be added to the timeline directly
+  // because their id maps to a known Template. Other resource types only
+  // expose a "copy id" affordance so the user can paste the id into chat.
+  const handleCatalogPick = useCallback(async (result: CatalogSearchResult) => {
+    if (result.type === "template") {
+      const tpl = templates.find((t) => t.id === result.id);
+      if (tpl) {
+        if (projectId) {
+          await api.createComponent(projectId, { templateId: tpl.id, name: tpl.name });
+          await loadProject(projectId);
+        } else {
+          const project = await api.createProject({ name: tpl.name, templateId: tpl.id });
+          await loadProject(project.id);
+        }
+        return;
+      }
+    }
+    // Style preset → apply across every component in the open project so the
+    // whole composition shares one easing/duration/direction feel.
+    if (result.type === "style") {
+      if (!projectId) return;
+      try {
+        await api.applyStylePreset(projectId, result.id);
+        await loadProject(projectId);
+        setAppliedCatalogId(result.id);
+        setTimeout(() => setAppliedCatalogId((cur) => (cur === result.id ? null : cur)), 1600);
+      } catch { /* apply failed — ignore */ }
+      return;
+    }
+    // Recipe → resolve + execute the recipe's tool call sequence against the
+    // selected component (or the most recent one) so easing/duration/transforms
+    // land on a real component in the current project.
+    if (result.type === "recipe") {
+      if (!projectId) return;
+      try {
+        await api.applyRecipe(projectId, result.id, selectedComponentId ?? undefined);
+        await loadProject(projectId);
+        setAppliedCatalogId(result.id);
+        setTimeout(() => setAppliedCatalogId((cur) => (cur === result.id ? null : cur)), 1600);
+      } catch { /* apply failed — ignore */ }
+      return;
+    }
+    // For all other resource types, copy the id to the clipboard so the user
+    // can reference it in an agent prompt (e.g. "apply rhythm pulse-4").
+    try {
+      await navigator.clipboard.writeText(result.id);
+      setCopiedCatalogId(result.id);
+      setTimeout(() => setCopiedCatalogId((cur) => (cur === result.id ? null : cur)), 1400);
+    } catch { /* clipboard unavailable */ }
+  }, [templates, projectId, loadProject, selectedComponentId]);
+
+  const handleApplyPack = async (pack: PresetPack) => {
+    if (!projectId || applyingPack) return;
+    setApplyingPack(true);
+    try {
+      // Resolve each pack template ID to its Template (for the display name),
+      // then create a component for each. Unknown IDs are skipped silently so
+      // a stale pack never blocks the rest of the bundle.
+      const byId = new Map(templates.map((t) => [t.id, t]));
+      for (const tplId of pack.templateIds) {
+        const tpl = byId.get(tplId);
+        const name = tpl?.name ?? tplId;
+        try {
+          await api.createComponent(projectId, { templateId: tplId, name });
+        } catch {
+          // Skip individual failures so one bad template doesn't abort the pack.
+        }
+      }
+      await loadProject(projectId);
+    } finally {
+      setApplyingPack(false);
+    }
+  };
 
   // Debounced search — calls the backend fuzzy search endpoint
   useEffect(() => {
@@ -155,6 +319,201 @@ export function TemplatesPanel() {
             <span className="text-accent">●</span>
             <span>Adding to timeline ({components.length} tracks)</span>
           </div>
+        </div>
+      )}
+
+      {/* Browse mode toggle — Templates (curated gallery with live preview
+          and code export) vs Catalog (unified search across every motion
+          resource type the agent can see). Catalog mode lets users discover
+          recipes, styles, shaders, themes, arcs, rhythms, preset packs,
+          export presets, animation presets, brand packs, choreography, and
+          story genres in one place. */}
+      <div className="flex items-center gap-0.5 px-2 pt-1.5 pb-1 border-b border-edge flex-shrink-0">
+        {(["templates", "catalog"] as BrowseMode[]).map((m) => (
+          <button
+            key={m}
+            onClick={() => setBrowseMode(m)}
+            className={`text-[10px] px-2 py-1 rounded transition-colors ${
+              browseMode === m
+                ? "bg-panel3 text-gray-100"
+                : "text-gray-500 hover:text-gray-300"
+            }`}
+            aria-pressed={browseMode === m}
+          >
+            {m === "templates" ? "Templates" : "Catalog"}
+          </button>
+        ))}
+        {browseMode === "catalog" && catalogSummary && (
+          <span className="ml-auto text-[9px] text-gray-600 font-mono">{catalogSummary.total} resources</span>
+        )}
+      </div>
+
+      {browseMode === "catalog" ? (
+        <>
+          {/* Unified catalog search input */}
+          <div className="px-2 pt-2 pb-1.5 flex-shrink-0">
+            <div className="relative">
+              <input
+                type="text"
+                value={catalogQuery}
+                onChange={(e) => setCatalogQuery(e.target.value)}
+                placeholder="Search all resources — recipes, styles, shaders, themes, arcs…"
+                className="w-full text-[11px] bg-ink border border-edge rounded-md pl-7 pr-7 py-1.5 text-gray-200 placeholder:text-gray-600 focus:outline-none focus:border-accent transition-colors"
+              />
+              <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="11" cy="11" r="7" />
+                <path d="m21 21-4.3-4.3" />
+              </svg>
+              {catalogQuery && (
+                <button
+                  onClick={() => setCatalogQuery("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-200 text-xs w-4 h-4 flex items-center justify-center"
+                  aria-label="Clear catalog search"
+                >
+                  ✕
+                </button>
+              )}
+              {catalogSearching && (
+                <div className="absolute right-7 top-1/2 -translate-y-1/2 w-3 h-3 border border-accent border-t-transparent rounded-full animate-spin" />
+              )}
+            </div>
+            {catalogResults && !catalogSearching && (
+              <div className="text-[9px] text-gray-500 mt-1">
+                {catalogResults.length} match{catalogResults.length === 1 ? "" : "es"} across {catalogGrouped.length} type{catalogGrouped.length === 1 ? "" : "s"}
+              </div>
+            )}
+          </div>
+
+          {/* Catalog inventory — shown when no query, so the user sees the
+              full resource inventory at a glance before searching. Each chip
+              shows a category and its live count from /catalog/summary. */}
+          {!catalogResults && catalogSummary && (
+            <div className="flex-1 overflow-y-auto px-2 pb-2">
+              <div className="text-[9px] uppercase tracking-wide text-gray-600 mt-1 mb-1.5">
+                All resources ({catalogSummary.total})
+              </div>
+              <div className="grid grid-cols-2 gap-1">
+                {Object.entries(catalogSummary.categories).map(([cat, count]) => (
+                  <div key={cat} className="flex items-center justify-between px-1.5 py-1 rounded border border-edge bg-panel2">
+                    <span className="text-[10px] text-gray-400">
+                      {cat.replace(/([A-Z])/g, " $1").trim().toLowerCase()}
+                    </span>
+                    <span className="text-[10px] text-gray-500 font-mono">{count}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="text-[9px] text-gray-600 mt-2 leading-snug">
+                Type above to search across every resource. Click a template result to add it to the timeline; click a style or recipe result to apply it to the project; click any other result to copy its id for use in chat.
+              </div>
+            </div>
+          )}
+
+          {/* Catalog search results — grouped by type, largest cluster first */}
+          {catalogResults && (
+            <div className="flex-1 overflow-y-auto px-2 pb-2 space-y-2">
+              {catalogGrouped.map(({ type, items }) => (
+                <div key={type}>
+                  <div className="text-[9px] uppercase tracking-wide text-gray-600 mt-1 mb-1 flex items-center gap-1.5">
+                    <span>{CATALOG_TYPE_LABEL[type]}</span>
+                    <span className="text-gray-700">·</span>
+                    <span className="text-gray-700 font-mono">{items.length}</span>
+                  </div>
+                  <div className="space-y-1">
+                    {items.map((r) => {
+                      const isApplyType = r.type === "style" || r.type === "recipe";
+                      const actionLabel = r.type === "template"
+                        ? "+ add"
+                        : isApplyType
+                          ? "apply"
+                          : "copy";
+                      const doneLabel = isApplyType ? "✓ applied" : "✓ copied";
+                      const title = r.type === "template"
+                        ? "Add to timeline"
+                        : r.type === "style"
+                          ? "Apply style preset to all components"
+                          : r.type === "recipe"
+                            ? "Apply recipe to selected component"
+                            : "Copy id to clipboard";
+                      return (
+                      <button
+                        key={`${r.type}-${r.id}`}
+                        onClick={() => void handleCatalogPick(r)}
+                        className="w-full text-left rounded border border-edge bg-panel2 hover:border-accent transition-colors px-2 py-1.5 group"
+                        title={title}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[8px] px-1 py-0.5 rounded bg-edge text-gray-400 uppercase tracking-wide flex-shrink-0">
+                            {CATALOG_TYPE_LABEL[r.type]}
+                          </span>
+                          <span className="text-[11px] font-medium text-gray-200 group-hover:text-accent truncate flex-1">{r.name}</span>
+                          <span className="text-[8px] text-gray-600 font-mono flex-shrink-0">
+                            {appliedCatalogId === r.id || copiedCatalogId === r.id ? doneLabel : actionLabel}
+                          </span>
+                        </div>
+                        <p className="text-[9px] text-gray-500 mt-0.5 line-clamp-2">{r.description}</p>
+                      </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+              {catalogResults.length === 0 && (
+                <div className="text-center text-[11px] text-gray-600 py-8">
+                  No resources match "{catalogQuery}".
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+      {/* Preset packs — curated themed bundles of existing templates.
+          Collapsed by default; click a pack to expand its description and
+          an "Add all" action that instantiates every template in the pack. */}
+      {packs.length > 0 && (
+        <div className="border-b border-edge bg-panel2/30 flex-shrink-0">
+          <button
+            onClick={() => setPacksOpen((v) => !v)}
+            className="w-full flex items-center justify-between px-2 py-1.5 hover:bg-panel2 transition-colors"
+          >
+            <span className="text-[10px] uppercase tracking-wide text-gray-400">Packs</span>
+            <span className="text-[9px] font-mono text-gray-500">{packs.length} bundles</span>
+          </button>
+          {packsOpen && (
+            <div className="px-2 pb-2 space-y-1">
+              {packs.map((pack) => (
+                <div key={pack.id} className="border border-edge/60 rounded bg-panel">
+                  <button
+                    onClick={() => setExpandedPackId(expandedPackId === pack.id ? null : pack.id)}
+                    className="w-full flex items-center justify-between px-2 py-1.5 hover:bg-panel2 transition-colors"
+                  >
+                    <span className="text-[11px] font-medium text-gray-200">{pack.name}</span>
+                    <span className="text-[9px] text-gray-500 font-mono">{pack.templateIds.length} templates</span>
+                  </button>
+                  {expandedPackId === pack.id && (
+                    <div className="px-2 pb-2 pt-0.5">
+                      <p className="text-[10px] text-gray-400 mb-1.5 leading-snug">{pack.description}</p>
+                      <div className="flex gap-1 flex-wrap mb-1.5">
+                        {pack.tags.map((t) => (
+                          <span key={t} className="text-[9px] px-1 py-0.5 rounded bg-edge text-gray-400">{t}</span>
+                        ))}
+                      </div>
+                      <button
+                        onClick={() => void handleApplyPack(pack)}
+                        disabled={!projectId || applyingPack}
+                        className="text-[10px] px-2 py-0.5 rounded bg-accent hover:bg-accent2 disabled:opacity-40 text-black font-medium"
+                      >
+                        {applyingPack ? "Adding…" : `Add all ${pack.templateIds.length} to timeline`}
+                      </button>
+                      {!projectId && (
+                        <span className="text-[9px] text-gray-600 ml-1.5">Open a project first</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -300,6 +659,8 @@ export function TemplatesPanel() {
           </div>
         )}
       </div>
+        </>
+      )}
 
       {/* Code preview modal */}
       {codeModal && (
