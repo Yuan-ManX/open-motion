@@ -82,6 +82,13 @@ interface ChatState {
   goal: GoalNode | null;
   proactiveSuggestions: ProactiveSuggestion[];
   sessionSummary: SessionSummary | null;
+  // Agent self-assessed confidence (0..1) for the most recent `done` event.
+  // Null before the first turn completes or when the agent omits the field.
+  confidence: number | null;
+  // Parallel tool batches emitted during the current turn. Each entry
+  // records the batch size and the tools that ran concurrently, so the UI
+  // can surface parallelism. Cleared on the next `send`.
+  parallelBatches: { count: number; tools: string[] }[];
   error: string | null;
   abortController: AbortController | null;
   // Active provider for the current stream (e.g. "mock", "openai", "router").
@@ -108,6 +115,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   goal: null,
   proactiveSuggestions: [],
   sessionSummary: null,
+  confidence: null,
+  parallelBatches: [],
   error: null,
   abortController: null,
   provider: null,
@@ -148,6 +157,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       goal: null,
       proactiveSuggestions: [],
       sessionSummary: null,
+      confidence: null,
+      parallelBatches: [],
       error: null,
     });
     useGenerationStore.getState().startGeneration(text);
@@ -208,6 +219,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
               activeStepIndex: activeStep,
             });
             useGenerationStore.getState().recordToolCall(event.tool);
+            break;
+          }
+          case "parallel_tool_batch": {
+            set({
+              parallelBatches: [
+                ...get().parallelBatches,
+                { count: event.count, tools: event.tools },
+              ],
+            });
             break;
           }
           case "tool_result": {
@@ -332,6 +352,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
             }
             // Auto-fit the canvas so generated content is centered for editing.
             useUiStore.getState().triggerFitToScreen();
+            // Flash newly generated content on the canvas so the user's eye
+            // is drawn to what the agent just created.
+            useUiStore.getState().triggerGenerationFlash();
             // Commit generation record with the resulting component IDs.
             useGenerationStore.getState().commitGeneration(
               event.components.map((c: { id: string }) => c.id),
@@ -368,6 +391,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
               reflection: null,
               goal: null,
               proactiveSuggestions: [],
+              confidence: event.confidence ?? null,
               abortController: null,
             });
             break;
@@ -375,6 +399,177 @@ export const useChatStore = create<ChatState>((set, get) => ({
           case "error":
             set({ isStreaming: false, streamingTokens: "", plan: null, completedStepIndices: [], activeStepIndex: -1, reasoningText: "", thinking: null, reflection: null, goal: null, proactiveSuggestions: [], error: event.message, abortController: null });
             break;
+          case "editor_command": {
+            // Dispatch editor commands emitted by editor_* tools to the
+            // corresponding uiStore / projectStore actions so the Agent can
+            // drive the entire Motion editor UI through chat.
+            const ui = useUiStore.getState();
+            const project = useProjectStore.getState();
+            const cmd = event.command;
+            const a = event.args as Record<string, unknown>;
+            switch (cmd) {
+              case "setCanvasZoom":
+                ui.setCanvasZoom(Number(a.zoom));
+                break;
+              case "setCanvasPan":
+                ui.setCanvasPan({ x: Number(a.x), y: Number(a.y) });
+                break;
+              case "fitToScreen":
+                ui.triggerFitToScreen();
+                break;
+              case "setPlayheadMs":
+                ui.setPlayheadMs(Number(a.timeMs));
+                break;
+              case "setPlaybackSpeed":
+                ui.setPlaybackSpeed(Number(a.speed));
+                break;
+              case "setPlaying":
+                useUiStore.getState().setIsPlaying(Boolean(a.playing));
+                break;
+              case "setShowRulers":
+                ui.setShowRulers(Boolean(a.show));
+                break;
+              case "toggleRulers":
+                ui.setShowRulers(!ui.showRulers);
+                break;
+              case "setSnapToGrid":
+                ui.setSnapToGrid(Boolean(a.enabled));
+                break;
+              case "toggleSnap":
+                ui.setSnapToGrid(!ui.snapToGrid);
+                break;
+              case "setGridSize":
+                ui.setSnapSize(Number(a.size));
+                break;
+              case "setAutoKeyframe":
+                ui.setAutoKeyframe(Boolean(a.enabled));
+                break;
+              case "toggleAutoKeyframe":
+                ui.setAutoKeyframe(!ui.autoKeyframe);
+                break;
+              case "setOnionSkin":
+                ui.setOnionSkin({ enabled: Boolean(a.enabled) });
+                break;
+              case "toggleOnionSkin":
+                ui.setOnionSkin({ enabled: !ui.onionSkin.enabled });
+                break;
+              case "setOnionSkinFrames":
+                ui.setOnionSkin({ frames: Number(a.count) });
+                break;
+              case "setOnionSkinOpacity":
+                ui.setOnionSkin({ opacity: Number(a.opacity) });
+                break;
+              case "selectComponent":
+                ui.selectComponent(String(a.componentId));
+                break;
+              case "addToSelection":
+                ui.addToSelection(String(a.componentId));
+                break;
+              case "setSelectedIds": {
+                const ids = Array.isArray(a.ids) ? (a.ids as unknown[]).map(String) : [];
+                ui.setSelectedIds(ids);
+                break;
+              }
+              case "clearSelection":
+                ui.clearSelection();
+                break;
+              case "toggleHidden":
+                ui.toggleHidden(String(a.componentId));
+                break;
+              case "setLock":
+                ui.setLock(String(a.componentId), Boolean(a.locked));
+                break;
+              case "toggleLock":
+                ui.toggleLock(String(a.componentId));
+                break;
+              case "setRightPanelCategory":
+                ui.setRightPanelCategory(a.category as "design" | "motion" | "intel" | "assets" | "output");
+                break;
+              case "setRightPanelTab":
+                ui.setRightPanelTab(a.tab as Parameters<typeof ui.setRightPanelTab>[0]);
+                break;
+              case "setRightPanelCollapsed":
+                ui.setRightPanelCollapsed(Boolean(a.collapsed));
+                break;
+              case "toggleRightPanel":
+                ui.setRightPanelCollapsed(!ui.rightPanelCollapsed);
+                break;
+              case "setPreviewOpen":
+                ui.setPreviewOpen(Boolean(a.open));
+                break;
+              case "setExportOpen":
+                ui.setExportOpen(Boolean(a.open));
+                break;
+              case "setTemplatesOpen":
+                ui.setTemplatesOpen(Boolean(a.open));
+                break;
+              case "setSettingsOpen":
+                ui.setSettingsOpen(Boolean(a.open));
+                break;
+              case "setCommandPaletteOpen":
+                ui.setCommandPaletteOpen(Boolean(a.open));
+                break;
+              case "setArtboard": {
+                const w = Number(a.width);
+                const h = Number(a.height);
+                if (w && h) ui.setCanvasSize({ width: w, height: h });
+                break;
+              }
+              case "undo":
+                project.undo();
+                break;
+              case "redo":
+                project.redo();
+                break;
+              case "triggerReplay":
+                ui.triggerReplay();
+                break;
+              case "setShowMotionPaths":
+                ui.setShowMotionPaths(Boolean(a.show));
+                break;
+              case "toggleMotionPaths":
+                ui.setShowMotionPaths(!ui.showMotionPaths);
+                break;
+              case "setShowPerformanceMonitor":
+                ui.setShowPerformanceMonitor(Boolean(a.show));
+                break;
+              case "togglePerformanceMonitor":
+                ui.setShowPerformanceMonitor(!ui.showPerformanceMonitor);
+                break;
+              case "setSoloedId":
+                ui.setSoloedId(a.id ? String(a.id) : null);
+                break;
+              case "setSidebarCollapsed":
+                ui.setSidebarCollapsed(Boolean(a.collapsed));
+                break;
+              case "toggleSidebar":
+                ui.setSidebarCollapsed(!ui.sidebarCollapsed);
+                break;
+              case "setTimelineCommand":
+                ui.setTimelineCommand(String(a.action));
+                break;
+              case "toggleSelection":
+                ui.toggleSelection(String(a.componentId));
+                break;
+              case "setSkillsOpen":
+                ui.setSkillsOpen(Boolean(a.open));
+                break;
+              case "setShortcutsOpen":
+                ui.setShortcutsOpen(Boolean(a.open));
+                break;
+              case "setTrackOrder": {
+                const trackIds = Array.isArray(a.trackIds) ? (a.trackIds as unknown[]).map(String) : [];
+                ui.setTrackOrder(trackIds);
+                break;
+              }
+              case "setPlaybackRange": {
+                const range = a.range as { startMs: number; endMs: number } | null;
+                ui.setPlaybackRange(range);
+                break;
+              }
+            }
+            break;
+          }
           case "meta":
             set({ provider: event.provider });
             break;
@@ -411,7 +606,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     activeStreamId++;
     const { abortController } = get();
     if (abortController) abortController.abort();
-    set({ isStreaming: false, streamingTokens: "", plan: null, completedStepIndices: [], activeStepIndex: -1, reasoningText: "", thinking: null, reflection: null, goal: null, sessionSummary: null, abortController: null });
+    set({ isStreaming: false, streamingTokens: "", plan: null, completedStepIndices: [], activeStepIndex: -1, reasoningText: "", thinking: null, reflection: null, goal: null, sessionSummary: null, parallelBatches: [], abortController: null });
   },
 
   clear: async (projectId) => {
@@ -431,6 +626,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       reflection: null,
       goal: null,
       sessionSummary: null,
+      parallelBatches: [],
       error: null,
       abortController: null,
       isStreaming: false,
