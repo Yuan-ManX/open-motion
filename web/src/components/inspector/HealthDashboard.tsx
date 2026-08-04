@@ -1,7 +1,9 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useProjectStore } from "../../store/projectStore.js";
 import { useChatStore } from "../../store/chatStore.js";
 import { buildMotionDna } from "../../motion/dna.js";
+import * as api from "../../api/endpoints.js";
+import type { AgentSelfTestResult } from "../../api/endpoints.js";
 
 interface ScoreRing {
   label: string;
@@ -65,6 +67,12 @@ export function HealthDashboard() {
     };
   }, [components]);
 
+  // Agent stack self-test result — a canned round-trip that verifies the
+  // orchestration pipeline (thinking -> plan -> tool calls -> done) without
+  // depending on the current project's content.
+  const [selfTest, setSelfTest] = useState<AgentSelfTestResult | null>(null);
+  const [selfTestBusy, setSelfTestBusy] = useState(false);
+
   if (!projectId) {
     return (
       <div className="px-4 py-6 text-center text-xs text-gray-600">
@@ -74,6 +82,29 @@ export function HealthDashboard() {
   }
 
   const send = useChatStore.getState().send;
+
+  const runSelfTest = async () => {
+    setSelfTestBusy(true);
+    try {
+      const result = await api.selfTestAgent();
+      setSelfTest(result);
+    } catch (e) {
+      setSelfTest({
+        ok: false,
+        prompt: "",
+        durationMs: 0,
+        events: [],
+        toolCalls: 0,
+        sawSpecUpdate: false,
+        sawDone: false,
+        sawError: true,
+        errors: [e instanceof Error ? e.message : String(e)],
+      });
+    } finally {
+      setSelfTestBusy(false);
+    }
+  };
+
   const rings: ScoreRing[] = [
     { label: "Accessibility", value: 0, hint: "Vestibular, seizure, reduced-motion, cognitive", trigger: "Check the accessibility and safety of all motion in this project", icon: "⊘" },
     { label: "Performance", value: 0, hint: "Paint, layout, composite, frame budget", trigger: "Check the performance and frame budget of all motion in this project", icon: "⚡" },
@@ -204,6 +235,74 @@ export function HealthDashboard() {
             >
               Generate Full Report
             </button>
+
+            {/* Agent stack self-test */}
+            <div className="border border-edge p-2 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[8px] font-mono uppercase text-gray-600">Agent Stack</span>
+                {selfTest && (
+                  <span className={`text-[8px] font-mono ${selfTest.ok ? "text-gray-400" : "text-red-400"}`}>
+                    {selfTest.ok ? "OK" : "FAIL"}
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={runSelfTest}
+                disabled={selfTestBusy}
+                className="w-full px-2 py-1.5 text-[9px] text-gray-200 bg-panel2 border border-edge hover:border-gray-500 transition-colors disabled:opacity-50"
+                title="Run a canned agent round-trip to verify the orchestration stack is healthy"
+              >
+                {selfTestBusy ? "Running…" : "Run Self-Test"}
+              </button>
+              {selfTest && (
+                <div className="space-y-1 text-[8px] font-mono text-gray-500">
+                  <div className="flex justify-between">
+                    <span>Duration</span>
+                    <span className="text-gray-300">{selfTest.durationMs}ms</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Tool Calls</span>
+                    <span className="text-gray-300">{selfTest.toolCalls}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Events</span>
+                    <span className="text-gray-300">{selfTest.events.length}</span>
+                  </div>
+                  {selfTest.events.length > 0 && (
+                    <div className="flex flex-wrap gap-0.5 pt-0.5">
+                      {selfTest.events.map((ev, i) => (
+                        <span key={i} className="px-1 py-0.5 text-[7px] text-gray-400 border border-edge">
+                          {ev}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {selfTest.errors.length > 0 && (
+                    <div className="pt-0.5 text-red-400 break-words">
+                      {selfTest.errors.join("; ")}
+                    </div>
+                  )}
+                  {selfTest.scenarios && selfTest.scenarios.length > 0 && (
+                    <div className="pt-1 space-y-0.5 border-t border-edge">
+                      <div className="text-[7px] uppercase text-gray-600 pt-0.5">
+                        {selfTest.scenarios.filter((s) => s.ok).length}/{selfTest.scenarios.length} scenarios
+                      </div>
+                      {selfTest.scenarios.map((s) => (
+                        <div key={s.name} className="flex items-center justify-between gap-1">
+                          <span className={s.ok ? "text-gray-400" : "text-red-400"}>{s.name}</span>
+                          <span className="flex items-center gap-1">
+                            <span className="text-gray-600">{s.durationMs}ms</span>
+                            <span className={s.ok ? "text-gray-300" : "text-red-400"}>
+                              {s.ok ? "OK" : "FAIL"}
+                            </span>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
