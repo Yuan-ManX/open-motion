@@ -66,6 +66,10 @@ const EnvSchema = z.object({
   MINIMAX_API_KEY: z.string().optional(),
   MODELSCOPE_API_KEY: z.string().optional(),
   BAAI_API_KEY: z.string().optional(),
+  // Additional LLM providers
+  AI21_API_KEY: z.string().optional(),
+  CLOUDFLARE_API_KEY: z.string().optional(),
+  CLOUDFLARE_ACCOUNT_ID: z.string().optional(),
   // App
   PUBLIC_BASE_URL: z.string().url().optional(),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
@@ -137,6 +141,9 @@ function loadEnv(): Env {
       MINIMAX_API_KEY: process.env.MINIMAX_API_KEY,
       MODELSCOPE_API_KEY: process.env.MODELSCOPE_API_KEY,
       BAAI_API_KEY: process.env.BAAI_API_KEY,
+      AI21_API_KEY: process.env.AI21_API_KEY,
+      CLOUDFLARE_API_KEY: process.env.CLOUDFLARE_API_KEY,
+      CLOUDFLARE_ACCOUNT_ID: process.env.CLOUDFLARE_ACCOUNT_ID,
       PUBLIC_BASE_URL: process.env.PUBLIC_BASE_URL,
       LOG_LEVEL: (process.env.LOG_LEVEL as Env["LOG_LEVEL"]) || "info",
       OPENMOTION_API_KEY: process.env.OPENMOTION_API_KEY,
@@ -332,6 +339,19 @@ export function getProviderConfigs(): ProviderConfig[] {
     configs.push({ type: "openai", providerName: "modelscope", apiKey: modelscopeKey, baseUrl: "https://api-inference.modelscope.cn/v1", model: "Qwen/Qwen2.5-72B-Instruct" });
   }
 
+  // AI21 Labs — OpenAI-compatible API for Jamba models
+  const ai21Key = resolveConfigValue("AI21_API_KEY");
+  if (ai21Key) {
+    configs.push({ type: "openai", providerName: "ai21", apiKey: ai21Key, baseUrl: "https://api.ai21.com/v1", model: "jamba-1.5-large" });
+  }
+
+  // Cloudflare Workers AI — OpenAI-compatible API for serverless GPU inference
+  const cloudflareKey = resolveConfigValue("CLOUDFLARE_API_KEY");
+  const cloudflareAccount = resolveConfigValue("CLOUDFLARE_ACCOUNT_ID");
+  if (cloudflareKey && cloudflareAccount) {
+    configs.push({ type: "openai", providerName: "cloudflare", apiKey: cloudflareKey, baseUrl: `https://api.cloudflare.com/client/v4/accounts/${cloudflareAccount}/ai/v1`, model: "@cf/meta/llama-3.3-70b-instruct-fp8-fast" });
+  }
+
   return configs;
 }
 
@@ -407,6 +427,8 @@ export const PROVIDER_KEY_SPECS: ProviderKeySpec[] = [
   { envVar: "MINIMAX_API_KEY", label: "MiniMax", category: "llm", baseUrl: "https://api.minimax.chat/v1", defaultModel: "MiniMax-Text-01" },
   { envVar: "MODELSCOPE_API_KEY", label: "ModelScope", category: "llm", baseUrl: "https://api-inference.modelscope.cn/v1", defaultModel: "Qwen/Qwen2.5-72B-Instruct" },
   { envVar: "BAAI_API_KEY", label: "BAAI", category: "embedding" },
+  { envVar: "AI21_API_KEY", label: "AI21 Labs", category: "llm", baseUrl: "https://api.ai21.com/v1", defaultModel: "jamba-1.5-large" },
+  { envVar: "CLOUDFLARE_API_KEY", label: "Cloudflare Workers AI", category: "llm", baseUrl: "https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/v1", defaultModel: "@cf/meta/llama-3.3-70b-instruct-fp8-fast" },
 ];
 
 /**
