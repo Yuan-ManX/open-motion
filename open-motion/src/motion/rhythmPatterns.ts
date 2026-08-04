@@ -1,5 +1,5 @@
 /**
- * Rhythm Patterns — musical-inspired timing library.
+ * Rhythm Patterns — musical timing library.
  *
  * Applies musical concepts (syncopation, swing, rubato, polyrhythm)
  * to motion timing, creating organic, natural-feeling animation
