@@ -66,6 +66,27 @@ import { slideOutTemplate } from "./slideOut.js";
 import { zoomOutTemplate } from "./zoomOut.js";
 import { collapseDownTemplate } from "./collapseDown.js";
 import { dissolveOutTemplate } from "./dissolveOut.js";
+import { origamiFoldTemplate } from "./origamiFold.js";
+import { liquidWaveTemplate } from "./liquidWave.js";
+import { neonPulseTemplate } from "./neonPulse.js";
+import { quantumFieldTemplate } from "./quantumField.js";
+import { crystalShardTemplate } from "./crystalShard.js";
+import { spectrumWaveTemplate } from "./spectrumWave.js";
+import { magneticFieldTemplate } from "./magneticField.js";
+import { tidalFlowTemplate } from "./tidalFlow.js";
+import { cosmicBirthTemplate } from "./cosmicBirth.js";
+import { photonStreamTemplate } from "./photonStream.js";
+import { magneticInkTemplate } from "./magneticInk.js";
+import { dimensionalFoldTemplate } from "./dimensionalFold.js";
+import { liquidMercuryTemplate } from "./liquidMercury.js";
+import { neuralPulseTemplate } from "./neuralPulse.js";
+import { auroraBorealisTemplate } from "./auroraBorealis.js";
+import { quantumEntanglementTemplate } from "./quantumEntanglement.js";
+import { acousticWaveTemplate } from "./acousticWave.js";
+import { crystallineGrowthTemplate } from "./crystallineGrowth.js";
+import { inkBleedTemplate } from "./inkBleed.js";
+import { shatterRevealTemplate } from "./shatterReveal.js";
+import { neonTraceTemplate } from "./neonTrace.js";
 import type { ComponentDraft, TemplateDef } from "./helper.js";
 
 export const TEMPLATES: TemplateDef[] = [
@@ -135,6 +156,27 @@ export const TEMPLATES: TemplateDef[] = [
   zoomOutTemplate,
   collapseDownTemplate,
   dissolveOutTemplate,
+  origamiFoldTemplate,
+  liquidWaveTemplate,
+  neonPulseTemplate,
+  quantumFieldTemplate,
+  crystalShardTemplate,
+  spectrumWaveTemplate,
+  magneticFieldTemplate,
+  tidalFlowTemplate,
+  cosmicBirthTemplate,
+  photonStreamTemplate,
+  magneticInkTemplate,
+  dimensionalFoldTemplate,
+  liquidMercuryTemplate,
+  neuralPulseTemplate,
+  auroraBorealisTemplate,
+  quantumEntanglementTemplate,
+  acousticWaveTemplate,
+  crystallineGrowthTemplate,
+  inkBleedTemplate,
+  shatterRevealTemplate,
+  neonTraceTemplate,
 ];
 
 export function getTemplate(id: string): TemplateDef | undefined {
