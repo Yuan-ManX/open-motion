@@ -2,6 +2,28 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Design tokens — single source of truth for the high-contrast
+   minimalist black/white system. Tailwind colors map to these vars
+   so inline styles and Tailwind utilities stay in sync. */
+:root {
+  --ink: #000000;
+  --bg: #000000;
+  --panel: #0a0a0a;
+  --panel1: #0a0a0a;
+  --panel2: #161616;
+  --panel3: #1f1f1f;
+  --edge: #262626;
+  --border: #262626;
+  --text: #f5f5f5;
+  --text-dim: #a3a3a3;
+  --text-muted: #6b6b6b;
+  --accent: #ffffff;
+  --accent2: #a3a3a3;
+  --danger: #ef4444;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
 html, body, #root { height: 100%; }
 body {
   margin: 0;
@@ -24,8 +46,27 @@ body {
 
 /* Focus ring — consistent across interactive elements */
 :focus-visible {
-  outline: 2px solid rgba(255, 255, 255, 0.4);
+  outline: 2px solid rgba(255, 255, 255, 0.5);
   outline-offset: 1px;
+  border-radius: 2px;
+}
+
+/* Skeleton shimmer for loading states — subtle horizontal sweep that
+   reads as "content arriving" without the jank of a spinner. */
+@keyframes om-skeleton {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(38, 38, 38, 0.4) 0%,
+    rgba(38, 38, 38, 0.8) 50%,
+    rgba(38, 38, 38, 0.4) 100%
+  );
+  background-size: 200% 100%;
+  animation: om-skeleton 1.4s ease-in-out infinite;
+  border-radius: 2px;
 }
 
 /* Canvas dot-grid background */
@@ -39,9 +80,26 @@ body {
   to { stroke-dashoffset: -8; }
 }
 .selection-outline {
-  outline: 1px dashed rgba(255, 255, 255, 0.6);
+  outline: 1px dashed rgba(255, 255, 255, 0.7);
   outline-offset: 2px;
   animation: march 0.6s linear infinite;
+}
+
+/* Hover affordance for canvas components — subtle solid outline that
+   signals "click to select" without competing with the selection state. */
+.canvas-hover-outline {
+  outline: 1px solid rgba(255, 255, 255, 0.35);
+  outline-offset: 1px;
+}
+
+/* Brief flash when a generation lands on the canvas — draws the eye
+   to newly created content without obscuring it. */
+@keyframes om-gen-flash {
+  0% { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.6), 0 0 24px rgba(255, 255, 255, 0.2); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0), 0 0 0 rgba(255, 255, 255, 0); }
+}
+.gen-flash {
+  animation: om-gen-flash 1.2s ease-out;
 }
 
 /* Subtle fade-in for chat messages and plan steps */
