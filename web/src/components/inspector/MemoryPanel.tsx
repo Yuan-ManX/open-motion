@@ -14,6 +14,8 @@ import {
   deleteToken,
   listPipelines,
   deletePipeline,
+  listFailures,
+  getContextBudget,
   type AgentMemoryEntry,
   type MotionRecipe,
   type GeneratedSkill,
@@ -21,13 +23,16 @@ import {
   type DesignToken,
   type TokenCategory,
   type ToolPipeline,
+  type FailureRecord,
+  type ContextBudgetResponse,
 } from "../../api/endpoints.js";
 
-type Section = "restraint" | "memory" | "recipes" | "skills" | "tokens" | "pipelines";
+type Section = "restraint" | "memory" | "failures" | "recipes" | "skills" | "tokens" | "pipelines";
 
 const SECTIONS: { id: Section; label: string; icon: string }[] = [
   { id: "restraint", label: "Restraint", icon: "◉" },
   { id: "memory", label: "Memory", icon: "◆" },
+  { id: "failures", label: "Failures", icon: "⚠" },
   { id: "recipes", label: "Recipes", icon: "▦" },
   { id: "skills", label: "Learned", icon: "✦" },
   { id: "tokens", label: "Tokens", icon: "◇" },
@@ -313,6 +318,125 @@ function MemorySection({ projectId }: { projectId: string }) {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+/** Failures section — episodic lessons the agent learned from prior tool failures. */
+function FailuresSection({ projectId }: { projectId: string }) {
+  const [records, setRecords] = useState<FailureRecord[]>([]);
+  const [budget, setBudget] = useState<ContextBudgetResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [failures, ctx] = await Promise.all([
+        listFailures(projectId, 30),
+        getContextBudget(projectId).catch(() => null),
+      ]);
+      setRecords(failures.records);
+      setBudget(ctx);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load failure memory");
+      setRecords([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  if (loading) return <div className="p-3 text-[11px] text-gray-500">Loading failure lessons…</div>;
+  if (error) return (
+    <div className="p-3 text-[11px] text-red-400">
+      {error}
+      <button onClick={() => void refresh()} className="ml-2 underline text-gray-400">retry</button>
+    </div>
+  );
+
+  return (
+    <div className="h-full overflow-y-auto">
+      {/* Context budget summary */}
+      {budget && (
+        <div className="px-2.5 py-2 border-b border-edge/50 bg-panel2/30">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[9px] uppercase tracking-wide text-gray-500">Context Budget</span>
+            <span className="text-[9px] font-mono text-gray-400 uppercase">{budget.tierLabel}</span>
+          </div>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-[14px] font-mono font-bold text-gray-100">
+              {budget.conversation.estimatedTokens.toLocaleString()}
+            </span>
+            <span className="text-[9px] text-gray-500">/ {budget.budget.availableForHistory.toLocaleString()} tokens</span>
+          </div>
+          <div className="h-1 bg-edge rounded-full overflow-hidden mt-1">
+            <div
+              className={`h-full transition-all ${budget.selection.fitsBudget ? "bg-gray-300" : "bg-red-500"}`}
+              style={{
+                width: `${Math.min(100, Math.round((budget.conversation.estimatedTokens / Math.max(1, budget.budget.availableForHistory)) * 100))}%`,
+              }}
+            />
+          </div>
+          <div className="flex justify-between mt-1 text-[9px] text-gray-600">
+            <span>{budget.conversation.messageCount} msgs</span>
+            <span>
+              {budget.selection.droppedCount > 0
+                ? `${budget.selection.droppedCount} dropped`
+                : "all kept"}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Failure records */}
+      <div className="px-2.5 py-2">
+        <div className="text-[9px] uppercase tracking-wide text-gray-500 mb-1.5">
+          Learned Failure Lessons
+        </div>
+        {records.length === 0 ? (
+          <div className="text-[11px] text-gray-600 leading-relaxed">
+            No failure lessons yet. When a tool fails, the agent records the error signature and recovery suggestion here so it can avoid repeating the same mistake on subsequent turns.
+          </div>
+        ) : (
+          <div className="space-y-1.5">
+            {records.map((r) => (
+              <div key={r.id} className="rounded border border-edge bg-panel2/40 px-2 py-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-mono font-medium text-gray-200">{r.tool}</span>
+                  <span className="text-[8px] text-gray-600 font-mono">×{r.occurrenceCount}</span>
+                </div>
+                <div className="text-[9px] text-red-400/80 mt-0.5 leading-snug">{r.errorPattern}</div>
+                <div className="text-[9px] text-gray-400 mt-1 leading-snug">
+                  <span className="text-gray-500">recovery:</span> {r.suggestion}
+                </div>
+                <div className="flex items-center justify-between mt-1">
+                  <div className="flex-1 h-0.5 bg-edge rounded-full overflow-hidden mr-2">
+                    <div
+                      className="h-full bg-gray-400"
+                      style={{ width: `${Math.round(r.relevance * 100)}%` }}
+                    />
+                  </div>
+                  <span className="text-[8px] text-gray-600 font-mono">
+                    {new Date(r.lastSeen).toLocaleDateString()}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <button
+        onClick={() => void refresh()}
+        className="w-full text-[10px] text-gray-500 hover:text-gray-300 py-1 border-t border-edge"
+      >
+        ↻ Refresh
+      </button>
     </div>
   );
 }
@@ -887,6 +1011,8 @@ export function MemoryPanel({ projectId }: { projectId: string }) {
           </div>
         ) : section === "memory" ? (
           <MemorySection projectId={projectId} />
+        ) : section === "failures" ? (
+          <FailuresSection projectId={projectId} />
         ) : section === "recipes" ? (
           <RecipesSection />
         ) : section === "tokens" ? (
