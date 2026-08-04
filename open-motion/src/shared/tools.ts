@@ -126,6 +126,53 @@ export const SetGlobalTimingInput = z.object({
   totalDurationMs: z.number().int().positive().optional(),
 });
 
+/** Set the project-wide tempo so motion can be quantized to a beat grid. */
+export const SetProjectTempoInput = z.object({
+  projectId: zIdField,
+  bpm: z.number().min(20).max(300),
+});
+
+/**
+ * Snap a component's duration (or every component's) to the nearest beat
+ * division of the project tempo. If no division is given, picks the closest
+ * musical division for each duration automatically.
+ */
+export const QuantizeToTempoInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField.optional().describe("Omit to quantize every component in the project"),
+  division: z.enum(["1", "2", "4", "8", "16"]).optional().describe("Force a specific beat division; omit for auto"),
+});
+
+/**
+ * Anchor a component's start time to a musical phase within a 4/4 bar.
+ * The phase is expressed either as a beat offset (0 = downbeat, 0.5 =
+ * offbeat, 1 = beat 2) or via a named label. Translates to a delay so the
+ * motion begins on that beat position. Requires a project tempo.
+ */
+export const SetPhaseInput = z.object({
+  projectId: zIdField,
+  componentId: zIdField.optional().describe("Single target; omit when using componentIds"),
+  componentIds: z.array(zIdField).min(1).optional().describe("Group target; the same phase is applied to each"),
+  phaseBeats: z.number().min(0).max(4).optional().describe("Phase offset in beats from the downbeat (0=downbeat, 0.5=offbeat, 1=beat 2). Mutually exclusive with label."),
+  label: z.enum(["downbeat", "offbeat", "backbeat", "beat1", "beat2", "beat3", "beat4"]).optional().describe("Named musical phase. Mutually exclusive with phaseBeats."),
+});
+
+/**
+ * Align component start times to the beat grid. In "snap" mode each
+ * component's existing delay is snapped to the nearest beat division. In
+ * "polyrhythm" mode the targeted components are distributed evenly across a
+ * fixed beat cycle, producing a k:base polyrhythm (e.g. 3 components across
+ * 2 beats = 3:2) that resolves back to the downbeat every cycle.
+ */
+export const AlignToBeatInput = z.object({
+  projectId: zIdField,
+  mode: z.enum(["snap", "polyrhythm"]).default("snap"),
+  componentIds: z.array(zIdField).min(1).optional().describe("Targets; omit for every component (ordered by orderIndex in polyrhythm mode)"),
+  division: z.enum(["1", "2", "4", "8", "16"]).optional().describe("snap mode: force a specific beat division; omit for auto"),
+  cycleBeats: z.number().min(1).max(16).default(4).describe("polyrhythm mode: span in beats the events fill (default 4 = one bar of 4/4)"),
+  rotation: z.number().min(0).max(4).default(0).describe("polyrhythm mode: rotate the pattern by this many beats"),
+});
+
 /* ----------------------------- Multi-component tools ----------------------------- */
 export const BatchUpdateInput = z.object({
   projectId: zIdField,
@@ -221,6 +268,32 @@ export const AnalyzeMotionInput = z.object({
 
 export const SuggestNextInput = z.object({
   projectId: zIdField,
+});
+
+/* --------------------------- Catalog search tool --------------------------- */
+export const SearchCatalogInput = z.object({
+  query: z.string().min(1).describe("Search query (e.g., 'fade', 'bounce', 'glitch')"),
+  limit: z.number().min(1).max(50).optional().default(10).describe("Maximum number of results"),
+});
+
+/* --------------------------- Automation pipeline --------------------------- */
+export const RunMotionPipelineInput = z.object({
+  projectId: zIdField,
+  description: z.string().min(1).describe("Natural language description of the desired motion (e.g., 'playful bounce-in for a hero title')"),
+  durationMs: z.number().int().positive().optional().describe("Target duration in milliseconds"),
+  colorScheme: z.enum(["complementary", "analogous", "triadic", "monochrome"]).optional(),
+  baseColor: z.string().optional().describe("Base color as hex (e.g., '#ff6b00')"),
+  choreography: z.enum(["cascade", "call_response", "unison", "counterpoint", "wave", "canon", "stagger_grid", "ripple_out", "auto"]).optional(),
+  componentCount: z.number().int().positive().optional(),
+});
+
+/* --------------------------- Composition engine --------------------------- */
+export const ComposeSequenceInput = z.object({
+  projectId: zIdField,
+  type: z.enum(["sequence", "parallel", "stagger"]),
+  componentIds: z.array(z.string()).min(1).describe("Component IDs to compose"),
+  stepMs: z.number().int().positive().optional().default(80).describe("Stagger step in ms"),
+  gapMs: z.number().int().nonnegative().optional().default(0).describe("Gap between sequence items in ms"),
 });
 
 /* --------------------------- Motion path tools --------------------------- */
@@ -2756,6 +2829,144 @@ export const ListModelsInput = z.object({
   modality: z.string().optional().describe("Filter by modality: text-to-image, text-to-video, text-to-speech, speech-to-text, text-to-3d"),
 });
 
+/* --------------------------- Editor control tools --------------------------- */
+/* Tools that emit editor_command events to drive the frontend UI directly.   */
+/* These complement spec-modifying tools by controlling pure UI state.        */
+
+export const EditorZoomCanvasInput = z.object({
+  zoom: z.number().min(0.1).max(5).describe("Zoom level (1 = 100%)"),
+});
+
+export const EditorPanCanvasInput = z.object({
+  x: z.number().describe("Pan offset X in pixels"),
+  y: z.number().describe("Pan offset Y in pixels"),
+});
+
+export const EditorFitToScreenInput = z.object({});
+
+export const EditorResetViewInput = z.object({});
+
+export const EditorSetPlayheadInput = z.object({
+  timeMs: z.number().min(0).describe("Playhead position in milliseconds"),
+});
+
+export const EditorSetPlaybackSpeedInput = z.object({
+  speed: z.number().min(0.25).max(4).describe("Playback speed multiplier (1 = normal)"),
+});
+
+export const EditorPlayInput = z.object({});
+
+export const EditorPauseInput = z.object({});
+
+export const EditorToggleRulersInput = z.object({
+  enabled: z.boolean().optional().describe("Optional explicit state; toggles if omitted"),
+});
+
+export const EditorToggleSnapInput = z.object({
+  enabled: z.boolean().optional(),
+  gridSize: z.number().int().min(1).max(50).optional().describe("Snap grid size in pixels"),
+});
+
+export const EditorToggleAutoKeyframeInput = z.object({
+  enabled: z.boolean().optional(),
+});
+
+export const EditorToggleOnionSkinInput = z.object({
+  enabled: z.boolean().optional(),
+  frames: z.number().int().min(1).max(8).optional().describe("Number of ghost frames"),
+  opacity: z.number().min(0.05).max(0.8).optional(),
+});
+
+export const EditorSelectComponentInput = z.object({
+  componentId: z.string().min(1),
+  additive: z.boolean().optional().describe("Add to existing selection instead of replacing"),
+});
+
+export const EditorSelectComponentsInput = z.object({
+  componentIds: z.array(z.string()).min(1),
+  clearFirst: z.boolean().optional().describe("Clear existing selection before adding"),
+});
+
+export const EditorClearSelectionInput = z.object({});
+
+export const EditorToggleVisibilityInput = z.object({
+  componentId: z.string().min(1),
+});
+
+export const EditorToggleLockInput = z.object({
+  componentId: z.string().min(1),
+  locked: z.boolean().optional(),
+});
+
+export const EditorSetPanelInput = z.object({
+  category: z.enum(["design", "motion", "intel", "assets", "output"]).describe("Right panel functional group"),
+  tab: z.string().optional().describe("Optional specific tab within the group"),
+});
+
+export const EditorTogglePanelInput = z.object({
+  collapsed: z.boolean().optional().describe("Optional explicit collapsed state"),
+});
+
+export const EditorOpenOverlayInput = z.object({
+  overlay: z.enum(["preview", "export", "templates", "settings", "command_palette"]),
+  open: z.boolean().optional().describe("Optional explicit open state; toggles if omitted"),
+});
+
+export const EditorUndoInput = z.object({});
+
+export const EditorRedoInput = z.object({});
+
+export const EditorSetArtboardInput = z.object({
+  width: z.number().int().min(64).max(4096).optional(),
+  height: z.number().int().min(64).max(4096).optional(),
+  background: z.string().optional().describe("Background color (hex or css color)"),
+});
+
+export const EditorTriggerReplayInput = z.object({});
+
+export const EditorToggleMotionPathsInput = z.object({
+  enabled: z.boolean().optional().describe("Optional explicit state; toggles if omitted"),
+});
+
+export const EditorTogglePerformanceMonitorInput = z.object({
+  enabled: z.boolean().optional(),
+});
+
+export const EditorSetSoloInput = z.object({
+  componentId: z.string().nullable().describe("Component id to solo, or null to clear solo"),
+});
+
+export const EditorToggleSidebarInput = z.object({
+  collapsed: z.boolean().optional().describe("Optional explicit collapsed state"),
+});
+
+export const EditorTimelineCommandInput = z.object({
+  action: z.string().min(1).describe("Timeline action: copy, paste, duplicate, delete, group, ungroup, bring_to_front, send_to_back"),
+});
+
+export const EditorToggleSelectionInput = z.object({
+  componentId: z.string().min(1).describe("Component id to toggle in/out of selection"),
+});
+
+export const EditorOpenSkillsInput = z.object({
+  open: z.boolean().optional().describe("Optional explicit open state"),
+});
+
+export const EditorOpenShortcutsInput = z.object({
+  open: z.boolean().optional(),
+});
+
+export const EditorSetTrackOrderInput = z.object({
+  trackIds: z.array(z.string()).min(1).describe("Ordered list of track/component ids"),
+});
+
+export const EditorSetLoopRegionInput = z.object({
+  startMs: z.number().min(0).describe("Loop region start in milliseconds"),
+  endMs: z.number().min(0).describe("Loop region end in milliseconds"),
+});
+
+export const EditorClearLoopRegionInput = z.object({});
+
 /* --------------------------- Checkpoint & plan tools --------------------------- */
 export const RollbackLastActionInput = z.object({
   projectId: zIdField,
@@ -2778,6 +2989,552 @@ export const GetPlanStateInput = z.object({
   projectId: zIdField,
 });
 
+// --- Frame rendering and composition tools ---
+
+export const SeekToFrameInput = z.object({
+  projectId: zIdField,
+  frame: z.number().int().min(0).describe("Frame number to seek to"),
+  fps: z.number().int().positive().optional().describe("Frames per second (default 60)"),
+});
+
+export const RenderFramesInput = z.object({
+  projectId: zIdField,
+  startFrame: z.number().int().min(0).optional().describe("Starting frame (default 0)"),
+  endFrame: z.number().int().min(0).optional().describe("Ending frame (default: last frame)"),
+  fps: z.number().int().positive().optional().describe("Frames per second (default 60)"),
+  sampleStep: z.number().int().positive().optional().describe("Sample every N frames for efficiency (default 1)"),
+});
+
+export const ExportHtmlCompositionInput = z.object({
+  projectId: zIdField,
+  width: z.number().int().positive().optional().describe("Canvas width in pixels"),
+  height: z.number().int().positive().optional().describe("Canvas height in pixels"),
+  fps: z.number().int().positive().optional().describe("Frames per second"),
+  includeControls: z.boolean().optional().describe("Include playback controls UI"),
+  loop: z.boolean().optional().describe("Loop playback"),
+});
+
+export const ResolveMediaInput = z.object({
+  modality: z.enum(["audio", "image", "video", "voice", "icon", "logo", "lut", "font"]).describe("Type of media needed"),
+  purpose: z.enum(["background-music", "sound-effect", "voiceover", "background-image", "foreground-image", "transition", "overlay", "color-grade", "caption", "watermark"]).describe("What the media will be used for"),
+  description: z.string().min(1).describe("Natural language description of the desired media"),
+  durationSec: z.number().positive().optional().describe("Duration in seconds (for audio/video)"),
+  allowGeneration: z.boolean().optional().describe("Allow AI generation if catalog misses (default true)"),
+});
+
+export const RouteSkillInput = z.object({
+  userInput: z.string().min(1).describe("The user's input text to route"),
+});
+
+export const ListSkillsInput = z.object({
+  category: z.enum(["creation", "analysis", "optimization", "export", "editing", "intelligence"]).optional().describe("Filter by category"),
+});
+
+export const PlanSequenceInput = z.object({
+  description: z.string().min(1).describe("Natural language description of the desired sequence"),
+  arc: z.enum(["hero-journey", "product-launch", "tutorial", "product-reveal", "emotional-arc", "action-sequence", "documentary", "celebration"]).optional().describe("Narrative arc template"),
+  totalDurationMs: z.number().int().positive().optional().describe("Target total duration in milliseconds"),
+  sceneCount: z.number().int().positive().optional().describe("Number of scenes"),
+});
+
+export const ListNarrativeArcsInput = z.object({}).optional();
+
+export const ListMotionThemesInput = z.object({
+  personality: z.enum(["precise", "organic", "playful", "dramatic", "minimal", "luxurious", "technical", "warm"]).optional().describe("Filter by personality archetype"),
+});
+
+export const ApplyMotionThemeInput = z.object({
+  projectId: zIdField,
+  themeId: z.string().min(1).describe("Theme id to apply"),
+});
+
+export const ListRhythmPatternsInput = z.object({
+  category: z.enum(["metric", "expressive", "biological", "compound"]).optional().describe("Filter by category"),
+});
+
+export const ApplyRhythmInput = z.object({
+  patternId: z.enum(["steady-beat", "syncopated", "swing", "rubato", "polyrhythm-3-2", "gallop", "waltz", "fanfare", "heartbeat", "wave-flow", "accelerando", "decelerando"]).describe("Rhythm pattern id"),
+  itemCount: z.number().int().positive().describe("Number of items to generate timing for"),
+  bpm: z.number().int().positive().optional().describe("Override BPM"),
+  scale: z.number().positive().optional().describe("Scale factor for durations"),
+});
+
+export const GenerateVariantsInput = z.object({
+  projectId: zIdField,
+  count: z.number().int().positive().optional().describe("Number of variants to generate (default 4)"),
+  strategies: z.array(z.enum(["easing", "timing", "choreography", "intensity", "direction", "palette"])).optional().describe("Strategies to use"),
+  seed: z.number().int().optional().describe("Seed for deterministic generation"),
+});
+
+export const EvolveMotionInput = z.object({
+  projectId: zIdField,
+  strategy: z.enum(["balanced", "playful", "accessible", "performant", "harmonious"]).optional().describe("Evolution strategy (default: balanced)"),
+  generations: z.number().int().positive().max(50).optional().describe("Number of generations to evolve"),
+  populationSize: z.number().int().positive().max(50).optional().describe("Population size per generation"),
+  mutationRate: z.number().min(0).max(1).optional().describe("Mutation probability (0-1)"),
+  apply: z.boolean().optional().describe("Apply the best individual to the project"),
+});
+
+export const ListEvolutionStrategiesInput = z.object({});
+
+export const PredictPerceptionInput = z.object({
+  projectId: zIdField,
+});
+
+export const ListSemanticConceptsInput = z.object({
+  category: z.enum(["emotion", "brand", "energy", "aesthetic"]).optional().describe("Filter by category"),
+});
+
+export const InferIntentInput = z.object({
+  description: z.string().min(1).describe("Natural language description of desired motion feeling"),
+});
+
+export const BlendConceptsInput = z.object({
+  conceptA: z.string().describe("First concept id (e.g. 'playful')"),
+  conceptB: z.string().describe("Second concept id (e.g. 'luxury')"),
+  weightA: z.number().min(0).max(1).optional().describe("Weight of concept A (default 0.5)"),
+});
+
+export const SimulatePhysicsInput = z.object({
+  type: z.enum(["spring", "gravity", "projectile", "friction", "pendulum"]).describe("Physics simulation type"),
+  config: z.record(z.string(), z.number()).optional().describe("Simulation parameters (stiffness, damping, gravity, etc.)"),
+});
+
+export const ListPhysicsPresetsInput = z.object({});
+
+export const RunPhysicsPresetInput = z.object({
+  presetId: z.string().describe("Preset id (e.g. 'spring-snappy', 'gravity-drop')"),
+});
+
+export const GeneratePathMotionInput = z.object({
+  type: z.enum(["bezier", "lissajous", "spiral", "figure-eight", "heart", "circle", "svg-path"]).describe("Path type"),
+  durationMs: z.number().int().positive().optional().describe("Duration in ms (default 2000)"),
+  samples: z.number().int().positive().max(200).optional().describe("Number of keyframe samples (default 60)"),
+  scale: z.number().positive().optional().describe("Scale factor (default 1)"),
+  loop: z.boolean().optional().describe("Loop the animation (default true)"),
+});
+
+export const ListPathPresetsInput = z.object({});
+
+export const RunPathPresetInput = z.object({
+  presetId: z.string().describe("Preset id (e.g. 'lissajous-3-2', 'figure-eight')"),
+});
+
+export const EncodeMotionInput = z.object({
+  projectId: zIdField,
+  format: z.enum(["lottie", "css", "waapi", "smil", "gsap", "react-spring"]).describe("Output format"),
+  minify: z.boolean().optional().describe("Minify output (default false)"),
+});
+
+export const ListCodecFormatsInput = z.object({});
+
+// --- Motion Style Transfer tools ---
+
+export const ExtractStyleDnaInput = z.object({
+  projectId: zIdField,
+});
+
+export const TransferProjectStyleInput = z.object({
+  projectId: zIdField,
+  sourceProjectId: zIdField.describe("Project to extract style from"),
+  easingStrength: z.number().min(0).max(1).optional().describe("How strongly to apply easing (0-1, default 0.8)"),
+  tempoStrength: z.number().min(0).max(1).optional().describe("How strongly to apply tempo (0-1, default 0.7)"),
+  energyStrength: z.number().min(0).max(1).optional().describe("How strongly to apply energy (0-1, default 0.6)"),
+  colorStrength: z.number().min(0).max(1).optional().describe("How strongly to apply colors (0-1, default 0.5)"),
+});
+
+export const BlendStylesInput = z.object({
+  projectIdA: zIdField,
+  projectIdB: zIdField,
+  ratio: z.number().min(0).max(1).describe("Blend ratio (0=A, 1=B, 0.5=equal)"),
+});
+
+export const DescribeStyleInput = z.object({
+  projectId: zIdField,
+});
+
+export const CompareStylesInput = z.object({
+  projectIdA: zIdField,
+  projectIdB: zIdField,
+});
+
+export const ListStyleArchetypesInput = z.object({});
+
+export const ApplyStyleArchetypeInput = z.object({
+  projectId: zIdField,
+  archetypeId: z.string().describe("Archetype id (e.g. 'minimalist', 'cinematic')"),
+});
+
+// --- Motion Knowledge Graph tools ---
+
+export const BuildKnowledgeGraphInput = z.object({});
+
+export const QueryConceptInput = z.object({
+  conceptId: z.string().describe("Concept node id (e.g. 'bounce', 'stagger')"),
+});
+
+export const FindRelatedInput = z.object({
+  conceptId: z.string().describe("Concept node id"),
+  relationship: z.enum([
+    "enables", "complements", "conflicts", "requires", "specializes",
+    "alternative", "combines", "transitions", "contrasts", "evolves",
+  ]).optional().describe("Filter by relationship type"),
+});
+
+export const FindPathInput = z.object({
+  fromId: z.string().describe("Source concept id"),
+  toId: z.string().describe("Target concept id"),
+});
+
+export const SearchConceptsInput = z.object({
+  query: z.string().describe("Search query (matches label, description, tags)"),
+});
+
+export const SuggestConnectionsInput = z.object({
+  conceptIds: z.array(z.string()).describe("List of concept ids to find connections between"),
+});
+
+export const RecommendNextInput = z.object({
+  usedConceptIds: z.array(z.string()).describe("Concept ids already used in the project"),
+});
+
+export const AnalyzeGraphInput = z.object({});
+
+// --- Motion Testing tools ---
+
+export const RunAllTestsInput = z.object({
+  projectId: zIdField,
+});
+
+export const RunTestsByCategoryInput = z.object({
+  projectId: zIdField,
+  category: z.enum(["accessibility", "performance", "visual", "principles", "timing", "consistency"]),
+});
+
+export const RunTestSuiteInput = z.object({
+  projectId: zIdField,
+  suiteId: z.string().describe("Test suite id (e.g. 'a11y-duration-check')"),
+});
+
+export const ListTestSuitesInput = z.object({});
+
+// Emotion Intelligence
+export const SynthesizeFromEmotionInput = z.object({
+  projectId: zIdField,
+  emotionId: z.string().describe("Emotion id (e.g. 'joy', 'calm', 'anger', 'fear')"),
+});
+export const DetectEmotionInput = z.object({
+  projectId: zIdField,
+  componentId: z.string().describe("Component id to analyze"),
+});
+export const BlendEmotionsInput = z.object({
+  projectId: zIdField,
+  emotions: z.array(z.object({
+    emotionId: z.string(),
+    weight: z.number().min(0).max(1),
+  })).min(2).describe("Emotions to blend with weights"),
+});
+export const PlanEmotionJourneyInput = z.object({
+  projectId: zIdField,
+  emotionIds: z.array(z.string()).min(2).describe("Sequence of emotion ids for the journey"),
+  totalDurationMs: z.number().min(1000).default(5000).describe("Total journey duration in ms"),
+});
+export const ListEmotionsInput = z.object({
+  category: z.string().optional().describe("Filter by category: joy, sadness, anger, fear, surprise, trust, anticipation, calm, power"),
+});
+
+// Adaptive Learning
+export const GetTasteProfileInput = z.object({
+  projectId: zIdField,
+});
+export const RecommendForProjectInput = z.object({
+  projectId: zIdField,
+});
+export const RecordMotionObservationInput = z.object({
+  projectId: zIdField,
+  componentId: z.string().describe("Component id that was interacted with"),
+  action: z.enum(["created", "accepted", "rejected", "modified"]).describe("Type of interaction"),
+});
+
+// Contextual Awareness
+export const ComputeContextAdjustmentsInput = z.object({
+  projectId: zIdField,
+  device: z.string().optional().describe("Device class: desktop, tablet, mobile, watch, kiosk, tv"),
+  performance: z.string().optional().describe("Performance tier: high, medium, low"),
+  timeOfDay: z.string().optional().describe("Time of day: morning, afternoon, evening, night"),
+  ambientLight: z.string().optional().describe("Ambient light: bright, normal, dim, dark"),
+  userState: z.string().optional().describe("User state: focused, casual, rushed, relaxed"),
+});
+export const AdaptComponentForContextInput = z.object({
+  projectId: zIdField,
+  componentId: z.string().describe("Component id to adapt"),
+  device: z.string().optional(),
+  performance: z.string().optional(),
+  timeOfDay: z.string().optional(),
+  ambientLight: z.string().optional(),
+  userState: z.string().optional(),
+});
+export const AutoDetectContextInput = z.object({});
+export const ListContextOptionsInput = z.object({});
+
+// Motion Collaboration
+export const PlanCollaborationInput = z.object({
+  projectId: zIdField,
+  request: z.string().describe("The complex motion request to decompose into collaborative sub-tasks"),
+});
+export const ExecuteCollaborationInput = z.object({
+  projectId: zIdField,
+  request: z.string().describe("The complex motion request to execute collaboratively"),
+});
+export const ListCollaborationModulesInput = z.object({});
+
+// Motion Resonance
+export const AnalyzeResonanceInput = z.object({
+  projectId: zIdField,
+  viewerState: z.object({
+    attention: z.number().min(0).max(1).optional(),
+    arousal: z.number().min(0).max(1).optional(),
+    valence: z.number().min(-1).max(1).optional(),
+    fatigue: z.number().min(0).max(1).optional(),
+    timeOfDay: z.enum(["morning", "afternoon", "evening", "night"]).optional(),
+  }).optional(),
+});
+export const TuneResonanceInput = z.object({
+  projectId: zIdField,
+  viewerState: z.object({
+    attention: z.number().min(0).max(1).optional(),
+    arousal: z.number().min(0).max(1).optional(),
+    valence: z.number().min(-1).max(1).optional(),
+    fatigue: z.number().min(0).max(1).optional(),
+    timeOfDay: z.enum(["morning", "afternoon", "evening", "night"]).optional(),
+  }).optional(),
+});
+
+// Motion Synesthesia
+export const TranslateSynesthesiaInput = z.object({
+  projectId: zIdField,
+});
+export const MapSensoryToMotionInput = z.object({
+  modality: z.enum(["color", "sound", "texture", "emotion"]),
+  value: z.string().describe("The sensory value to map (hex color, note name, surface name, or emotion name)"),
+});
+
+// Motion Dream
+export const DreamFromPromptInput = z.object({
+  projectId: zIdField,
+  prompt: z.string().describe("Natural language prompt describing the dream concept"),
+});
+export const GenerateDreamSequenceInput = z.object({
+  projectId: zIdField,
+  length: z.number().min(1).max(8).optional(),
+  seed: z.string().optional(),
+});
+export const ListDreamConceptsInput = z.object({});
+
+// Motion Harmonics
+export const AnalyzeHarmonicsInput = z.object({
+  projectId: zIdField,
+});
+export const FindHarmonicsInput = z.object({
+  projectId: zIdField,
+  componentId: z.string().describe("The component id to find harmonizing partners for"),
+});
+
+// Motion Entropy
+export const AnalyzeEntropyInput = z.object({
+  projectId: zIdField,
+});
+export const IdentifyInformationHotspotsInput = z.object({
+  projectId: zIdField,
+});
+
+// Motion Cognition
+export const AnalyzeCognitiveLoadInput = z.object({
+  projectId: zIdField,
+});
+
+// Motion Topology
+export const AnalyzeTopologyInput = z.object({
+  projectId: zIdField,
+});
+export const FindTemporalPathInput = z.object({
+  projectId: zIdField,
+  fromId: z.string().describe("The source component id"),
+  toId: z.string().describe("The target component id"),
+});
+
+// Motion Poetics
+export const AnalyzePoeticsInput = z.object({
+  projectId: zIdField,
+});
+
+// Motion Ecology
+export const AnalyzeEcosystemInput = z.object({
+  projectId: zIdField,
+});
+
+// Motion Calligraphy
+export const AnalyzeCalligraphyInput = z.object({
+  projectId: zIdField,
+});
+
+// Motion Mythology
+export const AnalyzeMythologyInput = z.object({
+  projectId: zIdField,
+});
+
+// Motion Weather
+export const AnalyzeWeatherInput = z.object({
+  projectId: zIdField,
+});
+
+// Motion Alchemy
+export const AnalyzeAlchemyInput = z.object({
+  projectId: zIdField,
+});
+
+// Motion Architecture
+export const AnalyzeArchitectureInput = z.object({
+  projectId: zIdField,
+});
+
+// Motion Cartography
+export const AnalyzeCartographyInput = z.object({
+  projectId: zIdField,
+});
+
+// Motion Genealogy
+export const AnalyzeGenealogyInput = z.object({
+  projectId: zIdField,
+});
+
+// Motion Astronomy
+export const AnalyzeAstronomyInput = z.object({
+  projectId: zIdField,
+});
+
+// Motion Chemistry
+export const AnalyzeChemistryInput = z.object({
+  projectId: zIdField,
+});
+
+// Motion Musicology
+export const AnalyzeMusicologyInput = z.object({
+  projectId: zIdField,
+});
+
+// Motion Botany
+export const AnalyzeBotanyInput = z.object({
+  projectId: zIdField,
+});
+
+// Motion Geology
+export const AnalyzeGeologyInput = z.object({
+  projectId: zIdField,
+});
+
+// Motion Physics
+export const AnalyzePhysicsInput = z.object({
+  projectId: zIdField,
+});
+
+// Motion Linguistics
+export const AnalyzeLinguisticsInput = z.object({
+  projectId: zIdField,
+});
+
+// Motion Cinema
+export const AnalyzeCinemaInput = z.object({
+  projectId: zIdField,
+});
+
+// Motion Verification
+export const VerifyMotionInput = z.object({
+  projectId: zIdField,
+  /** Optional intent override; defaults to the most recent user message. */
+  intent: z.string().optional(),
+});
+
+// Motion Self-Correction
+export const SelfCorrectInput = z.object({
+  projectId: zIdField,
+  /** Optional intent override; defaults to the most recent user message. */
+  intent: z.string().optional(),
+  /** When false, only reports what would be fixed without applying patches. Default true. */
+  apply: z.boolean().optional(),
+});
+
+// Motion Telepathy
+export const PredictIntentInput = z.object({
+  /** The partial user input to predict intent from. May be empty. */
+  partial: z.string(),
+  /** Optional project id to use the spec as a prior. */
+  projectId: zIdField.optional(),
+  /** How many predictions to return. Default 5. */
+  topK: z.number().int().positive().max(10).optional(),
+});
+
+// Motion Prophecy
+export const ForecastMotionInput = z.object({
+  projectId: zIdField,
+});
+
+// Motion Genesis
+export const GenesisMotionInput = z.object({
+  projectId: zIdField,
+  /** Which mathematical generator to use. */
+  kind: z.enum(["lissajous", "goldenSpiral", "waveInterference", "dampedOscillator", "phyllotaxis", "lorenzAttractor"]),
+  /** Number of keyframe samples. Default 24. */
+  samples: z.number().int().positive().max(64).optional(),
+  /** Animation duration in ms. Default 2000. */
+  durationMs: z.number().int().positive().max(20000).optional(),
+  /** Frequency a. Default 3. */
+  a: z.number().optional(),
+  /** Frequency b. Default 2. */
+  b: z.number().optional(),
+  /** Amplitude in pixels. Default 120. */
+  amplitude: z.number().optional(),
+  /** Damping coefficient. Default 0.15. */
+  damping: z.number().optional(),
+  /** Angular frequency. Default 4. */
+  omega: z.number().optional(),
+});
+
+// Motion Symbiosis
+export const AnalyzeSymbiosisInput = z.object({
+  /** First project id (parent A). */
+  projectIdA: zIdField,
+  /** Second project id (parent B). */
+  projectIdB: zIdField,
+  /** When true, persist the bred hybrid offspring as components in project A. Default false. */
+  persistOffspring: z.boolean().optional(),
+});
+
+// Motion Consciousness
+export const ReflectConsciousnessInput = z.object({
+  projectId: zIdField,
+});
+
+// Motion Volition
+export const DecideVolitionInput = z.object({
+  /** The partial user input to evaluate. May be empty. */
+  partial: z.string(),
+  /** Optional project id to read the current spec as a prior. */
+  projectId: zIdField.optional(),
+  /** Number of consecutive prior turns that ended in an ASK. */
+  consecutiveAsks: z.number().int().min(0).optional(),
+  /** Whether the same keyword appeared in the prior turn. */
+  repeatedKeyword: z.boolean().optional(),
+});
+
+// Motion Lexicon
+export const TranslateLexiconInput = z.object({
+  /** The natural-language intent to translate (English or Chinese). */
+  input: z.string(),
+  /** Optional project id, reserved for future spec-aware routing. */
+  projectId: zIdField.optional(),
+});
+
 /** Tool-name → input schema registry. The agent and MCP layer both consume this. */
 export const TOOL_INPUT_SCHEMAS = {
   get_motion_spec: GetMotionSpecInput,
@@ -2798,6 +3555,10 @@ export const TOOL_INPUT_SCHEMAS = {
   set_color: SetColorInput,
   set_static_style: SetStaticStyleInput,
   set_global_timing: SetGlobalTimingInput,
+  set_project_tempo: SetProjectTempoInput,
+  quantize_to_tempo: QuantizeToTempoInput,
+  set_phase: SetPhaseInput,
+  align_to_beat: AlignToBeatInput,
   batch_update: BatchUpdateInput,
   apply_preset: ApplyPresetInput,
   duplicate_component: DuplicateComponentInput,
@@ -2813,6 +3574,9 @@ export const TOOL_INPUT_SCHEMAS = {
   create_variant: CreateVariantInput,
   analyze_motion: AnalyzeMotionInput,
   suggest_next: SuggestNextInput,
+  search_catalog: SearchCatalogInput,
+  run_motion_pipeline: RunMotionPipelineInput,
+  compose_sequence: ComposeSequenceInput,
   set_motion_path: SetMotionPathInput,
   apply_style: ApplyStyleInput,
   recognize_pattern: RecognizePatternInput,
@@ -3120,11 +3884,187 @@ export const TOOL_INPUT_SCHEMAS = {
   generate_video: GenerateVideoInput,
   generate_3d: Generate3DInput,
   list_models: ListModelsInput,
+  editor_zoom_canvas: EditorZoomCanvasInput,
+  editor_pan_canvas: EditorPanCanvasInput,
+  editor_fit_to_screen: EditorFitToScreenInput,
+  editor_reset_view: EditorResetViewInput,
+  editor_set_playhead: EditorSetPlayheadInput,
+  editor_set_playback_speed: EditorSetPlaybackSpeedInput,
+  editor_play: EditorPlayInput,
+  editor_pause: EditorPauseInput,
+  editor_toggle_rulers: EditorToggleRulersInput,
+  editor_toggle_snap: EditorToggleSnapInput,
+  editor_toggle_auto_keyframe: EditorToggleAutoKeyframeInput,
+  editor_toggle_onion_skin: EditorToggleOnionSkinInput,
+  editor_select_component: EditorSelectComponentInput,
+  editor_select_components: EditorSelectComponentsInput,
+  editor_clear_selection: EditorClearSelectionInput,
+  editor_toggle_visibility: EditorToggleVisibilityInput,
+  editor_toggle_lock: EditorToggleLockInput,
+  editor_set_panel: EditorSetPanelInput,
+  editor_toggle_panel: EditorTogglePanelInput,
+  editor_open_overlay: EditorOpenOverlayInput,
+  editor_undo: EditorUndoInput,
+  editor_redo: EditorRedoInput,
+  editor_set_artboard: EditorSetArtboardInput,
+  editor_trigger_replay: EditorTriggerReplayInput,
+  editor_toggle_motion_paths: EditorToggleMotionPathsInput,
+  editor_toggle_performance_monitor: EditorTogglePerformanceMonitorInput,
+  editor_set_solo: EditorSetSoloInput,
+  editor_toggle_sidebar: EditorToggleSidebarInput,
+  editor_timeline_command: EditorTimelineCommandInput,
+  editor_toggle_selection: EditorToggleSelectionInput,
+  editor_open_skills: EditorOpenSkillsInput,
+  editor_open_shortcuts: EditorOpenShortcutsInput,
+  editor_set_track_order: EditorSetTrackOrderInput,
+  editor_set_loop_region: EditorSetLoopRegionInput,
+  editor_clear_loop_region: EditorClearLoopRegionInput,
   rollback_last_action: RollbackLastActionInput,
   list_checkpoints: ListCheckpointsInput,
   rollback_to_checkpoint: RollbackToCheckpointInput,
   cancel_plan: CancelPlanInput,
   get_plan_state: GetPlanStateInput,
+  seek_to_frame: SeekToFrameInput,
+  render_frames: RenderFramesInput,
+  export_html_composition: ExportHtmlCompositionInput,
+  resolve_media: ResolveMediaInput,
+  route_skill: RouteSkillInput,
+  list_skills: ListSkillsInput,
+  plan_sequence: PlanSequenceInput,
+  list_narrative_arcs: ListNarrativeArcsInput,
+  list_motion_themes: ListMotionThemesInput,
+  apply_motion_theme: ApplyMotionThemeInput,
+  list_rhythm_patterns: ListRhythmPatternsInput,
+  apply_rhythm: ApplyRhythmInput,
+  generate_variants: GenerateVariantsInput,
+  evolve_motion: EvolveMotionInput,
+  list_evolution_strategies: ListEvolutionStrategiesInput,
+  predict_perception: PredictPerceptionInput,
+  list_semantic_concepts: ListSemanticConceptsInput,
+  infer_intent: InferIntentInput,
+  blend_concepts: BlendConceptsInput,
+  simulate_physics: SimulatePhysicsInput,
+  list_physics_presets: ListPhysicsPresetsInput,
+  run_physics_preset: RunPhysicsPresetInput,
+  generate_path_motion: GeneratePathMotionInput,
+  list_path_presets: ListPathPresetsInput,
+  run_path_preset: RunPathPresetInput,
+  encode_motion: EncodeMotionInput,
+  list_codec_formats: ListCodecFormatsInput,
+  // Style Transfer
+  extract_style_dna: ExtractStyleDnaInput,
+  transfer_project_style: TransferProjectStyleInput,
+  blend_styles: BlendStylesInput,
+  describe_style: DescribeStyleInput,
+  compare_styles: CompareStylesInput,
+  list_style_archetypes: ListStyleArchetypesInput,
+  apply_style_archetype: ApplyStyleArchetypeInput,
+  // Knowledge Graph
+  build_knowledge_graph: BuildKnowledgeGraphInput,
+  query_concept: QueryConceptInput,
+  find_related: FindRelatedInput,
+  find_concept_path: FindPathInput,
+  search_concepts: SearchConceptsInput,
+  suggest_connections: SuggestConnectionsInput,
+  recommend_next: RecommendNextInput,
+  analyze_graph: AnalyzeGraphInput,
+  // Testing
+  run_all_tests: RunAllTestsInput,
+  run_tests_by_category: RunTestsByCategoryInput,
+  run_test_suite: RunTestSuiteInput,
+  list_test_suites: ListTestSuitesInput,
+  // Emotion Intelligence
+  synthesize_from_emotion: SynthesizeFromEmotionInput,
+  detect_emotion: DetectEmotionInput,
+  blend_emotions: BlendEmotionsInput,
+  plan_emotion_journey: PlanEmotionJourneyInput,
+  list_emotions: ListEmotionsInput,
+  // Adaptive Learning
+  get_taste_profile: GetTasteProfileInput,
+  recommend_for_project: RecommendForProjectInput,
+  record_motion_observation: RecordMotionObservationInput,
+  // Contextual Awareness
+  compute_context_adjustments: ComputeContextAdjustmentsInput,
+  adapt_component_for_context: AdaptComponentForContextInput,
+  auto_detect_context: AutoDetectContextInput,
+  list_context_options: ListContextOptionsInput,
+  // Motion Collaboration
+  plan_collaboration: PlanCollaborationInput,
+  execute_collaboration: ExecuteCollaborationInput,
+  list_collaboration_modules: ListCollaborationModulesInput,
+  // Motion Resonance
+  analyze_resonance: AnalyzeResonanceInput,
+  tune_resonance: TuneResonanceInput,
+  // Motion Synesthesia
+  translate_synesthesia: TranslateSynesthesiaInput,
+  map_sensory_to_motion: MapSensoryToMotionInput,
+  // Motion Dream
+  dream_from_prompt: DreamFromPromptInput,
+  generate_dream_sequence: GenerateDreamSequenceInput,
+  list_dream_concepts: ListDreamConceptsInput,
+  // Motion Harmonics
+  analyze_harmonics: AnalyzeHarmonicsInput,
+  find_harmonics: FindHarmonicsInput,
+  // Motion Entropy
+  analyze_entropy: AnalyzeEntropyInput,
+  identify_information_hotspots: IdentifyInformationHotspotsInput,
+  // Motion Cognition
+  analyze_cognitive_load: AnalyzeCognitiveLoadInput,
+  // Motion Topology
+  analyze_topology: AnalyzeTopologyInput,
+  find_temporal_path: FindTemporalPathInput,
+  // Motion Poetics
+  analyze_poetics: AnalyzePoeticsInput,
+  // Motion Ecology
+  analyze_ecosystem: AnalyzeEcosystemInput,
+  // Motion Calligraphy
+  analyze_calligraphy: AnalyzeCalligraphyInput,
+  // Motion Mythology
+  analyze_mythology: AnalyzeMythologyInput,
+  // Motion Weather
+  analyze_weather: AnalyzeWeatherInput,
+  // Motion Alchemy
+  analyze_alchemy: AnalyzeAlchemyInput,
+  // Motion Architecture
+  analyze_architecture: AnalyzeArchitectureInput,
+  // Motion Cartography
+  analyze_cartography: AnalyzeCartographyInput,
+  // Motion Genealogy
+  analyze_genealogy: AnalyzeGenealogyInput,
+  // Motion Astronomy
+  analyze_astronomy: AnalyzeAstronomyInput,
+  // Motion Chemistry
+  analyze_chemistry: AnalyzeChemistryInput,
+  // Motion Musicology
+  analyze_musicology: AnalyzeMusicologyInput,
+  // Motion Botany
+  analyze_botany: AnalyzeBotanyInput,
+  // Motion Geology
+  analyze_geology: AnalyzeGeologyInput,
+  // Motion Physics
+  analyze_physics: AnalyzePhysicsInput,
+  // Motion Linguistics
+  analyze_linguistics: AnalyzeLinguisticsInput,
+  // Motion Cinema
+  analyze_cinema: AnalyzeCinemaInput,
+  // Motion Verification
+  verify_motion: VerifyMotionInput,
+  // Motion Self-Correction
+  self_correct: SelfCorrectInput,
+  // Motion Telepathy
+  predict_intent: PredictIntentInput,
+  // Motion Prophecy
+  forecast_motion: ForecastMotionInput,
+  // Motion Genesis
+  genesis_motion: GenesisMotionInput,
+  // Motion Symbiosis
+  analyze_symbiosis: AnalyzeSymbiosisInput,
+  // Motion Consciousness
+  reflect_consciousness: ReflectConsciousnessInput,
+  // Motion Volition
+  decide_volition: DecideVolitionInput,
+  // Motion Lexicon
+  translate_lexicon: TranslateLexiconInput,
 } as const;
 
 export type ToolName = keyof typeof TOOL_INPUT_SCHEMAS;
@@ -3152,6 +4092,10 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   set_color: "Set a static color on a component (text or background).",
   set_static_style: "Set arbitrary static CSS style on a component (size, position, radius, background...).",
   set_global_timing: "Set project-level total duration.",
+  set_project_tempo: "Set the project tempo in beats-per-minute (20-300). Once set, durations can be snapped to the beat grid with quantize_to_tempo. Use for 'sync to 120 BPM' or 'lock motion to the music'.",
+  quantize_to_tempo: "Snap a component's duration (or every component's) to the nearest musical beat division of the project tempo. Requires set_project_tempo first. Optional division forces a specific note value (1/1, 1/2, 1/4, 1/8, 1/16). Use for 'quantize everything to the beat' or 'snap durations to eighths'.",
+  set_phase: "Anchor a component's start time to a musical phase within a 4/4 bar so it begins on the downbeat, offbeat, or any beat. Takes a named label (downbeat, offbeat, backbeat, beat1-4) or a numeric phaseBeats offset (0=downbeat, 0.5=offbeat, 1=beat 2). Requires set_project_tempo first. Use for 'put this on the offbeat', 'start on the downbeat', or 'shift to beat 3'.",
+  align_to_beat: "Align component start times to the beat grid. 'snap' mode rounds each existing delay to the nearest beat division. 'polyrhythm' mode distributes the targets evenly across a fixed beat cycle, producing a k:base polyrhythm (e.g. 3 components across 2 beats = 3:2) that resolves back to the downbeat. Requires set_project_tempo first. Use for 'align starts to the beat', 'create a 3:2 polyrhythm', or 'space these across one bar'.",
   batch_update: "Apply the same patch (easing, duration, delay, loop, direction, fill mode) to multiple components at once.",
   apply_preset: "Apply a named animation preset (shake, wiggle, float, glow, heartbeat, typewriter) to a component.",
   duplicate_component: "Duplicate an existing component with a new ID. Optionally set a custom name.",
@@ -3167,6 +4111,9 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   create_variant: "Create a variation of an existing component with different easing, duration, or property scale. The original is preserved. Use when the user says 'try a variation' or 'what would this look like with different easing'.",
   analyze_motion: "Analyze the current motion design for quality, timing, accessibility, and composition issues. Returns a list of insights with severity levels (info/warning/critical) and actionable suggestions. Use when the user asks 'is this good', 'analyze', 'review', or 'critique my motion'.",
   suggest_next: "Generate 3-5 context-aware next-step suggestions based on the current project state. Returns suggestion text and a priority level. Use when the user asks 'what should I do next', 'suggest', or 'ideas'.",
+  search_catalog: "Search the unified motion catalog for recipes, style presets, shader effects, brand packs, and choreography patterns. Returns matching resources with type, id, name, description, and relevance score. Use when the user asks 'find a fade preset', 'search for bounce effects', 'what shaders are available', or 'show me motion recipes'.",
+  run_motion_pipeline: "Run the automated motion pipeline that generates a complete motion sequence from a natural language description. Chains intent analysis, template selection, easing synthesis, timing, choreography, color harmony, and principle validation. Use when the user says 'generate a playful bounce-in', 'create an elegant fade reveal', 'make a dramatic sequence', or 'automate motion for a hero title'.",
+  compose_sequence: "Compose multiple components into a sequence, parallel, or stagger arrangement. Calculates precise start/end times and generates a timeline. Use when the user says 'arrange these in sequence', 'play them in parallel', 'stagger the animations', or 'compose a timeline'.",
   set_motion_path: "Animate a component along a custom path (line, circle, ellipse, or bezier curve). Generates keyframes for translateX/translateY along the path. Use when the user says 'move in a circle', 'animate along a path', or 'orbit around a point'.",
   apply_style: "Apply a coordinated motion style preset (playful, energetic, calm, professional, dramatic, minimal, cinematic, glassy, retro, futuristic, organic, mechanical, luxury) across ALL components. Adjusts easing, duration, loop, and direction for a coherent aesthetic. Use when the user says 'make it playful', 'give it a professional feel', 'make it cinematic', or 'style the whole project'.",
   recognize_pattern: "Identify motion design patterns and anti-patterns in the project — monotony, incomplete lifecycle, timing uniformity, motion overload, and dominant category. Returns pattern observations with recommendations. Use when the user asks 'what patterns do you see' or 'is the composition balanced'.",
@@ -3474,9 +4421,176 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   generate_video: "Generate a video from a text prompt or animate a static image using configured providers (Runway Gen-3, Luma Dream Machine, Pika). Returns the video URL. Use when the user says 'generate a video', 'create a clip', 'animate this', 'make a movie', or 'produce a video sequence'.",
   generate_3d: "Generate a 3D model from a text prompt or convert a 2D image to 3D using configured providers (Meshy, Tripo). Returns the model URL (GLB format). Use when the user says 'generate a 3D model', 'create 3D', 'make a mesh', 'text to 3D', or 'convert image to 3D'.",
   list_models: "List all available AI models in the registry, optionally filtered by provider or modality. Shows model capabilities (text, vision, audio, image generation, video generation, code, tool use, reasoning) and context windows. Use when the user says 'what models are available', 'list models', 'show providers', or 'which LLMs can I use'.",
+  editor_zoom_canvas: "Set the canvas zoom level (0.1 to 5, where 1 = 100%). Use when the user says 'zoom in', 'zoom out', 'zoom to 200%', or 'scale the view'.",
+  editor_pan_canvas: "Pan the canvas viewport to a specific X/Y offset in pixels. Use when the user says 'pan left', 'scroll the canvas', 'move the view', or 'center on a point'.",
+  editor_fit_to_screen: "Auto-fit all components into the visible canvas area. Use when the user says 'fit to screen', 'fit all', 'frame everything', or 'zoom to fit'.",
+  editor_reset_view: "Reset the canvas zoom to 100% and pan to origin. Use when the user says 'reset view', 'reset zoom', 'reset pan', or '100% zoom'.",
+  editor_set_playhead: "Move the timeline playhead to a specific time in milliseconds. Use when the user says 'go to 500ms', 'set playhead to 1 second', 'scrub to halfway', or 'jump to time'.",
+  editor_set_playback_speed: "Set the playback speed multiplier (0.25 to 4). Use when the user says 'play at half speed', 'slow motion', '2x speed', or 'play faster'.",
+  editor_play: "Start timeline playback from the current playhead position. Use when the user says 'play', 'start playback', 'play the animation', or 'run it'.",
+  editor_pause: "Pause timeline playback. Use when the user says 'pause', 'stop playback', 'freeze', or 'halt the animation'.",
+  editor_toggle_rulers: "Show or hide canvas rulers. Pass enabled to set explicitly, or omit to toggle. Use when the user says 'show rulers', 'hide rulers', or 'toggle rulers'.",
+  editor_toggle_snap: "Enable or disable snap-to-grid with an optional grid size (1-50px). Use when the user says 'turn on snap', 'disable snapping', 'snap to 16px grid', or 'set grid size'.",
+  editor_toggle_auto_keyframe: "Enable or disable auto-keyframe recording mode. When enabled, property changes automatically create keyframes at the playhead. Use when the user says 'auto keyframe on', 'turn off auto keyframe', or 'record keyframes automatically'.",
+  editor_toggle_onion_skin: "Toggle onion skinning to show ghost overlays of adjacent keyframe positions. Optional frames (1-8) and opacity (0.05-0.8). Use when the user says 'show onion skin', 'turn on ghost frames', 'show motion trail', or 'onion skin with 4 frames'.",
+  editor_select_component: "Select a single component by id. Pass additive=true to add to the current selection. Use when the user says 'select the title', 'select this layer', or 'pick the circle'.",
+  editor_select_components: "Select multiple components by id. Pass clearFirst=true to clear the existing selection before adding. Use when the user says 'select all layers', 'select these three', or 'multi-select'.",
+  editor_clear_selection: "Clear the current component selection. Use when the user says 'deselect', 'clear selection', 'unselect all', or 'nothing selected'.",
+  editor_toggle_visibility: "Toggle the visibility of a component on the canvas. Use when the user says 'hide this layer', 'show the title', 'toggle visibility', or 'make it invisible'.",
+  editor_toggle_lock: "Lock or unlock a component to prevent editing. Pass locked for explicit state, or omit to toggle. Use when the user says 'lock this layer', 'unlock the circle', or 'prevent editing'.",
+  editor_set_panel: "Switch the right panel to a functional group (design, motion, intel, assets, output) and optionally a specific tab. Use when the user says 'open the layers panel', 'switch to motion tab', 'show the export panel', or 'go to design group'.",
+  editor_toggle_panel: "Collapse or expand the right panel. Pass collapsed for explicit state, or omit to toggle. Use when the user says 'collapse the panel', 'expand the sidebar', 'hide the panel', or 'show the panel'.",
+  editor_open_overlay: "Open or close an overlay (preview, export, templates, settings, command_palette). Pass open for explicit state, or omit to toggle. Use when the user says 'open preview', 'open export dialog', 'open settings', 'open templates', or 'open command palette'.",
+  editor_undo: "Undo the last editor action. Use when the user says 'undo', 'revert that', 'go back a step', or 'undo last'.",
+  editor_redo: "Redo the last undone editor action. Use when the user says 'redo', 'redo that', 'repeat the undo', or 'bring it back'.",
+  editor_set_artboard: "Set the artboard (canvas) dimensions and/or background color. Width/height in pixels (64-4096). Use when the user says 'set canvas to 800x600', 'make the canvas wider', 'change background to black', or 'resize the artboard'.",
+  editor_trigger_replay: "Replay the animation from the beginning. Use when the user says 'replay', 'play again', 'restart playback', or 'replay the animation'.",
+  editor_toggle_motion_paths: "Show or hide motion paths (trajectory overlays) for animated components. Pass enabled to set explicitly, or omit to toggle. Use when the user says 'show motion paths', 'hide trajectories', or 'show animation paths'.",
+  editor_toggle_performance_monitor: "Show or hide the performance monitor overlay (FPS, frame time, render stats). Pass enabled to set explicitly. Use when the user says 'show performance', 'check FPS', 'hide performance monitor', or 'toggle perf overlay'.",
+  editor_set_solo: "Solo a single component (dims all others) or clear solo by passing null. Use when the user says 'solo this layer', 'isolate the circle', 'focus on just the title', or 'clear solo'.",
+  editor_toggle_sidebar: "Collapse or expand the left sidebar. Pass collapsed for explicit state. Use when the user says 'collapse the sidebar', 'show the sidebar', 'hide the left panel', or 'toggle sidebar'.",
+  editor_timeline_command: "Execute a timeline command action: copy, paste, duplicate, delete, group, ungroup, bring_to_front, send_to_back. Use when the user says 'copy this', 'paste', 'duplicate the layer', 'delete selected', 'group these', 'ungroup', 'bring to front', or 'send to back'.",
+  editor_toggle_selection: "Toggle a component in or out of the current multi-selection. Use when the user says 'also select the title', 'toggle that layer in the selection', or 'add/remove from selection'.",
+  editor_open_skills: "Open or close the skills overlay panel. Pass open for explicit state. Use when the user says 'open skills', 'show skills', 'close skills panel', or 'browse skills'.",
+  editor_open_shortcuts: "Open or close the keyboard shortcuts overlay. Pass open for explicit state. Use when the user says 'show shortcuts', 'keyboard shortcuts', 'open shortcuts', or 'close shortcuts'.",
+  editor_set_track_order: "Set the display order of timeline tracks by providing an ordered list of component/track ids. Use when the user says 'reorder tracks', 'move this track up', 'sort tracks by name', or 'change track order'.",
+  editor_set_loop_region: "Set a loop region (start and end in milliseconds) for timeline playback looping. Use when the user says 'loop from 500ms to 2000ms', 'set loop region', 'loop this section', or 'set playback loop'.",
+  editor_clear_loop_region: "Clear the current loop region so playback runs linearly without looping. Use when the user says 'remove loop', 'clear loop region', 'stop looping', or 'disable loop'.",
   rollback_last_action: "Roll back the most recent AI-driven mutation by restoring the latest checkpoint. Use when the user says 'undo last action', 'rollback', 'revert that change', or 'go back'.",
   list_checkpoints: "List all available checkpoints for the project, newest first. Each checkpoint is a snapshot captured before an AI tool batch mutated the spec.",
   rollback_to_checkpoint: "Roll back to a specific checkpoint by id. Use after list_checkpoints to pick a target snapshot.",
   cancel_plan: "Cancel the currently running structured plan. The agent stops executing remaining actions after the current one completes.",
   get_plan_state: "Get the current structured plan execution state — which actions are pending, in progress, completed, or failed. Use when the user asks 'what's the plan', 'where are we', or 'plan status'.",
+  seek_to_frame: "Seek to a specific frame in the composition and return the complete frame snapshot with all component states (transform, opacity, styles). Deterministic — same frame always produces the same result. Use when the user says 'show frame 30', 'what does it look like at frame 45', or 'seek to the middle'.",
+  render_frames: "Render a range of frames from the composition. Returns frame snapshots for each frame in the range. Use for batch rendering, preview generation, or thumbnail extraction. Use when the user says 'render frames 0 to 60', 'generate previews', or 'render the whole sequence'.",
+  export_html_composition: "Generate a self-contained HTML composition document with seek protocol (window.__om.seek). The HTML can be rendered in any browser and supports frame-accurate seeking via WAAPI. Use when the user says 'export as HTML', 'generate HTML composition', or 'create a playable preview'.",
+  resolve_media: "Resolve a media need (audio, image, video, voice, icon, logo, LUT) from the catalog or generate on demand. Returns a media asset with source path and metadata. Use when the user says 'I need background music', 'add a sound effect', 'generate a voiceover', or 'find an image'.",
+  route_skill: "Route user input to the best skill combination. Returns the primary skill, supporting skills, detected intent, confidence, and execution plan. Use when the user asks 'what can you do', 'which skill should I use', or for understanding agent capabilities.",
+  list_skills: "List all available skills, optionally filtered by category. Returns skill id, name, description, category, complexity, and tools. Use when the user asks 'what skills do you have', 'show me your capabilities', or 'list available skills'.",
+  plan_sequence: "Plan a multi-scene motion sequence from a description. Decomposes a story into ordered scenes with emotional tones, transitions, and pacing. Returns scenes, timeline, emotional arc, and pacing analysis. Use when the user wants to create a multi-scene narrative, plan a story-driven animation, or organize components into scenes.",
+  list_narrative_arcs: "List all available narrative arc templates (hero-journey, product-launch, tutorial, etc.). Returns arc id, name, description, default scene count, and tone progression. Use when the user wants to explore story structures.",
+  list_motion_themes: "List all motion themes (coordinated easing families, timing scales, and choreography rules). Optionally filter by personality archetype. Returns theme id, name, personality, easing family, timing scale, and vocabulary. Use when the user wants to apply a consistent motion identity.",
+  apply_motion_theme: "Apply a motion theme to a project. Adjusts easing, timing, and choreography to match the theme. Returns the themed spec. Use when the user says 'apply precision tech theme' or 'make this look luxurious'.",
+  list_rhythm_patterns: "List all rhythm patterns (steady-beat, syncopated, swing, waltz, heartbeat, etc.). Optionally filter by category. Returns pattern id, name, BPM, time signature, and beat structure. Use when the user wants musical timing.",
+  apply_rhythm: "Apply a rhythm pattern to generate stagger delays for items. Returns beat times, accents, and total duration. Use when the user says 'add swing rhythm' or 'use a heartbeat pattern for stagger timing'.",
+  generate_variants: "Generate A/B motion variants from a project. Each variant explores a different design direction (easing, timing, intensity, direction, palette). Returns variants with changes and divergence scores. Use when the user wants to explore alternatives or A/B test motion designs.",
+  evolve_motion: "Evolve a motion spec across multiple generations using a genetic algorithm. Breeds progressively better animations via selection, crossover, and mutation. Strategies: balanced, playful, accessible, performant, harmonious. Use when the user says 'evolve', 'optimize', 'breed', or 'iteratively improve' the motion.",
+  list_evolution_strategies: "List all available evolution strategies with their fitness weights and descriptions. Use when the user asks 'what evolution strategies are available' or 'list optimization strategies'.",
+  predict_perception: "Predict how viewers will cognitively and emotionally respond to the motion. Returns emotional valence, arousal profile, cognitive load, attention retention, memorability, and brand perception. Use when the user asks 'how will this feel' or 'predict viewer response'.",
+  list_semantic_concepts: "List all semantic concepts (trust, urgency, luxury, playful, etc.) that can be mapped to motion parameters. Optionally filter by category. Use when the user asks 'what emotions can I express' or 'list motion concepts'.",
+  infer_intent: "Infer semantic intent from a natural language description. Maps phrases like 'make it feel trustworthy' to concrete motion parameters (easing, duration, palette, energy). Use when the user describes a feeling rather than specific parameters.",
+  blend_concepts: "Blend two semantic concepts into a hybrid motion profile (e.g. 'playful luxury' = bounce + smooth + gold). Returns the blended profile with easing, duration, palette, and energy. Use when the user wants to combine two moods or brand attributes.",
+  simulate_physics: "Run a physics simulation and generate motion keyframes from the result. Types: spring (damped oscillator), gravity (drop with bounce), projectile (parabolic arc), friction (deceleration), pendulum (damped swing). Use when the user says 'physics', 'spring', 'gravity', 'bounce', 'projectile', or 'pendulum'.",
+  list_physics_presets: "List all available physics simulation presets with their configurations. Use when the user asks 'what physics presets are available' or 'list physics simulations'.",
+  run_physics_preset: "Run a named physics preset and generate a motion component from the simulation result. Presets include spring-snappy, spring-gentle, spring-bouncy, gravity-drop, gravity-slam, projectile-arc, projectile-high, friction-slide, friction-glide, pendulum-swing.",
+  generate_path_motion: "Generate motion along a mathematical path (bezier, lissajous, spiral, figure-eight, heart, circle, svg-path). Samples positions along the curve and creates keyframes. Use when the user says 'path', 'curve', 'lissajous', 'spiral', 'orbit', or 'trajectory'.",
+  list_path_presets: "List all available path motion presets with their configurations. Use when the user asks 'what path presets are available' or 'list path types'.",
+  run_path_preset: "Run a named path preset (lissajous-3-2, spiral-archimedean, figure-eight, heart-curve, circle-orbit, ellipse-orbit, bezier-s-curve) and generate a motion component.",
+  encode_motion: "Encode the project's motion spec to a standard format (lottie, css, waapi, smil, gsap, react-spring). Use when the user says 'export', 'encode', 'convert to lottie', 'generate css', or 'export as code'.",
+  list_codec_formats: "List all available codec formats for motion export. Use when the user asks 'what formats can I export' or 'list codec formats'.",
+  // Style Transfer
+  extract_style_dna: "Extract the motion style DNA from a project. Analyzes easing, tempo, energy, colors, and staging patterns.",
+  transfer_project_style: "Transfer the visual style from one project to another. Preserves target structure while applying source's easing, tempo, energy, and color characteristics.",
+  blend_styles: "Blend the style DNA of two projects at a given ratio (0=A, 1=B). Returns the blended style description.",
+  describe_style: "Generate a human-readable description of a project's motion style.",
+  compare_styles: "Compare the style DNA of two projects and return similarity scores across multiple dimensions.",
+  list_style_archetypes: "List all predefined motion style archetypes (Minimalist, Energetic, Cinematic, Playful, Corporate, Organic, Mechanical, Elegant).",
+  apply_style_archetype: "Apply a named style archetype to a project, transforming its easing, tempo, energy, and colors.",
+  // Knowledge Graph
+  build_knowledge_graph: "Build and return the complete motion knowledge graph with all concept nodes and relationships.",
+  query_concept: "Look up a motion concept by its id (e.g. 'bounce', 'stagger', 'parallax').",
+  find_related: "Find concepts related to a given concept, optionally filtered by relationship type (enables, complements, conflicts, etc.).",
+  find_concept_path: "Find the shortest path between two motion concepts in the knowledge graph.",
+  search_concepts: "Search motion concepts by keyword across labels, descriptions, and tags.",
+  suggest_connections: "Suggest non-obvious connections between a set of motion concepts.",
+  recommend_next: "Recommend the next motion concept to explore based on what's already been used in the project.",
+  analyze_graph: "Analyze the knowledge graph structure: centrality, clusters, bridges, and density.",
+  // Testing
+  run_all_tests: "Run all motion quality test suites (accessibility, performance, visual, principles, timing, consistency) on a project.",
+  run_tests_by_category: "Run motion tests filtered by category: accessibility, performance, visual, principles, timing, or consistency.",
+  run_test_suite: "Run a single test suite by its id (e.g. 'a11y-duration-check', 'perf-simultaneous-animations').",
+  list_test_suites: "List all available motion test suites with their ids, names, and descriptions.",
+  // Emotion Intelligence
+  synthesize_from_emotion: "Synthesize motion parameters from a target emotion. Translates emotional tone (joy, calm, anger, etc.) into concrete easing, duration, intensity, and keyframes.",
+  detect_emotion: "Detect the emotional tone of an existing motion component. Returns VAD (Valence-Arousal-Dominance) coordinates and the closest matching emotion with confidence score.",
+  blend_emotions: "Blend multiple emotions with weights to create nuanced affective motion. Mixes VAD coordinates and motion parameters proportionally.",
+  plan_emotion_journey: "Plan a sequence of emotional states across a timeline to create an affective arc (e.g., calm → curious → excited → satisfied).",
+  list_emotions: "List all available emotion profiles (joy, excitement, calm, sadness, anger, fear, surprise, trust, anticipation, power, melancholy, serenity, playful, mystery, urgency, luxury).",
+  // Adaptive Learning
+  get_taste_profile: "Get the user's learned motion taste profile for this project. Shows preferred easings, durations, intensity range, and detected taste drift.",
+  recommend_for_project: "Get a motion parameter recommendation based on the user's learned preferences. Returns easing, duration, intensity, and palette suggestions with confidence score.",
+  record_motion_observation: "Record a motion interaction (created, accepted, rejected, modified) to feed the adaptive learning engine. Use after user interacts with a component.",
+  // Contextual Awareness
+  compute_context_adjustments: "Compute context-aware motion adjustments for device, performance, time of day, ambient light, and user state. Returns duration/intensity multipliers and palette mode.",
+  adapt_component_for_context: "Adapt a motion component for a specific context. Adjusts duration, intensity, easing, palette, and transforms based on device, performance, and environmental factors.",
+  auto_detect_context: "Auto-detect the current motion context from available signals (user-agent, hardware, time). Returns detected device, performance tier, time of day, and ambient light.",
+  list_context_options: "List all available context options for device class, performance tier, time of day, ambient light, user state, and palette mode.",
+  // Motion Collaboration
+  plan_collaboration: "Plan a multi-module collaboration for a complex motion request. Decomposes the request into sub-tasks for specialized motion intelligence modules (emotion, physics, style, context, etc.).",
+  execute_collaboration: "Execute a multi-module collaboration that produces a unified motion design. Coordinates multiple motion intelligences and merges their results with conflict resolution.",
+  list_collaboration_modules: "List all available collaboration modules with their specialties and trigger keywords.",
+  // Motion Resonance
+  analyze_resonance: "Analyze the resonance between the project's motion and the viewer's cognitive/emotional state. Computes cognitive, emotional, and rhythmic alignment scores with dissonance detection and recommendations.",
+  tune_resonance: "Tune the project's motion parameters to maximize resonance with the viewer's state. Adjusts durations and easings based on cognitive load, arousal, valence, and fatigue.",
+  // Motion Synesthesia
+  translate_synesthesia: "Translate the project's motion into a multi-sensory experience — map each component to color, sound, and texture for cross-modal design exploration.",
+  map_sensory_to_motion: "Reverse-map a sensory input (color, sound, texture, or emotion) to motion parameters. Enables designing motion from non-visual sensory inputs.",
+  // Motion Dream
+  dream_from_prompt: "Generate a dream-like motion variation from a natural language prompt using surrealist concept juxtaposition and mutation techniques.",
+  generate_dream_sequence: "Generate a sequence of dream motions composed into a narrative thread, traversing multiple concepts via juxtaposition and mutation.",
+  list_dream_concepts: "List all available dream concepts (natural, mechanical, abstract, organic, cosmic, temporal, emotional) used as seeds for generative creativity.",
+  // Motion Harmonics
+  analyze_harmonics: "Analyze the harmonic structure of a motion composition — extract frequency signatures, compute consonance/dissonance between components, and reveal the hidden musical structure of looping motion.",
+  find_harmonics: "Find components that harmonize with a given component — returns consonant and dissonant partners based on frequency ratio analysis.",
+  // Motion Entropy
+  analyze_entropy: "Apply Shannon's information theory to motion — measure property entropy, mutual information between components, information density over time, and overall predictability vs redundancy.",
+  identify_information_hotspots: "Identify the most varied and least varied motion properties, plus redundant component pairs that share too much design information.",
+  // Motion Cognition
+  analyze_cognitive_load: "Model the cognitive load a motion composition imposes on the viewer — working memory demand (Miller's 7±2), attention switching cost, Gestalt perceptual grouping, and processing fluency.",
+  // Motion Topology
+  analyze_topology: "Analyze the topological structure of a motion composition — connected components, temporal holes, Euler characteristic, genus, connectivity, and compactness of the temporal space.",
+  find_temporal_path: "Find the shortest temporal path between two components through overlapping neighbors — reveals how motion propagates through the composition.",
+  // Motion Poetics
+  analyze_poetics: "Apply poetic meter and form to motion — detect poetic feet (iamb, trochee, dactyl, anapest), stanzas, caesuras, enjambments, and classify the form (sonnet, haiku, free verse).",
+  // Motion Ecology
+  analyze_ecosystem: "Model motion components as a living ecosystem — classify species, detect symbiotic/parasitic/predator-prey relationships, compute biodiversity, and assess ecosystem health and stability.",
+  // Motion Calligraphy
+  analyze_calligraphy: "Analyze the composition as calligraphic art — evaluate stroke quality, pressure, velocity, fluency, ink flow, and overall character (regular/running/cursive/wild).",
+  // Motion Mythology
+  analyze_mythology: "Interpret the composition through mythological lens — detect hero's journey stages, archetypal patterns, narrative structure, theme, tension curve, and emotional boon.",
+  // Motion Weather
+  analyze_weather: "Model the composition as a weather system — detect pressure, wind, fronts, storms, calm periods, climate, and forecast emotional atmospheric patterns.",
+  // Motion Alchemy
+  analyze_alchemy: "Interpret the composition through alchemical transformation — detect the four magnum opus stages (nigredo, albedo, citrinitas, rubedo), alchemical operations, prima materia, philosopher's stone, and Hermes principle.",
+  // Motion Architecture
+  analyze_architecture: "Analyze the composition as a built structure — classify structural roles (foundation/structure/facade/ornament/detail), proportion (golden ratio, modular harmony), hierarchy, spatial organization, architectural style, and structural integrity.",
+  // Motion Cartography
+  analyze_cartography: "Map the composition as cartographic terrain — compute elevation profile, contour lines, landmarks (peak moments), routes (trajectories), territories (biomes), compass direction, and scale level.",
+  // Motion Genealogy
+  analyze_genealogy: "Trace the evolutionary lineage of motion patterns — extract genetic traits, detect ancestry relationships, build a phylogenetic tree, classify evolutionary pattern (divergent/convergent/parallel), and analyze genetic diversity and inheritance.",
+  // Motion Astronomy
+  analyze_astronomy: "Map the composition as celestial phenomena — classify components as celestial bodies (star/planet/moon/asteroid/comet/black-hole/nebula/pulsar), assign spectral types (O/B/A/F/G/K/M), detect constellations, cosmic events (supernova/eclipse/conjunction), and galactic structure (spiral/elliptical/irregular/lenticular/ring).",
+  // Motion Chemistry
+  analyze_chemistry: "Analyze the composition as a chemical system — extract atoms (animated properties), build molecules (components), detect bonds (covalent/ionic/metallic/hydrogen/van-der-waals), classify reactions (synthesis/decomposition/displacement/combustion), identify catalysts (easings) and inhibitors (delays), and compute pH, temperature, entropy, enthalpy, and equilibrium.",
+  // Motion Musicology
+  analyze_musicology: "Analyze the composition as a musical score — extract notes (pitch/velocity/articulation), detect chords and harmonic progressions, identify melodic phrases and contours, compute rhythm (BPM/time signature/syncopation), analyze dynamics (crescendo/decrescendo), determine form (AABA/sonata/rondo), and detect key and scale.",
+  // Motion Botany
+  analyze_botany: "Analyze the composition as a botanical system — classify organs (leaf/stem/flower/root/branch/fruit/seed/tendril/bark), detect branching structure, analyze canopy shape and density, examine root system, build phenology timeline (germination→senescence), determine life form (tree/shrub/herb/vine), and compute biomass, diversity, and vitality.",
+  // Motion Geology
+  analyze_geology: "Analyze the composition as a geological formation — classify strata (sedimentary/igneous/metamorphic/volcanic/alluvial), detect tectonic events (earthquake/uplift/faulting/volcanic-eruption), identify fault lines, analyze mineral composition, divide geological epochs, and examine surface topology (mountain/valley/canyon/plateau).",
+  // Motion Physics
+  analyze_physics: "Analyze the composition through physics principles — compute kinematics (displacement/velocity/acceleration), dynamics (applied/friction/gravity/spring forces), energy (kinetic/potential/dissipation), momentum (linear/angular), detect collisions, and analyze equilibrium (static/dynamic/unstable).",
+  // Motion Linguistics
+  analyze_linguistics: "Analyze the composition as a linguistic utterance — extract phonemes (plosive/fricative/vowel/diphthong), classify morphemes (root/prefix/suffix), build syntactic phrases and clauses, analyze prosody (stress/intonation/tempo), determine semantics (polarity/modality/tense/aspect), identify speech acts, and trace discourse coherence.",
+  // Motion Cinema
+  analyze_cinema: "Analyze the composition as a cinematic sequence — classify shots (wide/medium/close-up), detect cuts and transitions (dissolve/fade/wipe/iris), determine camera movement (pan/tilt/dolly/zoom/crane), analyze mise-en-scène (balance/lighting/color), identify narrative structure (three-act/five-act/kishōtenketsu), compute pacing, classify montage type, and detect genre (action/drama/horror/thriller).",
+  verify_motion: "Verify the current motion against the user's stated intent by compiling the request into testable assertions and evaluating each one pass/fail/skip against the spec. Returns a structured report with per-assertion evidence, an achieved ratio, and concrete remediation suggestions for failed assertions. Use when the user asks 'did you do it right', 'verify', 'check your work', or before reporting completion on a multi-step request.",
+  self_correct: "Close the verification loop: run verify_motion, and for each failed required assertion apply the concrete remediation patch (easing family, duration band, loop count, color, stagger) directly to the spec, then re-verify so the caller gets a before/after diff. Use when the agent detects its own work missed the intent ('fix it', 'verify and fix', 'self-correct', 'you didn't do it right'), or as a bounded one-pass correction before reporting completion. Pass apply=false to dry-run the fixes.",
+  predict_intent: "Predict the user's intent from partial input before they finish typing. Returns ranked predictions with confidence scores, extracted signals, suggested completions, and the tool path each prediction implies. Use proactively to offer inline suggestions, or when the user pauses mid-sentence and may accept a completion.",
+  forecast_motion: "Forecast the motion design trajectory of the current project — classify the current design era, predict the next era it would naturally evolve toward, and propose avant-garde directions that diverge from the trajectory. Returns a prophecy report with probabilities, suggestions, novelty score, and avant-garde proposals. Use when the user asks 'where is this going', 'what's next', 'forecast', 'predict the future', or wants creative direction.",
+  genesis_motion: "Generate original motion from mathematical first principles. Six generators: lissajous (parametric sinusoid curve), goldenSpiral (logarithmic spiral with golden-ratio growth), waveInterference (superposition of two sine waves), dampedOscillator (exponential-decay envelope on cosine), phyllotaxis (sunflower-seed packing on Fermat spiral), lorenzAttractor (2D projection of chaotic Lorenz system). Returns component drafts with keyframes derived from pure mathematics. Use when the user asks for 'mathematical motion', 'generative', 'lissajous', 'spiral', 'wave', 'oscillator', 'phyllotaxis', 'attractor', or wants motion derived from first principles.",
+  analyze_symbiosis: "Analyze the ecological relationship between two motion compositions and breed a hybrid offspring. Extracts each composition's genomic trait vector, measures niche overlap and complementarity, classifies the relationship (mutualism, commensalism, parasitism, competition, neutralism), and breeds three hybrid offspring components by crossing over parental keyframes and easings. Optionally persists the offspring into the first project. Use when the user says 'compare these two projects', 'breed them', 'crossbreed', 'symbiosis', 'what if these two compositions met', or wants hybrid offspring from two compositions.",
+  reflect_consciousness: "Produce a meta-cognitive self-reflection of a motion composition. The composition observes its own design as a thinking entity: enumerates self-beliefs, generates counter-questions that challenge each belief, detects cognitive biases (anchoring, confirmation, sunk-cost, default, recency) embedded in the design choices, composes a first-person stream-of-consciousness monologue, and computes a metacognitive awareness score. Use when the user says 'what does this motion think of itself', 'is this design self-aware', 'biases in my motion', 'meta-cognitive', 'reflect on this design', or wants the composition to introspect.",
+  decide_volition: "Decide whether the agent should act, ask one clarifying question, defer, or refine the intent before committing to a tool sequence. Returns a volition mode (ACT/ASK/DEFER/REFINE), action readiness, stall risk, regret estimate, detected ambiguity signals, a bounded clarifying question when ASK, a refined intent when REFINE, and suggested tools when ACT. Use proactively before dispatching tools on a vague intent, or when the user says 'should you act or ask', 'are you confident', 'clarify', or before any multi-step request that touches the spec.",
+  translate_lexicon: "Translate a natural-language motion intent (English or Chinese) onto a formal token system: a duration token (instant/micro/standard/normal/extended/cinematic), an easing token (ease-out/ease-in-out/spring-soft/spring-snappy/linear), a reduced-motion fallback mode (scale-only/crossfade/none), and one of eleven motion categories (entrance, exit, scroll-reveal, hover-press, state-transition, feedback-delight, emphasis, loading, page-transition, text-kinetic, video-transition). Returns matched bilingual cues and suggested tools. Use when the user says '丝滑', '高级', '电影感', '弹性', '淡入', '滑动', '加载', '翻页', '打字', '闪烁', 'motion token', 'duration token', 'easing token', 'reduced-motion mode', or wants the intent translated into motion tokens.",
 };
