@@ -23,17 +23,28 @@ import { VariantComparison } from "../inspector/VariantComparison.js";
 import { TimelineSequencer } from "../inspector/TimelineSequencer.js";
 import { MotionSandbox } from "../inspector/MotionSandbox.js";
 import { MotionIntelligencePanel } from "../inspector/MotionIntelligencePanel.js";
+import { CausalInferencePanel } from "../inspector/CausalInferencePanel.js";
+import { BudgetPanel } from "../inspector/BudgetPanel.js";
+import { StateGraphPanel } from "../inspector/StateGraphPanel.js";
+import { NarrativePanel } from "../inspector/NarrativePanel.js";
+import { AnalysisEnginesPanel } from "../inspector/AnalysisEnginesPanel.js";
 import { StorytellingPanel } from "../inspector/StorytellingPanel.js";
 import { AdaptivePanel } from "../inspector/AdaptivePanel.js";
 import { AccessibilityPanel } from "../inspector/AccessibilityPanel.js";
 import { PerformancePanel } from "../inspector/PerformancePanel.js";
+import { ScenePacksPanel } from "../inspector/ScenePacksPanel.js";
+import { ColorPalettesPanel } from "../inspector/ColorPalettesPanel.js";
+import { PlatformPresetsPanel } from "../inspector/PlatformPresetsPanel.js";
+import { CursorChoreographyPanel } from "../inspector/CursorChoreographyPanel.js";
+import { CognitionPanel } from "../inspector/CognitionPanel.js";
 
 type TabId =
   | "layers" | "inspector" | "effects" | "graph" | "code" | "shader" | "recipe" | "brand"
   | "capture" | "export" | "lineage" | "a11y" | "perf"
   | "storyboard" | "health" | "variants" | "sequencer" | "sandbox"
-  | "intelligence" | "storytelling" | "adaptive" | "templates" | "skills"
-  | "states" | "memory" | "versions";
+  | "intelligence" | "causal" | "budget" | "stategraph" | "engines" | "storytelling" | "adaptive" | "templates" | "skills"
+  | "states" | "memory" | "versions" | "scenes" | "palette" | "platform" | "cursor" | "narrative"
+  | "cognition";
 
 type CategoryId = "design" | "motion" | "intel" | "assets" | "output";
 
@@ -65,6 +76,7 @@ const CATEGORIES: CategoryDef[] = [
       { id: "code", label: "Code", icon: "</>" },
       { id: "shader", label: "Shader", icon: "◉" },
       { id: "brand", label: "Brand", icon: "▣" },
+      { id: "palette", label: "Palette", icon: "◐" },
     ],
   },
   {
@@ -77,6 +89,8 @@ const CATEGORIES: CategoryDef[] = [
       { id: "sequencer", label: "Sequence", icon: "▤" },
       { id: "sandbox", label: "Sandbox", icon: "◇" },
       { id: "states", label: "States", icon: "⚙" },
+      { id: "platform", label: "Platform", icon: "⊞" },
+      { id: "cursor", label: "Cursor", icon: "◉" },
     ],
   },
   {
@@ -85,10 +99,16 @@ const CATEGORIES: CategoryDef[] = [
     icon: "◊",
     tabs: [
       { id: "intelligence", label: "Intel", icon: "◊" },
+      { id: "causal", label: "Causal", icon: "◇" },
+      { id: "budget", label: "Budget", icon: "⊘" },
+      { id: "stategraph", label: "States", icon: "⇄" },
+      { id: "engines", label: "Engines", icon: "✷" },
       { id: "storytelling", label: "Arc", icon: "★" },
+      { id: "narrative", label: "Narrative", icon: "❖" },
       { id: "adaptive", label: "Adapt", icon: "⬡" },
       { id: "storyboard", label: "Story", icon: "▤" },
       { id: "health", label: "Health", icon: "♥" },
+      { id: "cognition", label: "Cognition", icon: "◊" },
     ],
   },
   {
@@ -100,6 +120,7 @@ const CATEGORIES: CategoryDef[] = [
       { id: "skills", label: "Skills", icon: "✦" },
       { id: "memory", label: "Memory", icon: "◆" },
       { id: "variants", label: "Variants", icon: "⇄" },
+      { id: "scenes", label: "Scenes", icon: "▤" },
     ],
   },
   {
@@ -299,10 +320,30 @@ export function RightPanel() {
           <MotionSandbox />
         ) : tab === "intelligence" ? (
           <MotionIntelligencePanel />
+        ) : tab === "causal" ? (
+          <CausalInferencePanel />
+        ) : tab === "budget" ? (
+          <BudgetPanel />
+        ) : tab === "stategraph" ? (
+          <StateGraphPanel />
+        ) : tab === "engines" ? (
+          <AnalysisEnginesPanel />
         ) : tab === "storytelling" ? (
           <StorytellingPanel />
+        ) : tab === "narrative" ? (
+          <NarrativePanel />
         ) : tab === "adaptive" ? (
           <AdaptivePanel />
+        ) : tab === "scenes" ? (
+          <ScenePacksPanel />
+        ) : tab === "palette" ? (
+          <ColorPalettesPanel />
+        ) : tab === "platform" ? (
+          <PlatformPresetsPanel />
+        ) : tab === "cursor" ? (
+          <CursorChoreographyPanel />
+        ) : tab === "cognition" ? (
+          <CognitionPanel />
         ) : !projectId ? (
           <div className="px-4 py-8 text-center text-xs text-gray-600">
             {tab === "layers" || tab === "states" || tab === "memory" || tab === "versions" || tab === "graph" || tab === "effects"
