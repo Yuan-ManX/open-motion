@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useUiStore } from "../../store/uiStore.js";
 import { useProjectStore } from "../../store/projectStore.js";
+import { useChatStore } from "../../store/chatStore.js";
 import * as api from "../../api/endpoints.js";
 
 interface Command {
@@ -22,6 +23,7 @@ export function CommandPalette() {
   const setRightPanelCategory = useUiStore((s) => s.setRightPanelCategory);
   const setRightPanelCollapsed = useUiStore((s) => s.setRightPanelCollapsed);
   const rightPanelCollapsed = useUiStore((s) => s.rightPanelCollapsed);
+  const setTemplatesBrowseMode = useUiStore((s) => s.setTemplatesBrowseMode);
   const setSidebarCollapsed = useUiStore((s) => s.setSidebarCollapsed);
   const sidebarCollapsed = useUiStore((s) => s.sidebarCollapsed);
   const setShortcutsOpen = useUiStore((s) => s.setShortcutsOpen);
@@ -80,13 +82,22 @@ export function CommandPalette() {
     selectComponent(null);
   }, [selectedId, projectId, removeComponentLocal, selectComponent]);
 
+  // Quick-prompt dispatch: sends a prompt to the agent and surfaces the chat
+  // panel so the user sees the streamed response. Used by the Agent group in
+  // the command palette for one-click common requests.
+  const handleAgentPrompt = useCallback((prompt: string) => {
+    if (!projectId) return;
+    useChatStore.getState().send(projectId, prompt);
+  }, [projectId]);
+
   const commands = useMemo<Command[]>(() => {
     const hasProject = !!projectId;
     const hasSelection = !!selectedId;
     return [
       // --- Project ---
       { id: "new-project", label: "New Project", hint: "Create a blank motion project", group: "Project", action: () => void handleNewProject(), disabled: false },
-      { id: "browse-templates", label: "Browse Templates", hint: "Open the template gallery", group: "Project", action: () => { setRightPanelCategory("assets"); setRightPanelTab("templates"); } },
+      { id: "browse-templates", label: "Browse Templates", hint: "Open the template gallery", group: "Project", action: () => { setRightPanelCategory("assets"); setRightPanelTab("templates"); setTemplatesBrowseMode("templates"); if (rightPanelCollapsed) setRightPanelCollapsed(false); } },
+      { id: "search-catalog", label: "Search Catalog", hint: "Search recipes, styles, shaders, themes, arcs across every resource", group: "Project", action: () => { setRightPanelCategory("assets"); setRightPanelTab("templates"); setTemplatesBrowseMode("catalog"); if (rightPanelCollapsed) setRightPanelCollapsed(false); } },
       { id: "skills", label: "Open Skills", hint: "Browse AI-callable skills", group: "Project", action: () => { setRightPanelCategory("assets"); setRightPanelTab("skills"); } },
       { id: "export", label: "Export Project", hint: "Export as HTML, CSS, JSON, or React", group: "Project", shortcut: "⌘E", action: () => setExportOpen(true), disabled: !hasProject },
       { id: "close-project", label: "Close Project", hint: "Return to the home panel", group: "Project", action: () => reset(), disabled: !hasProject },
@@ -133,10 +144,23 @@ export function CommandPalette() {
       { id: "delete", label: "Delete Component", hint: "Remove the selected component", group: "Component", shortcut: "⌫", action: () => void handleDelete(), disabled: !hasSelection },
       { id: "deselect", label: "Deselect", hint: "Clear the current selection", group: "Component", shortcut: "Esc", action: () => selectComponent(null), disabled: !hasSelection },
 
+      // --- Agent (quick prompts) ---
+      // One-click prompts that dispatch a chat message to the agent. Each
+      // chip maps to a common request the agent already understands, so the
+      // user can act without typing. Disabled when no project is loaded.
+      { id: "agent-analyze", label: "Agent: Analyze Motion", hint: "Ask the agent to critique the current motion", group: "Agent", action: () => handleAgentPrompt("Analyze the current motion for quality, restraint, and rhythm. Suggest improvements."), disabled: !hasProject },
+      { id: "agent-bouncy", label: "Agent: Make It Bouncy", hint: "Apply a bouncy easing to the scene", group: "Agent", action: () => handleAgentPrompt("Make the motion feel bouncy and playful."), disabled: !hasProject },
+      { id: "agent-calm", label: "Agent: Make It Calmer", hint: "Soften the scene and reduce motion density", group: "Agent", action: () => handleAgentPrompt("Make the scene calmer — soften easing, lengthen durations, and reduce simultaneous starts."), disabled: !hasProject },
+      { id: "agent-stagger", label: "Agent: Add Stagger", hint: "Stagger component entrances", group: "Agent", action: () => handleAgentPrompt("Add a staggered cascade entrance across all components."), disabled: !hasProject },
+      { id: "agent-variant", label: "Agent: Generate Variant", hint: "Produce an alternative version of the motion", group: "Agent", action: () => handleAgentPrompt("Generate an alternative variant of the current motion."), disabled: !hasProject },
+      { id: "agent-a11y", label: "Agent: Check Accessibility", hint: "Audit motion for vestibular risks", group: "Agent", action: () => handleAgentPrompt("Check the motion for accessibility and vestibular risks, and gate risky motion behind prefers-reduced-motion."), disabled: !hasProject },
+      { id: "agent-surprise", label: "Agent: Surprise Me", hint: "Generate a divergent creative motion idea", group: "Agent", action: () => handleAgentPrompt("Surprise me with a creative, unexpected motion variation."), disabled: !hasProject },
+      { id: "agent-export-html", label: "Agent: Export as HTML", hint: "Export the project as standalone HTML", group: "Agent", action: () => handleAgentPrompt("Export the project as a standalone HTML file."), disabled: !hasProject },
+
       // --- Help ---
       { id: "shortcuts", label: "Keyboard Shortcuts", hint: "Show the shortcut reference", group: "Help", shortcut: "⌘/", action: () => setShortcutsOpen(true) },
     ];
-  }, [projectId, selectedId, canUndo, canRedo, handleNewProject, setRightPanelTab, setRightPanelCategory, setExportOpen, triggerReplay, undo, redo, handleDuplicate, handleDelete, selectComponent, reset, setShortcutsOpen, sidebarCollapsed, setSidebarCollapsed, rightPanelCollapsed, setRightPanelCollapsed, snapToGrid, setSnapToGrid, autoKeyframe, setAutoKeyframe, showMotionPaths, setShowMotionPaths, resetCanvasView, setTimelineCommand]);
+  }, [projectId, selectedId, canUndo, canRedo, handleNewProject, handleAgentPrompt, setRightPanelTab, setRightPanelCategory, setExportOpen, triggerReplay, undo, redo, handleDuplicate, handleDelete, selectComponent, reset, setShortcutsOpen, sidebarCollapsed, setSidebarCollapsed, rightPanelCollapsed, setRightPanelCollapsed, setTemplatesBrowseMode, snapToGrid, setSnapToGrid, autoKeyframe, setAutoKeyframe, showMotionPaths, setShowMotionPaths, resetCanvasView, setTimelineCommand]);
 
   const filtered = useMemo(() => {
     if (!query.trim()) return commands;
