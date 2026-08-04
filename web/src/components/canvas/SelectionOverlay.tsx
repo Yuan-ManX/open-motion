@@ -395,6 +395,22 @@ export function SelectionOverlay() {
           className="w-2.5 h-2.5 rounded-full bg-white border border-black cursor-grab"
         />
       </div>
+      {/* Dimension readout — appears below the selection while dragging.
+          Shows live W×H so the user can hit a target size without
+          switching to the inspector. Hidden when idle to avoid clutter. */}
+      {dragState && dragState.handle !== "rotate" && (
+        <div
+          className="absolute pointer-events-none font-mono text-[10px] text-black bg-white px-1.5 py-0.5 rounded"
+          style={{
+            left: left + width / 2 - 28,
+            top: top + height + 6,
+            minWidth: 56,
+            textAlign: "center",
+          }}
+        >
+          {Math.round(width)}×{Math.round(height)}
+        </div>
+      )}
     </div>
   );
 }
