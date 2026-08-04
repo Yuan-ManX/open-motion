@@ -627,7 +627,111 @@ interface ExportData {
   issues: { componentName: string; property: string; issue: string; severity: string; fallback: string }[];
 }
 
-type Section = "critique" | "dna" | "variations" | "style" | "story" | "lineage" | "synthesis" | "auto-fix" | "persona" | "coach" | "genome" | "forecast" | "negotiate" | "remix" | "dialect" | "profiler" | "curator" | "strategist" | "auditor" | "choreographer" | "export" | "emotion" | "rhythm" | "narrative";
+// --- Cohesion analysis data (module 20) ---
+interface HierarchyEntryData {
+  componentId: string;
+  componentName: string;
+  visualWeight: number;
+  rank: number;
+  tier: "primary" | "secondary" | "tertiary" | "background";
+}
+interface FocalAnalysisData {
+  primaryFocalId: string;
+  primaryFocalName: string;
+  dominance: number;
+  hasClearFocal: boolean;
+}
+interface AttentionStepData {
+  order: number;
+  componentId: string;
+  componentName: string;
+  estimatedNoticeMs: number;
+  reason: string;
+}
+interface BalanceAnalysisData {
+  timingDistribution: string;
+  balanceScore: number;
+  clusterCount: number;
+  largestGapMs: number;
+  assessment: string;
+}
+interface SynchronicityAnalysisData {
+  easingFamilyCount: number;
+  dominantFamily: string;
+  syncScore: number;
+  isUnified: boolean;
+  assessment: string;
+}
+interface CohesionData {
+  componentCount: number;
+  cohesionScore: number;
+  level: string;
+  hierarchy: HierarchyEntryData[];
+  focal: FocalAnalysisData;
+  attentionFlow: AttentionStepData[];
+  balance: BalanceAnalysisData;
+  synchronicity: SynchronicityAnalysisData;
+  drivingFactors: string[];
+  recommendations: string[];
+  summary: string;
+}
+
+// --- Conflict detection data (module 21) ---
+interface ConflictEntryData {
+  type: string;
+  severity: "critical" | "warning" | "info";
+  componentIds: string[];
+  componentNames: string[];
+  description: string;
+  timelineMs: number;
+  resolution: string;
+}
+interface ConflictData {
+  componentCount: number;
+  conflictCount: number;
+  criticalCount: number;
+  warningCount: number;
+  infoCount: number;
+  conflicts: ConflictEntryData[];
+  healthScore: number;
+  timelineSpanMs: number;
+  summary: string;
+}
+
+// --- Variant comparison data (module 22) ---
+interface CriterionScoreData {
+  criterion: string;
+  score: number;
+  reasoning: string;
+}
+interface VariantEvaluationData {
+  index: number;
+  componentId: string;
+  componentName: string;
+  overallScore: number;
+  scores: CriterionScoreData[];
+  wins: number;
+  rank: number;
+}
+interface TradeOffData {
+  winnerIndex: number;
+  winnerName: string;
+  loserIndex: number;
+  loserName: string;
+  sacrifices: string;
+  gains: string;
+}
+interface ComparisonData {
+  variantCount: number;
+  evaluations: VariantEvaluationData[];
+  recommendedIndex: number;
+  recommendedName: string;
+  recommendation: string;
+  tradeOffs: TradeOffData[];
+  summary: string;
+}
+
+type Section = "critique" | "dna" | "variations" | "style" | "story" | "lineage" | "synthesis" | "auto-fix" | "persona" | "coach" | "genome" | "forecast" | "negotiate" | "remix" | "dialect" | "profiler" | "curator" | "strategist" | "auditor" | "choreographer" | "export" | "cohesion" | "conflicts" | "compare" | "emotion" | "rhythm" | "narrative";
 
 const SECTIONS: { id: Section; label: string }[] = [
   { id: "critique", label: "Critique" },
@@ -651,6 +755,9 @@ const SECTIONS: { id: Section; label: string }[] = [
   { id: "auditor", label: "Auditor" },
   { id: "choreographer", label: "Choreo" },
   { id: "export", label: "Export" },
+  { id: "cohesion", label: "Cohesion" },
+  { id: "conflicts", label: "Conflicts" },
+  { id: "compare", label: "Compare" },
   { id: "emotion", label: "Emotion" },
   { id: "rhythm", label: "Rhythm" },
   { id: "narrative", label: "Narrative" },
@@ -708,6 +815,9 @@ export function MotionIntelligencePanel() {
   const [choreoMode, setChoreoMode] = useState<string>("cascade");
   const [exportOpt, setExportOpt] = useState<ExportData | null>(null);
   const [exportTarget, setExportTarget] = useState<string>("css");
+  const [cohesion, setCohesion] = useState<CohesionData | null>(null);
+  const [conflicts, setConflicts] = useState<ConflictData | null>(null);
+  const [comparison, setComparison] = useState<ComparisonData | null>(null);
   const [selectedComponentId, setSelectedComponentId] = useState<string>("");
   const [sourceComponentId, setSourceComponentId] = useState<string>("");
   const [targetComponentId, setTargetComponentId] = useState<string>("");
@@ -1290,6 +1400,65 @@ export function MotionIntelligencePanel() {
       setLoading(null);
     }
   }, [projectId, exportTarget]);
+
+  // --- Cohesion analysis (module 20) ---
+  const runCohesion = useCallback(async () => {
+    if (!projectId) return;
+    setLoading("cohesion");
+    try {
+      const resp = await fetch(`/api/projects/${projectId}/cohesion`, {
+        headers: { ...getAuthHeaders() },
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        setCohesion(data);
+      }
+    } catch {
+      // offline fallback
+    } finally {
+      setLoading(null);
+    }
+  }, [projectId]);
+
+  // --- Conflict detection (module 21) ---
+  const runConflicts = useCallback(async () => {
+    if (!projectId) return;
+    setLoading("conflicts");
+    try {
+      const resp = await fetch(`/api/projects/${projectId}/conflicts`, {
+        headers: { ...getAuthHeaders() },
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        setConflicts(data);
+      }
+    } catch {
+      // offline fallback
+    } finally {
+      setLoading(null);
+    }
+  }, [projectId]);
+
+  // --- Variant comparison (module 22) ---
+  const runCompare = useCallback(async () => {
+    if (!projectId) return;
+    setLoading("compare");
+    try {
+      const resp = await fetch(`/api/projects/${projectId}/compare`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({}),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        setComparison(data);
+      }
+    } catch {
+      // offline fallback
+    } finally {
+      setLoading(null);
+    }
+  }, [projectId]);
 
   const runAnalysis = useCallback(async (type: "emotion" | "rhythm" | "narrative") => {
     if (!projectId) return;
@@ -3198,6 +3367,255 @@ export function MotionIntelligencePanel() {
               </div>
             ) : (
               <p className="text-[10px] text-gray-600">Click Optimize to analyze the project for export compatibility with the selected target.</p>
+            )}
+          </div>
+        )}
+
+        {/* --- Cohesion --- */}
+        {section === "cohesion" && (
+          <div className="px-3 py-2 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium">Motion Cohesion Analyzer</span>
+              <button
+                onClick={() => runCohesion()}
+                disabled={loading === "cohesion" || !projectId}
+                className="px-2 py-1 text-[10px] bg-panel2 hover:bg-panel3 rounded disabled:opacity-50"
+              >
+                {loading === "cohesion" ? "Analyzing..." : "Analyze"}
+              </button>
+            </div>
+            <p className="text-[10px] text-gray-600">Project-level cohesion analysis — visual hierarchy, focal points, attention flow, compositional balance, and motion synchronicity across all components.</p>
+            {cohesion ? (
+              <div className="bg-panel2 rounded p-2 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold">{cohesion.cohesionScore}/100</span>
+                  <span className="text-[10px] text-gray-400 uppercase">{cohesion.level}</span>
+                  <span className="text-[10px] text-gray-400 ml-auto">{cohesion.componentCount} components</span>
+                </div>
+                <p className="text-[10px] text-gray-500">{cohesion.summary}</p>
+
+                <div className="space-y-1">
+                  <span className="text-[10px] font-medium text-gray-400">Visual Hierarchy</span>
+                  {cohesion.hierarchy.slice(0, 6).map((h, i) => (
+                    <div key={i} className="text-[10px] text-gray-500 flex items-center gap-1">
+                      <span className="text-gray-400">#{h.rank}</span>
+                      <span className={h.tier === "primary" ? "text-gray-200" : "text-gray-400"}>{h.componentName}</span>
+                      <span className="text-gray-500 ml-auto">{h.visualWeight.toFixed(0)} wt</span>
+                      <span className="text-[9px] text-gray-500 uppercase">{h.tier}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="space-y-1">
+                  <span className="text-[10px] font-medium text-gray-400">Focal Point</span>
+                  <div className="text-[10px] text-gray-500">
+                    {cohesion.focal.hasClearFocal ? (
+                      <>Primary: <span className="text-gray-300">{cohesion.focal.primaryFocalName}</span> (dominance {(cohesion.focal.dominance * 100).toFixed(0)}%)</>
+                    ) : (
+                      <span className="text-red-500">No clear focal point — attention is scattered</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <span className="text-[10px] font-medium text-gray-400">Attention Flow</span>
+                  {cohesion.attentionFlow.slice(0, 5).map((step, i) => (
+                    <div key={i} className="text-[10px] text-gray-500">
+                      <span className="text-gray-400">{step.order}.</span> {step.componentName}
+                      <span className="text-gray-500 ml-2">~{step.estimatedNoticeMs}ms</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-[10px]">
+                  <div className="bg-panel3 rounded p-1">
+                    <div className="text-gray-400">Balance</div>
+                    <div className="text-gray-300">{cohesion.balance.balanceScore}/100</div>
+                    <div className="text-gray-500">{cohesion.balance.timingDistribution}</div>
+                  </div>
+                  <div className="bg-panel3 rounded p-1">
+                    <div className="text-gray-400">Synchronicity</div>
+                    <div className="text-gray-300">{cohesion.synchronicity.syncScore}/100</div>
+                    <div className="text-gray-500">{cohesion.synchronicity.dominantFamily}</div>
+                  </div>
+                </div>
+
+                {cohesion.drivingFactors.length > 0 && (
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-medium text-gray-400">Driving Factors</span>
+                    {cohesion.drivingFactors.slice(0, 4).map((f, i) => (
+                      <div key={i} className="text-[10px] text-gray-500">• {f}</div>
+                    ))}
+                  </div>
+                )}
+
+                {cohesion.recommendations.length > 0 && (
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-medium text-gray-400">Recommendations</span>
+                    {cohesion.recommendations.slice(0, 4).map((r, i) => (
+                      <div key={i} className="text-[10px] text-gray-500">• {r}</div>
+                    ))}
+                  </div>
+                )}
+
+                <button
+                  onClick={() => projectId && send(projectId, `Analyze the cohesion of this composition — check visual hierarchy, focal point, attention flow, balance, and synchronicity, then suggest improvements`)}
+                  className="w-full text-left px-2 py-1 text-[10px] bg-panel2 hover:bg-panel3 rounded text-gray-400"
+                >
+                  Ask Agent to analyze cohesion
+                </button>
+              </div>
+            ) : (
+              <p className="text-[10px] text-gray-600">Click Analyze to measure how well components work together as a unified composition.</p>
+            )}
+          </div>
+        )}
+
+        {/* --- Conflicts --- */}
+        {section === "conflicts" && (
+          <div className="px-3 py-2 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium">Motion Conflict Detector</span>
+              <button
+                onClick={() => runConflicts()}
+                disabled={loading === "conflicts" || !projectId}
+                className="px-2 py-1 text-[10px] bg-panel2 hover:bg-panel3 rounded disabled:opacity-50"
+              >
+                {loading === "conflicts" ? "Detecting..." : "Detect"}
+              </button>
+            </div>
+            <p className="text-[10px] text-gray-600">Structural problem detection — property conflicts, transform collisions, timing gaps, timing collisions, and duration anomalies across the timeline.</p>
+            {conflicts ? (
+              <div className="bg-panel2 rounded p-2 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold">{conflicts.healthScore}/100</span>
+                  <span className="text-[10px] text-gray-400">health</span>
+                  <span className="text-[10px] text-gray-400 ml-auto">
+                    {conflicts.conflictCount} conflicts | {conflicts.timelineSpanMs}ms span
+                  </span>
+                </div>
+                <p className="text-[10px] text-gray-500">{conflicts.summary}</p>
+
+                <div className="grid grid-cols-3 gap-1 text-[10px]">
+                  <div className="bg-panel3 rounded p-1 text-center">
+                    <div className="text-red-500 font-bold">{conflicts.criticalCount}</div>
+                    <div className="text-gray-500">critical</div>
+                  </div>
+                  <div className="bg-panel3 rounded p-1 text-center">
+                    <div className="text-gray-300 font-bold">{conflicts.warningCount}</div>
+                    <div className="text-gray-500">warning</div>
+                  </div>
+                  <div className="bg-panel3 rounded p-1 text-center">
+                    <div className="text-gray-400 font-bold">{conflicts.infoCount}</div>
+                    <div className="text-gray-500">info</div>
+                  </div>
+                </div>
+
+                {conflicts.conflicts.length > 0 && (
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-medium text-gray-400">Detected Conflicts ({conflicts.conflicts.length})</span>
+                    {conflicts.conflicts.slice(0, 8).map((c, i) => (
+                      <div key={i} className="bg-panel3 rounded p-1.5 text-[10px]">
+                        <div className="flex items-center gap-1">
+                          <span className={`px-1 rounded text-[9px] uppercase ${c.severity === "critical" ? "bg-red-900 text-red-300" : c.severity === "warning" ? "bg-panel2 text-gray-300" : "bg-panel2 text-gray-500"}`}>
+                            {c.severity}
+                          </span>
+                          <span className="text-gray-400 uppercase text-[9px]">{c.type.replace(/_/g, " ")}</span>
+                          <span className="text-gray-500 ml-auto">@{c.timelineMs}ms</span>
+                        </div>
+                        <div className="text-gray-400 mt-0.5">{c.description}</div>
+                        <div className="text-gray-500 mt-0.5">Components: {c.componentNames.join(", ")}</div>
+                        <div className="text-gray-400 mt-0.5"><span className="text-gray-500">Fix:</span> {c.resolution}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <button
+                  onClick={() => projectId && send(projectId, `Detect structural conflicts in the timeline — check for property conflicts, transform collisions, timing gaps, timing collisions, and duration anomalies, then resolve them`)}
+                  className="w-full text-left px-2 py-1 text-[10px] bg-panel2 hover:bg-panel3 rounded text-gray-400"
+                >
+                  Ask Agent to detect conflicts
+                </button>
+              </div>
+            ) : (
+              <p className="text-[10px] text-gray-600">Click Detect to find structural problems in the motion timeline.</p>
+            )}
+          </div>
+        )}
+
+        {/* --- Compare --- */}
+        {section === "compare" && (
+          <div className="px-3 py-2 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium">Motion Variant Comparator</span>
+              <button
+                onClick={() => runCompare()}
+                disabled={loading === "compare" || !projectId}
+                className="px-2 py-1 text-[10px] bg-panel2 hover:bg-panel3 rounded disabled:opacity-50"
+              >
+                {loading === "compare" ? "Comparing..." : "Compare"}
+              </button>
+            </div>
+            <p className="text-[10px] text-gray-600">Multi-criteria variant comparison — 5 criteria (accessibility 25%, performance 20%, novelty 20%, consistency 20%, clarity 15%) with ranked table and trade-off analysis.</p>
+            {comparison ? (
+              <div className="bg-panel2 rounded p-2 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold">{comparison.variantCount} variants</span>
+                  <span className="text-[10px] text-gray-400">compared</span>
+                </div>
+                <p className="text-[10px] text-gray-500">{comparison.summary}</p>
+
+                <div className="bg-panel3 rounded p-2">
+                  <div className="text-[10px] font-medium text-gray-300 mb-1">Recommended: {comparison.recommendedName}</div>
+                  <p className="text-[10px] text-gray-500">{comparison.recommendation}</p>
+                </div>
+
+                <div className="space-y-1">
+                  <span className="text-[10px] font-medium text-gray-400">Ranked Evaluations</span>
+                  {comparison.evaluations.slice(0, 6).map((ev, i) => (
+                    <div key={i} className="bg-panel3 rounded p-1.5 text-[10px]">
+                      <div className="flex items-center gap-1">
+                        <span className="text-gray-400">#{ev.rank}</span>
+                        <span className={ev.rank === 1 ? "text-gray-200 font-medium" : "text-gray-400"}>{ev.componentName}</span>
+                        <span className="text-gray-300 ml-auto">{ev.overallScore.toFixed(1)}</span>
+                        <span className="text-gray-500 text-[9px]">{ev.wins} wins</span>
+                      </div>
+                      <div className="flex gap-1 mt-1 flex-wrap">
+                        {ev.scores.map((s, j) => (
+                          <span key={j} className="text-[9px] text-gray-500 bg-panel2 px-1 rounded">
+                            {s.criterion}: {s.score.toFixed(0)}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {comparison.tradeOffs.length > 0 && (
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-medium text-gray-400">Trade-offs</span>
+                    {comparison.tradeOffs.slice(0, 4).map((t, i) => (
+                      <div key={i} className="text-[10px] text-gray-500 bg-panel3 rounded p-1.5">
+                        <div>
+                          <span className="text-gray-300">{t.winnerName}</span> wins over <span className="text-gray-400">{t.loserName}</span>
+                        </div>
+                        <div className="text-gray-500">Gains: {t.gains}</div>
+                        <div className="text-gray-500">Sacrifices: {t.sacrifices}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <button
+                  onClick={() => projectId && send(projectId, `Compare all variants across accessibility, performance, novelty, consistency, and clarity — rank them and recommend the best option with trade-off analysis`)}
+                  className="w-full text-left px-2 py-1 text-[10px] bg-panel2 hover:bg-panel3 rounded text-gray-400"
+                >
+                  Ask Agent to compare variants
+                </button>
+              </div>
+            ) : (
+              <p className="text-[10px] text-gray-600">Click Compare to rank all components across five criteria and recommend the best variant.</p>
             )}
           </div>
         )}
