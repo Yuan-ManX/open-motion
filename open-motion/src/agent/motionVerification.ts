@@ -33,6 +33,13 @@ export interface VerificationAssertion {
   evidence: string;
   /** Suggested tool to fix a failed assertion. Empty when verdict is pass. */
   remediation: string;
+  /**
+   * Stable machine identifier for the assertion family (e.g. "easing.bouncy",
+   * "duration.long", "loop.infinite"). Consumed by the self-correction engine
+   * to look up a concrete remediation action without parsing the human string.
+   * Empty for one-off assertions with no automated fix.
+   */
+  kind: string;
 }
 
 export interface VerificationReport {
@@ -105,6 +112,7 @@ function compileAssertions(userMessage: string, spec: MotionSpec): VerificationA
       verdict: matches > 0 ? "pass" : "fail",
       evidence: matches > 0 ? `${matches} component(s) carry a bouncy easing.` : "No bouncy easing detected on any component.",
       remediation: matches > 0 ? "" : "Call set_easing with bounce, elastic, or back — or set_spring for physics-based bounce.",
+      kind: "easing.bouncy",
     });
   } else if (/\b(smooth|calm|gentle|soft)\b/.test(text)) {
     const matches = comps.filter((c) => profileEasing(c.easing).smooth).length;
@@ -114,6 +122,7 @@ function compileAssertions(userMessage: string, spec: MotionSpec): VerificationA
       verdict: matches > 0 ? "pass" : "fail",
       evidence: matches > 0 ? `${matches} component(s) carry a smooth easing.` : "No smooth easing detected.",
       remediation: matches > 0 ? "" : "Call set_easing with smooth, ease-in-out, or ease-out.",
+      kind: "easing.smooth",
     });
   } else if (/\b(snappy|crisp|sharp|quick)\b/.test(text)) {
     const matches = comps.filter((c) => profileEasing(c.easing).snappy).length;
@@ -123,6 +132,7 @@ function compileAssertions(userMessage: string, spec: MotionSpec): VerificationA
       verdict: matches > 0 ? "pass" : "fail",
       evidence: matches > 0 ? `${matches} component(s) carry a snappy easing.` : "No snappy easing detected.",
       remediation: matches > 0 ? "" : "Call set_easing with snappy or ease-in.",
+      kind: "easing.snappy",
     });
   }
 
@@ -135,6 +145,7 @@ function compileAssertions(userMessage: string, spec: MotionSpec): VerificationA
       verdict: long > 0 ? "pass" : "fail",
       evidence: long > 0 ? `${long} component(s) hold a duration >= 800ms.` : `All durations are under 800ms (max ${comps.reduce((m, c) => Math.max(m, c.durationMs), 0)}ms).`,
       remediation: long > 0 ? "" : "Call set_duration with a value of 800 or higher.",
+      kind: "duration.long",
     });
   } else if (/\b(faster|quicker|shorter|less.time)\b/.test(text)) {
     const short = comps.filter((c) => c.durationMs <= 400).length;
@@ -144,6 +155,7 @@ function compileAssertions(userMessage: string, spec: MotionSpec): VerificationA
       verdict: short > 0 ? "pass" : "fail",
       evidence: short > 0 ? `${short} component(s) finish within 400ms.` : `All durations exceed 400ms (min ${comps.reduce((m, c) => Math.min(m, c.durationMs), Infinity)}ms).`,
       remediation: short > 0 ? "" : "Call set_duration with a value of 400 or lower.",
+      kind: "duration.short",
     });
   }
 
@@ -156,6 +168,7 @@ function compileAssertions(userMessage: string, spec: MotionSpec): VerificationA
       verdict: loops > 0 ? "pass" : "fail",
       evidence: loops > 0 ? `${loops} component(s) loop infinitely.` : "No infinite loops are set.",
       remediation: loops > 0 ? "" : "Call set_loop with iterationCount 'infinite'.",
+      kind: "loop.infinite",
     });
   } else if (/\b(once|single|no.*loop|stop.*loop|play.*once)\b/.test(text)) {
     const loops = countInfiniteLoops(spec);
@@ -165,6 +178,7 @@ function compileAssertions(userMessage: string, spec: MotionSpec): VerificationA
       verdict: loops === 0 ? "pass" : "fail",
       evidence: loops === 0 ? "All components play once." : `${loops} component(s) still loop infinitely.`,
       remediation: loops === 0 ? "" : "Call set_loop with iterationCount 1 on the looping components.",
+      kind: "loop.once",
     });
   }
 
@@ -178,6 +192,7 @@ function compileAssertions(userMessage: string, spec: MotionSpec): VerificationA
         verdict: distinctDelays >= 2 ? "pass" : "fail",
         evidence: distinctDelays >= 2 ? `${distinctDelays} distinct delay values distribute the start times.` : "All components share the same delay — no stagger is present.",
         remediation: distinctDelays >= 2 ? "" : "Call apply_choreography or stagger_components to spread start times.",
+        kind: "stagger.spread",
       });
     } else {
       out.push({
@@ -186,6 +201,7 @@ function compileAssertions(userMessage: string, spec: MotionSpec): VerificationA
         verdict: "skip",
         evidence: `Only ${comps.length} component(s) present — stagger is not applicable yet.`,
         remediation: "Add another component before staggering.",
+        kind: "stagger.needs_components",
       });
     }
   }
@@ -202,6 +218,7 @@ function compileAssertions(userMessage: string, spec: MotionSpec): VerificationA
       verdict: colored > 0 ? "pass" : "fail",
       evidence: colored > 0 ? `${colored} component(s) carry a color or background.` : "No explicit color or background is set on any component.",
       remediation: colored > 0 ? "" : "Call set_color or set_static_style to set a color/background.",
+      kind: "color.present",
     });
   }
 
@@ -214,6 +231,7 @@ function compileAssertions(userMessage: string, spec: MotionSpec): VerificationA
       verdict: has3d ? "pass" : "fail",
       evidence: has3d ? "A 3D transform property is present." : "No 3D transform property is set on any component.",
       remediation: has3d ? "" : "Call set_3d_transform with perspective and rotateX/rotateY.",
+      kind: "transform.3d",
     });
   }
 
@@ -225,6 +243,7 @@ function compileAssertions(userMessage: string, spec: MotionSpec): VerificationA
       verdict: comps.length > 0 ? "pass" : "fail",
       evidence: comps.length > 0 ? `${comps.length} component(s) present.` : "The project is empty — no component was created.",
       remediation: comps.length > 0 ? "" : "Call add_layer, set_template, or add_shape to create a component.",
+      kind: "creation.component",
     });
   }
 
@@ -237,6 +256,7 @@ function compileAssertions(userMessage: string, spec: MotionSpec): VerificationA
       verdict: hasShader ? "pass" : "fail",
       evidence: hasShader ? "A shader/filter property is present." : "No shader effect is applied.",
       remediation: hasShader ? "" : "Call set_shader_effect with the requested effect name.",
+      kind: "shader.present",
     });
   }
 
@@ -252,6 +272,7 @@ function compileAssertions(userMessage: string, spec: MotionSpec): VerificationA
       verdict: hasPath ? "pass" : "fail",
       evidence: hasPath ? "A multi-keyframe translateX/translateY track is present." : "No motion-path track is present.",
       remediation: hasPath ? "" : "Call set_motion_path to generate a path animation.",
+      kind: "path.present",
     });
   }
 
@@ -269,6 +290,7 @@ function compileAssertions(userMessage: string, spec: MotionSpec): VerificationA
         verdict: matches > 0 ? "pass" : "fail",
         evidence: matches > 0 ? `${matches} component(s) use trigger ${expectedTrigger}.` : `No component uses trigger ${expectedTrigger}.`,
         remediation: matches > 0 ? "" : `Call set_trigger with trigger ${expectedTrigger}.`,
+        kind: `trigger.${expectedTrigger}`,
       });
     }
   }
@@ -282,6 +304,7 @@ function compileAssertions(userMessage: string, spec: MotionSpec): VerificationA
       verdict: "fail",
       evidence: `${infiniteLoops} components loop infinitely — risk of visual overload.`,
       remediation: "Reduce the number of infinite loops to keep the scene calm.",
+      kind: "restraint.infinite_loops",
     });
   }
   if (comps.length > 12) {
@@ -291,6 +314,7 @@ function compileAssertions(userMessage: string, spec: MotionSpec): VerificationA
       verdict: "fail",
       evidence: `${comps.length} components present — dense scenes risk visual overload.`,
       remediation: "Consider removing or consolidating components before adding more.",
+      kind: "restraint.density",
     });
   }
 
