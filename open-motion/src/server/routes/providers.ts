@@ -4,6 +4,7 @@ import { listConfiguredProviders, resetProvider } from "../../agent/provider/ind
 import { MODEL_REGISTRY, getAllProviders, modelsByModality, type GenerationModality } from "../../agent/provider/registry.js";
 import { generateMedia, isModalityAvailable, listAvailableModels } from "../../agent/provider/generation.js";
 import { getRouter, resetRouter, createProviderInstance } from "../../agent/provider/router.js";
+import { discoverAllModels, getUnifiedModelList, clearDiscoveryCache, getDiscoveryCacheState } from "../../agent/provider/discovery.js";
 import { runAsync } from "../../utils/async.js";
 import { logger } from "../../utils/logger.js";
 
@@ -28,21 +29,30 @@ providersRouter.get("/providers", (_req, res) => {
 
 /**
  * GET /api/providers/models — list all models in the registry.
- * Query: ?provider=openai, ?capability=vision, ?modality=text-to-image
+ * Query: ?provider=openai, ?capability=vision, ?modality=text-to-image, ?discover=true
+ * When ?discover=true, dynamically discovered models (Ollama local models,
+ * OpenAI-compatible remote catalogs) are merged with the static registry.
  */
-providersRouter.get("/providers/models", (req, res) => {
-  const { provider, capability, modality } = req.query;
+providersRouter.get("/providers/models", async (req, res) => {
+  const { provider, capability, modality, discover } = req.query;
 
-  let models = MODEL_REGISTRY;
+  let models: Array<typeof MODEL_REGISTRY[number] | Awaited<ReturnType<typeof discoverAllModels>>[number]>;
+
+  if (discover === "true") {
+    const unified = await getUnifiedModelList();
+    models = unified as typeof models;
+  } else {
+    models = MODEL_REGISTRY;
+  }
 
   if (provider) {
     models = models.filter((m) => m.provider === provider);
   }
   if (capability && typeof capability === "string") {
-    models = models.filter((m) => m.capabilities[capability as keyof typeof m.capabilities]);
+    models = models.filter((m) => Boolean((m.capabilities as unknown as Record<string, boolean>)[capability]));
   }
   if (modality && typeof modality === "string") {
-    models = models.filter((m) => m.generationModality === modality);
+    models = models.filter((m) => (m as { generationModality?: string }).generationModality === modality);
   }
 
   res.json({
@@ -50,13 +60,55 @@ providersRouter.get("/providers/models", (req, res) => {
       id: m.id,
       name: m.name,
       provider: m.provider,
-      contextWindow: m.contextWindow,
-      capabilities: m.capabilities,
-      generationModality: m.generationModality,
-      description: m.description,
-      available: m.generationModality ? isModalityAvailable(m.generationModality) : true,
+      contextWindow: (m as { contextWindow?: number }).contextWindow,
+      capabilities: m.capabilities as unknown as Record<string, boolean>,
+      generationModality: (m as { generationModality?: string }).generationModality,
+      description: (m as { description?: string }).description ?? "",
+      available: (m as { generationModality?: string }).generationModality ? isModalityAvailable((m as { generationModality: GenerationModality }).generationModality) : true,
+      discovered: "discoveredVia" in m ? (m as { discoveredVia: string }).discoveredVia : false,
     })),
+    total: models.length,
   });
+});
+
+/**
+ * GET /api/providers/discover — trigger dynamic model discovery.
+ * Fetches locally installed Ollama models and OpenAI-compatible remote catalogs.
+ * Returns all newly discovered models (not in the static registry).
+ */
+providersRouter.get("/providers/discover", async (_req, res) => {
+  try {
+    const discovered = await discoverAllModels();
+    res.json({
+      discovered,
+      total: discovered.length,
+      cache: getDiscoveryCacheState(),
+    });
+  } catch (err) {
+    logger.warn("Model discovery failed", { err: String(err) });
+    res.status(500).json({ error: "Discovery failed", message: String(err) });
+  }
+});
+
+/**
+ * POST /api/providers/discover/refresh — clear the discovery cache and
+ * re-fetch all models. Useful after installing new Ollama models or
+ * adding new API keys.
+ */
+providersRouter.post("/providers/discover/refresh", async (_req, res) => {
+  clearDiscoveryCache();
+  try {
+    const discovered = await discoverAllModels();
+    res.json({
+      discovered,
+      total: discovered.length,
+      cache: getDiscoveryCacheState(),
+      refreshed: true,
+    });
+  } catch (err) {
+    logger.warn("Model discovery refresh failed", { err: String(err) });
+    res.status(500).json({ error: "Refresh failed", message: String(err) });
+  }
 });
 
 /**
