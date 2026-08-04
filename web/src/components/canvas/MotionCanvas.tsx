@@ -82,6 +82,9 @@ export function MotionCanvas() {
   const showPerformanceMonitor = useUiStore((s) => s.showPerformanceMonitor);
   const setShowPerformanceMonitor = useUiStore((s) => s.setShowPerformanceMonitor);
   const fitToScreenTrigger = useUiStore((s) => s.fitToScreenTrigger);
+  const hoveredId = useUiStore((s) => s.hoveredComponentId);
+  const setHoveredId = useUiStore((s) => s.setHoveredComponentId);
+  const generationFlashTrigger = useUiStore((s) => s.generationFlashTrigger);
   const marqueeRef = useRef<{ startX: number; startY: number } | null>(null);
   const CANVAS_W = canvasSize.width;
   const CANVAS_H = canvasSize.height;
@@ -244,6 +247,14 @@ export function MotionCanvas() {
     if (fitToScreenTrigger > 0) fitToScreen();
   }, [fitToScreenTrigger, fitToScreen]);
 
+  // Generation flash — when a spec_update lands with new components,
+  // trigger a brief CSS animation on the canvas to draw the eye. The
+  // flash class is applied for the animation duration then removed.
+  const [flashKey, setFlashKey] = useState(0);
+  useEffect(() => {
+    if (generationFlashTrigger > 0) setFlashKey((k) => k + 1);
+  }, [generationFlashTrigger]);
+
   // Pan + marquee handlers
   const onCanvasMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button === 2) return; // right-click handled by onContextMenu
@@ -367,8 +378,13 @@ export function MotionCanvas() {
 
   const onWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
-    const delta = e.deltaY > 0 ? -0.1 : 0.1;
-    setCanvasZoom(canvasZoom + delta);
+    // Exponential zoom so each wheel notch scales by a constant factor
+    // instead of adding a fixed step. Feels linear to the eye and works
+    // across zoom ranges (10%–500%) without becoming jerky at the extremes.
+    // Touchpads fire many small deltaY events; mice fire a few large ones.
+    // A 0.0015 factor keeps touchpads smooth while mice still jump by ~15%.
+    const factor = Math.exp(-e.deltaY * 0.0015);
+    setCanvasZoom(canvasZoom * factor);
   }, [canvasZoom, setCanvasZoom]);
 
   const handleAddShape = useCallback(async (shape: "rectangle" | "circle" | "text" | "triangle" | "star" | "polygon" | "line" | "arrow") => {
@@ -514,10 +530,47 @@ export function MotionCanvas() {
             }}
           />
         )}
+        {isStreaming && (
+          <div
+            style={{
+              position: "absolute",
+              top: 8,
+              left: 12,
+              zIndex: 101,
+              pointerEvents: "none",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              fontSize: 10,
+              fontFamily: "var(--mono)",
+              color: "var(--text)",
+              background: "rgba(0,0,0,0.6)",
+              border: "1px solid var(--border)",
+              borderRadius: 4,
+              padding: "2px 8px",
+              letterSpacing: "0.04em",
+            }}
+          >
+            <span
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: "50%",
+                background: "var(--text)",
+                animation: "om-pulse 1.2s ease-in-out infinite",
+              }}
+            />
+            AGENT WORKING
+          </div>
+        )}
         <style>{`
           @keyframes om-agent-scan {
             0% { background-position: 200% 0; }
             100% { background-position: -200% 0; }
+          }
+          @keyframes om-pulse {
+            0%, 100% { opacity: 0.4; }
+            50% { opacity: 1; }
           }
         `}</style>
         <AlignmentToolbar />
@@ -544,7 +597,7 @@ export function MotionCanvas() {
         <div
           key={replayKey}
           data-om-canvas
-          className="relative fade-in-up"
+          className={`relative fade-in-up ${flashKey > 0 ? "gen-flash" : ""}`}
           style={{
             width: CANVAS_W,
             height: CANVAS_H,
@@ -555,6 +608,7 @@ export function MotionCanvas() {
             border: "1px solid #262626",
             boxShadow: "0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.02)",
           }}
+          onMouseLeave={() => setHoveredId(null)}
         >
           {/* Dimension labels */}
           <div className="absolute -top-5 left-0 right-0 flex justify-center text-[9px] text-gray-600 font-mono">{CANVAS_W}px</div>
@@ -605,11 +659,13 @@ export function MotionCanvas() {
                 },
                 onMouseEnter: (e: React.MouseEvent) => {
                   e.stopPropagation();
+                  setHoveredId(node.componentId);
                   const cl = findListener("pointerEnter");
                   if (cl && cl.action) executeListenerAction(cl.action as Record<string, unknown>);
                 },
                 onMouseLeave: (e: React.MouseEvent) => {
                   e.stopPropagation();
+                  setHoveredId(null);
                   const cl = findListener("pointerLeave");
                   if (cl && cl.action) executeListenerAction(cl.action as Record<string, unknown>);
                 },
@@ -622,12 +678,18 @@ export function MotionCanvas() {
                   if (cl && cl.action) executeListenerAction(cl.action as Record<string, unknown>);
                 },
               };
+              const isHovered = hoveredId === node.componentId;
+              const outlineClass = isSelected
+                ? "selection-outline"
+                : isHovered && !isLocked
+                ? "canvas-hover-outline"
+                : "";
               if (isVoidTag) {
                 return (
                   <Tag
                     key={node.componentId}
                     ref={((el: HTMLElement | null) => canvasFlipRegistry.register(node.componentId, el)) as never}
-                    className={`${node.className} ${isLocked ? "cursor-not-allowed" : "cursor-pointer"} ${isSelected ? "selection-outline" : ""}`}
+                    className={`${node.className} ${isLocked ? "cursor-not-allowed" : "cursor-pointer"} ${outlineClass}`}
                     data-om-name={node.name}
                     data-om-component-id={node.componentId}
                     style={isLocked ? { opacity: 0.5 } : undefined}
@@ -640,7 +702,7 @@ export function MotionCanvas() {
                 <Tag
                   key={node.componentId}
                   ref={((el: HTMLElement | null) => canvasFlipRegistry.register(node.componentId, el)) as never}
-                  className={`${node.className} ${isLocked ? "cursor-not-allowed" : "cursor-pointer"} ${isSelected ? "selection-outline" : ""}`}
+                  className={`${node.className} ${isLocked ? "cursor-not-allowed" : "cursor-pointer"} ${outlineClass}`}
                   data-om-name={node.name}
                   data-om-component-id={node.componentId}
                   style={isLocked ? { opacity: 0.5 } : undefined}
