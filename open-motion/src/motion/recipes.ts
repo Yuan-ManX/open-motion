@@ -1,5 +1,6 @@
 import { now } from "../utils/id.js";
 import { getDb } from "../db/index.js";
+import type { MotionSpec } from "@openmotion/shared";
 
 /**
  * Curated motion recipe library with restraint metadata.
@@ -966,29 +967,505 @@ export function searchRecipes(query: string, limit = 10): MotionRecipe[] {
   return rows.map(rowToRecipe);
 }
 
-/** Check if a recipe should be avoided given the current context. */
-export function checkRecipeAvoidance(recipe: MotionRecipe, context: {
+/**
+ * Context used by the recipe restraint engine. The original three required
+ * fields are kept required for backward compatibility; the optional fields
+ * allow callers (e.g. apply_recipe) to surface a richer picture of the
+ * composition so checkRecipeAvoidance can honor the full avoidance vocabulary.
+ */
+export interface RecipeAvoidanceContext {
   componentCount: number;
   hasBounce: boolean;
   isProfessional: boolean;
-}): { shouldAvoid: boolean; reasons: string[] } {
+  // Optional inferred signals (Phase 2 expansion). When absent, the
+  // corresponding avoidance checks are skipped rather than defaulting to
+  // false positives — this preserves the old behavior for old callers.
+  componentNames?: string[];
+  triggers?: string[];
+  easings?: string[];
+  hasScroll?: boolean;
+  hasModal?: boolean;
+  hasLoading?: boolean;
+  hasErrorState?: boolean;
+  hasAboveFold?: boolean;
+  hasHero?: boolean;
+  hasFullscreen?: boolean;
+  hasFormInput?: boolean;
+  hasDataTable?: boolean;
+  hasTextHeavy?: boolean;
+  hasTouch?: boolean;
+  isMobile?: boolean;
+  isDesktopOnly?: boolean;
+  hasAccessibilityConcern?: boolean;
+  hasBrandStrict?: boolean;
+  hasRealTimeData?: boolean;
+  hasBackgroundElement?: boolean;
+  hasForegroundContent?: boolean;
+  hasBackgroundTask?: boolean;
+  hasNoPerspective?: boolean;
+  hasNoSharedSource?: boolean;
+  hasPerformanceCritical?: boolean;
+  layerCount?: number;
+  barCount?: number;
+  tone?: "playful" | "professional" | "formal" | "cinematic" | "subtle" | "bold";
+  viewport?: "mobile" | "desktop" | "narrow" | "wide";
+}
+
+/**
+ * Infer a RecipeAvoidanceContext from an assembled project spec. Reads
+ * component names, triggers, easings, scene presence, and a few lexical
+ * signals (e.g. names that mention "loading"/"modal"/"hero"). The output
+ * can be passed directly to checkRecipeAvoidance.
+ */
+export function inferRecipeAvoidanceContext(spec: MotionSpec): RecipeAvoidanceContext {
+  const components = spec.components ?? [];
+  const componentCount = components.length;
+  const componentNames = components.map((c) => c.name);
+  const triggers = components.map((c) => c.trigger);
+  const easings = components.map((c) =>
+    c.easing?.type === "preset" ? c.easing.name : c.easing?.type ?? "",
+  );
+
+  const hasBounce = components.some(
+    (c) => c.easing?.type === "preset" && /bounce|elastic|spring/.test(c.easing.name),
+  );
+  const isProfessional = components.some((c) =>
+    /professional|calm|minimal|enterprise|business|dashboard|corporate/i.test(c.name),
+  );
+
+  const nameMatch = (re: RegExp) => componentNames.some((n) => re.test(n));
+  const triggerHas = (t: string) => triggers.some((tr) => tr === t);
+
+  return {
+    componentCount,
+    hasBounce,
+    isProfessional,
+    componentNames,
+    triggers,
+    easings,
+    hasScroll: triggerHas("onScroll") || nameMatch(/scroll|parallax/i),
+    hasModal: nameMatch(/modal|dialog|popup|overlay-panel/i),
+    hasLoading: nameMatch(/loading|loader|skeleton|spinner|progress|pending/i),
+    hasErrorState: nameMatch(/error|invalid|fail|danger|warning|alert/i),
+    hasAboveFold: nameMatch(/hero|banner|cover|above-fold/i),
+    hasHero: nameMatch(/hero|banner|cover|showcase/i),
+    hasFullscreen: nameMatch(/fullscreen|immersive|theater/i),
+    hasFormInput: nameMatch(/input|form|field|textarea|select|search|entry/i),
+    hasDataTable: nameMatch(/table|grid|spreadsheet|row|cell|data-grid/i),
+    hasTextHeavy: nameMatch(/text|paragraph|article|blog|content|body|description|story/i),
+    hasTouch: nameMatch(/swipe|pinch|tap|gesture|touch/i),
+    isMobile: nameMatch(/mobile|phone|handheld/i),
+    isDesktopOnly: nameMatch(/desktop|mouse-only/i),
+    hasAccessibilityConcern: nameMatch(/accessib|a11y|focus|screen-reader/i),
+    hasBrandStrict: nameMatch(/brand|logo|trademark/i),
+    hasRealTimeData: nameMatch(/live|real-time|stream|ticker|stock|feed/i),
+    hasBackgroundElement: nameMatch(/background|backdrop|bg|ambient/i),
+    hasForegroundContent: nameMatch(/foreground|front|main|content|body|article/i),
+    hasBackgroundTask: nameMatch(/background-task|worker|job|cron/i),
+    hasNoPerspective: !components.some((c) =>
+      /perspective|rotateX|rotateY|rotate3d|translateZ/i.test(String(c.style?.transform ?? "")),
+    ),
+    hasNoSharedSource: !components.some((c) => c.templateId),
+    hasPerformanceCritical: componentCount > 8,
+    layerCount: new Set(components.map((c) => c.sceneId ?? "default")).size,
+    barCount: nameMatch(/bar|chart|graph/i) ? componentCount : undefined,
+    tone: isProfessional
+      ? "professional"
+      : nameMatch(/playful|fun|game|toy|kid/i)
+        ? "playful"
+        : nameMatch(/cinematic|trailer|film|movie/i)
+          ? "cinematic"
+          : nameMatch(/formal|business|enterprise|corporate|dashboard/i)
+            ? "formal"
+            : nameMatch(/subtle|minimal|quiet|whisper/i)
+              ? "subtle"
+              : nameMatch(/cta|action|button|submit|buy|confirm/i)
+                ? "bold"
+                : undefined,
+    viewport: nameMatch(/mobile|phone|handheld/i)
+      ? "mobile"
+      : nameMatch(/desktop|mouse-only/i)
+        ? "desktop"
+        : nameMatch(/narrow|column|vertical/i)
+          ? "narrow"
+          : undefined,
+  };
+}
+
+/** Check if a recipe should be avoided given the current context. */
+export function checkRecipeAvoidance(
+  recipe: MotionRecipe,
+  context: RecipeAvoidanceContext,
+): { shouldAvoid: boolean; reasons: string[] } {
   const reasons: string[] = [];
+  const names = context.componentNames ?? [];
+  const nameMatch = (re: RegExp) => names.some((n) => re.test(n));
+  const triggers = context.triggers ?? [];
+  const triggerHas = (t: string) => triggers.includes(t);
+
   for (const condition of recipe.avoidWhen) {
-    if (condition === "more-than-5-simultaneous" && context.componentCount > 5) {
-      reasons.push(`Too many simultaneous components (${context.componentCount} > 5)`);
+    // --- Simultaneous count conditions (existing, generalized) ---
+    const simultaneousMatch = condition.match(/^more-than-(\d+)-simultaneous$/);
+    if (simultaneousMatch) {
+      const n = Number(simultaneousMatch[1]);
+      if (context.componentCount > n) {
+        reasons.push(
+          `Too many simultaneous components (${context.componentCount} > ${n})`,
+        );
+      }
+      continue;
     }
-    if (condition === "more-than-3-simultaneous" && context.componentCount > 3) {
-      reasons.push(`Too many simultaneous components (${context.componentCount} > 3)`);
+    if (condition === "more-than-20-bars") {
+      const count = context.barCount ?? context.componentCount;
+      if (count > 20) {
+        reasons.push(`Too many bars (${count} > 20)`);
+      }
+      continue;
     }
-    if (condition === "more-than-2-simultaneous" && context.componentCount > 2) {
-      reasons.push(`Too many simultaneous components (${context.componentCount} > 2)`);
+    if (condition === "more-than-4-layers") {
+      const layers = context.layerCount ?? context.componentCount;
+      if (layers > 4) {
+        reasons.push(`Too many layers (${layers} > 4)`);
+      }
+      continue;
     }
+
+    // --- Bounce / tone conditions (existing + expanded) ---
     if (condition === "already-has-bounce" && context.hasBounce) {
       reasons.push("Bounce effect already present in composition");
+      continue;
     }
-    if (condition === "professional-tone" && context.isProfessional) {
-      reasons.push("Not suitable for professional tone");
+    if (condition === "professional-tone") {
+      if (context.isProfessional || context.tone === "professional" || context.tone === "formal") {
+        reasons.push("Not suitable for professional tone");
+      }
+      continue;
     }
+    if (condition === "playful-tone") {
+      if (context.tone === "playful" || nameMatch(/playful|fun|game|toy|kid/i)) {
+        reasons.push("Not suitable for playful tone");
+      }
+      continue;
+    }
+    if (condition === "playful-bounce") {
+      if (context.hasBounce && (context.tone === "playful" || nameMatch(/playful|fun/i))) {
+        reasons.push("Playful bounce already present");
+      }
+      continue;
+    }
+    if (condition === "bold-action") {
+      if (context.tone === "bold" || nameMatch(/cta|button|action|submit|buy|confirm/i)) {
+        reasons.push("Conflicts with bold action emphasis");
+      }
+      continue;
+    }
+    if (condition === "alert") {
+      if (context.hasErrorState || nameMatch(/alert|warning|toast|notification|banner/i)) {
+        reasons.push("Alert or notification context already present");
+      }
+      continue;
+    }
+    if (condition === "subtle-context") {
+      if (context.tone === "subtle" || nameMatch(/subtle|minimal|quiet|whisper/i)) {
+        reasons.push("Conflicts with subtle/minimal context");
+      }
+      continue;
+    }
+    if (condition === "formal-ui") {
+      if (
+        context.tone === "formal" ||
+        context.isProfessional ||
+        nameMatch(/formal|business|enterprise|corporate|dashboard/i)
+      ) {
+        reasons.push("Not suitable for formal UI");
+      }
+      continue;
+    }
+    if (condition === "cinematic-context") {
+      if (context.tone === "cinematic" || nameMatch(/cinematic|trailer|film|movie/i)) {
+        reasons.push("Conflicts with cinematic context");
+      }
+      continue;
+    }
+    if (condition === "brand-strict") {
+      if (context.hasBrandStrict) {
+        reasons.push("Brand-strict project does not allow this recipe");
+      }
+      continue;
+    }
+    if (condition === "upward-motion") {
+      if (nameMatch(/upward|rise|float-up|lift|ascend/i)) {
+        reasons.push("Upward motion already present");
+      }
+      continue;
+    }
+    if (condition === "vertical-layout") {
+      if (context.viewport === "narrow" || nameMatch(/vertical|column|stack/i)) {
+        reasons.push("Not suitable for vertical layout");
+      }
+      continue;
+    }
+
+    // --- Foreground / background / hero conditions ---
+    if (condition === "foreground-content") {
+      if (context.hasForegroundContent || nameMatch(/foreground|front|main|content|body|article/i)) {
+        reasons.push("Foreground content would be obscured");
+      }
+      continue;
+    }
+    if (condition === "background-element") {
+      if (context.hasBackgroundElement || nameMatch(/background|backdrop|bg|ambient/i)) {
+        reasons.push("Background element conflict");
+      }
+      continue;
+    }
+    if (condition === "hero-element") {
+      if (context.hasHero || nameMatch(/hero|banner|cover|showcase/i)) {
+        reasons.push("Hero element already present");
+      }
+      continue;
+    }
+    if (condition === "hero-exit") {
+      if (context.hasHero && (triggerHas("onClick") || triggerHas("afterDelay"))) {
+        reasons.push("Hero exit context detected");
+      }
+      continue;
+    }
+    if (condition === "initial-entrance") {
+      if (triggers.every((t) => t === "onLoad")) {
+        reasons.push("Initial entrance context — recipe would clash with first paint");
+      }
+      continue;
+    }
+
+    // --- State conditions ---
+    if (condition === "error-state") {
+      if (context.hasErrorState || nameMatch(/error|invalid|fail|warning|danger/i)) {
+        reasons.push("Error-state context detected");
+      }
+      continue;
+    }
+    if (condition === "loading-state") {
+      if (context.hasLoading || nameMatch(/loading|loader|skeleton|spinner|progress|pending/i)) {
+        reasons.push("Loading-state context detected");
+      }
+      continue;
+    }
+    if (condition === "loaded-content") {
+      if (nameMatch(/content|article|body|main|page-loaded/i)) {
+        reasons.push("Loaded-content context — animation may conflict with stable content");
+      }
+      continue;
+    }
+    if (condition === "indeterminate-loading") {
+      if (nameMatch(/indeterminate|unknown|unsure|pending/i)) {
+        reasons.push("Indeterminate loading context detected");
+      }
+      continue;
+    }
+    if (condition === "background-task") {
+      if (context.hasBackgroundTask || nameMatch(/background-task|worker|job|cron/i)) {
+        reasons.push("Background task context detected");
+      }
+      continue;
+    }
+    if (condition === "modal-open") {
+      if (context.hasModal || nameMatch(/modal|dialog|popup|overlay-panel/i)) {
+        reasons.push("Modal-open context detected");
+      }
+      continue;
+    }
+    if (condition === "fullscreen-mode") {
+      if (context.hasFullscreen || nameMatch(/fullscreen|immersive|theater/i)) {
+        reasons.push("Fullscreen mode active");
+      }
+      continue;
+    }
+    if (condition === "embedded-context") {
+      if (nameMatch(/embed|widget|iframe|inline-frame/i)) {
+        reasons.push("Embedded context detected");
+      }
+      continue;
+    }
+    if (condition === "above-the-fold") {
+      if (context.hasAboveFold) {
+        reasons.push("Above-the-fold placement is too prominent for this recipe");
+      }
+      continue;
+    }
+
+    // --- Content conditions ---
+    if (condition === "data-table") {
+      if (context.hasDataTable || nameMatch(/table|grid|spreadsheet|row|cell|data-grid/i)) {
+        reasons.push("Data table context detected");
+      }
+      continue;
+    }
+    if (condition === "data-content") {
+      if (nameMatch(/data|stat|metric|chart|graph/i)) {
+        reasons.push("Data-content context detected");
+      }
+      continue;
+    }
+    if (condition === "data-heavy") {
+      if (nameMatch(/data|chart|graph|stat|table|grid/i)) {
+        reasons.push("Data-heavy context detected");
+      }
+      continue;
+    }
+    if (condition === "text-heavy") {
+      if (context.hasTextHeavy || nameMatch(/text|paragraph|article|blog|content|body|description/i)) {
+        reasons.push("Text-heavy context detected");
+      }
+      continue;
+    }
+    if (condition === "long-text") {
+      if (nameMatch(/article|blog|story|long-form|read/i)) {
+        reasons.push("Long-text context detected");
+      }
+      continue;
+    }
+    if (condition === "text-overlay") {
+      if (nameMatch(/caption|overlay|subtitle|label|tag/i)) {
+        reasons.push("Text overlay context detected");
+      }
+      continue;
+    }
+    if (condition === "list-item") {
+      if (nameMatch(/list|item|menu|row|li\b/i)) {
+        reasons.push("List-item context detected");
+      }
+      continue;
+    }
+    if (condition === "list-context") {
+      if (nameMatch(/list|menu|items|feed/i)) {
+        reasons.push("List context detected");
+      }
+      continue;
+    }
+    if (condition === "real-time-data") {
+      if (context.hasRealTimeData || nameMatch(/live|real-time|stream|ticker|stock|feed/i)) {
+        reasons.push("Real-time data context detected");
+      }
+      continue;
+    }
+    if (condition === "ui-feedback") {
+      if (nameMatch(/feedback|toast|notification|alert|snackbar/i)) {
+        reasons.push("UI feedback context detected");
+      }
+      continue;
+    }
+    if (condition === "form-input") {
+      if (context.hasFormInput || nameMatch(/input|form|field|textarea|select|search|entry/i)) {
+        reasons.push("Form input context detected");
+      }
+      continue;
+    }
+
+    // --- Device / viewport conditions ---
+    if (condition === "touch-device") {
+      if (context.hasTouch === true) {
+        reasons.push("Touch device context detected");
+      }
+      continue;
+    }
+    if (condition === "non-touch") {
+      if (context.hasTouch === false || context.isDesktopOnly) {
+        reasons.push("Non-touch context detected");
+      }
+      continue;
+    }
+    if (condition === "mobile-viewport") {
+      if (context.viewport === "mobile" || context.isMobile) {
+        reasons.push("Mobile viewport context detected");
+      }
+      continue;
+    }
+    if (condition === "desktop-only") {
+      if (context.viewport === "desktop" || context.isDesktopOnly) {
+        reasons.push("Desktop-only context detected");
+      }
+      continue;
+    }
+    if (condition === "narrow-viewport") {
+      if (context.viewport === "narrow") {
+        reasons.push("Narrow viewport context detected");
+      }
+      continue;
+    }
+    if (condition === "mouse-focus") {
+      if (
+        (context.hasTouch === false || context.isDesktopOnly) &&
+        (triggerHas("onHover") || triggerHas("onClick"))
+      ) {
+        reasons.push("Mouse-focus context detected");
+      }
+      continue;
+    }
+    if (condition === "scroll-context") {
+      if (context.hasScroll || triggerHas("onScroll")) {
+        reasons.push("Scroll context detected");
+      }
+      continue;
+    }
+    if (condition === "no-perspective-context") {
+      if (context.hasNoPerspective) {
+        reasons.push("No 3D perspective context available");
+      }
+      continue;
+    }
+    if (condition === "fast-interaction") {
+      if (triggerHas("onClick") && names.length > 0) {
+        reasons.push("Fast-interaction context (click-driven) detected");
+      }
+      continue;
+    }
+    if (condition === "fast-switching") {
+      if (triggerHas("onClick") && context.componentCount > 1) {
+        reasons.push("Fast-switching context (multiple click-driven) detected");
+      }
+      continue;
+    }
+    if (condition === "fast-navigation") {
+      if (triggerHas("onClick") || triggerHas("afterDelay")) {
+        reasons.push("Fast-navigation context detected");
+      }
+      continue;
+    }
+    if (condition === "fast-tap") {
+      if (context.hasTouch === true && triggerHas("onClick")) {
+        reasons.push("Fast-tap context (touch + click) detected");
+      }
+      continue;
+    }
+
+    // --- Performance / accessibility / structural conditions ---
+    if (condition === "performance-critical") {
+      if (context.hasPerformanceCritical) {
+        reasons.push("Performance-critical context detected");
+      }
+      continue;
+    }
+    if (condition === "single-layer") {
+      const layers = context.layerCount ?? context.componentCount;
+      if (layers <= 1) {
+        reasons.push("Single-layer scene — recipe needs layered depth");
+      }
+      continue;
+    }
+    if (condition === "accessibility-sensitive" || condition === "accessibility-critical") {
+      if (context.hasAccessibilityConcern) {
+        reasons.push("Accessibility-sensitive context detected");
+      }
+      continue;
+    }
+    if (condition === "no-shared-source") {
+      if (context.hasNoSharedSource) {
+        reasons.push("No shared template source across components");
+      }
+      continue;
+    }
+    // Unknown conditions are silently ignored to stay forward-compatible.
   }
   return { shouldAvoid: reasons.length > 0, reasons };
 }
