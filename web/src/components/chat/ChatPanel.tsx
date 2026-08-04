@@ -107,6 +107,22 @@ function buildSuggestions(components: MotionComponent[], hasProject: boolean): s
   const isLong = first.durationMs > 1500;
   const isShort = first.durationMs < 500;
 
+  // Rotating cross-disciplinary analysis prompts — cycle through the 15
+  // original lenses so users can discover them organically.
+  const analysisPrompts = [
+    "Analyze the physics of the motion",
+    "Analyze the cinema of the motion",
+    "Analyze the astronomy of the motion",
+    "Analyze the chemistry of the motion",
+    "Analyze the musicology of the motion",
+    "Analyze the linguistics of the motion",
+    "Analyze the mythology of the motion",
+    "Analyze the architecture of the motion",
+    "Analyze the weather of the motion",
+    "Analyze the botany of the motion",
+  ];
+  const analysisPick = analysisPrompts[Math.floor(Date.now() / 60000) % analysisPrompts.length];
+
   const suggestions: string[] = [];
   suggestions.push(isBouncy ? "Make it smoother" : "Make it bouncy");
   if (isLong) suggestions.push("Speed it up");
@@ -114,8 +130,7 @@ function buildSuggestions(components: MotionComponent[], hasProject: boolean): s
   else suggestions.push("Slower");
   if (!isLooping) suggestions.push("Loop forever");
   suggestions.push(components.length > 1 ? "Apply bouncy to all" : "Duplicate layer");
-  suggestions.push("Analyze my motion");
-  suggestions.push("Describe this motion");
+  suggestions.push(analysisPick);
   suggestions.push("Export HTML");
   return suggestions.slice(0, 6);
 }
@@ -137,6 +152,8 @@ export function ChatPanel() {
   const goal = useChatStore((s) => s.goal);
   const proactiveSuggestions = useChatStore((s) => s.proactiveSuggestions);
   const sessionSummary = useChatStore((s) => s.sessionSummary);
+  const confidence = useChatStore((s) => s.confidence);
+  const parallelBatches = useChatStore((s) => s.parallelBatches);
   const provider = useChatStore((s) => s.provider);
   const error = useChatStore((s) => s.error);
   const send = useChatStore((s) => s.send);
@@ -297,6 +314,23 @@ export function ChatPanel() {
       return next;
     });
   };
+
+  /**
+   * Auto-expand the currently running tool call so the user can follow
+   * what the agent is doing without clicking. When a tool finishes we
+   * leave it expanded if it was auto-opened (the user can collapse it).
+   * Only the most recent running tool is auto-expanded to avoid noise
+   * when several tools run in sequence.
+   */
+  useEffect(() => {
+    if (!isStreaming) return;
+    const running = toolActivity.filter((a) => !a.done);
+    if (running.length === 0) return;
+    const latestRunning = running[running.length - 1];
+    if (!expandedTools.has(latestRunning.callId)) {
+      setExpandedTools((prev) => new Set(prev).add(latestRunning.callId));
+    }
+  }, [toolActivity, isStreaming, expandedTools]);
 
   const placeholder = projectId
     ? (components.length > 0 ? "Describe a motion change…" : "Describe a motion to add…")
@@ -610,6 +644,31 @@ export function ChatPanel() {
               {sessionSummary.metrics.successes}/{sessionSummary.metrics.toolCalls} ok
               {sessionSummary.metrics.goalsTotal > 0 && ` · ${sessionSummary.metrics.goalsCompleted}/${sessionSummary.metrics.goalsTotal} goals`}
             </span>
+            {confidence !== null && (
+              <span
+                className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${
+                  confidence >= 0.8
+                    ? "border-white/60 text-white"
+                    : confidence >= 0.5
+                    ? "border-gray-500 text-gray-300"
+                    : "border-gray-700 text-gray-500"
+                }`}
+                title={`Agent confidence: ${Math.round(confidence * 100)}%`}
+              >
+                {Math.round(confidence * 100)}% conf
+              </span>
+            )}
+            {parallelBatches.filter((b) => b.count > 1).length > 0 && (
+              <span
+                className="text-[9px] font-mono px-1.5 py-0.5 rounded border border-white/40 text-white"
+                title={`Parallel tool batches: ${parallelBatches
+                  .filter((b) => b.count > 1)
+                  .map((b) => `${b.count}x (${b.tools.join(", ")})`)
+                  .join(" · ")}`}
+              >
+                {Math.max(...parallelBatches.map((b) => b.count))}x parallel
+              </span>
+            )}
           </div>
           <p className="text-[11px] text-gray-200 font-medium mb-1">{sessionSummary.headline}</p>
           {sessionSummary.outcomes.length > 0 && (
