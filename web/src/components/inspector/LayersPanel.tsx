@@ -5,6 +5,7 @@ import { useUiStore } from "../../store/uiStore.js";
 import * as api from "../../api/endpoints.js";
 import { AnimatePresence } from "../AnimatePresence.js";
 import { useFlipRegistry } from "../../hooks/useMotionValue.js";
+import { EmptyState } from "../common/EmptyState.js";
 
 export function LayersPanel() {
   const components = useProjectStore((s) => s.components);
@@ -15,6 +16,7 @@ export function LayersPanel() {
   const patchComponentLocal = useProjectStore((s) => s.patchComponentLocal);
   const selectedId = useUiStore((s) => s.selectedComponentId);
   const selectComponent = useUiStore((s) => s.selectComponent);
+  const setHoveredComponentId = useUiStore((s) => s.setHoveredComponentId);
   const triggerReplay = useUiStore((s) => s.triggerReplay);
   const hiddenIds = useUiStore((s) => s.hiddenIds);
   const toggleHidden = useUiStore((s) => s.toggleHidden);
@@ -310,9 +312,15 @@ export function LayersPanel() {
 
       <div className="flex-1 overflow-y-auto">
         {sorted.length === 0 && (
-          <div className="px-3 py-4 text-xs text-gray-600">
-            {projectId ? "No layers yet." : "No project loaded."}
-          </div>
+          projectId ? (
+            <EmptyState
+              icon="≡"
+              title="No layers yet"
+              hint="Add a layer with the + above, or ask the agent to create one."
+            />
+          ) : (
+            <EmptyState icon="◇" title="No project loaded" hint="Open a project to see its layers." />
+          )
         )}
         <AnimatePresence duration={200} enterFromScale={0.96} exitToScale={0.96}>
           {flatList.map(({ component: c, depth }) => {
@@ -334,6 +342,8 @@ export function LayersPanel() {
                 onDrop={(e) => handleDrop(e, c.id)}
                 onDragEnd={handleDragEnd}
                 onClick={() => !isRenaming && selectComponent(isSelected ? null : c.id)}
+                onMouseEnter={() => setHoveredComponentId(c.id)}
+                onMouseLeave={() => setHoveredComponentId(null)}
                 onDoubleClick={(e) => {
                   e.stopPropagation();
                   startRename(c.id, c.name);
