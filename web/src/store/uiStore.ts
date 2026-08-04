@@ -10,6 +10,13 @@ export interface SmartGuide {
 
 interface UiState {
   selectedComponentId: string | null;
+  /** Component currently hovered in the Layers panel or canvas — drives
+      cross-panel highlight sync so hovering a layer outlines its canvas
+      node and vice versa. Null when nothing is hovered. */
+  hoveredComponentId: string | null;
+  /** Counter incremented each time a spec_update lands with new components,
+      used to flash newly generated content on the canvas. */
+  generationFlashTrigger: number;
   exportOpen: boolean;
   templatesOpen: boolean;
   skillsOpen: boolean;
@@ -22,7 +29,7 @@ interface UiState {
   canvasSize: { width: number; height: number };
   playbackSpeed: number;
   chatWidth: number;
-  rightPanelTab: "layers" | "inspector" | "effects" | "templates" | "skills" | "states" | "memory" | "versions" | "graph" | "code" | "shader" | "recipe" | "brand" | "capture" | "export" | "lineage" | "a11y" | "perf" | "storyboard" | "health" | "variants" | "sequencer" | "sandbox" | "intelligence" | "storytelling" | "adaptive";
+  rightPanelTab: "layers" | "inspector" | "effects" | "templates" | "skills" | "states" | "memory" | "versions" | "graph" | "code" | "shader" | "recipe" | "brand" | "capture" | "export" | "lineage" | "a11y" | "perf" | "storyboard" | "health" | "variants" | "sequencer" | "sandbox" | "intelligence" | "engines" | "storytelling" | "adaptive" | "scenes" | "palette" | "platform" | "cursor" | "causal" | "budget" | "stategraph" | "narrative" | "cognition";
   rightPanelCategory: "design" | "motion" | "intel" | "assets" | "output";
   onionSkin: { enabled: boolean; frames: number; opacity: number };
   previewOpen: boolean;
@@ -48,6 +55,8 @@ interface UiState {
   sidebarCollapsed: boolean;
   sidebarWidth: number;
   rightPanelCollapsed: boolean;
+  /** Templates panel browse mode — shared so Cmd+K can switch to catalog. */
+  templatesBrowseMode: "templates" | "catalog";
   isPlaying: boolean;
   /** Custom track display order — overrides default delayMs sort when non-empty. */
   trackOrder: string[];
@@ -55,6 +64,8 @@ interface UiState {
   fitToScreenTrigger: number;
 
   selectComponent: (id: string | null) => void;
+  setHoveredComponentId: (id: string | null) => void;
+  triggerGenerationFlash: () => void;
   setExportOpen: (open: boolean) => void;
   setTemplatesOpen: (open: boolean) => void;
   setSkillsOpen: (open: boolean) => void;
@@ -67,7 +78,7 @@ interface UiState {
   setCanvasSize: (size: { width: number; height: number }) => void;
   setPlaybackSpeed: (speed: number) => void;
   setChatWidth: (w: number) => void;
-  setRightPanelTab: (tab: "layers" | "inspector" | "effects" | "templates" | "skills" | "states" | "memory" | "versions" | "graph" | "code" | "shader" | "recipe" | "brand" | "capture" | "export" | "lineage" | "a11y" | "perf" | "storyboard" | "health" | "variants" | "sequencer" | "sandbox" | "intelligence" | "storytelling" | "adaptive") => void;
+  setRightPanelTab: (tab: "layers" | "inspector" | "effects" | "templates" | "skills" | "states" | "memory" | "versions" | "graph" | "code" | "shader" | "recipe" | "brand" | "capture" | "export" | "lineage" | "a11y" | "perf" | "storyboard" | "health" | "variants" | "sequencer" | "sandbox" | "intelligence" | "engines" | "storytelling" | "adaptive" | "scenes" | "palette" | "platform" | "cursor" | "causal" | "budget" | "stategraph" | "narrative" | "cognition") => void;
   setRightPanelCategory: (category: "design" | "motion" | "intel" | "assets" | "output") => void;
   setOnionSkin: (patch: Partial<UiState["onionSkin"]>) => void;
   setPreviewOpen: (open: boolean) => void;
@@ -98,6 +109,7 @@ interface UiState {
   setSidebarCollapsed: (collapsed: boolean) => void;
   setSidebarWidth: (w: number) => void;
   setRightPanelCollapsed: (collapsed: boolean) => void;
+  setTemplatesBrowseMode: (mode: "templates" | "catalog") => void;
   setIsPlaying: (playing: boolean) => void;
   setTrackOrder: (order: string[]) => void;
   triggerFitToScreen: () => void;
@@ -105,6 +117,8 @@ interface UiState {
 
 export const useUiStore = create<UiState>((set, get) => ({
   selectedComponentId: null,
+  hoveredComponentId: null,
+  generationFlashTrigger: 0,
   exportOpen: false,
   templatesOpen: false,
   skillsOpen: false,
@@ -144,11 +158,14 @@ export const useUiStore = create<UiState>((set, get) => ({
   sidebarCollapsed: true,
   sidebarWidth: 260,
   rightPanelCollapsed: false,
+  templatesBrowseMode: "templates",
   isPlaying: false,
   trackOrder: [],
   fitToScreenTrigger: 0,
 
   selectComponent: (id) => set({ selectedComponentId: id, selectedIds: id ? new Set([id]) : new Set() }),
+  setHoveredComponentId: (id) => set({ hoveredComponentId: id }),
+  triggerGenerationFlash: () => set((s) => ({ generationFlashTrigger: s.generationFlashTrigger + 1 })),
   setExportOpen: (open) => set({ exportOpen: open }),
   setTemplatesOpen: (open) => set({ templatesOpen: open }),
   setSkillsOpen: (open) => set({ skillsOpen: open }),
@@ -216,6 +233,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
   setSidebarWidth: (w) => set({ sidebarWidth: Math.max(200, Math.min(400, w)) }),
   setRightPanelCollapsed: (collapsed) => set({ rightPanelCollapsed: collapsed }),
+  setTemplatesBrowseMode: (mode) => set({ templatesBrowseMode: mode }),
   setIsPlaying: (playing) => set({ isPlaying: playing }),
   setTrackOrder: (order) => set({ trackOrder: order }),
   triggerFitToScreen: () => set((s) => ({ fitToScreenTrigger: s.fitToScreenTrigger + 1 })),
