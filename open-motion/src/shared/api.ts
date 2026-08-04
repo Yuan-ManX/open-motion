@@ -120,6 +120,10 @@ export const ChatEventSchema = z.discriminatedUnion("type", [
     message: z.string(),
     tokensIn: z.number().default(0),
     tokensOut: z.number().default(0),
+    // Agent self-assessed confidence in the turn's outcome on 0..1.
+    // Derived from tool success ratio, success-reflection verdict, and
+    // remaining iteration budget. Optional for backwards compatibility.
+    confidence: z.number().min(0).max(1).optional(),
   }),
   z.object({ type: z.literal("error"), message: z.string(), recoverable: z.boolean().default(true) }),
   z.object({
@@ -172,6 +176,16 @@ export const ChatEventSchema = z.discriminatedUnion("type", [
     durationMs: z.number(),
     iterationsUsed: z.number(),
     summary: z.string(),
+  }),
+  z.object({
+    type: z.literal("editor_command"),
+    command: z.string(),
+    args: z.record(z.unknown()).default({}),
+  }),
+  z.object({
+    type: z.literal("parallel_tool_batch"),
+    count: z.number(),
+    tools: z.array(z.string()),
   }),
 ]);
 export type ChatEvent = z.infer<typeof ChatEventSchema>;
