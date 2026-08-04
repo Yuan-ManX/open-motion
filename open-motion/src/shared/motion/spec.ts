@@ -65,6 +65,10 @@ export const GlobalTimingSchema = z
   .object({
     totalDurationMs: z.number().int().positive().optional(),
     defaultEasing: EasingSchema.optional(),
+    // Project-wide tempo in beats-per-minute. When set, motion durations can
+    // be quantized to musical beat divisions so every animation locks to the
+    // same rhythmic grid — useful for syncing UI motion to a soundtrack.
+    bpm: z.number().min(20).max(300).optional(),
   })
   .default({});
 
