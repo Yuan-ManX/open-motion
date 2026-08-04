@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { Skill, SkillSummary } from "@openmotion/shared";
 import { EASING_PRESETS } from "@openmotion/shared";
 import * as api from "../../api/endpoints.js";
+import type { CapabilityManifest } from "../../api/endpoints.js";
 
 /** Skills panel embedded in the RightPanel — vertical list with expandable detail. */
 export function SkillsPanel() {
@@ -15,6 +16,11 @@ export function SkillsPanel() {
   const [invIter, setInvIter] = useState(1);
   const [invokeHtml, setInvokeHtml] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Aggregated capability manifest — fetched once on mount so the user can
+  // survey the agent's full surface area (tools, engines, providers) without
+  // leaving the skills panel.
+  const [caps, setCaps] = useState<CapabilityManifest | null>(null);
+  const [capsOpen, setCapsOpen] = useState(false);
 
   const refresh = async () => {
     setLoading(true);
@@ -28,6 +34,7 @@ export function SkillsPanel() {
 
   useEffect(() => {
     void refresh();
+    api.listAgentCapabilities().then(setCaps).catch(() => setCaps(null));
   }, []);
 
   useEffect(() => {
@@ -70,6 +77,55 @@ export function SkillsPanel() {
       {!loading && skills.length === 0 && (
         <div className="p-4 text-[11px] text-gray-600">
           No skills yet. Package one from the editor via Export → Skill.
+        </div>
+      )}
+
+      {/* Capabilities overview — aggregated manifest from /api/agent/capabilities.
+          Collapsed by default; expands to show the agent's full surface area. */}
+      {caps && (
+        <div className="border-b border-edge bg-panel2/30">
+          <button
+            onClick={() => setCapsOpen((v) => !v)}
+            className="w-full flex items-center justify-between px-2.5 py-2 hover:bg-panel2 transition-colors"
+          >
+            <span className="text-[10px] uppercase tracking-wide text-gray-400">Capabilities</span>
+            <span className="text-[9px] font-mono text-gray-500">
+              {caps.tools.length} tools · {caps.skillsSummary.totalSkills} skills · {caps.crossDisciplinaryEngines.length + caps.motionXEngines.length} engines
+            </span>
+          </button>
+          {capsOpen && (
+            <div className="px-2.5 pb-2.5 space-y-1.5 text-[10px] text-gray-300">
+              <div>
+                <span className="text-gray-500">Tools:</span>{" "}
+                <span className="font-mono text-white">{caps.tools.length}</span>
+              </div>
+              <div>
+                <span className="text-gray-500">Routing skills:</span>{" "}
+                <span className="font-mono text-white">{caps.skillsSummary.totalSkills}</span>
+                <span className="text-gray-600 ml-1">
+                  ({Object.entries(caps.skillsSummary.byCategory).map(([k, v]) => `${k} ${v}`).join(" · ")})
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-500">Cross-disciplinary engines:</span>{" "}
+                <span className="font-mono text-white">{caps.crossDisciplinaryEngines.length}</span>
+                <span className="text-gray-600 ml-1">({caps.crossDisciplinaryEngines.join(", ")})</span>
+              </div>
+              <div>
+                <span className="text-gray-500">MotionX engines:</span>{" "}
+                <span className="font-mono text-white">{caps.motionXEngines.length}</span>
+              </div>
+              <div>
+                <span className="text-gray-500">Intent patterns:</span>{" "}
+                <span className="font-mono text-white">{caps.intentPatternCount}</span>
+              </div>
+              <div>
+                <span className="text-gray-500">Providers:</span>{" "}
+                <span className="font-mono text-white">{caps.providers.length}</span>
+                <span className="text-gray-600 ml-1">({caps.modelCount} models)</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
