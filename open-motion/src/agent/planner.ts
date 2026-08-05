@@ -21,29 +21,64 @@ export function buildPlan(userMessage: string, spec: MotionSpec): Plan {
   const steps: PlanStep[] = [];
   const firstId = spec.components[0]?.id;
 
-  // Create animation / layer by name — resolves to a template or a named layer.
-  let createRaw: string | null = null;
-  const createWithNounM = userMessage.match(
-    /\b(?:create|make|build|generate|design|add)\s+(?:a\s+|an\s+|the\s+)?([\w][\w\s-]*?)\s+(?:animation|effect|motion|transition|layer|element|component)\b/i,
+  // Apply effect to an existing component: "add/apply <effect> to <component>"
+  // e.g. "Add a slow fade-in to the first component" -> set_template(tpl-fade-in).
+  // Runs before the create-layer path so apply-to-existing phrasing is not
+  // misrouted into add_layer with a greedy capture like "slow fade-in to the first".
+  let applyEffectHandled = false;
+  const applyToM = userMessage.match(
+    /\b(?:add|apply)\s+(?:a\s+|an\s+|the\s+)?([\w][\w\s-]*?)\s+to\s+(?:the\s+|a\s+|an\s+)?(?:first|second|third|last|selected|current)?\s*(?:component|layer|element)\b/i,
   );
-  if (createWithNounM) {
-    createRaw = createWithNounM[1].trim();
-  } else {
-    const createBareM = userMessage.match(
-      /\b(?:create|make|build|generate|design)\s+(?:a\s+|an\s+|the\s+)?([\w][\w\s-]+)\s*$/i,
-    );
-    if (createBareM && resolveTemplateId(createBareM[1].trim())) {
-      createRaw = createBareM[1].trim();
+  if (applyToM) {
+    const effectRaw = applyToM[1].trim();
+    // Strip trailing generic nouns (animation/effect/motion/transition) so
+    // "fade-in animation" resolves to the "fade-in" alias.
+    const stripped = effectRaw.replace(/\s+(?:animation|effect|motion|transition)$/i, "").trim();
+    // Try the full capture, then progressively strip leading words until a
+    // known template alias resolves (handles "slow fade-in" -> "fade-in").
+    const words = stripped.split(/\s+/);
+    const candidates: string[] = [];
+    for (let i = 0; i < words.length; i++) candidates.push(words.slice(i).join(" "));
+    for (const candidate of candidates) {
+      if (!candidate) continue;
+      const resolved = resolveTemplateId(candidate);
+      if (resolved) {
+        steps.push({
+          tool: "set_template",
+          description: `Apply the ${resolved} template to the target component`,
+        });
+        applyEffectHandled = true;
+        break;
+      }
     }
   }
-  if (createRaw) {
-    const resolved = resolveTemplateId(createRaw);
-    steps.push({
-      tool: resolved ? "set_template" : "add_layer",
-      description: resolved
-        ? `Create a ${createRaw} animation from the ${resolved} template`
-        : `Add a new layer called "${createRaw}"`,
-    });
+
+  // Create animation / layer by name — resolves to a template or a named layer.
+  // Skipped when the apply-to-component rule above already resolved a template.
+  if (!applyEffectHandled) {
+    let createRaw: string | null = null;
+    const createWithNounM = userMessage.match(
+      /\b(?:create|make|build|generate|design|add)\s+(?:a\s+|an\s+|the\s+)?([\w][\w\s-]*?)\s+(?:animation|effect|motion|transition|layer|element|component)\b/i,
+    );
+    if (createWithNounM) {
+      createRaw = createWithNounM[1].trim();
+    } else {
+      const createBareM = userMessage.match(
+        /\b(?:create|make|build|generate|design)\s+(?:a\s+|an\s+|the\s+)?([\w][\w\s-]+)\s*$/i,
+      );
+      if (createBareM && resolveTemplateId(createBareM[1].trim())) {
+        createRaw = createBareM[1].trim();
+      }
+    }
+    if (createRaw) {
+      const resolved = resolveTemplateId(createRaw);
+      steps.push({
+        tool: resolved ? "set_template" : "add_layer",
+        description: resolved
+          ? `Create a ${createRaw} animation from the ${resolved} template`
+          : `Add a new layer called "${createRaw}"`,
+      });
+    }
   }
 
   // Template application.
