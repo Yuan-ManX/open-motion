@@ -102,25 +102,64 @@ export function composeStructuredPlan(userMessage: string, spec: MotionSpec): St
   const firstId = spec.components[0]?.id;
   const intent = classifyIntent(userMessage);
 
-  // 1. Create / template
-  const createM = userMessage.match(
-    /\b(?:create|make|build|generate|design|add)\s+(?:a\s+|an\s+|the\s+)?([\w][\w\s-]*?)\s+(?:animation|effect|motion|transition|layer|element|component)\b/i,
+  // 1a. Apply effect to an existing component: "add/apply <effect> to <component>"
+  //     e.g. "Add a slow fade-in to the first component" -> set_template(tpl-fade-in).
+  //     Runs before the create/template block so apply-to-existing phrasing is not
+  //     misrouted into add_layer with a greedy capture like "slow fade-in to the first".
+  let applyEffectHandled = false;
+  const applyToM = userMessage.match(
+    /\b(?:add|apply)\s+(?:a\s+|an\s+|the\s+)?([\w][\w\s-]*?)\s+to\s+(?:the\s+|a\s+|an\s+)?(?:first|second|third|last|selected|current)?\s*(?:component|layer|element)\b/i,
   );
-  if (createM) {
-    const raw = createM[1].trim();
-    const resolved = resolveTemplateId(raw);
-    actions.push({
-      id: nextActionId(),
-      type: resolved ? "apply_template" : "create_layer",
-      description: resolved
-        ? `Create a ${raw} animation from the ${resolved} template`
-        : `Add a new layer called "${raw}"`,
-      toolCalls: resolved
-        ? [{ tool: "set_template" as ToolName, args: { templateId: resolved }, reason: `apply ${resolved} template` }]
-        : [{ tool: "add_layer" as ToolName, args: { name: raw }, reason: `create ${raw} layer` }],
-      mutatesSpec: true,
-      complexity: 2,
-    });
+  if (applyToM) {
+    const effectRaw = applyToM[1].trim();
+    // Strip trailing generic nouns (animation/effect/motion/transition) so
+    // "fade-in animation" resolves to the "fade-in" alias.
+    const stripped = effectRaw.replace(/\s+(?:animation|effect|motion|transition)$/i, "").trim();
+    // Try the full capture, then progressively strip leading words until a
+    // known template alias resolves (handles "slow fade-in" -> "fade-in").
+    const words = stripped.split(/\s+/);
+    const candidates: string[] = [];
+    for (let i = 0; i < words.length; i++) candidates.push(words.slice(i).join(" "));
+    for (const candidate of candidates) {
+      if (!candidate) continue;
+      const resolved = resolveTemplateId(candidate);
+      if (resolved) {
+        actions.push({
+          id: nextActionId(),
+          type: "apply_template",
+          description: `Apply the ${resolved} template to the target component`,
+          toolCalls: [{ tool: "set_template" as ToolName, args: { templateId: resolved }, reason: `apply ${resolved} template` }],
+          mutatesSpec: true,
+          complexity: 2,
+        });
+        applyEffectHandled = true;
+        break;
+      }
+    }
+  }
+
+  // 1b. Create / template (skipped when the apply-to-component rule above
+  //     already resolved a template).
+  if (!applyEffectHandled) {
+    const createM = userMessage.match(
+      /\b(?:create|make|build|generate|design|add)\s+(?:a\s+|an\s+|the\s+)?([\w][\w\s-]*?)\s+(?:animation|effect|motion|transition|layer|element|component)\b/i,
+    );
+    if (createM) {
+      const raw = createM[1].trim();
+      const resolved = resolveTemplateId(raw);
+      actions.push({
+        id: nextActionId(),
+        type: resolved ? "apply_template" : "create_layer",
+        description: resolved
+          ? `Create a ${raw} animation from the ${resolved} template`
+          : `Add a new layer called "${raw}"`,
+        toolCalls: resolved
+          ? [{ tool: "set_template" as ToolName, args: { templateId: resolved }, reason: `apply ${resolved} template` }]
+          : [{ tool: "add_layer" as ToolName, args: { name: raw }, reason: `create ${raw} layer` }],
+        mutatesSpec: true,
+        complexity: 2,
+      });
+    }
   }
 
   // 2. Style preset
