@@ -627,7 +627,27 @@ async function executeStructuredPlan(
     for (const call of action.toolCalls) {
       if (state.cancelRequested) break;
       const callId = `plan_${action.id}_${call.tool}`;
-      onEvent({ type: "tool_call", tool: call.tool, args: call.args, callId });
+      // Resolve the __last__ placeholder to the most recently created
+      // component, mirroring the ReAct loop (see runCall below). This lets a
+      // plan chain set_template (which resets the spec and creates a fresh
+      // component) followed by property tuning (set_duration/set_color/...)
+      // targeting that new component instead of a stale pre-reset id.
+      let resolvedArgs = call.args;
+      if (
+        resolvedArgs &&
+        typeof resolvedArgs === "object" &&
+        resolvedArgs.componentId === "__last__"
+      ) {
+        const freshSpec = getProjectSpec(ctx.projectId);
+        const lastComponent = freshSpec?.components[freshSpec.components.length - 1];
+        if (lastComponent) {
+          resolvedArgs = { ...resolvedArgs, componentId: lastComponent.id };
+        } else {
+          logger.warn("__last__ placeholder could not resolve in plan — no component exists", { tool: call.tool });
+          continue;
+        }
+      }
+      onEvent({ type: "tool_call", tool: call.tool, args: resolvedArgs, callId });
 
       const activeGoalId = goalTree ? startToolGoal(goalTree, call.tool) : null;
       if (goalTree && activeGoalId) {
@@ -637,14 +657,14 @@ async function executeStructuredPlan(
       const toolStart = Date.now();
       const { result } = await executeToolWithGuardrails(
         call.tool as string,
-        call.args,
+        resolvedArgs,
         ctx,
         onEvent,
       );
       const toolDurationMs = Date.now() - toolStart;
       recordToolExecution(ctx.projectId, call.tool, result.ok, toolDurationMs);
 
-      allToolCalls.push({ tool: call.tool, args: call.args, callId });
+      allToolCalls.push({ tool: call.tool, args: resolvedArgs, callId });
       allToolResults.push(result);
 
       if (goalTree && activeGoalId) {
