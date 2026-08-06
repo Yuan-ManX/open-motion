@@ -223,6 +223,25 @@ export const TEMPLATE_ALIASES: Record<string, string> = {
   slideout: "tpl-slide-out",
   "zoom-out": "tpl-zoom-out",
   zoomout: "tpl-zoom-out",
+  "ken-burns": "tpl-ken-burns",
+  kenburns: "tpl-ken-burns",
+  "ken burns": "tpl-ken-burns",
+  cinematic: "tpl-ken-burns",
+  "pan-zoom": "tpl-ken-burns",
+  panzoom: "tpl-ken-burns",
+  anticipation: "tpl-anticipation",
+  anticipations: "tpl-anticipation",
+  recoil: "tpl-anticipation",
+  "weighted jump": "tpl-anticipation",
+  tada: "tpl-anticipation",
+  float: "tpl-float",
+  floating: "tpl-float",
+  levitate: "tpl-float",
+  levitating: "tpl-float",
+  levitation: "tpl-float",
+  bob: "tpl-float",
+  bobbing: "tpl-float",
+  "suspended": "tpl-float",
   "collapse-down": "tpl-collapse-down",
   collapsedown: "tpl-collapse-down",
   "dissolve-out": "tpl-dissolve-out",
@@ -291,6 +310,15 @@ export function resolveTemplateId(raw: string): string | null {
   if (TEMPLATE_ALIASES[joined]) return TEMPLATE_ALIASES[joined];
   // If the raw input already looks like a template ID, pass it through.
   if (normalized.startsWith("tpl-")) return normalized;
+  // Progressive fallback: a multi-word phrase may carry leading descriptors
+  // that are not part of the alias (e.g. "smooth fade-in" -> "fade-in", or
+  // "anticipation recoil" -> "recoil"). Strip leading words one at a time so
+  // the tail that names a real template still resolves.
+  const words = normalized.split("-").filter(Boolean);
+  for (let i = 1; i < words.length; i++) {
+    const sub = words.slice(i).join("-");
+    if (TEMPLATE_ALIASES[sub]) return TEMPLATE_ALIASES[sub];
+  }
   return null;
 }
 
