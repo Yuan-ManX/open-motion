@@ -550,7 +550,12 @@ export function ChatPanel() {
                 onClick={() => toggleTool(a.callId)}
                 className="flex items-center gap-1.5 w-full text-left"
               >
-                <span className="text-gray-600 text-[10px] transition-transform" style={{ transform: expanded ? "rotate(0deg)" : "rotate(0deg)" }}>{expanded ? "▼" : "▶"}</span>
+                <span
+                  className="text-gray-600 text-[10px] transition-transform"
+                  style={{ transform: expanded ? "rotate(90deg)" : "rotate(0deg)" }}
+                >
+                  ▶
+                </span>
                 <span className="text-white font-mono">{a.tool}</span>
                 {a.done ? (
                   <span className="text-white ml-1 text-[10px]">✓</span>
