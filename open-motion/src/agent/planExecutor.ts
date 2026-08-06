@@ -162,39 +162,54 @@ export function composeStructuredPlan(userMessage: string, spec: MotionSpec): St
     }
   }
 
-  // 2. Style preset
+  // NOTE: projectId is contextual — executeTool (registry.ts) injects it from
+  // ctx.projectId before schema parsing. Tool args here only need componentId
+  // (and tool-specific fields). firstId targets the first component.
+
+  // 2. Style preset (project-wide; no componentId needed, field is `styleId`)
   const styleM = userMessage.match(/\b(?:playful|energetic|calm|professional|dramatic|minimal|cinematic|glassy|retro|futuristic|organic|mechanical|luxury)\b/i);
   if (styleM && firstId) {
     actions.push({
       id: nextActionId(),
       type: "set_style",
       description: `Apply the ${styleM[0]} style preset`,
-      toolCalls: [{ tool: "apply_style" as ToolName, args: { style: styleM[0].toLowerCase() }, reason: `${styleM[0]} style` }],
+      toolCalls: [{ tool: "apply_style" as ToolName, args: { styleId: styleM[0].toLowerCase() }, reason: `${styleM[0]} style` }],
       mutatesSpec: true,
       complexity: 1,
     });
   }
 
-  // 3. Easing
+  // 3. Easing — map colloquial tokens to EasingPreset enum values and wrap in
+  //    the discriminated-union shape { type: "preset", name }.
   const easingM = userMessage.match(/\b(bouncy|bounce|springy|smooth|soft|snappy|sharp|crisp|elastic|back|linear|ease-in-out|ease-in|ease-out)\b/i);
   if (easingM && firstId) {
-    actions.push({
-      id: nextActionId(),
-      type: "set_easing",
-      description: `Set easing to ${easingM[1]}`,
-      toolCalls: [{ tool: "set_easing" as ToolName, args: { preset: easingM[1] }, reason: `${easingM[1]} easing` }],
-      mutatesSpec: true,
-      complexity: 1,
-    });
+    const EASING_PRESET_MAP: Record<string, string> = {
+      bouncy: "bounce", bounce: "bounce", springy: "elastic",
+      smooth: "smooth", soft: "soft", snappy: "snappy",
+      sharp: "snappy", crisp: "snappy",
+      elastic: "elastic", back: "back", linear: "linear",
+      "ease-in-out": "ease-in-out", "ease-in": "ease-in", "ease-out": "ease-out",
+    };
+    const presetName = EASING_PRESET_MAP[easingM[1].toLowerCase()];
+    if (presetName) {
+      actions.push({
+        id: nextActionId(),
+        type: "set_easing",
+        description: `Set easing to ${presetName}`,
+        toolCalls: [{ tool: "set_easing" as ToolName, args: { componentId: "__last__", easing: { type: "preset", name: presetName } }, reason: `${presetName} easing` }],
+        mutatesSpec: true,
+        complexity: 1,
+      });
+    }
   }
 
-  // 4. Spring physics
+  // 4. Spring physics — supply sensible defaults so all required fields are met.
   if (/\bspring\b/i.test(text) && firstId) {
     actions.push({
       id: nextActionId(),
       type: "set_easing",
       description: "Apply spring physics",
-      toolCalls: [{ tool: "set_spring" as ToolName, args: {}, reason: "spring physics" }],
+      toolCalls: [{ tool: "set_spring" as ToolName, args: { componentId: "__last__", stiffness: 170, damping: 14, mass: 1 }, reason: "spring physics" }],
       mutatesSpec: true,
       complexity: 2,
     });
@@ -209,16 +224,20 @@ export function composeStructuredPlan(userMessage: string, spec: MotionSpec): St
       id: nextActionId(),
       type: "set_timing",
       description: `Set duration to ${ms}ms`,
-      toolCalls: [{ tool: "set_duration" as ToolName, args: { durationMs: ms }, reason: `${ms}ms duration` }],
+      toolCalls: [{ tool: "set_duration" as ToolName, args: { componentId: "__last__", durationMs: ms }, reason: `${ms}ms duration` }],
       mutatesSpec: true,
       complexity: 1,
     });
   } else if (/\b(slower|faster|slow|fast|quick|speed)\b/i.test(text) && firstId) {
+    // No explicit number given — pick a default that matches the intent.
+    // 1800ms for "slow/slower", 400ms for "fast/faster/quick" (aligns with
+    // the mock provider's existing slow/fast conventions).
+    const defaultMs = /\b(slower|slow)\b/i.test(text) ? 1800 : 400;
     actions.push({
       id: nextActionId(),
       type: "set_timing",
-      description: "Adjust the animation duration",
-      toolCalls: [{ tool: "set_duration" as ToolName, args: {}, reason: "duration adjustment" }],
+      description: `Adjust the animation duration to ${defaultMs}ms`,
+      toolCalls: [{ tool: "set_duration" as ToolName, args: { componentId: "__last__", durationMs: defaultMs }, reason: `${defaultMs}ms duration` }],
       mutatesSpec: true,
       complexity: 1,
     });
@@ -231,23 +250,31 @@ export function composeStructuredPlan(userMessage: string, spec: MotionSpec): St
       id: nextActionId(),
       type: "set_color",
       description: `Set color to ${hexM}`,
-      toolCalls: [{ tool: "set_color" as ToolName, args: { color: hexM }, reason: `${hexM} color` }],
+      toolCalls: [{ tool: "set_color" as ToolName, args: { componentId: "__last__", color: hexM }, reason: `${hexM} color` }],
       mutatesSpec: true,
       complexity: 1,
     });
   }
 
-  // 7. Choreography
+  // 7. Choreography (project-wide; no componentId). Map captured tokens to
+  //    the ApplyChoreographyInput pattern enum and skip unmatched tokens
+  //    (converge/spiral/explosion/etc. are not valid enum values).
   const choreoM = userMessage.match(/\b(cascade|wave|ripple|canon|converge|spiral|explosion|assembly|breathing|domino|scatter)\b/i);
   if (choreoM && spec.components.length >= 2) {
-    actions.push({
-      id: nextActionId(),
-      type: "choreograph",
-      description: `Apply ${choreoM[1]} choreography to ${spec.components.length} components`,
-      toolCalls: [{ tool: "apply_choreography" as ToolName, args: { pattern: choreoM[1].toLowerCase() }, reason: `${choreoM[1]} pattern` }],
-      mutatesSpec: true,
-      complexity: 3,
-    });
+    const CHOREO_MAP: Record<string, string> = {
+      cascade: "cascade", wave: "wave", ripple: "ripple_out", canon: "canon",
+    };
+    const pattern = CHOREO_MAP[choreoM[1].toLowerCase()];
+    if (pattern) {
+      actions.push({
+        id: nextActionId(),
+        type: "choreograph",
+        description: `Apply ${pattern} choreography to ${spec.components.length} components`,
+        toolCalls: [{ tool: "apply_choreography" as ToolName, args: { pattern }, reason: `${pattern} pattern` }],
+        mutatesSpec: true,
+        complexity: 3,
+      });
+    }
   }
 
   // 8. Preset
@@ -258,7 +285,7 @@ export function composeStructuredPlan(userMessage: string, spec: MotionSpec): St
       id: nextActionId(),
       type: "apply_preset",
       description: `Apply the ${name ?? presetM[1]} preset`,
-      toolCalls: [{ tool: "apply_preset" as ToolName, args: { preset: name ?? presetM[1].toLowerCase() }, reason: `${presetM[1]} preset` }],
+      toolCalls: [{ tool: "apply_preset" as ToolName, args: { componentId: "__last__", preset: name ?? presetM[1].toLowerCase() }, reason: `${presetM[1]} preset` }],
       mutatesSpec: true,
       complexity: 2,
     });
