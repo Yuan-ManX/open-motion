@@ -247,6 +247,23 @@ import { patchComponent } from "../../db/repositories/components.js";
 
 export const agentRouter = Router();
 
+/**
+ * Resolve a component reference string to a concrete component id. Supports
+ * the agent's placeholder convention so REST callers can target components
+ * without knowing their exact ids:
+ *   - "__first__" -> first component in the project spec
+ *   - "__last__"  -> most recently added component
+ *   - anything else is returned unchanged (assumed to already be a real id).
+ */
+function resolveComponentRef(spec: ReturnType<typeof getProjectSpec>, ref: string): string {
+  if (ref === "__first__" || ref === "__last__") {
+    const index = ref === "__first__" ? 0 : (spec?.components.length ?? 0) - 1;
+    const target = spec?.components[index];
+    if (target) return target.id;
+  }
+  return ref;
+}
+
 const SaveMemorySchema = z.object({
   key: z.string().min(1),
   value: z.string().min(1),
@@ -1308,7 +1325,7 @@ agentRouter.post(
       res.status(404).json({ error: `project ${req.params.id} not found` });
       return;
     }
-    const source = spec.components.find((c) => c.id === input.componentId);
+    const source = spec.components.find((c) => c.id === resolveComponentRef(spec, input.componentId));
     if (!source) {
       res.status(404).json({ error: `component ${input.componentId} not found` });
       return;
@@ -1341,7 +1358,7 @@ agentRouter.get(
       res.status(404).json({ error: `project ${req.params.id} not found` });
       return;
     }
-    const component = spec.components.find((c) => c.id === req.params.componentId);
+    const component = spec.components.find((c) => c.id === resolveComponentRef(spec, req.params.componentId));
     if (!component) {
       res.status(404).json({ error: `component ${req.params.componentId} not found` });
       return;
@@ -1603,9 +1620,10 @@ agentRouter.post(
       res.status(404).json({ error: "project not found" });
       return;
     }
-    // Resolve source components from the spec.
+    // Resolve source components from the spec, honoring the __first__/__last__
+    // placeholder convention used across the agent.
     const sources = input.componentIds
-      .map((id) => spec.components.find((c) => c.id === id))
+      .map((id) => spec.components.find((c) => c.id === resolveComponentRef(spec, id)))
       .filter((c): c is NonNullable<typeof c> => c !== undefined);
     if (sources.length < 2) {
       res.status(400).json({ error: "at least 2 valid source components are required" });
