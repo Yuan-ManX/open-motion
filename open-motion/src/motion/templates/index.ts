@@ -87,6 +87,15 @@ import { crystallineGrowthTemplate } from "./crystallineGrowth.js";
 import { inkBleedTemplate } from "./inkBleed.js";
 import { shatterRevealTemplate } from "./shatterReveal.js";
 import { neonTraceTemplate } from "./neonTrace.js";
+import { kenBurnsTemplate } from "./kenBurns.js";
+import { anticipationTemplate } from "./anticipation.js";
+import { floatTemplate } from "./float.js";
+import { successCheckmarkTemplate } from "./successCheckmark.js";
+import { errorShakeTemplate } from "./errorShake.js";
+import { barGrowTemplate } from "./barGrow.js";
+import { pieSweepTemplate } from "./pieSweep.js";
+import { lineDrawTemplate } from "./lineDraw.js";
+import { badgeUnlockTemplate } from "./badgeUnlock.js";
 import type { ComponentDraft, TemplateDef } from "./helper.js";
 
 export const TEMPLATES: TemplateDef[] = [
@@ -177,6 +186,15 @@ export const TEMPLATES: TemplateDef[] = [
   inkBleedTemplate,
   shatterRevealTemplate,
   neonTraceTemplate,
+  kenBurnsTemplate,
+  anticipationTemplate,
+  floatTemplate,
+  successCheckmarkTemplate,
+  errorShakeTemplate,
+  barGrowTemplate,
+  pieSweepTemplate,
+  lineDrawTemplate,
+  badgeUnlockTemplate,
 ];
 
 export function getTemplate(id: string): TemplateDef | undefined {
