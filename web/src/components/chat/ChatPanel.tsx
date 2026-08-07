@@ -154,6 +154,11 @@ export function ChatPanel() {
   const sessionSummary = useChatStore((s) => s.sessionSummary);
   const confidence = useChatStore((s) => s.confidence);
   const parallelBatches = useChatStore((s) => s.parallelBatches);
+  const tokensIn = useChatStore((s) => s.tokensIn);
+  const tokensOut = useChatStore((s) => s.tokensOut);
+  const lastCheckpoint = useChatStore((s) => s.lastCheckpoint);
+  const subagentActivity = useChatStore((s) => s.subagentActivity);
+  const budgetRemaining = useChatStore((s) => s.budgetRemaining);
   const provider = useChatStore((s) => s.provider);
   const error = useChatStore((s) => s.error);
   const send = useChatStore((s) => s.send);
@@ -542,10 +547,16 @@ export function ChatPanel() {
         {/* Tool activity */}
         {toolActivity.map((a) => {
           const expanded = expandedTools.has(a.callId);
-          const isAnalysis = a.tool === "analyze_motion" && a.done && a.result;
+          const isAnalysis = a.tool === "analyze_motion" && a.done && a.ok && a.result;
           const analysisData = isAnalysis ? (a.result as { insights?: Array<{ severity: string; category: string; message: string }>; score?: number }) : null;
+          const failed = a.done && !a.ok;
           return (
-            <div key={a.callId} className="fade-in-up text-xs bg-panel2 border border-edge rounded-lg px-3 py-2 max-w-[90%]">
+            <div
+              key={a.callId}
+              className={`fade-in-up text-xs bg-panel2 border rounded-lg px-3 py-2 max-w-[90%] ${
+                failed ? "border-red-900/70" : "border-edge"
+              }`}
+            >
               <button
                 onClick={() => toggleTool(a.callId)}
                 className="flex items-center gap-1.5 w-full text-left"
@@ -556,9 +567,11 @@ export function ChatPanel() {
                 >
                   ▶
                 </span>
-                <span className="text-white font-mono">{a.tool}</span>
+                <span className={`font-mono ${failed ? "text-red-300" : "text-white"}`}>{a.tool}</span>
                 {a.done ? (
-                  <span className="text-white ml-1 text-[10px]">✓</span>
+                  <span className={`ml-1 text-[10px] ${failed ? "text-red-400" : "text-white"}`}>
+                    {failed ? "✗" : "✓"}
+                  </span>
                 ) : (
                   <span className="text-gray-500 ml-1 text-[10px] animate-pulse">running</span>
                 )}
@@ -568,7 +581,9 @@ export function ChatPanel() {
                   {JSON.stringify(a.args, null, 2)}
                 </pre>
               )}
-              {a.summary && <p className="text-gray-400 mt-1">{a.summary}</p>}
+              {a.summary && (
+                <p className={`mt-1 ${failed ? "text-red-300" : "text-gray-400"}`}>{a.summary}</p>
+              )}
               {analysisData && analysisData.insights && (
                 <div className="mt-2 space-y-1">
                   {analysisData.score != null && (
@@ -594,6 +609,66 @@ export function ChatPanel() {
             </div>
           );
         })}
+
+        {/* Checkpoint capture indicator — shows when the orchestrator
+            snapshots the spec before a mutating tool, so the user knows
+            a rollback target exists. */}
+        {lastCheckpoint && isStreaming && (
+          <div className="fade-in-up text-[10px] text-gray-500 bg-panel2/40 border border-edge rounded-lg px-2.5 py-1.5 max-w-[90%] flex items-center gap-1.5">
+            <span className="text-gray-400">◉</span>
+            <span className="font-mono text-gray-400">{lastCheckpoint.triggerTool}</span>
+            <span className="text-gray-600">·</span>
+            <span>snapshot captured</span>
+            <span className="text-gray-700 font-mono ml-auto">{lastCheckpoint.componentCount} comps</span>
+          </div>
+        )}
+
+        {/* Subagent delegation — shows when the orchestrator delegates a
+            sub-goal to a parallel subagent. Renders running and completed
+            delegations so the user can follow the decomposition. */}
+        {subagentActivity.length > 0 && isStreaming && (
+          <div className="fade-in-up text-xs bg-panel2/40 border border-edge rounded-lg px-3 py-2 max-w-[90%] space-y-1">
+            <div className="flex items-center gap-1.5 text-gray-500">
+              <span className="text-[10px] uppercase tracking-wide font-semibold">Delegated</span>
+            </div>
+            {subagentActivity.map((sa, i) => (
+              <div key={i} className="flex items-center gap-1.5 text-[11px]">
+                <span className={sa.status === "running" ? "text-white animate-pulse" : sa.allSucceeded ? "text-gray-300" : "text-red-300"}>
+                  {sa.status === "running" ? "◉" : sa.allSucceeded ? "✓" : "✗"}
+                </span>
+                <span className={sa.status === "running" ? "text-gray-200" : "text-gray-500"}>{sa.goal}</span>
+                {sa.status === "done" && sa.durationMs != null && (
+                  <span className="text-gray-700 font-mono ml-auto">{Math.round(sa.durationMs)}ms</span>
+                )}
+                {sa.status === "running" && (
+                  <span className="text-gray-600 font-mono ml-auto">{sa.toolCount} tools</span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Iteration budget — shows how much agency budget remains for
+            the current turn. Rendered as a thin progress bar so the user
+            can gauge how much more work the agent can do. */}
+        {budgetRemaining && isStreaming && budgetRemaining.initial > 0 && (
+          <div className="fade-in-up text-[10px] text-gray-500 max-w-[90%]">
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <span className="uppercase tracking-wide font-semibold">{budgetRemaining.label}</span>
+              <span className="font-mono text-gray-400">
+                {budgetRemaining.consumed}/{budgetRemaining.initial}
+              </span>
+              <span className="text-gray-700">·</span>
+              <span className="font-mono text-gray-600">{budgetRemaining.remaining} left</span>
+            </div>
+            <div className="h-0.5 bg-edge rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gray-400 rounded-full transition-all duration-300"
+                style={{ width: `${(budgetRemaining.consumed / budgetRemaining.initial) * 100}%` }}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Streaming tokens */}
         {isStreaming && streamingTokens && (
@@ -663,6 +738,14 @@ export function ChatPanel() {
                 {Math.round(confidence * 100)}% conf
               </span>
             )}
+            {(tokensIn > 0 || tokensOut > 0) && (
+              <span
+                className="text-[9px] font-mono px-1.5 py-0.5 rounded border border-gray-600 text-gray-300"
+                title={`Token usage — input: ${tokensIn}, output: ${tokensOut}`}
+              >
+                ↑{tokensIn} ↓{tokensOut}
+              </span>
+            )}
             {parallelBatches.filter((b) => b.count > 1).length > 0 && (
               <span
                 className="text-[9px] font-mono px-1.5 py-0.5 rounded border border-white/40 text-white"
@@ -703,8 +786,11 @@ export function ChatPanel() {
         </div>
       )}
 
-      {/* Proactive next-step suggestions from the orchestrator */}
-      {proactiveSuggestions.length > 0 && isStreaming && (
+      {/* Proactive next-step suggestions from the orchestrator.
+          Shown both during streaming and after the turn completes —
+          they are most useful right after the agent finishes, when the
+          user is deciding what to do next. Cleared on the next send. */}
+      {proactiveSuggestions.length > 0 && (
         <div className="px-4 py-2 border-t border-edge bg-panel2/40">
           <div className="flex items-center gap-1.5 mb-1.5">
             <span className="text-[10px] text-gray-500">Next steps</span>
