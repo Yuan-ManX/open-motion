@@ -678,6 +678,7 @@ async function executeStructuredPlan(
         tool: call.tool,
         result: result.data ?? null,
         summary: result.summary,
+        ok: result.ok,
       });
       // Forward editor commands to the frontend so the Agent can drive the UI.
       if (result.editorCommands) {
@@ -3740,6 +3741,7 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
             tool: call.tool,
             result: result.data ?? null,
             summary: result.summary,
+            ok: result.ok,
           });
           if (result.editorCommands) {
             for (const cmd of result.editorCommands) {
@@ -3757,6 +3759,7 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
             tool: call.tool,
             result: result.data ?? null,
             summary: result.summary,
+            ok: result.ok,
           });
           if (result.editorCommands) {
             for (const cmd of result.editorCommands) {
@@ -3971,6 +3974,7 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
         tool: call.tool,
         result: result.data ?? null,
         summary: result.summary,
+        ok: result.ok,
       });
       if (result.editorCommands) {
         for (const cmd of result.editorCommands) {
