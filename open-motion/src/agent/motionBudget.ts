@@ -1,33 +1,6 @@
 import type { MotionSpec, MotionComponent } from "@openmotion/shared";
 
-/**
- * Attention-Budget Engine — quantitative allocation of perceptual capacity.
- *
- * A viewer's working memory can hold only a finite amount of simultaneous
- * motion signal. This engine models the composition as a pool of attention
- * demand: each component consumes capacity proportional to its motion
- * magnitude, duration, loop behavior, and visual weight. When total demand
- * exceeds the budget, the engine identifies which components to dampen and
- * proposes a reallocation that preserves the highest-priority motion.
- *
- * Core concepts:
- * - Demand: 0..N — perceptual capacity a component consumes. Built from
- *   magnitude (how far it moves), duration (how long it holds attention),
- *   loop factor (infinite loops monopolize attention), and visual weight
- *   (color/3D/shader richness).
- * - Budget: the composition's total available capacity. Derived from the
- *   component count with a diminishing-returns curve — more components
- *   means more total capacity, but per-component capacity shrinks.
- * - Priority: 0..1 — how important a component's motion is. Primary
- *   narrative components (earliest, highest magnitude, named) get higher
- *   priority; ambient loops get lower.
- * - Allocation: the share of budget each component receives after a
- *   priority-weighted proportional cut. Over-demand components are flagged.
- * - Reallocation: concrete dampening suggestions that bring demand within
- *   budget while minimizing narrative loss.
- *
- * Rule-based — no LLM round-trip required, so mock mode stays functional.
- */
+/** Attention-Budget Engine — quantitative allocation of perceptual capacity. */
 
 // ---------------------------------------------------------------------------
 // Types

@@ -1,19 +1,4 @@
-/**
- * Motion Auto-Fix — automatically remediates accessibility, vestibular,
- * seizure, reduced-motion, and cognitive issues detected by the accessibility
- * checker. Returns a detailed fix report with before/after values for each
- * applied remediation.
- *
- * This is the sixth original AI-native module. Where the Critique module
- * diagnoses problems, Auto-Fix applies the cure — turning motion safety
- * from a manual review step into an instant, one-call remediation.
- *
- * Fix strategies:
- * 1. Vestibular — cap displacement, cap rotation, raise duration floor
- * 2. Seizure — stretch opacity oscillation period below 3 Hz threshold
- * 3. Reduced-motion — set fillMode so final state persists, cap infinite loops
- * 4. Cognitive — stagger simultaneous starts, normalize timing tiers, unify easings
- */
+/** Motion Auto-Fix — automatically remediates accessibility, vestibular, seizure, reduced-motion, and cognitive issues. */
 
 import type { MotionComponent, Easing } from "@openmotion/shared";
 import { easingPreset } from "../shared/motion/easing.js";

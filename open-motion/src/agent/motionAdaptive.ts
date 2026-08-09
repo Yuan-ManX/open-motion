@@ -1,26 +1,4 @@
-/**
- * Adaptive Motion Learning — learns user preferences and adapts motion generation.
- *
- * This is an original AI-native module that builds a user preference profile
- * from observed interactions. Instead of requiring explicit configuration,
- * the engine watches which motions the user creates, keeps, and discards,
- * then uses that signal to steer future generation toward the user's taste.
- *
- * Four core capabilities:
- * 1. Preference observation — record motion interactions (created, accepted,
- *    rejected, modified) and extract preference signals.
- * 2. Taste profiling — aggregate observations into a multi-dimensional
- *    preference profile (easing, duration, intensity, transform, palette).
- * 3. Recommendation — suggest motion parameters that match the user's
- *    established taste.
- * 4. Drift detection — notice when the user's taste shifts over time and
- *    reweight the profile accordingly.
- *
- * The preference model uses exponentially-weighted moving averages so recent
- * observations carry more weight than old ones, naturally tracking taste drift.
- *
- * Rule-based — no LLM round-trip required.
- */
+/** Adaptive Motion Learning — learns user preferences and adapts motion generation. */
 
 import type { MotionComponent, Easing } from "@openmotion/shared";
 

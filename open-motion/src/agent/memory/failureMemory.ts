@@ -1,20 +1,4 @@
-/**
- * Episodic failure memory — cross-session lessons from tool failures.
- *
- * When a tool fails, the orchestrator records the (tool, error signature,
- * suggested recovery) tuple into the persistent memory store. On subsequent
- * turns and sessions, the agent surfaces prior failures for the same tool
- * so it can apply the known recovery instead of repeating the mistake.
- *
- * Storage reuses the existing `agent_memory` table with `layer = "failure"`.
- * The value column carries a JSON payload (error pattern, suggestion,
- * occurrence count, last-seen timestamp) so no schema migration is needed.
- *
- * Recurring failures deduplicate: when the same tool fails with the same
- * error signature again, the existing record's occurrence count and
- * relevance are bumped instead of creating a duplicate. Relevance is capped
- * at 1.0 so a single flaky tool cannot dominate the memory context.
- */
+/** Episodic failure memory — cross-session lessons from tool failures. */
 
 import {
   listMemory,

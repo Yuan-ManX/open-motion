@@ -1,29 +1,4 @@
-/**
- * Motion Alchemy Engine — interprets motion through alchemical transformation.
- *
- * This original AI-native module applies the four stages of the alchemical
- * magnum opus (great work) to motion compositions. Each stage represents a
- * phase of transformation that the motion undergoes, revealing the
- * philosophical and transmutational arc of the composition.
- *
- * The four stages:
- * - Nigredo (Blackening): decomposition, calcination, putrefaction — what
- *   breaks down, what is stripped away, the death of the old form
- * - Albedo (Whitening): purification, ablution, washing — what is clarified,
- *   cleansed, and made pure; the dawn of clarity after darkness
- * - Citrinitas (Yellowing): awakening, solarization, coagulation — the golden
- *   moment when the essence crystallizes; the sun rising
- * - Rubedo (Reddening): completion, coniunctio, blood — the final synthesis,
- *   the philosopher's stone, the union of opposites
- *
- * Additional concepts:
- * - Prima Materia: the raw, unformed state of the composition before analysis
- * - Philosopher's Stone: the transmuted final state, the goal achieved
- * - Hermes Trismegistus principle: "as above, so below" — macrocosm/microcosm
- * - Crucible: the container where transformation occurs (the timeline)
- *
- * Rule-based — no LLM round-trip required.
- */
+/** Motion Alchemy Engine — interprets motion through alchemical transformation. */
 
 import type { MotionSpec, MotionComponent } from "@openmotion/shared";
 

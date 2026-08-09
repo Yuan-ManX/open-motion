@@ -1,23 +1,5 @@
 /**
  * Motion Astronomy Engine — maps motion as celestial phenomena.
- *
- * This original AI-native module treats a motion composition as a cosmos.
- * Each component is classified as a celestial body (star, planet, moon,
- * asteroid, comet, black hole, nebula), assigned a spectral type based on
- * easing, grouped into constellations, and analyzed for cosmic events
- * (supernovae, eclipses, conjunctions). The overall composition is
- * classified as a galactic structure type.
- *
- * Core concepts:
- * - Celestial Bodies: components mapped to astronomical objects
- * - Spectral Type: easing mapped to stellar classification (O/B/A/F/G/K/M)
- * - Constellations: temporal clusters forming recognizable patterns
- * - Cosmic Events: supernovae (peaks), eclipses (overlaps), conjunctions (simultaneous)
- * - Galactic Structure: overall composition type (spiral/elliptical/irregular/lenticular)
- * - Cosmic Distance: temporal distance mapped to astronomical scale
- * - Luminosity: intensity mapped to stellar magnitude
- *
- * Rule-based — no LLM round-trip required.
  */
 
 import type { MotionSpec, MotionComponent } from "@openmotion/shared";

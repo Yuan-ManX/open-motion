@@ -1,25 +1,9 @@
 import { now } from "../../utils/id.js";
 
 /**
- * Goal Continuity — cross-turn intent tracking.
- *
- * The orchestrator's `goalTree` is per-turn: it is decomposed from the user
- * message at the start of a turn and discarded when the turn ends. When a user
- * issues a multi-step directive across several turns ("make it bouncy, then add
- * a gradient, then export for mobile"), each turn is isolated and the agent
- * loses the broader trajectory.
- *
- * This module persists a lightweight goal ledger per project so the agent
- * retains the multi-turn arc. Each goal is a short phrase with a status
- * (pending / in_progress / done / abandoned). The ledger is surfaced in the
- * system prompt so the agent can pick up where the previous turn left off and
- * recognize when a new user message advances an existing goal.
- *
- * Detection is rule-based: the user message is scanned for sequencing
- * vocabulary ("then", "after that", "next", "also", "finally") and for
- * recognizable action categories (timing, color, choreography, export, etc.).
- * Goals are appended when the message introduces a new step; the orchestrator
- * marks a goal in_progress / done as the corresponding tools succeed.
+ * Goal Continuity — cross-turn intent tracking. Persists a lightweight per-project
+ * goal ledger so the agent retains the multi-turn arc and picks up where the
+ * previous turn left off. Detection is rule-based on sequencing vocabulary.
  */
 
 export type GoalStatus = "pending" | "in_progress" | "done" | "abandoned";

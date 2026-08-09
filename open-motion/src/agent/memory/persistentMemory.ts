@@ -13,16 +13,9 @@ import {
 import { formatFailureMemory } from "./failureMemory.js";
 
 /**
- * Multi-level persistent memory system.
- *
- * Layer 1 — Session memory: in-memory transcript window (handled by store.ts).
- * Layer 2 — Project memory: cross-session facts, decisions, and preferences stored in DB.
- * Layer 3 — Skill memory: auto-generated skill documents from successful task sequences.
- * Layer 4 — Failure memory: episodic lessons from prior tool failures so the
- *           agent applies known recoveries instead of repeating mistakes.
- *
- * This module assembles layers 2-4 into context strings injected into the system prompt,
- * so the agent retains knowledge across server restarts and session boundaries.
+ * Multi-level persistent memory system assembling project memory, generated
+ * skill documents, and failure lessons into context strings injected into the
+ * system prompt so the agent retains knowledge across restarts and sessions.
  */
 
 export interface MemoryContext {

@@ -1,22 +1,4 @@
-/**
- * Iteration Budget — bounded turn counts with parent/subagent isolation.
- *
- * Every agent run gets a budget. The parent agent consumes from its budget;
- * subagents spawned via delegation get their own independent budget. This
- * prevents runaway generative loops and enforces natural termination.
- *
- * Budgets are scoped to a single orchestrate() call — they live in memory
- * for the duration of one user turn and are discarded when the turn ends.
- * The orchestrator checks `consume()` at the top of each iteration; when
- * the budget is exhausted, the agent returns with a "budget exceeded" error
- * that the UI surfaces as a recoverable stop.
- *
- * Defaults:
- *   - Parent: 12 iterations (up from 8 — the new plan-then-execute path
- *     benefits from extra room for review/refine cycles)
- *   - Subagent: 6 iterations (intentionally smaller to force focus)
- *   - Composed-tool shortcut: 0 iterations (no LLM round-trip needed)
- */
+/** Iteration Budget — bounded turn counts with parent/subagent isolation. */
 
 export interface IterationBudget {
   /** Remaining iterations. */

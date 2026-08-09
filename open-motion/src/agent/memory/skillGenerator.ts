@@ -3,12 +3,8 @@ import type { ToolResult } from "../tools/registry.js";
 import { saveGeneratedSkill, incrementSkillUsage, searchGeneratedSkills, type GeneratedSkill } from "../../db/repositories/memory.js";
 
 /**
- * Self-learning skill generator.
- *
- * After a successful multi-step tool sequence, the agent synthesizes the
- * interaction into a portable skill document. Future requests matching the
- * trigger pattern retrieve and apply the learned skill, reducing tool calls
- * and improving response quality over time.
+ * Self-learning skill generator that synthesizes successful multi-step tool
+ * sequences into portable skill documents reused by future matching requests.
  */
 
 interface SkillExtraction {

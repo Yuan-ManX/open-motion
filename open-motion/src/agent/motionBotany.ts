@@ -1,22 +1,5 @@
 /**
  * Motion Botany Engine — analyzes motion as plant growth patterns.
- *
- * This original AI-native module treats a motion composition as a botanical
- * system. Components are organs (leaves, stems, flowers, roots); the timeline
- * is the growing season; easings determine phototropism (growth direction);
- * delays are germination periods; keyframe counts indicate branching.
- *
- * Core concepts:
- * - Organs: components mapped to plant organs by property type
- * - Phenology: growth stages (germination → seedling → vegetative → flowering → fruiting → senescence)
- * - Branching: fractal complexity from keyframe density
- * - Phototropism: directional growth bias from motion vectors
- * - Canopy: the upper layer of motion (final state)
- * - Root System: the foundational layer (initial state)
- * - Biomass: total motion energy
- * - Diversity: species richness from property variety
- *
- * Rule-based — no LLM round-trip required.
  */
 
 import type { MotionSpec, MotionComponent } from "@openmotion/shared";

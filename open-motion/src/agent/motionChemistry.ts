@@ -1,26 +1,5 @@
 /**
  * Motion Chemistry Engine — analyzes motion as molecular reactions.
- *
- * This original AI-native module treats a motion composition as a chemical
- * system. Each animated property is an atom; related atoms bond into
- * molecules (components); molecules react with each other through time and
- * space. The module classifies states of matter (solid/liquid/gas/plasma),
- * reaction types (synthesis, decomposition, single displacement, double
- * displacement, combustion), identifies catalysts (easing functions) and
- * inhibitors (delays), and computes the overall pH (subtle ↔ strong) of the
- * composition.
- *
- * Core concepts:
- * - Atoms: individual animated properties (translateX, scale, rotate, ...)
- * - Molecules: a component's complete set of animated properties
- * - Bonds: temporal/spatial relationships between atoms
- * - Reactions: how motion elements combine or break apart over time
- * - Catalysts: easings that accelerate reactions; Inhibitors: delays that retard
- * - States of Matter: solid (rigid) / liquid (flowing) / gas (dispersed) / plasma (intense)
- * - pH: balance between subtle (alkaline) and strong (acidic) motion
- * - Periodic Position: classification by atomic properties
- *
- * Rule-based — no LLM round-trip required.
  */
 
 import type { MotionSpec, MotionComponent } from "@openmotion/shared";

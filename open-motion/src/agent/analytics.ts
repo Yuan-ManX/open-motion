@@ -1,16 +1,4 @@
-/**
- * Tool Execution Analytics — tracks tool invocation patterns, success rates,
- * execution duration, and usage frequency across a project session.
- *
- * The analytics engine provides observability into how the Agent interacts
- * with tools, enabling:
- *   - Detection of flaky or slow tools
- *   - Identification of the most impactful tools
- *   - Recovery heuristics (avoid recently-failing tools)
- *   - Session-level productivity metrics
- *
- * All state is in-memory and per-project. No persistence required.
- */
+/** Tool Execution Analytics — tracks tool invocation patterns, success rates, execution duration, and usage frequency. */
 
 import { now } from "../utils/id.js";
 

@@ -1,30 +1,9 @@
 import { now } from "../../utils/id.js";
 
 /**
- * Working Memory — a transient per-turn scratchpad layer.
- *
- * Distinct from the four persistent memory layers (session window, project
- * facts, generated skills, failure lessons), working memory holds short-lived
- * notes the agent produces within a single turn: intermediate hypotheses,
- * verification verdicts, partial findings, and discarded options.
- *
- * Why a separate layer:
- *   - The conversation window is the source of truth for the user-facing
- *     dialog. Mixing in scratch notes pollutes context the LLM must echo back.
- *   - Persistent memory outlives the turn, but scratch notes are only relevant
- *     while the agent is actively reasoning about this specific request.
- *   - Surfacing scratch notes in the system prompt (not the message list)
- *     keeps them visible to the model without inflating the chat transcript.
- *
- * Lifecycle:
- *   1. `resetForTurn(projectId)` is called at the start of each orchestrator
- *      turn so the scratchpad is fresh.
- *   2. The orchestrator and verification engine append notes via `addScratch`.
- *   3. `formatScratchForContext(projectId)` is called by context assembly to
- *      inject the current scratchpad into the system prompt.
- *   4. Notes are retained until the next turn reset, so a mid-turn
- *      re-assembly still sees them, but they never leak into the persisted
- *      message log.
+ * Working Memory — a transient per-turn scratchpad layer distinct from the
+ * persistent memory layers. Holds short-lived notes the agent produces within
+ * a single turn, injected into the system prompt and reset at each turn start.
  */
 
 export type ScratchKind =

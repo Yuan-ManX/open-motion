@@ -1,21 +1,4 @@
-/**
- * Checkpoint Manager — automatic snapshotting before AI-driven mutations.
- *
- * Before each spec-mutating tool batch, the orchestrator calls `capture()`
- * to persist a lightweight snapshot of the current MotionSpec. If the user
- * dislikes the result (or a tool fails mid-sequence), `rollback()` restores
- * the most recent checkpoint in O(1).
- *
- * Design choices:
- *   - In-memory ring buffer (default 8 slots per project) — no DB writes
- *     on the hot path, so capture is essentially free.
- *   - Each checkpoint records: timestamp, trigger tool, component count,
- *     and a deep clone of the spec's component array.
- *   - The orchestrator emits a `checkpoint` event so the UI can surface
- *     "undo last AI action" affordances.
- *   - Rollback is non-destructive: the pre-rollback state is itself
- *     checkpointed, so users can redo.
- */
+/** Checkpoint Manager — automatic snapshotting before AI-driven mutations. */
 
 import type { MotionComponent, MotionSpec } from "@openmotion/shared";
 import { getProjectSpec, updateProject } from "../db/repositories/projects.js";

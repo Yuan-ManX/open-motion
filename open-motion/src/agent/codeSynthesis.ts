@@ -1,20 +1,4 @@
-/**
- * Code Synthesis — generates standalone, copy-pasteable animation code from
- * natural language descriptions.
- *
- * Unlike parse_motion (which applies a parsed spec to a project component) and
- * export_code (which serializes the current project state), the synthesizer
- * produces fresh, self-contained code snippets the user can drop into any
- * codebase. It supports four output formats:
- *   - css       @keyframes + a CSS class
- *   - react     a React component using the Web Animations API
- *   - html      a standalone HTML file
- *   - vanilla   a vanilla JS snippet using element.animate()
- *
- * The synthesizer leans on parseNaturalMotion to detect the motion verb,
- * direction, easing, duration, and loop count from the description, then
- * renders the matching code template.
- */
+/** Code Synthesis — generates standalone, copy-pasteable animation code from natural language descriptions. */
 
 import type { Easing, Keyframe } from "@openmotion/shared";
 import { easingToCss } from "@openmotion/shared";

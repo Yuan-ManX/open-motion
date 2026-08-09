@@ -1,20 +1,4 @@
-/**
- * Inbound MCP client registry — lets the OpenMotion Agent call tools on
- * external MCP servers (stdio or Streamable HTTP).
- *
- * The outbound direction (OpenMotion tools exposed to MCP clients) lives in
- * src/mcp/server.ts + src/mcp/tools.ts. This module is the symmetric inbound
- * half: it connects OpenMotion-as-client to one or more external MCP servers
- * and exposes their tools to the orchestrator through a uniform interface.
- *
- * Design notes:
- * - Connections are project-scoped but share a single registry. Each connected
- *   server is identified by a stable serverId chosen by the caller.
- * - The registry is in-memory — connections are not persisted across server
- *   restarts. Long-lived servers re-register on boot via the REST API.
- * - All calls are guarded with timeouts and structured logging so a wedged
- *   external server can never block the orchestrator.
- */
+/** Inbound MCP client registry — lets the OpenMotion Agent call tools on external MCP servers (stdio or Streamable HTTP). */
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";

@@ -1,30 +1,6 @@
 import type { MotionSpec, MotionComponent, Easing } from "@openmotion/shared";
 
-/**
- * Causal Inference Engine — counterfactual attribution of perceived qualities.
- *
- * Whereas the verification engine asks "did the spec match the stated intent?",
- * this engine answers the deeper question: "which design decision actually
- * caused the perceived quality to emerge?" It identifies the qualities a
- * composition exhibits (playful, calm, urgent, premium, accessible, ...),
- * then for each quality runs a counterfactual probe — removing one decision
- * at a time from a structural clone and re-measuring the quality — to derive
- * necessity and sufficiency scores for every cause.
- *
- * Core concepts:
- * - Perceived Quality: an emergent property the viewer would name
- *   (playful, calm, urgent, premium, mechanical, organic, ...).
- * - Cause: a concrete design decision on a specific component
- *   (e.g. "bounce easing on card-2", "infinite loop on bg-1").
- * - Necessity: 0..1 — how much the quality would weaken if the cause were
- *   removed. High necessity means the cause is load-bearing.
- * - Sufficiency: 0..1 — how much the cause alone produces the quality, even
- *   without the other supporting decisions.
- * - Counterfactual: a parallel spec with one cause removed; the quality is
- *   re-measured on the parallel to isolate the cause's contribution.
- *
- * Rule-based — no LLM round-trip required, so mock mode stays functional.
- */
+/** Causal Inference Engine — counterfactual attribution of perceived qualities. */
 
 // ---------------------------------------------------------------------------
 // Types

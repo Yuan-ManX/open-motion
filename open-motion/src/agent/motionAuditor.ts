@@ -1,30 +1,4 @@
-/**
- * Motion Auditor — comprehensive WCAG-style accessibility auditing.
- *
- * This is the seventeenth original AI-native module. Where Auto-Fix remediates
- * issues and Critique scores accessibility qualitatively, the Auditor produces
- * a formal compliance report against established accessibility guidelines.
- * It checks WCAG 2.1 SC 2.3 (Photosensitive Seizures), SC 2.2.2 (Pause, Stop,
- * Hide), cognitive load thresholds, distraction levels, and motion sickness
- * risk — producing a violation matrix with severity, remediation priority,
- * and a project-level compliance certificate.
- *
- * Six core audits:
- * 1. Flash analysis — detects animations that exceed the 3Hz photosensitive
- *    seizure threshold (WCAG 2.3.1) or the general flash threshold.
- * 2. Pause/Stop/Hide — checks whether infinite animations provide a way to
- *    pause, stop, or hide them (WCAG 2.2.2).
- * 3. Distraction scoring — estimates the visual distraction level of each
- *    component and the project as a whole.
- * 4. Cognitive load — estimates the cognitive overhead required to process
- *    the motion, based on complexity, concurrency, and speed.
- * 5. Motion sickness risk — assesses vestibular triggers (large displacements,
- *    rotations, parallax) that may cause discomfort.
- * 6. Compliance certificate — produces a pass/fail/warning verdict for each
- *    criterion and an overall compliance level.
- *
- * Rule-based — no LLM round-trip required.
- */
+/** Motion Auditor — comprehensive WCAG-style accessibility auditing. */
 
 import type { MotionComponent, MotionSpec } from "@openmotion/shared";
 

@@ -1,17 +1,6 @@
 /**
  * Semantic Memory Search — retrieves relevant past conversation entries using
- * TF-IDF vectorization and cosine similarity.
- *
- * Unlike linear list/restore which returns the full window, semantic search
- * finds the most topically relevant memories across the entire history —
- * even entries that were compressed out of the active window.
- *
- * This enables the Agent to recall decisions, preferences, and patterns from
- * earlier in the session or from restored persistent memory, improving
- * contextual awareness without inflating the prompt window.
- *
- * The implementation is dependency-free: TF-IDF is computed on the fly from
- * tokenized text, and cosine similarity is a dot product of sparse vectors.
+ * dependency-free TF-IDF vectorization and cosine similarity.
  */
 
 import type { MemoryEntry } from "./store.js";

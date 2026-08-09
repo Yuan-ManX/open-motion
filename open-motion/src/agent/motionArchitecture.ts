@@ -1,21 +1,4 @@
-/**
- * Motion Architecture Engine — applies architectural design principles to motion.
- *
- * This original AI-native module treats a motion composition as a built
- * structure. It analyzes the structural integrity, proportion, hierarchy,
- * spatial organization, and architectural style of the composition.
- *
- * Core concepts:
- * - Structural Roles: load-bearing (foundational) vs decorative (ornamental)
- * - Proportion: golden ratio, modular harmony, dimensional relationships
- * - Hierarchy: foundation → structure → facade → ornament → detail
- * - Spatial Organization: plan (timeline), section (intensity), elevation (layering)
- * - Architectural Style: classical, gothic, modern, brutalist, organic, etc.
- * - Structural Integrity: balance, stability, load distribution
- * - Material Honesty: whether motion properties express their true function
- *
- * Rule-based — no LLM round-trip required.
- */
+/** Motion Architecture Engine — applies architectural design principles to motion. */
 
 import type { MotionSpec, MotionComponent } from "@openmotion/shared";
 

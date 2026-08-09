@@ -1,32 +1,6 @@
 import type { MotionSpec, MotionComponent } from "@openmotion/shared";
 
-/**
- * Calibration Engine — self-tuning of motion parameters against canonical ranges.
- *
- * A well-calibrated composition keeps its parameters (durations, magnitudes,
- * delays, loop counts) within ranges that feel coherent to viewers. This
- * engine computes the spec's own parameter distribution, flags statistical
- * outliers (z-score beyond a threshold), and proposes calibrated replacements
- * that pull outliers back toward the spec's central tendency — without
- * flattening intentional dramatic variation.
- *
- * Core concepts:
- * - Parameter sample: a numeric value extracted from a component
- *   (durationMs, delayMs, max magnitude, iteration count, keyframe count).
- * - Distribution: mean + standard deviation across all components for each
- *   parameter. The spec's own distribution is the reference, not an external
- *   ideal — calibration is relative to the composition's intent.
- * - Outlier: a value whose z-score (|value - mean| / stdDev) exceeds the
- *   threshold. The threshold is per-parameter because some parameters
- *   tolerate more variation than others.
- * - Calibration target: the value that would bring the outlier back within
- *   the threshold, computed as mean + sign(z) * threshold * stdDev.
- * - Confidence: 0..1 — higher when the sample size is larger and the
- *   outlier is further from the threshold. Low-confidence calibrations are
- *   surfaced as observations, not prescriptions.
- *
- * Rule-based — no LLM round-trip required, so mock mode stays functional.
- */
+/** Calibration Engine — self-tuning of motion parameters against canonical ranges. */
 
 // ---------------------------------------------------------------------------
 // Types

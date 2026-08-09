@@ -1,24 +1,4 @@
-/**
- * Motion Cartography Engine — maps motion as cartographic terrain.
- *
- * This original AI-native module treats a motion composition as a
- * cartographic landscape. It computes elevation from motion intensity,
- * traces contour lines of equal density, identifies landmarks (peak
- * moments), maps routes (temporal trajectories), classifies territories
- * (biomes of similar character), and determines the compass direction
- * of overall motion tendency.
- *
- * Core concepts:
- * - Elevation: motion intensity mapped to altitude (peaks = high intensity)
- * - Contour Lines: iso-density curves connecting regions of equal activity
- * - Landmarks: peak moments that serve as navigational reference points
- * - Routes: temporal trajectories through the composition space
- * - Territories: regions sharing similar motion character (biomes)
- * - Compass: overall directional tendency (N=expand, S=contract, E=accelerate, W=decelerate)
- * - Scale: composition zoom level (micro/meso/macro)
- *
- * Rule-based — no LLM round-trip required.
- */
+/** Motion Cartography Engine — maps motion as cartographic terrain. */
 
 import type { MotionSpec, MotionComponent } from "@openmotion/shared";
 

@@ -1,21 +1,4 @@
-/**
- * Motion Calligraphy Engine — analyzes motion as calligraphic art.
- *
- * This original AI-native module treats each motion component as a
- * brushstroke in a calligraphic composition. It evaluates stroke quality
- * (pressure, velocity, fluency), ink dynamics (intensity buildup and
- * fade), and the overall calligraphic character of the composition.
- *
- * Core concepts:
- * - Brush Pressure: motion intensity mapped to ink deposition
- * - Stroke Velocity: speed of the motion affects stroke thickness
- * - Fluency: smoothness and continuity of the stroke
- * - Ink Flow: how intensity builds up and fades across the timeline
- * - Stroke Character: classification (regular/cursive/running/wild)
- * - Composition Balance: spatial distribution of strokes
- *
- * Rule-based — no LLM round-trip required.
- */
+/** Motion Calligraphy Engine — analyzes motion as calligraphic art. */
 
 import type { MotionSpec, MotionComponent } from "@openmotion/shared";
 
