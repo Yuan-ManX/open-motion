@@ -1,32 +1,4 @@
-/**
- * Motion Storytelling — narrative-to-motion synthesis engine.
- *
- * Decomposes a narrative intent into a 5-act structure (exposition, rising
- * action, climax, falling action, resolution) and maps each act to a motion
- * pattern with appropriate easing, timing, intensity, and choreography.
- *
- * Original systems:
- *
- * 1. Narrative Intent Library
- *    Pre-defined narrative archetypes (hero-entrance, celebration,
- *    dramatic-reveal, conflict, transformation, journey, resolution) each
- *    with a unique 5-act decomposition profile.
- *
- * 2. Act-to-Motion Mapping
- *    Each act is mapped to a motion template with:
- *    - Easing family matching the emotional tone of the act
- *    - Duration proportional to the act's narrative weight
- *    - Intensity curve following Freytag's pyramid
- *    - Transform signature matching the act's dramatic function
- *
- * 3. Choreography Generator
- *    Arranges the acts into a timed sequence with staggered delays,
- *    creating a cohesive narrative flow rather than isolated animations.
- *
- * 4. Story Beat Cards
- *    Each beat includes a human-readable description, emotional tone,
- *    and dramatic function — making the motion sequence explainable.
- */
+/** Motion Storytelling — narrative-to-motion synthesis engine. */
 
 import type { Easing } from "@openmotion/shared";
 import { easingPreset } from "@openmotion/shared";

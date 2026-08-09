@@ -1,35 +1,7 @@
 import type { MotionSpec, MotionComponent, Trigger, Easing } from "@openmotion/shared";
 import { easingPreset, easingBezier } from "@openmotion/shared";
 
-/**
- * Recipe Engine — curated catalog of motion recipes with constraints.
- *
- * A recipe is a named motion pattern tagged by category (entrance /
- * emphasis / attention / exit), the motion verbs it exercises, the
- * situations in which it should be avoided (avoid_when), and a restraint
- * budget ceiling so applying a recipe cannot silently blow the
- * composition's perceptual capacity. Matching a project's components
- * against the catalog reveals (a) which recipes are already in use,
- * (b) which recipes fit unmet component intents, and (c) which active
- * recipes violate their own avoid_when constraints.
- *
- * Core concepts:
- * - Recipe: a named {category, verbs, properties, duration band, easing,
- *   avoidWhen, budget} record. Properties are the transform channels the
- *   recipe exercises (translate / rotate / scale / opacity / filter).
- * - Match: a component matches a recipe when its animated property set
- *   overlaps the recipe's properties, its duration falls in the recipe's
- *   band, and its trigger aligns with the recipe's category.
- * - AvoidWhen: a predicate over MotionComponent signals — e.g. a recipe
- *   that flashes opacity should be avoided when the component also loops,
- *   because looping flash is a vestibular hazard.
- * - Budget: each recipe declares the demand it tends to add. The engine
- *   rejects candidate recipes whose budget would push the composition
- *   past its attention capacity (delegated to a simple inline estimate
- *   so this engine stays self-contained).
- *
- * Rule-based — no LLM round-trip required, so mock mode stays functional.
- */
+/** Recipe Engine — curated catalog of motion recipes with constraints. */
 
 // ---------------------------------------------------------------------------
 // Types

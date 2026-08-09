@@ -9,19 +9,9 @@ import {
 /**
  * Verification-driven self-correction engine.
  *
- * `verifyMotion` compiles the user's request into testable assertions and
- * reports pass/fail per assertion, plus a human remediation hint. Until now
- * that hint was only surfaced as text — the agent could detect a gap but could
- * not close the loop. This module turns each failed assertion's stable `kind`
- * into a concrete component patch, applies the patches to a spec copy, and
- * re-verifies so the caller gets a before/after diff proving the gap closed.
- *
- * The engine is rule-based (no LLM round-trip) so mock mode stays functional,
- * and bounded to a single correction pass per invocation — it fixes the
- * tractable single-property gaps (easing family, duration band, loop count,
- * color presence, stagger spread) and leaves complex gaps (path animation,
- * shader effects, 3D transforms, component creation) to the existing
- * remediation hints the LLM can still act on explicitly.
+ * Turns each failed verification assertion's stable `kind` into a concrete
+ * component patch, applies the patches to a spec copy, and re-verifies so the
+ * caller gets a before/after diff proving the gap closed.
  */
 
 /** A single concrete patch produced by the remediation map. */

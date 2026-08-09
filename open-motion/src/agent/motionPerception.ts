@@ -1,29 +1,4 @@
-/**
- * Motion Perception Predictor — predicts how viewers will cognitively and
- * emotionally respond to a motion composition.
- *
- * This is an original AI-native module that models the VIEWER's perceptual
- * experience rather than the motion itself. Where existing modules analyze
- * what the motion IS, this module predicts what the viewer FEELS and PERCEIVES.
- *
- * Seven core analytics:
- * 1. Emotional valence — predicts positive/negative/neutral emotional response
- *    based on motion energy, color warmth, and easing curvature.
- * 2. Arousal profile — maps the excitement level over time, identifying peaks
- *    and valleys in the viewer's engagement curve.
- * 3. Cognitive load — estimates mental effort required to track the motion,
- *    factoring in simultaneous animations, speed, and complexity.
- * 4. Attention retention — models how long the motion holds attention before
- *    the viewer's mind wanders, based on novelty and variation.
- * 5. Memorability score — predicts how memorable the motion will be, driven by
- *    distinctiveness, emotional peaks, and narrative structure.
- * 6. Brand perception — forecasts how the motion shapes brand perception
- *    (premium, playful, trustworthy, innovative, etc.).
- * 7. Perception summary — a composite report with actionable recommendations
- *    for tuning the motion to achieve desired perceptual outcomes.
- *
- * Rule-based — no LLM round-trip required.
- */
+/** Motion Perception Predictor — predicts how viewers will cognitively and emotionally respond to a motion composition. */
 
 import type { MotionComponent, MotionSpec, Easing } from "@openmotion/shared";
 

@@ -1,32 +1,6 @@
 import type { MotionSpec, MotionComponent, Trigger } from "@openmotion/shared";
 
-/**
- * State-Graph Engine — models a motion spec as a finite-state machine.
- *
- * Each component carries a `trigger` (onLoad / onClick / onHover / onScroll /
- * afterDelay) that determines when its state becomes active. Treating the
- * composition as a directed graph — where trigger relationships and timing
- * order define edges between component-states — exposes structural defects a
- * flat timeline cannot reveal: unreachable states, dead-end states, missing
- * transition coverage, and orchestration complexity beyond a viewer's working
- * memory.
- *
- * Core concepts:
- * - State: a component treated as a node in the state machine. Its label is
- *   the component name; its entry trigger is the transition that activates it.
- * - Edge: a directed relationship from one state to another. Edges are
- *   derived from (a) explicit trigger chains (an `afterDelay` component
- *   whose delay matches another's end forms a temporal edge) and (b) shared
- *   trigger groups (components that activate on the same user gesture are
- *   parallel siblings, not sequential).
- * - Reachability: a state is reachable if a path exists from any entry
- *   state (onLoad / onScroll, which fire without user interaction) or from
- *   an interactive entry (onClick / onHover) that itself is reachable.
- * - Dead-end: a state with no outgoing edges when the composition still has
- *   unactivated siblings — the viewer is left with no continuation.
- *
- * Rule-based — no LLM round-trip required, so mock mode stays functional.
- */
+/** State-Graph Engine — models a motion spec as a finite-state machine. */
 
 // ---------------------------------------------------------------------------
 // Types

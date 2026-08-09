@@ -1,20 +1,4 @@
-/**
- * Motion Resonance Engine — aligns motion rhythm with cognitive and emotional
- * resonance frequencies.
- *
- * This original AI-native module computes the resonance between a motion
- * composition and the viewer's cognitive/emotional state. Resonance occurs
- * when the motion's temporal frequency, intensity envelope, and easing
- * harmonics align with the viewer's attention cycle and affective baseline.
- *
- * Core concepts:
- * - Cognitive Cycle: human attention oscillates at ~0.5-4 Hz (theta/alpha)
- * - Affective Baseline: emotional state sets a preferred intensity range
- * - Harmonic Alignment: motion that matches cognitive cycles feels "in sync"
- * - Dissonance Detection: motion that fights natural rhythms causes fatigue
- *
- * Rule-based — no LLM round-trip required.
- */
+/** Motion Resonance Engine — aligns motion rhythm with cognitive and emotional resonance frequencies. */
 
 import type { MotionSpec, MotionComponent } from "@openmotion/shared";
 

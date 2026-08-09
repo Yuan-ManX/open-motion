@@ -1,21 +1,5 @@
 /**
  * Motion Physics Engine — analyzes motion through physics principles.
- *
- * This original AI-native module applies classical and modern physics to
- * motion compositions. Each component is a physical body; keyframes are
- * states; easings determine force profiles; the timeline is the laboratory.
- *
- * Core concepts:
- * - Kinematics: displacement, velocity, acceleration profiles
- * - Dynamics: forces (applied, friction, gravity, spring, normal)
- * - Energy: kinetic, potential, total, dissipation
- * - Momentum: linear and angular momentum conservation
- * - Work: force × displacement over the timeline
- * - Power: energy transfer rate
- * - Inertia: resistance to motion change
- * - Equilibrium: static and dynamic balance
- *
- * Rule-based — no LLM round-trip required.
  */
 
 import type { MotionSpec, MotionComponent } from "@openmotion/shared";

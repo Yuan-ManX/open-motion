@@ -1,34 +1,6 @@
 import type { MotionSpec, MotionComponent } from "@openmotion/shared";
 
-/**
- * Shader-Field Engine — material-level analysis of GPU-shaded motion.
- *
- * A motion composition may include shader-rich components (WebGL canvases,
- * filter-heavy elements, 3D-transformed layers) whose GPU cost is invisible
- * to a transform-only audit. This engine inspects each component's style
- * and template to detect shader presence, classifies which animated
- * properties are GPU-safe (transform / opacity) versus GPU-unsafe
- * (layout-triggering: width / height / left / top / margin / padding),
- * and flags motion that would violate a prefers-reduced-motion contract
- * (large looping displacement on shader-rich elements).
- *
- * Core concepts:
- * - ShaderRich: a component is shader-rich when its templateId starts with
- *   tpl-shader-, its style declares a filter / backdrop-filter, or it
- *   carries perspective / 3D transform keywords.
- * - GpuSafeProperty: transform (translate/rotate/scale) and opacity animate
- *   on the compositor thread without triggering layout. Everything else
- *   (width, height, left, top, margin, padding, background-position, etc.)
- *   triggers layout/paint and is GPU-unsafe.
- * - ReducedMotionHazard: a shader-rich component that ALSO loops with large
- *   displacement forces the GPU to recomposite continuously — a vestibular
- *   and thermal hazard. The engine flags these for suppression.
- * - CompositorBudget: each shader-rich component consumes compositor
- *   layers. A composition with too many shader-rich components exceeds
- *   the layer budget and will thrash the GPU.
- *
- * Rule-based — no LLM round-trip required, so mock mode stays functional.
- */
+/** Shader-Field Engine — material-level analysis of GPU-shaded motion. */
 
 // ---------------------------------------------------------------------------
 // Types

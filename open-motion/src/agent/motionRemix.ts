@@ -1,23 +1,4 @@
-/**
- * Motion Remix — creative recombination engine.
- *
- * This is the twelfth original AI-native module. Where Variation Engine
- * explores axis-space around a single component and Synthesis hybridizes
- * two components' DNA, Remix operates on the entire project as a creative
- * work: it shuffles, mirrors, inverts, swaps, cascades, scatters,
- * hybridizes, and rephrases the components to produce a fresh interpretation
- * of the same motion vocabulary.
- *
- * The remix is rule-based and reproducible by seed. Each strategy produces
- * a transformed spec and a per-component change log explaining what was
- * recombined and why.
- *
- * Use cases:
- *   - "Give me a different take on this project"
- *   - "Remix this with a shuffle strategy"
- *   - "Show me what this looks like mirrored"
- *   - "I want to see a scattered version"
- */
+/** Motion Remix — creative recombination engine. */
 
 import type { MotionComponent, MotionSpec, Easing } from "@openmotion/shared";
 import { easingPreset } from "../shared/motion/easing.js";

@@ -1,29 +1,4 @@
-/**
- * Motion Profiler — quantitative performance cost estimation.
- *
- * This is the fourteenth original AI-native module. Where Critique evaluates
- * aesthetic and consistency qualitatively, the Profiler estimates the concrete
- * runtime cost of a motion spec before it reaches the browser. It models GPU
- * composite layers, paint complexity, layout thrash risk, animation overlap,
- * and frame-budget consumption to produce a numerical cost score and targeted
- * optimization recommendations.
- *
- * Six core analytics:
- * 1. Per-component cost breakdown — each component receives a cost estimate
- *    across five axes (composite, paint, layout, loop, overlap).
- * 2. Project-level frame budget — sums concurrent animation cost and compares
- *    against a 16.6ms frame budget (60fps target).
- * 3. Jank risk assessment — flags components likely to cause dropped frames
- *    based on animated properties and duration.
- * 4. Overlap penalty — detects time windows where too many animations run
- *    concurrently, exceeding the compositor's parallel capacity.
- * 5. GPU memory estimate — approximates the number of promoted layers and
- *    their memory footprint.
- * 6. Optimization recommendations — concrete, ranked suggestions to reduce
- *    cost without changing the visual intent.
- *
- * Rule-based — no LLM round-trip required.
- */
+/** Motion Profiler — quantitative performance cost estimation. */
 
 import type { MotionComponent, MotionSpec } from "@openmotion/shared";
 

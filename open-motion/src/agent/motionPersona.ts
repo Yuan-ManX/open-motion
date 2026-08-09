@@ -1,21 +1,6 @@
 /**
  * Motion Persona — applies a complete design philosophy to a project's motion
- * DNA. Where the Mood Engine translates a single emotional state (premium,
- * playful) into motion parameters, a Persona is a holistic design system:
- * easing preferences, timing rhythm, intensity ceiling, signature patterns,
- * restraint level, and the kinds of transforms the persona favors.
- *
- * This is the seventh original AI-native module. Personas turn OpenMotion
- * from a motion editor into a motion authoring system with named,
- * distinguishable design languages — Bauhaus geometry, Apple HIG restraint,
- * Material expressiveness, Brutalist rawness, Memphis playfulness, Art Deco
- * symmetry, Swiss grid discipline, and Vaporwave nostalgia.
- *
- * Two core operations:
- * 1. applyPersona — transform a project's components so they embody a persona
- * 2. detectPersona — measure how closely a project matches each persona
- *
- * Both are rule-based and run without an LLM round-trip.
+ * DNA, giving the editor named, distinguishable design languages.
  */
 
 import type { MotionComponent, MotionSpec, Easing } from "@openmotion/shared";

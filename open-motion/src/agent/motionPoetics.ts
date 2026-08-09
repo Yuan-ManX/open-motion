@@ -1,22 +1,4 @@
-/**
- * Motion Poetics Engine — applies poetic meter and form to motion.
- *
- * This original AI-native module treats motion as a literary art form,
- * analyzing its rhythm, meter, and poetic structure. It maps motion
- * timing to poetic feet (iambic, trochaic, dactylic, anapestic),
- * detects stanza-like groupings, and reveals whether a composition
- * reads as free verse, blank verse, or structured form.
- *
- * Core concepts:
- * - Poetic Foot: a unit of rhythm (stressed/unstressed pattern)
- * - Meter: the rhythmic structure of a line (iambic pentameter, etc.)
- * - Stanza: a grouped set of motions forming a "verse"
- * - Caesura: a pause or break in the motion flow
- * - Enjambment: motion that flows across stanza boundaries
- * - Poetic Form: sonnet, haiku, free verse, ballad
- *
- * Rule-based — no LLM round-trip required.
- */
+/** Motion Poetics Engine — applies poetic meter and form to motion. */
 
 import type { MotionSpec, MotionComponent } from "@openmotion/shared";
 

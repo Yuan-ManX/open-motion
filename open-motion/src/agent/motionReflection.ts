@@ -1,11 +1,8 @@
 import type { MotionSpec, Easing } from "@openmotion/shared";
 
 /**
- * Success-reflection produced after a spec-changing turn that completed
- * without tool failures. Whereas `reflectOnFailures` reacts to errors, this
- * engine evaluates whether the completed spec change actually achieves the
- * user's stated intent and surfaces a positive assessment plus an optional
- * refinement suggestion. Rule-based so mock mode stays fully functional.
+ * Success reflection produced after a spec-changing turn that completed
+ * without tool failures, plus an optional refinement suggestion.
  */
 export interface SuccessReflection {
   text: string;

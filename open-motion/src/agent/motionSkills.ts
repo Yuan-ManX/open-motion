@@ -1,38 +1,6 @@
 import type { MotionSpec, MotionComponent } from "@openmotion/shared";
 
-/**
- * Procedural-Skill Engine — tracks parameter drift across skill invocations.
- *
- * A procedural skill is a named, reusable motion operation (e.g. "fade_in",
- * "spring_bounce", "stagger_entrance") whose parameter values are tuned
- * each time the skill runs. Rather than keeping parameters static, the
- * engine records how each invocation adjusted them relative to the
- * previous run, so the skill registry accumulates a memory of which
- * adjustments worked and which overshot. Over many runs, a skill's
- * parameters converge toward a tightened band — drift collapses and the
- * skill becomes more predictable.
- *
- * Core concepts:
- * - Skill: {id, name, parameters, invocations}. Parameters is a map of
- *   name -> {value, min, max, drift}. Each invocation records the values
- *   actually used and whether the outcome met its target.
- * - Drift: signed fractional change between consecutive invocations.
- *   Positive drift = the parameter crept upward across runs; negative =
- *   it crept downward. Drift magnitude shrinks as the skill stabilizes.
- * - Tightening: after each invocation, the engine narrows the parameter's
- *   recommended band around the running mean. A mature skill has small
- *   drift and a narrow band; a fresh skill has wide drift.
- * - Correction memory: when an invocation failed to meet its target
- *   (e.g. motion was too subtle), the engine records which parameter
- *   moved in which direction to correct, so future invocations start
- *   from the corrected value instead of the original default.
- *
- * The registry is process-local and in-memory — it persists across
- * requests within a single server run but does not write to disk. This
- * keeps the engine self-contained and mock-mode friendly.
- *
- * Rule-based — no LLM round-trip required, so mock mode stays functional.
- */
+/** Procedural-Skill Engine — tracks parameter drift across skill invocations. */
 
 // ---------------------------------------------------------------------------
 // Types

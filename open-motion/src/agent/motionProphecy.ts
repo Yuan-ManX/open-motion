@@ -1,22 +1,5 @@
 /**
  * Motion Prophecy Engine — forecasts motion design directions.
- *
- * This original AI-native module treats a motion composition as a trajectory
- * through design space and extrapolates where it is heading. It identifies
- * the current design "era" the composition inhabits, predicts the next era
- * it would naturally evolve toward, and proposes avant-garde directions that
- * break from the trajectory to open new creative territory.
- *
- * Core concepts:
- * - Design Era: a named region of design space (minimalist, expressive,
- *   kinetic-opulent, restrained, organic, technical, surreal)
- * - Trajectory Vector: the directional momentum of recent changes
- * - Prophecy Cone: a fan of likely future states, widening with uncertainty
- * - Avant-garde Proposal: a deliberate divergence that opens new territory
- * - Novelty Score: how far a proposal sits from the current trajectory
- *
- * Rule-based — no LLM round-trip required. The forecast is deterministic
- * given the same spec, so it can drive proactive suggestions in the UI.
  */
 
 import type { MotionSpec, MotionComponent, Easing } from "@openmotion/shared";

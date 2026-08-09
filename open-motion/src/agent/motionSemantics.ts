@@ -1,28 +1,4 @@
-/**
- * Motion Semantics Engine — translates abstract concepts and emotions into
- * concrete motion parameters.
- *
- * This is an original AI-native module that bridges the gap between intent
- * and execution. When a user says "make it feel trustworthy" or "add a sense
- * of urgency", the engine maps these abstract semantic concepts to specific
- * easing curves, durations, transforms, colors, and choreography patterns.
- *
- * Six core capabilities:
- * 1. Concept resolution — maps semantic concepts (trust, urgency, luxury,
- *    playfulness, etc.) to motion DNA profiles.
- * 2. Emotion synthesis — generates motion parameters from emotional targets
- *    (valence + arousal pairs from Russell's circumplex model).
- * 3. Brand DNA encoding — translates brand attributes into a coordinated
- *    motion identity that can be applied across components.
- * 4. Semantic diff — compares two motion compositions and describes the
- *    perceptual difference in natural language.
- * 5. Concept blending — merges two concepts into a hybrid motion profile
- *    (e.g., "playful luxury" = bounce + smooth + gold).
- * 6. Intent inference — analyzes a natural language description and infers
- *    the most likely semantic concepts the user wants to express.
- *
- * Rule-based — no LLM round-trip required.
- */
+/** Motion Semantics Engine — translates abstract concepts and emotions into concrete motion parameters. */
 
 import type { Easing, EasingPreset } from "@openmotion/shared";
 
