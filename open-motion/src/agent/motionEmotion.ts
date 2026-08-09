@@ -1,29 +1,4 @@
-/**
- * Motion Emotion Intelligence — maps emotional states to motion parameters.
- *
- * This is an original AI-native module that bridges affective computing and
- * motion design. Instead of specifying technical parameters (easing, duration,
- * intensity), users express the desired emotional tone ("make it feel calm",
- * "add urgency", "convey excitement") and the engine translates that into
- * concrete motion properties.
- *
- * Four core capabilities:
- * 1. Emotion-to-Motion synthesis — given a target emotion, produce easing,
- *    duration, intensity, and transform recommendations.
- * 2. Motion-to-Emotion detection — analyze existing motion and infer the
- *    emotional tone it conveys (valence, arousal, dominance).
- * 3. Emotion blending — mix two or more emotions with weights to create
- *    nuanced affective motion (e.g., 70% calm + 30% melancholy).
- * 4. Emotion journey planning — sequence emotional states across a timeline
- *    to create an affective arc (e.g., calm → curious → excited → satisfied).
- *
- * The emotion model uses a VAD (Valence-Arousal-Dominance) space where:
- * - Valence: unpleasant (-1) to pleasant (+1)
- * - Arousal: calm (-1) to excited (+1)
- * - Dominance: submissive (-1) to dominant (+1)
- *
- * Rule-based — no LLM round-trip required.
- */
+/** Motion Emotion Intelligence — maps emotional states to motion parameters. */
 
 import type { MotionComponent, Easing, Keyframe } from "@openmotion/shared";
 import { easingPreset } from "@openmotion/shared";

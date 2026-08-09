@@ -1,26 +1,4 @@
-/**
- * Motion Genome — project-level population genetics for motion DNA.
- *
- * This is the ninth original AI-native module. Where Motion DNA decomposes a
- * single component into a genetic fingerprint, the Genome lifts the metaphor
- * to the project level: a population of components whose collective genetic
- * diversity, inbreeding coefficient, evolutionary tree, and monoculture
- * pressure can be measured and acted upon.
- *
- * Five core analytics:
- * 1. Genetic diversity — variance across easing family, timing tier, intensity,
- *    transform signature, and loop strategy. Higher = healthier population.
- * 2. Inbreeding coefficient — average pairwise DNA similarity. High values
- *    indicate monoculture (everything looks the same).
- * 3. Evolutionary tree — cluster components by DNA similarity into a tree,
- *    revealing family branches and outliers.
- * 4. Monoculture detection — flag when >60% of components share identical DNA
- *    along any single dimension (e.g., all using the same easing).
- * 5. Diversification suggestions — recommend which axes to vary next to break
- *    out of monoculture, anchored to specific components.
- *
- * Rule-based — no LLM round-trip required.
- */
+/** Motion Genome — project-level population genetics for motion DNA. */
 
 import type { MotionComponent, MotionSpec, Easing } from "@openmotion/shared";
 

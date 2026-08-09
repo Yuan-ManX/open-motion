@@ -1,29 +1,4 @@
-/**
- * Motion Contextual Awareness — adapts motion to environmental context.
- *
- * This is an original AI-native module that adjusts motion parameters based
- * on the viewing context. Instead of one-size-fits-all animations, the engine
- * considers device capabilities, ambient conditions, time of day, and user
- * state to produce context-appropriate motion.
- *
- * Five context dimensions:
- * 1. Device class — desktop, tablet, mobile, watch, kiosk, TV
- * 2. Performance tier — high, medium, low (based on hardware signals)
- * 3. Time of day — morning, afternoon, evening, night
- * 4. Ambient light — bright, normal, dim, dark
- * 5. User state — focused, casual, rushed, relaxed
- *
- * Each dimension modulates motion parameters:
- * - Low-power devices get shorter durations and simpler transforms
- * - Night time reduces intensity and shifts palette toward warm/dark
- * - Rushed users get faster, more direct motion
- * - Dim light increases contrast and reduces subtle motion
- *
- * The engine can either apply a single context or blend multiple contexts
- * with weights for multi-factor adaptation.
- *
- * Rule-based — no LLM round-trip required.
- */
+/** Motion Contextual Awareness — adapts motion to environmental context. */
 
 import type { MotionComponent, Easing, EasingPreset, Keyframe } from "@openmotion/shared";
 

@@ -1,27 +1,4 @@
-/**
- * Motion Curator — semantic grouping and curation engine.
- *
- * This is the fifteenth original AI-native module. Where the Genome measures
- * population diversity and the Forecast projects trends, the Curator organizes
- * components into thematic collections based on their functional role in the
- * design. It tags each component with semantic labels, detects redundancy,
- * and produces curated playlists that help designers navigate large projects.
- *
- * Five core analytics:
- * 1. Semantic tagging — classifies each component into a functional role
- *    (entrance, ambient, interactive, transition, emphasis, feedback,
- *    decorative) based on its motion DNA.
- * 2. Collection grouping — organizes components into named collections
- *    that share a purpose, making large projects navigable.
- * 3. Redundancy detection — finds components that serve the same role
- *    with nearly identical motion DNA, suggesting consolidation.
- * 4. Coverage map — shows which functional roles are well-represented
- *    and which are missing entirely.
- * 5. Curation recommendations — suggests what to add, remove, or merge
- *    to achieve a balanced motion vocabulary.
- *
- * Rule-based — no LLM round-trip required.
- */
+/** Motion Curator — semantic grouping and curation engine. */
 
 import type { MotionComponent, MotionSpec } from "@openmotion/shared";
 

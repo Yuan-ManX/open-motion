@@ -1,23 +1,4 @@
-/**
- * Motion Coach — generates educational commentary and skill-aware suggestions
- * that teach the user what each animation does and how to make it better.
- *
- * This is the eighth original AI-native module. Where Critique diagnoses
- * structural problems and Auto-Fix remediates them, the Coach explains motion
- * design in plain language: what a component does, why it works (or doesn't),
- * what principle it illustrates, and what the user should try next based on
- * their proficiency level.
- *
- * The Coach produces three kinds of output:
- * 1. Per-component narration — a plain-language description of what each
- *    animation does, suitable for screen readers or onboarding tooltips.
- * 2. Skill-tier suggestions — beginner / intermediate / advanced next steps
- *    calibrated to the user's proficiency, inferred from project complexity.
- * 3. Lesson plan — a sequence of micro-lessons derived from the project's
- *    current state, each anchored to a real component the user can study.
- *
- * The Coach is rule-based — no LLM round-trip required.
- */
+/** Motion Coach — generates educational commentary and skill-aware suggestions. */
 
 import type { MotionComponent, MotionSpec, Easing } from "@openmotion/shared";
 

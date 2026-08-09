@@ -2,23 +2,6 @@ import type { MotionSpec, MotionComponent, Easing } from "@openmotion/shared";
 
 /**
  * Motion Jury — multi-perspective deliberation engine.
- *
- * An original meta-cognition layer: instead of a single quality score, the
- * spec is put on trial in front of five independent jurors, each applying a
- * distinct evaluative lens (Accessibility, Aesthetics, Performance, Narrative,
- * Restraint). Each juror returns an independent verdict — approve, reject, or
- * abstain — together with the conditions that must hold for the verdict to
- * stand. A weighted vote then aggregates the verdicts into a consensus
- * (approve / reject / hung), an agreement score, the dissenting voices, and a
- * prioritized recommendation list.
- *
- * The jury is deliberately antagonistic: jurisdictions overlap on purpose so
- * that tension between jurors (e.g. Aesthetics wanting more drama while
- * Restraint wants less) surfaces trade-offs a single score would hide. The
- * consensus is only "approve" when a sufficient weighted majority agrees; a
- * single veto from a high-weight juror can flip the outcome to "hung".
- *
- * Rule-based — no LLM round-trip required, so mock mode stays functional.
  */
 
 // ---------------------------------------------------------------------------

@@ -1,23 +1,5 @@
 /**
  * Motion Cinema Engine — analyzes motion as a cinematic sequence.
- *
- * This original AI-native module treats a motion composition as a film.
- * Components are shots; keyframes are frames; easings determine camera
- * movements; delays are cuts; durations are shot lengths; the timeline
- * is the screenplay.
- *
- * Core concepts:
- * - Shots: continuous component segments (wide, medium, close-up, extreme)
- * - Cuts: abrupt transitions between components
- * - Transitions: smooth changes (dissolve, fade, wipe)
- * - Camera Movement: pan, tilt, dolly, zoom, crane, tracking
- * - Mise-en-scène: visual arrangement and composition
- * - Narrative Structure: three-act, five-act, hero's journey
- * - Pacing: rhythm of shot lengths
- * - Montage: sequential and dialectical editing
- * - Genre: classification by cinematic style
- *
- * Rule-based — no LLM round-trip required.
  */
 
 import type { MotionSpec, MotionComponent } from "@openmotion/shared";

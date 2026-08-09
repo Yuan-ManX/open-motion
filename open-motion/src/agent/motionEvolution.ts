@@ -5,13 +5,8 @@ import { easingPreset } from "../shared/motion/easing.js";
  * Evolutionary motion optimization engine.
  *
  * Treats a MotionSpec as a genome and evolves it across generations using
- * selection, crossover, and mutation. Each individual is scored by a
- * multi-criteria fitness function measuring principle adherence, accessibility,
- * performance, and aesthetic harmony. The engine returns the fittest spec
- * along with a full evolution trace for transparency.
- *
- * Original to OpenMotion — applies evolutionary computation to motion design
- * so the Agent can breed progressively better animations from a seed spec.
+ * selection, crossover, and mutation, returning the fittest spec and a full
+ * evolution trace.
  */
 
 export interface Individual {

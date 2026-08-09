@@ -1,29 +1,4 @@
-/**
- * Motion Intelligence — creative analysis and generation capabilities.
- *
- * Three original systems that give the agent the ability to reason about
- * motion at a structural level:
- *
- * 1. Variation Engine
- *    Generate N variations of a component with controlled differences along
- *    orthogonal axes (easing, duration, intensity, direction, origin). Each
- *    variation is a fully-formed component spec ready for preview.
- *
- * 2. DNA Extraction
- *    Decompose a component into its motion DNA: the fundamental primitives
- *    that define its character (easing family, timing profile, transform
- *    signature, trigger semantics). The DNA is a compact, comparable
- *    representation that enables similarity search and style transfer.
- *
- * 3. Style Transfer
- *    Extract the "feel" of a source component and apply it to a target,
- *    preserving the target's structure while adopting the source's easing,
- *    timing, and intensity characteristics.
- *
- * All three systems are rule-based — no LLM round-trip required. They run
- * as part of the agent's tool execution, enabling creative exploration in
- * mock mode.
- */
+/** Motion Intelligence — creative analysis and generation capabilities. */
 
 import type { MotionComponent, Easing } from "@openmotion/shared";
 import { easingPreset, EASING_PRESETS } from "@openmotion/shared";

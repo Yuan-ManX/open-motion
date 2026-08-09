@@ -1,28 +1,4 @@
-/**
- * Motion Variant Comparator — multi-criteria variant comparison and ranking.
- *
- * This is the twenty-second original AI-native module. Where the Variation
- * Engine generates variants and the Critique scores a single component, the
- * Comparator evaluates multiple variants side-by-side across five criteria and
- * recommends the best option with transparent reasoning.
- *
- * Five evaluation criteria:
- * 1. Accessibility — estimates vestibular risk, flash risk, and motion
- *    reduction friendliness from the component's properties.
- * 2. Performance — estimates GPU cost from animated properties, duration,
- *    and loop behavior.
- * 3. Aesthetic novelty — scores how distinctive the easing and transform
- *    signature are compared to common patterns.
- * 4. Consistency — measures how well the variant's DNA matches the project's
- *    dominant easing family and timing tier.
- * 5. Clarity — evaluates whether the animation's duration and intensity are
- *    in a perceptually comfortable range.
- *
- * The comparator produces a ranked table with per-criterion scores, an overall
- * winner, and a trade-off analysis explaining what each variant sacrifices.
- *
- * Rule-based — no LLM round-trip required.
- */
+/** Motion Variant Comparator — multi-criteria variant comparison and ranking. */
 
 import type { MotionComponent, MotionSpec, Easing } from "@openmotion/shared";
 

@@ -1,22 +1,4 @@
-/**
- * Motion Entropy Engine — information-theoretic analysis of motion.
- *
- * This original AI-native module applies Shannon's information theory to
- * motion compositions. It measures the information content of motion
- * properties, detects redundancy between components, quantifies the
- * information density across the timeline, and reveals whether a
- * composition is information-rich (varied, surprising) or information-poor
- * (repetitive, predictable).
- *
- * Core concepts:
- * - Shannon Entropy: H(X) = -Σ p(x) log2 p(x), measures surprise in bits
- * - Mutual Information: I(X;Y) = H(X) + H(Y) - H(X,Y), measures shared info
- * - Information Density: bits of variation per unit time
- * - Redundancy: components that carry the same information
- * - Predictability: 1 - normalized entropy, how easy the motion is to forecast
- *
- * Rule-based — no LLM round-trip required.
- */
+/** Motion Entropy Engine — information-theoretic analysis of motion. */
 
 import type { MotionSpec, MotionComponent } from "@openmotion/shared";
 

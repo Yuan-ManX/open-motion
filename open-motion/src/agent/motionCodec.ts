@@ -1,24 +1,4 @@
-/**
- * Motion Codec — encodes and decodes motion compositions in multiple formats.
- *
- * This is an original AI-native module that provides bidirectional translation
- * between OpenMotion's internal spec and industry-standard animation formats.
- * This enables interoperability with the broader motion design ecosystem
- * while preserving OpenMotion's AI-native capabilities.
- *
- * Six codec targets:
- * 1. Lottie JSON — Bodymovin/Lottie format for web and mobile playback
- * 2. CSS Animation — standard CSS @keyframes with animation properties
- * 3. Web Animations API — JavaScript-based WAAPI constructor calls
- * 4. SMIL — SVG animation declarative format
- * 5. GSAP — JavaScript timeline configuration object
- * 6. React Spring — React component props for spring-based animation
- *
- * Each encoder takes a MotionSpec and produces a serialized string or object
- * in the target format. Decoders parse external formats back into MotionSpec.
- *
- * Rule-based — no LLM round-trip required.
- */
+/** Motion Codec — encodes and decodes motion compositions in multiple formats. */
 
 import type { MotionSpec, MotionComponent, Easing } from "@openmotion/shared";
 

@@ -1,34 +1,4 @@
-/**
- * Motion Export Optimizer — target-specific export optimization.
- *
- * This is the nineteenth original AI-native module. No existing module
- * optimizes a motion spec for a specific export target. Each target platform
- * (CSS Animations, Web Animations API, Lottie JSON, React Spring, GSAP)
- * has different capabilities, constraints, and optimal representation
- * strategies. The Export Optimizer analyzes the spec, detects target-specific
- * issues, and produces an optimized representation with fallbacks.
- *
- * Five export targets:
- * 1. CSS Animations — converts to @keyframes with vendor prefixes, detects
- *    unsupported properties, and generates a reduced-motion media query.
- * 2. Web Animations API (WAAPI) — converts to KeyframeEffect format,
- *    detects unsupported easing functions, and optimizes composite operations.
- * 3. Lottie JSON — converts to the Lottie schema, detects raster dependencies,
- *    and estimates the file size.
- * 4. React Spring — converts to spring physics configuration, detects
- *    incompatible easings (springs don't use cubic-bezier), and generates
- *    the config objects.
- * 5. GSAP — converts to GSAP timeline configuration, detects properties
- *    that benefit from GSAP's plugins, and generates the timeline code.
- *
- * For each target, the optimizer produces:
- * - A compatibility report (which properties are supported/unsupported)
- * - An optimized representation (the target-specific format)
- * - A fallback strategy for unsupported features
- * - An estimated output size
- *
- * Rule-based — no LLM round-trip required.
- */
+/** Motion Export Optimizer — target-specific export optimization. */
 
 import type { MotionComponent, MotionSpec } from "@openmotion/shared";
 

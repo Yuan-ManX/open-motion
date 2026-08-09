@@ -1,25 +1,4 @@
-/**
- * Motion Forecast — predictive trend analytics for motion DNA.
- *
- * This is the tenth original AI-native module. Where the Genome measures the
- * current state of a project's population, the Forecast projects where the
- * project is trending and recommends the next moves to either reinforce or
- * correct the trajectory.
- *
- * Five core analytics:
- * 1. Trend projection — extrapolate the dominant DNA traits and predict the
- *    project's likely final form if current patterns continue.
- * 2. Saturation forecast — detect when a dimension is approaching monoculture
- *    and project how many more components it would take to lock it in.
- * 3. Missing-axis detection — identify dimensions the project hasn't explored
- *    at all (e.g., no spring easings, no rotations, no infinite loops).
- * 4. Recommended next moves — concrete suggestions for what to add next,
- *    ranked by expected diversity gain.
- * 5. Risk assessment — flag patterns that will likely cause accessibility or
- *    aesthetic problems if continued (e.g., trending toward all-fast durations).
- *
- * Rule-based — no LLM round-trip required.
- */
+/** Motion Forecast — predictive trend analytics for motion DNA. */
 
 import type { MotionComponent, MotionSpec } from "@openmotion/shared";
 

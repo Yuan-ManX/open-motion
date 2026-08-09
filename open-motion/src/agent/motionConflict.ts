@@ -1,26 +1,4 @@
-/**
- * Motion Timeline Conflict Detector — structural problem detection.
- *
- * This is the twenty-first original AI-native module. Where the Choreographer
- * sequences components into optimal timing and the Profiler measures cost, the
- * Conflict Detector finds structural problems in the timeline itself: property
- * conflicts, transform collisions, timing gaps, duration anomalies, and
- * redundant animations.
- *
- * Five core checks:
- * 1. Property conflicts — same CSS property animated by multiple overlapping
- *    components on the same selector.
- * 2. Transform collisions — translate/rotate/scale fighting between
- *    overlapping components, causing visual jitter.
- * 3. Timing gaps — dead time with no animation between the start and end
- *    of the timeline.
- * 4. Timing collisions — too many components starting simultaneously
- *    (>5 within 50ms), overwhelming the viewer.
- * 5. Duration anomalies — components with durations 5x longer or shorter
- *    than the project average, indicating potential errors.
- *
- * Rule-based — no LLM round-trip required.
- */
+/** Motion Timeline Conflict Detector — structural problem detection. */
 
 import type { MotionComponent, MotionSpec } from "@openmotion/shared";
 

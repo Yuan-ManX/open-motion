@@ -1,24 +1,5 @@
 /**
  * Motion Consciousness Engine — meta-cognitive self-reflection on a design.
- *
- * This original AI-native module lets a motion composition observe its own
- * structure as if it were a thinking entity. It enumerates the design
- * beliefs implied by its spec, generates counter-questions that probe those
- * beliefs, detects cognitive biases embedded in the design choices, and
- * composes a first-person stream-of-consciousness monologue from the
- * composition's point of view. A metacognitive awareness score summarizes
- * how self-reflective the design choices are.
- *
- * Core concepts:
- * - Self-Belief: an implicit assumption the composition encodes
- * - Counter-Question: a probing question that challenges a self-belief
- * - Cognitive Bias: a systematic error in design reasoning (anchoring,
- *   confirmation, sunk-cost, default, recency) detected in the spec
- * - Stream of Consciousness: a first-person monologue the composition
- *   would speak if it could narrate its own design
- * - Metacognitive Awareness: a 0..1 score for how reflective the design is
- *
- * Rule-based — no LLM round-trip required. Deterministic given the spec.
  */
 
 import type { Easing, MotionSpec } from "@openmotion/shared";

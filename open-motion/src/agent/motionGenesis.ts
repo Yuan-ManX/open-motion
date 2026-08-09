@@ -1,23 +1,6 @@
 /**
  * Motion Genesis Engine — generates original motion from mathematical
  * first principles.
- *
- * This original AI-native module derives motion keyframes from pure
- * mathematics rather than presets. Each generator takes a small set of
- * parameters and produces a keyframe track that encodes a natural phenomenon:
- * Lissajous curves, golden-ratio spirals, wave interference, damped
- * oscillators, strange attractors, and phyllotactic patterns. The output is
- * a set of component drafts ready to drop into a MotionSpec.
- *
- * Core concepts:
- * - Lissajous Figure: parametric curve (x = A·sin(at+δ), y = B·sin(bt))
- * - Golden Spiral: logarithmic spiral with growth factor φ
- * - Wave Interference: superposition of two sine waves
- * - Damped Oscillator: x(t) = A·e^(-γt)·cos(ωt)
- * - Phyllotaxis: sunflower-seed packing on a Fermat spiral
- * - Strange Attractor: Lorenz-system projection to 2D
- *
- * Rule-based — no LLM round-trip required. Deterministic given parameters.
  */
 
 import type { Easing, Keyframe } from "@openmotion/shared";

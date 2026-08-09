@@ -1,22 +1,4 @@
-/**
- * Motion Cognition Engine — models the cognitive load a motion composition
- * imposes on the viewer.
- *
- * This original AI-native module applies cognitive psychology principles to
- * motion design. It models working memory demand, attention switching cost,
- * perceptual grouping (Gestalt principles), and processing fluency. The
- * output is a cognitive load score that predicts how mentally taxing the
- * composition is to perceive.
- *
- * Core concepts:
- * - Working Memory: Miller's 7±2 rule — humans track ~7 chunks at once
- * - Attention Switching: each new event costs cognitive resources
- * - Gestalt Grouping: similarity, proximity, continuity, closure
- * - Processing Fluency: familiar patterns are easier to process
- * - Cognitive Load: total mental effort required (intrinsic + extraneous)
- *
- * Rule-based — no LLM round-trip required.
- */
+/** Motion Cognition Engine — models the cognitive load a motion composition imposes on the viewer. */
 
 import type { MotionSpec, MotionComponent } from "@openmotion/shared";
 

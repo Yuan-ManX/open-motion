@@ -1,26 +1,4 @@
-/**
- * Motion Collaboration Engine — coordinates multiple motion intelligences.
- *
- * This is an original AI-native module that orchestrates the cooperation of
- * different motion intelligence modules (emotion, physics, style, context,
- * semantics, etc.) to produce unified, coherent motion designs from complex
- * multi-faceted requests.
- *
- * Instead of a single module handling everything, the collaboration engine:
- * 1. Decomposes a complex request into sub-tasks for specialized modules.
- * 2. Assigns each sub-task to the best-suited motion intelligence.
- * 3. Executes sub-tasks in dependency order (some can run in parallel).
- * 4. Merges results and resolves conflicts between module recommendations.
- * 5. Produces a unified motion design that satisfies all constraints.
- *
- * Collaboration patterns:
- * - Sequential: A → B → C (each module builds on the previous)
- * - Parallel: A + B + C (independent modules run simultaneously)
- * - Iterative: A ↔ B (modules refine each other's output)
- * - Hierarchical: A coordinates B and C (one module guides others)
- *
- * Rule-based — no LLM round-trip required.
- */
+/** Motion Collaboration Engine — coordinates multiple motion intelligences. */
 
 import type { Keyframe, Easing, EasingPreset } from "@openmotion/shared";
 import { easingPreset } from "@openmotion/shared";

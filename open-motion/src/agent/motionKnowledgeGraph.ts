@@ -1,26 +1,6 @@
 /**
  * Motion Knowledge Graph — a semantic graph of motion concepts, relationships,
- * and patterns that lets the Agent make intelligent recommendations and discover
- * connections between motion ideas.
- *
- * This is an original AI-native module. It lifts the agent's understanding of
- * motion from isolated presets to a connected knowledge base where every
- * concept — easing, timing, transform, staging, narrative, emotion, physics,
- * accessibility, performance, style, pattern, principle, technique — links to
- * its neighbours through typed relationships (enables, complements, conflicts,
- * requires, specializes, alternative, combines, transitions, contrasts,
- * evolves).
- *
- * Core capabilities:
- * 1. Build a comprehensive knowledge graph of 60+ motion concepts.
- * 2. Query and traverse concepts by id, keyword, or category.
- * 3. Find the shortest path between any two concepts (BFS).
- * 4. Suggest non-obvious connections between a set of concepts.
- * 5. Analyze graph structure — centrality, clusters, bridges, density.
- * 6. Recommend the next concept to explore based on what has been used,
- *    weighing graph distance, relationship strength, and centrality.
- *
- * Rule-based — no LLM round-trip required.
+ * and patterns for intelligent recommendations and discovery.
  */
 
 import { EASING_PRESETS, easingPreset, easingSpring, type Easing } from "@openmotion/shared";

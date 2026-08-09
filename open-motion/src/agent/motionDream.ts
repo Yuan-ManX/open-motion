@@ -1,20 +1,4 @@
-/**
- * Motion Dream Engine — generative creativity for novel motion concepts.
- *
- * This original AI-native module produces "dream-like" motion variations by
- * combining unrelated concepts through surrealist techniques. It enables
- * designers to explore motion possibilities beyond conventional patterns
- * through procedural generation and concept blending.
- *
- * Core techniques:
- * - Concept Juxtaposition: combine distant concepts to spark new ideas
- * - Procedural Generation: rule-based synthesis of novel motion patterns
- * - Mutation Operators: apply creative transformations to existing motion
- * - Dream Logic: associative chains that traverse the motion concept space
- * - Emergent Composition: combine multiple generators for surprising results
- *
- * Rule-based — no LLM round-trip required.
- */
+/** Motion Dream Engine — generative creativity for novel motion concepts. */
 
 import type { Keyframe } from "@openmotion/shared";
 import { easingPreset } from "@openmotion/shared";

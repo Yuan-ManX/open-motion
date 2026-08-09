@@ -1,22 +1,4 @@
-/**
- * Motion Ecology Engine — models motion components as an ecosystem.
- *
- * This original AI-native module treats a motion composition as a living
- * ecosystem where components interact like organisms. It classifies
- * species (component types), detects symbiotic/parasitic/predator-prey
- * relationships, computes biodiversity, and assesses ecosystem health.
- *
- * Core concepts:
- * - Species: components grouped by easing family + duration bucket
- * - Niche: the temporal/spatial role a component fills
- * - Symbiosis: components that mutually benefit (complementary timing)
- * - Parasitism: components that compete for the same temporal niche
- * - Predator-Prey: one component's motion "consumes" another's attention
- * - Biodiversity: variety of species in the ecosystem
- * - Carrying Capacity: how many components the timeline can sustain
- *
- * Rule-based — no LLM round-trip required.
- */
+/** Motion Ecology Engine — models motion components as an ecosystem. */
 
 import type { MotionSpec, MotionComponent } from "@openmotion/shared";
 

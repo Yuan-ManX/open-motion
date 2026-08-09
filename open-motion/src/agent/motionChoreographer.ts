@@ -1,27 +1,4 @@
-/**
- * Motion Choreographer — auto-choreography sequencing engine.
- *
- * This is the eighteenth original AI-native module. Where Storytelling
- * generates new narrative beats and Remix transforms component properties,
- * the Choreographer takes EXISTING components and rearranges their timing
- * (delays, durations, stagger intervals) to create a coherent multi-component
- * sequence. It analyzes the functional role of each component, determines the
- * optimal order, assigns staggered delays based on the chosen rhythm pattern,
- * and produces a choreography plan that can be applied to the project.
- *
- * Five choreography modes:
- * 1. Cascade — components appear in sequence with a steady stagger interval.
- * 2. Wave — components appear in a sinusoidal pattern, creating a rolling effect.
- * 3. Cluster — components are grouped into clusters that appear simultaneously.
- * 4. Climax — components build from subtle to dramatic, peaking at a focal point.
- * 5. Symphony — components are orchestrated into a multi-act structure with
- *    parallel groups, sequential chains, and rest periods.
- *
- * The Choreographer also produces a dependency graph showing which components
- * must complete before others can start, and a timing timeline visualization.
- *
- * Rule-based — no LLM round-trip required.
- */
+/** Motion Choreographer — auto-choreography sequencing engine. */
 
 import type { MotionComponent, MotionSpec } from "@openmotion/shared";
 

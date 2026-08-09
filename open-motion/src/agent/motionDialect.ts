@@ -1,22 +1,4 @@
-/**
- * Motion Dialect — context translation engine.
- *
- * This is the thirteenth original AI-native module. Different design
- * contexts speak different motion dialects: web animations favor medium
- * durations with smooth easings, mobile favors shorter snappy transitions,
- * gaming favors longer bouncy sequences, data visualization favors precise
- * linear state changes, and presentation favors dramatic long-form reveals.
- *
- * The Dialect module translates a motion spec from one dialect to another,
- * adjusting duration ranges, easing preferences, intensity levels, loop
- * behavior, and stagger patterns to match the target context's vocabulary.
- *
- * Use cases:
- *   - "Translate this for mobile"
- *   - "Make this gaming-ready"
- *   - "Convert to data-viz style"
- *   - "What does this look like in presentation mode?"
- */
+/** Motion Dialect — context translation engine. */
 
 import type { MotionComponent, MotionSpec, Easing } from "@openmotion/shared";
 import { easingPreset } from "../shared/motion/easing.js";

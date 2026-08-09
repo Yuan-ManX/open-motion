@@ -1,28 +1,4 @@
-/**
- * Motion Cohesion Analyzer — project-level visual and motion cohesion analysis.
- *
- * This is the twentieth original AI-native module. Where the Curator groups
- * components by semantic role and the Strategist detects the project archetype,
- * the Cohesion Analyzer measures how well all components work together as a
- * unified composition. It evaluates visual hierarchy, focal points, attention
- * flow, compositional balance, and motion synchronicity.
- *
- * Six core analytics:
- * 1. Visual hierarchy — ranks components by visual weight (intensity, duration,
- *    scale, color change) to reveal which element draws the eye first.
- * 2. Focal point detection — identifies the dominant focal component and
- *    checks whether secondary elements support or compete with it.
- * 3. Attention flow path — predicts the order in which a viewer's eye
- *    travels across components based on timing, intensity, and position.
- * 4. Compositional balance — evaluates whether entrance timing is spread
- *    evenly or bunched into clusters that overwhelm the viewer.
- * 5. Motion synchronicity — checks whether components share easing families
- *    and complementary timing, or move in chaotic discord.
- * 6. Cohesion score — a 0..100 composite score with driving factors and
- *    actionable recommendations for improvement.
- *
- * Rule-based — no LLM round-trip required.
- */
+/** Motion Cohesion Analyzer — project-level visual and motion cohesion analysis. */
 
 import type { MotionComponent, MotionSpec, Easing } from "@openmotion/shared";
 

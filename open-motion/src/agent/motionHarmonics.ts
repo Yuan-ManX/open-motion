@@ -1,21 +1,6 @@
 /**
  * Motion Harmonics Engine — analyzes motion as waveforms and computes
  * harmonic relationships between components.
- *
- * This original AI-native module treats each motion component as a periodic
- * waveform and applies Fourier decomposition to extract its
- * frequency signature. It then computes harmonic relationships (consonance,
- * dissonance, octave equivalence) between components, revealing the hidden
- * musical structure of a motion composition.
- *
- * Core concepts:
- * - Fundamental Frequency: the base cycle of a looping motion
- * - Overtone Series: integer multiples of the fundamental
- * - Consonance: components whose frequencies form simple integer ratios
- * - Dissonance: components whose frequencies form complex ratios (beating)
- * - Harmonic Complexity: the richness of the frequency spectrum
- *
- * Rule-based — no LLM round-trip required.
  */
 
 import type { MotionSpec, MotionComponent } from "@openmotion/shared";

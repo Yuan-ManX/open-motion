@@ -1,24 +1,4 @@
-/**
- * Motion Genealogy Engine — traces evolutionary lineage of motion patterns.
- *
- * This original AI-native module applies evolutionary biology principles to
- * motion compositions. It extracts genetic traits from each component,
- * computes similarity to identify ancestry relationships, builds a
- * phylogenetic tree, classifies the evolutionary pattern, and analyzes
- * genetic diversity and inheritance.
- *
- * Core concepts:
- * - Genetic Traits: easing, duration, keyframe count, iteration, trigger
- * - Similarity Matrix: pairwise trait comparison between components
- * - Parent-Child Relationships: components that likely share ancestry
- * - Phylogenetic Tree: evolutionary tree showing lineage divergence
- * - Evolutionary Pattern: divergent, convergent, parallel, or hybrid
- * - Inheritance Analysis: which traits are inherited vs mutated
- * - Generation Depth: number of evolutionary generations present
- * - Genetic Diversity: variation within the motion gene pool
- *
- * Rule-based — no LLM round-trip required.
- */
+/** Motion Genealogy Engine — traces evolutionary lineage of motion patterns. */
 
 import type { MotionSpec, MotionComponent } from "@openmotion/shared";
 

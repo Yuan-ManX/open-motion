@@ -1,30 +1,6 @@
 /**
  * Motion Lexicon Engine — a formal token system that translates natural
  * language (English or Chinese) into structured motion parameters.
- *
- * This original AI-native module is the linguistic layer of the agent. It
- * maps free-form intent onto three orthogonal token axes — Duration,
- * Easing, and Reduced-Motion Mode — and classifies the intent into one of
- * eleven motion categories. The token system gives the agent a shared
- * vocabulary with designers: instead of guessing durations or easings from
- * raw numbers, it reasons in named tokens (instant, micro, standard,
- * normal, extended, cinematic) that carry semantic weight.
- *
- * Core concepts:
- * - Duration Token: a named duration band (instant→cinematic) with a
- *   millisecond range, not a single value. The agent picks the band that
- *   matches the emotional beat, then resolves to a concrete ms.
- * - Easing Token: a named easing curve. ease-out is the default because it
- *   is the most universally correct entrance easing; springs are reserved
- *   for intents that explicitly ask for life.
- * - Motion Category: one of eleven canonical motion purposes. Routing an
- *   intent to a category tells the agent which family of templates and
- *   tools to draw from.
- * - Reduced-Motion Mode: which fallback the composition should ship when
- *   prefers-reduced-motion is set. Some categories (loading, video-
- *   transition) degrade to crossfade; destructive ones degrade to none.
- *
- * Rule-based — no LLM round-trip required. Deterministic given input.
  */
 
 // ---------------------------------------------------------------------------

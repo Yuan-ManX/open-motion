@@ -1,32 +1,6 @@
 /**
  * Motion Critique — structural analysis of a motion design across four
  * dimensions: Accessibility, Performance, Aesthetic, and Consistency.
- *
- * The critique is rule-based — no LLM round-trip required. It inspects the
- * component specs (easing, timing, transforms, triggers, keyframes) and
- * produces a structured report with per-dimension scores, specific findings,
- * and actionable recommendations.
- *
- * Original systems:
- *
- * 1. Accessibility Audit
- *    Detects flash hazards (rapid opacity oscillation), vestibular risks
- *    (infinite high-intensity loops), duration inadequacy for trigger
- *    context, and missing reduced-motion fallbacks.
- *
- * 2. Performance Profile
- *    Classifies animated properties as GPU-friendly (transform, opacity,
- *    filter) or layout-triggering (width, height, top, left, margin).
- *    Flags missing will-change hints and excessive keyframe counts.
- *
- * 3. Aesthetic Review
- *    Evaluates easing appropriateness for the trigger context, timing
- *    rhythm across components, intensity balance, and choreography
- *    presence (deliberate stagger delays).
- *
- * 4. Consistency Check
- *    Measures easing-family consistency within scenes, duration-bucket
- *    alignment, and naming-convention adherence.
  */
 
 import type { MotionComponent, MotionSpec, Trigger, Easing } from "@openmotion/shared";

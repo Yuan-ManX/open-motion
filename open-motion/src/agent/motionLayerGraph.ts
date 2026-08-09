@@ -1,32 +1,6 @@
 import type { MotionSpec, MotionComponent } from "@openmotion/shared";
 
-/**
- * Layer-Graph Engine — hierarchical layer model analysis.
- *
- * A motion composition is not a flat list — components can nest via
- * parentId, forming a transform hierarchy where each parent's transform
- * propagates to its children. This engine builds the layer tree, measures
- * nesting depth, validates parent/child transform chains, and detects
- * mask/matte relationships inferred from style (overflow, clip-path,
- * mask-image). Deep nesting and broken transform chains are common
- * sources of perceptual and rendering defects that a flat audit misses.
- *
- * Core concepts:
- * - LayerNode: a component placed in the tree. Its depth is the number
- *   of ancestors; its childCount is its direct descendants.
- * - TransformChain: the path from root to a node. Each ancestor's
- *   transform (translate/rotate/scale) compounds onto the child's. A
- *   chain is broken when a parent declares a transform but the child
- *   also declares an absolute-position override (top/left) — the two
- *   coordinate systems conflict.
- * - MaskRelationship: a parent with overflow:hidden / clip-path /
- *   mask-image masks its children. The engine records which children
- *   are masked so the UI can show matte boundaries.
- * - Orphan: a component whose parentId points to a non-existent id —
- *   the hierarchy is dangling.
- *
- * Rule-based — no LLM round-trip required, so mock mode stays functional.
- */
+/** Layer-Graph Engine — hierarchical layer model analysis. */
 
 // ---------------------------------------------------------------------------
 // Types

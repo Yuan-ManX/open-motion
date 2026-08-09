@@ -1,22 +1,5 @@
 /**
  * Motion Geology Engine — analyzes motion as geological formations.
- *
- * This original AI-native module treats a motion composition as a geological
- * landscape. Components are strata (rock layers); keyframes are tectonic
- * events; easings determine erosion rates; delays are deposition periods;
- * durations are geological epochs.
- *
- * Core concepts:
- * - Strata: components mapped to rock layers (sedimentary, igneous, metamorphic)
- * - Tectonic Events: keyframe transitions as earthquakes, uplifts, subductions
- * - Erosion: smoothing of motion over time (easing-based)
- * - Deposition: accumulation of motion (delay-based)
- * - Geological Epochs: timeline divided into eras
- * - Fault Lines: discontinuities between components
- * - Mineral Composition: property-based rock classification
- * - Topology: surface analysis of the motion landscape
- *
- * Rule-based — no LLM round-trip required.
  */
 
 import type { MotionSpec, MotionComponent } from "@openmotion/shared";
