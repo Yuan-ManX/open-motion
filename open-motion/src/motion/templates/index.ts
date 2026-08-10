@@ -96,6 +96,15 @@ import { barGrowTemplate } from "./barGrow.js";
 import { pieSweepTemplate } from "./pieSweep.js";
 import { lineDrawTemplate } from "./lineDraw.js";
 import { badgeUnlockTemplate } from "./badgeUnlock.js";
+import { slideUpExitTemplate } from "./slideUpExit.js";
+import { sinkExitTemplate } from "./sinkExit.js";
+import { rotateOutExitTemplate } from "./rotateOutExit.js";
+import { foldExitTemplate } from "./foldExit.js";
+import { contentPlaceholderTemplate } from "./contentPlaceholder.js";
+import { dashLoaderTemplate } from "./dashLoader.js";
+import { orbLoaderTemplate } from "./orbLoader.js";
+import { curtainRiseTemplate } from "./curtainRise.js";
+import { pageFoldTemplate } from "./pageFold.js";
 import type { ComponentDraft, TemplateDef } from "./helper.js";
 
 export const TEMPLATES: TemplateDef[] = [
@@ -195,6 +204,15 @@ export const TEMPLATES: TemplateDef[] = [
   pieSweepTemplate,
   lineDrawTemplate,
   badgeUnlockTemplate,
+  slideUpExitTemplate,
+  sinkExitTemplate,
+  rotateOutExitTemplate,
+  foldExitTemplate,
+  contentPlaceholderTemplate,
+  dashLoaderTemplate,
+  orbLoaderTemplate,
+  curtainRiseTemplate,
+  pageFoldTemplate,
 ];
 
 export function getTemplate(id: string): TemplateDef | undefined {
