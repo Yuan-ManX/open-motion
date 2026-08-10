@@ -1,18 +1,6 @@
 import { logger } from "../utils/logger.js";
 
-/**
- * Skills router — structured routing system that maps user intents to
- * domain skills and production workflows.
- *
- * The router analyzes user input and determines which skill combination
- * is best suited to handle the request. Each skill is a self-contained
- * capability that can be composed into production loops.
- *
- * Architecture:
- * - Router skill: the entry point that reads user input and routes
- * - Workflow skills: multi-step production pipelines
- * - Domain skills: atomic capabilities that can be composed
- */
+/** Skills router — structured routing system that maps user intents to domain skills and production workflows. */
 
 export type SkillCategory =
   | "creation"

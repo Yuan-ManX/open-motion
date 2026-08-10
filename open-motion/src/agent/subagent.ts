@@ -1,27 +1,8 @@
 /**
  * Subagent Delegation — parallel workstream execution with isolated budgets.
  *
- * The parent agent can delegate focused subtasks to independent subagents.
- * Each subagent gets its own iteration budget, tool whitelist, and goal.
- * This enables parallel exploration of alternative approaches (e.g., "try
- * three different easing curves and report which feels best").
- *
- * Design:
- *   - Subagents share the parent's project context (same projectId)
- *   - Each subagent has an isolated IterationBudget (default 6 iterations)
- *   - Tool whitelists prevent subagents from wandering outside their scope
- *   - Results are returned as a SubagentResult for the parent to merge
- *   - Checkpoint capture happens before subagent execution, so a bad
- *     subagent run can be rolled back without affecting the parent's state
- *
- * The parent agent decides when to delegate. Heuristics:
- *   - "explore alternatives" / "try different approaches" → spawn subagents
- *   - "compare X vs Y" → spawn two subagents, one per approach
- *   - "while you're at it, also..." → delegate the side task to a subagent
- *
- * Subagents are synchronous from the parent's perspective — the parent
- * awaits all subagents before continuing. True parallelism would require
- * worker threads, which is overkill for tool calls that are mostly I/O.
+ * The parent agent can delegate focused subtasks to independent subagents,
+ * each with its own iteration budget, tool whitelist, and goal.
  */
 
 import type { ChatEvent, ToolName } from "@openmotion/shared";

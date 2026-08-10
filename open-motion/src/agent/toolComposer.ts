@@ -1,21 +1,4 @@
-/**
- * Tool Composer — automatically synthesizes multi-tool pipelines from natural
- * language intent, reducing the round-trips needed for compound requests.
- *
- * When a user says "add a bouncy fade-in with a slight delay", the composer
- * recognizes three sub-intents (template, easing, delay) and produces a
- * single tool call sequence:
- *   1. set_template (fade)
- *   2. set_easing (bounce)
- *   3. set_delay (100ms)
- *
- * This runs as a pre-pass before the LLM is consulted. If the composer
- * matches a known pattern, it emits the composed tool calls directly —
- * saving a full LLM round-trip. If no pattern matches, the orchestrator
- * falls through to the normal LLM-driven planning path.
- *
- * Patterns are defined declaratively and can be extended without code changes.
- */
+/** Tool Composer — automatically synthesizes multi-tool pipelines from natural language intent. */
 
 import type { LlmToolCall } from "./provider/types.js";
 

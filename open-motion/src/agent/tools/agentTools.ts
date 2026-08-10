@@ -1,10 +1,4 @@
-/**
- * Agent infrastructure tool executors — checkpoint, plan, and budget control.
- *
- * These tools expose the agent's meta-layer (snapshots, structured plan
- * state, cancellation) to the LLM so it can self-recover from bad mutations
- * and respect user-driven plan cancellation.
- */
+/** Agent infrastructure tool executors — checkpoint, plan, and budget control. */
 
 import type { ToolName } from "@openmotion/shared";
 import {

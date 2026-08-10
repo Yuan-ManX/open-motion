@@ -1,17 +1,4 @@
-/**
- * Session Summary Generator — produces a human-readable recap of what was
- * accomplished during an Agent conversation session.
- *
- * Unlike session lineage (which tracks ancestry) and memory compression
- * (which condenses the transcript), the summary generator synthesizes a
- * narrative from tool calls, goal outcomes, and spec deltas. It answers:
- *   - What did the user ask for?
- *   - What did the Agent do?
- *   - What changed in the project?
- *   - What should the user consider next?
- *
- * Rule-based so it works in mock mode without an LLM.
- */
+/** Session Summary Generator — produces a human-readable recap of what was accomplished during an Agent conversation session. */
 
 import type { LlmToolCall } from "./provider/types.js";
 import type { ToolResult } from "./tools/registry.js";

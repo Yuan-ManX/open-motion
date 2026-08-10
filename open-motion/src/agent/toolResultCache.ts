@@ -1,18 +1,8 @@
 /**
  * Per-project tool result cache for read-only idempotent tools.
  *
- * The agent loop frequently re-issues query tools (get_motion_spec, list_templates,
- * list_recipes, etc.) within a single turn — especially after spec-changing
- * operations when the model wants to verify state. Each redundant call rebuilds
- * the same response from the same in-memory spec, wasting cycles and tokens.
- *
- * This cache stores the ToolResult of read-only calls keyed by (tool, args).
- * It is invalidated automatically the moment a spec-mutating tool runs in the
- * same project, and a TTL acts as a safety net so stale entries never persist.
- *
- * The cache is opt-in: only tools whose result is a pure function of the
- * current project state are cached. Tools with external side effects
- * (exports, generation, memory writes) bypass the cache entirely.
+ * Stores ToolResults of read-only calls keyed by (tool, args), invalidated
+ * automatically when a spec-mutating tool runs, with a TTL safety net.
  */
 
 import type { ToolResult } from "./tools/registry.js";

@@ -1,13 +1,4 @@
-/**
- * Session Lineage — tracks conversation ancestry and cross-session context.
- *
- * Each SessionSnapshot captures a conversation's intent, tools used, key
- * outcomes, and parent relationship. This builds a conversation tree (like a
- * git history for design sessions) that the Agent can traverse to recall
- * past decisions, fork from earlier points, and carry context forward.
- *
- * Stored in project tokens as JSON — no DB migration required.
- */
+/** Session Lineage — tracks conversation ancestry and cross-session context. */
 
 export type SessionStatus = "active" | "archived" | "forked";
 

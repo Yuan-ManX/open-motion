@@ -2,10 +2,7 @@ import type { MotionSpec } from "@openmotion/shared";
 
 /**
  * Proactive Suggestion Engine — generates short, contextual "next step"
- * suggestions immediately after a tool execution. Unlike suggest_next
- * (user-invoked, comprehensive) and suggestCreative (exhaustive + surprise),
- * this engine produces 1-3 focused prompts tied to the just-completed action
- * and the current spec state. Rule-based so it works in mock mode.
+ * suggestions immediately after a tool execution.
  */
 
 export type SuggestionKind =

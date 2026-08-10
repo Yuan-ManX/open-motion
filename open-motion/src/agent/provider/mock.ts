@@ -2,6 +2,7 @@ import type { ChatOptions, ChatResult, LlmProvider, LlmToolCall } from "./types.
 import { extractText } from "./types.js";
 import { createId } from "../../utils/id.js";
 import { resolveTemplateId, resolvePresetName } from "../intents.js";
+import { buildPlanNarrative, summarizeAfterTools } from "./mockPlanner.js";
 
 interface ParsedState {
   componentIds: string[];
@@ -93,12 +94,20 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
   // first component ID if one exists, or "__last__" to target the just-created
   // component (resolved by the orchestrator after set_template executes).
   let autoCreated = false;
+  // Tracks whether any set_template has been emitted this turn. set_template
+  // resets the spec, so the original firstComponentId becomes stale — once a
+  // template has been pushed, ensureComponent returns "__last__" so the
+  // orchestrator resolves to the freshly-created component instead of the
+  // dead pre-reset id.
+  let templateEmitted = false;
   function ensureComponent(): string {
+    if (templateEmitted) return "__last__";
     if (state.firstComponentId) return state.firstComponentId;
     if (!autoCreated) {
       push("set_template", { templateId: "tpl-fade-in" },
         "Created a default fade-in component to apply your change.");
       autoCreated = true;
+      templateEmitted = true;
     }
     return "__last__";
   }
@@ -106,56 +115,89 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
   // --- Create animation / layer by name (runs first so names like "bounce"
   // resolve to a template instead of no-op'ing the easing intent below) ---
   let createdFromName = false;
-  // Try "create/make/build/add a [name] animation/effect/motion/layer" first.
-  let createRaw: string | null = null;
-  const createWithNounM = userText.match(
-    /\b(?:create|make|build|generate|design|add)\s+(?:a\s+|an\s+|the\s+)?([\w][\w\s-]*?)\s+(?:animation|effect|motion|transition|layer|element|component)\b/i,
+  // --- Apply effect to an existing component: "add/apply <effect> to <component>" ---
+  // e.g. "Add a slow fade-in to the first component" -> set_template(tpl-fade-in).
+  // Runs before the create-layer path so apply-to-existing phrasing is not
+  // misrouted into add_layer with a greedy capture like "slow fade-in to the first".
+  const applyToM = userText.match(
+    /\b(?:add|apply)\s+(?:a\s+|an\s+|the\s+)?([\w][\w\s-]*?)\s+to\s+(?:the\s+|a\s+|an\s+)?(?:first|second|third|last|selected|current)?\s*(?:component|layer|element)\b/i,
   );
-  if (createWithNounM) {
-    createRaw = createWithNounM[1].trim();
-  } else {
-    // Fall back to "create/make/build a [name]" with no trailing noun — only
-    // fires when [name] resolves to a known template alias so we don't hijack
-    // phrases like "make a decision".
-    // Skip the bare-create fallback when the message is clearly about another
-    // tool (docs, beats, storyboard, similarity, documentation, narrative) so
-    // phrases like "Generate motion docs" don't get hijacked by create logic.
-    const wantsOtherTool = /\b(beat|storyboard|similar|docs?|documentation|narrative|lineage|capture|recipe|brand|profile|memory|accessibility|performance)\b/i.test(userText);
-    const createBareM = userText.match(
-      /\b(?:create|make|build|generate|design)\s+(?:a\s+|an\s+|the\s+)?([\w][\w\s-]+)\s*$/i,
-    );
-    if (createBareM && !wantsOtherTool) {
-      const raw = createBareM[1].trim();
-      if (resolveTemplateId(raw)) createRaw = raw;
+  if (applyToM) {
+    const effectRaw = applyToM[1].trim();
+    // Strip trailing generic nouns (animation/effect/motion/transition) so
+    // "fade-in animation" resolves to the "fade-in" alias.
+    const stripped = effectRaw.replace(/\s+(?:animation|effect|motion|transition)$/i, "").trim();
+    // Try the full capture, then progressively strip leading words until a
+    // known template alias resolves (handles "slow fade-in" -> "fade-in").
+    const words = stripped.split(/\s+/);
+    const candidates: string[] = [];
+    for (let i = 0; i < words.length; i++) candidates.push(words.slice(i).join(" "));
+    for (const candidate of candidates) {
+      if (!candidate) continue;
+      const resolved = resolveTemplateId(candidate);
+      if (resolved) {
+        push("set_template", { templateId: resolved },
+          `Applied the ${resolved} template to the target component.`);
+        createdFromName = true;
+        templateEmitted = true;
+        break;
+      }
     }
   }
-  // Guard: when the regex backtracks and captures a bare article ("a", "an",
-  // "the") as the name — e.g. "Add a layer called Title" — discard it so the
-  // dedicated add_layer handler below can extract the real name.
-  if (createRaw && /^(a|an|the)$/i.test(createRaw)) {
-    createRaw = null;
-  }
-  // Guard: when the name matches an animation preset (shake, wiggle, float, glow,
-  // heartbeat, typewriter), skip the create handler so apply_preset can handle it.
-  if (createRaw && /\b(shake|wiggle|float|glow|heartbeat|type[\s-]?writer)\b/i.test(createRaw)) {
-    createRaw = null;
-  }
-  // Guard: when the name matches a professional effect/operation (motion blur,
-  // null object, trim path, repeater, echo, time remap, drop shadow, etc.),
-  // skip the create handler so dedicated intent handlers below can fire.
-  if (createRaw && /\b(motion[\s-]?blur|null(?:[\s-]?object)?|trim[\s-]?path|repeater|echo|time[\s-]?remap|drop[\s-]?shadow|outer[\s-]?glow|inner[\s-]?shadow|layer[\s-]?effect|trail|afterimage|freeze(?:[\s-]?frame)?|null|mask|track[\s-]?matte|alpha[\s-]?matte|luma[\s-]?matte|posterize|stop[\s-]?motion|text[\s-]?animator|character[\s-]?by[\s-]?character|word[\s-]?by[\s-]?word|hold[\s-]?keyframe|roving[\s-]?keyframe|polygon|star|shape[\s-]?layer|gradient[\s-]?(?:fill|stroke)|wiggle|jitter|tremble|particle|emitter|burst|sparks|snow|confetti|camera|3d[\s-]?camera|multi[\s-]?plane|parallax|dolly|audio[\s-]?reactive|beat[\s-]?detect|music[\s-]?sync|sound[\s-]?reactive|puppet|mesh[\s-]?warp|liquid[\s-]?effect|organic[\s-]?deform)\b/i.test(createRaw)) {
-    createRaw = null;
-  }
-  if (createRaw) {
-    const resolved = resolveTemplateId(createRaw);
-    if (resolved) {
-      push("set_template", { templateId: resolved },
-        `Created a ${createRaw} animation using the ${resolved} template.`);
-      createdFromName = true;
+  // Try "create/make/build/add a [name] animation/effect/motion/layer" first.
+  // Skipped when the apply-to-component rule above already resolved a template.
+  if (!createdFromName) {
+    let createRaw: string | null = null;
+    const createWithNounM = userText.match(
+      /\b(?:create|make|build|generate|design|add)\s+(?:a\s+|an\s+|the\s+)?([\w][\w\s-]*?)\s+(?:animation|effect|motion|transition|layer|element|component)\b/i,
+    );
+    if (createWithNounM) {
+      createRaw = createWithNounM[1].trim();
     } else {
-      push("add_layer", { name: createRaw.charAt(0).toUpperCase() + createRaw.slice(1) },
-        `Added a new layer called "${createRaw}".`);
-      createdFromName = true;
+      // Fall back to "create/make/build a [name]" with no trailing noun — only
+      // fires when [name] resolves to a known template alias so we don't hijack
+      // phrases like "make a decision".
+      // Skip the bare-create fallback when the message is clearly about another
+      // tool (docs, beats, storyboard, similarity, documentation, narrative) so
+      // phrases like "Generate motion docs" don't get hijacked by create logic.
+      const wantsOtherTool = /\b(beat|storyboard|similar|docs?|documentation|narrative|lineage|capture|recipe|brand|profile|memory|accessibility|performance)\b/i.test(userText);
+      const createBareM = userText.match(
+        /\b(?:create|make|build|generate|design)\s+(?:a\s+|an\s+|the\s+)?([\w][\w\s-]+)\s*$/i,
+      );
+      if (createBareM && !wantsOtherTool) {
+        const raw = createBareM[1].trim();
+        if (resolveTemplateId(raw)) createRaw = raw;
+      }
+    }
+    // Guard: when the regex backtracks and captures a bare article ("a", "an",
+    // "the") as the name — e.g. "Add a layer called Title" — discard it so the
+    // dedicated add_layer handler below can extract the real name.
+    if (createRaw && /^(a|an|the)$/i.test(createRaw)) {
+      createRaw = null;
+    }
+    // Guard: when the name matches an animation preset (shake, wiggle, float, glow,
+    // heartbeat, typewriter), skip the create handler so apply_preset can handle it.
+    if (createRaw && /\b(shake|wiggle|float|glow|heartbeat|type[\s-]?writer)\b/i.test(createRaw)) {
+      createRaw = null;
+    }
+    // Guard: when the name matches a professional effect/operation (motion blur,
+    // null object, trim path, repeater, echo, time remap, drop shadow, etc.),
+    // skip the create handler so dedicated intent handlers below can fire.
+    if (createRaw && /\b(motion[\s-]?blur|null(?:[\s-]?object)?|trim[\s-]?path|repeater|echo|time[\s-]?remap|drop[\s-]?shadow|outer[\s-]?glow|inner[\s-]?shadow|layer[\s-]?effect|trail|afterimage|freeze(?:[\s-]?frame)?|null|mask|track[\s-]?matte|alpha[\s-]?matte|luma[\s-]?matte|posterize|stop[\s-]?motion|text[\s-]?animator|character[\s-]?by[\s-]?character|word[\s-]?by[\s-]?word|hold[\s-]?keyframe|roving[\s-]?keyframe|polygon|star|shape[\s-]?layer|gradient[\s-]?(?:fill|stroke)|wiggle|jitter|tremble|particle|emitter|burst|sparks|snow|confetti|camera|3d[\s-]?camera|multi[\s-]?plane|parallax|dolly|audio[\s-]?reactive|beat[\s-]?detect|music[\s-]?sync|sound[\s-]?reactive|puppet|mesh[\s-]?warp|liquid[\s-]?effect|organic[\s-]?deform)\b/i.test(createRaw)) {
+      createRaw = null;
+    }
+    if (createRaw) {
+      const resolved = resolveTemplateId(createRaw);
+      if (resolved) {
+        push("set_template", { templateId: resolved },
+          `Created a ${createRaw} animation using the ${resolved} template.`);
+        createdFromName = true;
+        templateEmitted = true;
+      } else {
+        push("add_layer", { name: createRaw.charAt(0).toUpperCase() + createRaw.slice(1) },
+          `Added a new layer called "${createRaw}".`);
+        createdFromName = true;
+      }
     }
   }
 
@@ -472,12 +514,17 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
     } else {
       push("set_template", { templateId: `tpl-${raw.toLowerCase().replace(/\s+/g, "-")}` }, `Switched to the ${raw} template.`);
     }
+    templateEmitted = true;
   }
 
   // --- Apply preset (shake, wiggle, float, glow, heartbeat, typewriter) ---
-  const presetM = userText.match(/\b(?:apply|use|add)\s+(?:a\s+|an\s+|the\s+)?(shake|wiggle|float|glow|heartbeat|type[\s-]?writer)\s+(?:preset|effect|animation)?\b/i);
+  // Accepts both "apply/use/add <preset>" and colloquial "make it <preset>"
+  // phrasing so requests like "make it float" don't fall through to the fallback.
+  const presetM = userText.match(
+    /\b(?:apply|use|add)\s+(?:a\s+|an\s+|the\s+)?(shake|wiggle|float|glow|heartbeat|type[\s-]?writer)(?:\s+(?:preset|effect|animation))?\b|\bmake\s+(?:it|the|this)\s+(shake|wiggle|float|glow|heartbeat|type[\s-]?writer)\b/i,
+  );
   if (presetM) {
-    const name = resolvePresetName(presetM[1]);
+    const name = resolvePresetName(presetM[1] || presetM[2]);
     if (name) {
       const cid = ensureComponent();
       push("apply_preset", { componentId: cid, preset: name },
@@ -4494,16 +4541,14 @@ export class MockProvider implements LlmProvider {
       .reverse()
       .find((m) => m.role === "assistant")?.toolCalls;
 
-    // Phase 1: issue tool calls for this turn.
+    // Phase 1: issue tool calls for this turn, with a structured plan narrative
+    // that explains the sequence before execution (single call stays conversational,
+    // multi-call gets a numbered "first / then / finally" trace).
     if (!lastAssistantToolCalls || lastAssistantToolCalls.length === 0) {
       const { calls, replies } = matchIntents(state, userText);
 
       if (calls.length > 0) {
-        // Emit a reasoning trace so the user sees the agent's plan before tools run.
-        // The replies describe each planned action; join them into a single trace.
-        const reasoning = replies.length > 0
-          ? replies.join(" ")
-          : `I'll use ${calls.map((c) => c.tool).join(", ")} to handle that.`;
+        const reasoning = buildPlanNarrative(calls, replies, userText);
         await streamText(options, reasoning);
         return { text: reasoning, toolCalls: calls, tokensIn: 0, tokensOut: 0, provider: "mock", model: "mock" };
       }
@@ -4512,11 +4557,10 @@ export class MockProvider implements LlmProvider {
       return { text: FALLBACK_REPLY, toolCalls: [], tokensIn: 0, tokensOut: 0, provider: "mock", model: "mock" };
     }
 
-    // Phase 2: tool calls were executed; produce a final summary.
-    const { replies } = matchIntents(state, userText);
-    const reply = replies.length > 0
-      ? replies.join(" ")
-      : "Done — I applied that change. Anything else you'd like to tune?";
+    // Phase 2: tool calls were executed; inspect the returned tool-result messages
+    // and compose an adaptive summary that reports per-tool success/failure and
+    // offers a context-aware follow-up (retry on failure, refinement on success).
+    const reply = summarizeAfterTools(options.messages, lastAssistantToolCalls, userText);
     await streamText(options, reply);
     return { text: reply, toolCalls: [], tokensIn: 0, tokensOut: 0, provider: "mock", model: "mock" };
   }

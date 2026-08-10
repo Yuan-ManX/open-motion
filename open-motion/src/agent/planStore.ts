@@ -1,13 +1,4 @@
-/**
- * Plan Store — in-memory persistence for the current plan and its execution
- * state, keyed by project id. The orchestrator composes a StructuredPlan
- * via planExecutor.composeStructuredPlan() and stores it here so the UI can
- * poll progress, cancel mid-flight, or re-execute later.
- *
- * The store is intentionally in-memory: plans are ephemeral working state,
- * not project data. If the server restarts, a new plan is composed on the
- * next user turn from the current spec + message.
- */
+/** Plan Store — in-memory persistence for the current plan and its execution state, keyed by project id. */
 
 import type { StructuredPlan, PlanExecutionState } from "./planExecutor.js";
 import { initPlanExecution, completeAction, failAction, requestCancel, planProgress, isPlanFinished } from "./planExecutor.js";

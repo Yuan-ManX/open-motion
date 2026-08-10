@@ -1,20 +1,4 @@
-/**
- * Plugin Hook System — pre/post tool interception for guardrails and metrics.
- *
- * Plugins register hooks at two lifecycle points:
- *   - `preToolCall`: invoked before a tool executes. Can validate args,
- *     mutate them, or veto execution by returning `{ veto: true, reason }`.
- *   - `postToolCall`: invoked after a tool executes. Can observe the result,
- *     trigger side effects (re-render, analytics), or annotate the result.
- *
- * Built-in guardrails (registered by default):
- *   - Component-count limit: prevents a single tool from creating >50 components
- *   - Duration sanity: clamps animation durations to [50ms, 60000ms]
- *   - Render-budget estimator: warns when a tool pushes the scene past 200 layers
- *
- * Plugins are plain functions — no decorator magic, no global state. The
- * orchestrator invokes `runPreHooks` and `runPostHooks` around each tool call.
- */
+/** Plugin Hook System — pre/post tool interception for guardrails and metrics. */
 
 import type { ToolName } from "@openmotion/shared";
 import { logger } from "../utils/logger.js";

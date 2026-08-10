@@ -1,23 +1,8 @@
 /**
  * Adaptive replanning on failure.
  *
- * When one or more tools fail mid-turn, the original plan (built from the
- * pre-turn spec) may no longer be accurate: the spec may have partially
- * mutated, and the failed tool's downstream steps may be unreachable.
- *
- * This module regenerates a focused REMAINING plan from the CURRENT spec
- * state plus the failure context. It is intentionally conservative:
- *   - At least one tool must have failed.
- *   - At least two iterations must remain in the budget (one to re-ground,
- *     one to act). With less headroom the agent should consolidate, not
- *     re-plan.
- *   - Steps whose tools already succeeded this turn are dropped — there is
- *     no value in re-doing them.
- *   - Steps whose tools just failed are also dropped — the recovery step
- *     replaces them.
- *
- * The replan is emitted as a fresh "plan" event so the UI refreshes the
- * step list and the user sees the adjusted trajectory.
+ * Regenerates a focused remaining plan from the current spec state plus
+ * failure context, dropping already-succeeded and just-failed steps.
  */
 
 import type { MotionSpec } from "@openmotion/shared";
