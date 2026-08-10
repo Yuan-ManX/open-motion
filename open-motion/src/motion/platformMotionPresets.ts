@@ -1,21 +1,4 @@
-/**
- * Platform Motion Presets — motion defaults tailored to specific platforms.
- *
- * Each platform has its own motion language: iOS favors spring-driven easing
- * with generous damping, Android Material favors expressive easing curves with
- * standard durations, macOS favors elastic snaps with conservative timing,
- * and the web favors standard ease curves tuned for 60fps. This file encodes
- * those platform conventions as named presets so a project can switch motion
- * languages by selecting a platform preset.
- *
- * Distinct from stylePresets.ts (aesthetic moods) and brandPack.ts (brand
- * identity): platform presets encode the native motion dialect of a target
- * platform — the easing, timing, spring constants, corner radii, and shadow
- * idioms that make motion feel "at home" on that platform.
- *
- * Original to OpenMotion — translates platform-specific motion design
- * guidelines into a unified, switchable preset system.
- */
+/** Platform Motion Presets — motion defaults tailored to specific platforms (iOS, Android, macOS, web). */
 
 import type { Easing } from "@openmotion/shared";
 import { easingPreset, easingBezier, easingSpring } from "@openmotion/shared";

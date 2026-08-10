@@ -1,13 +1,4 @@
-/**
- * Motion Sequence Planner — multi-scene narrative sequence planning.
- *
- * Plans complete motion narratives by decomposing a high-level story
- * into ordered scenes, assigning emotional tones, computing transitions,
- * and assembling a unified timeline with precise timing coordination.
- *
- * Original to OpenMotion — combines narrative theory with motion design
- * to produce coherent multi-scene sequences.
- */
+/** Motion Sequence Planner — plans multi-scene narrative motion sequences with ordered scenes and unified timelines. */
 
 import type { MotionSpec } from "@openmotion/shared";
 

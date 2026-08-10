@@ -76,7 +76,7 @@ const EnvSchema = z.object({
   OPENMOTION_API_KEY: z.string().optional(),
   CORS_ORIGIN: z.string().optional(),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().default(60000),
-  RATE_LIMIT_MAX: z.coerce.number().default(60),
+  RATE_LIMIT_MAX: z.coerce.number().default(300),
   CHAT_RATE_LIMIT_MAX: z.coerce.number().default(10),
   DB_PATH: z.string().optional(),
 });
@@ -149,7 +149,7 @@ function loadEnv(): Env {
       OPENMOTION_API_KEY: process.env.OPENMOTION_API_KEY,
       CORS_ORIGIN: process.env.CORS_ORIGIN,
       RATE_LIMIT_WINDOW_MS: Number(process.env.RATE_LIMIT_WINDOW_MS) || 60000,
-      RATE_LIMIT_MAX: Number(process.env.RATE_LIMIT_MAX) || 60,
+      RATE_LIMIT_MAX: Number(process.env.RATE_LIMIT_MAX) || 300,
       CHAT_RATE_LIMIT_MAX: Number(process.env.CHAT_RATE_LIMIT_MAX) || 10,
       DB_PATH: process.env.DB_PATH,
     };

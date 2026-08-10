@@ -1,11 +1,4 @@
-/**
- * Motion Performance Budget — analyzes animation cost metrics and estimates
- * frame budget impact. Tracks paint complexity, composite vs layout-triggering
- * properties, simultaneous animation count, and DOM impact.
- *
- * The goal is to help designers stay within a 16ms frame budget (60fps) by
- * flagging expensive properties and suggesting cheaper alternatives.
- */
+/** Motion Performance Budget — analyzes animation cost metrics and estimates frame-budget impact. */
 
 import type { MotionComponent } from "@openmotion/shared";
 

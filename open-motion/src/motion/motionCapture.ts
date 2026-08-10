@@ -1,13 +1,4 @@
-/**
- * Motion Capture system — record cursor trajectories and convert them into
- * component keyframes. A capture session samples pointer positions at regular
- * intervals; the resulting path can be smoothed, normalized, and applied to
- * any component as a translateX/translateY animation track.
- *
- * This enables a "draw the motion" workflow: the user moves their cursor
- * across the canvas, and the Agent materializes that gesture as a precise,
- * editable keyframe sequence.
- */
+/** Motion Capture — records cursor trajectories and converts them into component keyframes. */
 
 import type { Easing, Keyframe, MotionComponent } from "@openmotion/shared";
 import { easingPreset } from "@openmotion/shared";

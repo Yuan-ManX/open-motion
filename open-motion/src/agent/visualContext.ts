@@ -1,20 +1,4 @@
-/**
- * Visual Context Analyzer — interprets the canvas as a spatial layout.
- *
- * The motion spec stores component positions and sizes inside `style` as CSS
- * values (left/top/width/height in px or as numbers). This module extracts
- * bounding boxes, then computes design-relevant signals:
- *   - Visual balance (centroid of area vs. canvas center)
- *   - Spacing consistency (gap variance between neighbors)
- *   - Hierarchy (size and z-order distribution)
- *   - Color distribution (palette extracted from text/background colors)
- *   - Overlap detection (intersecting bounding boxes)
- *   - Alignment detection (rows, columns, grid snapping)
- *
- * The output drives the `analyze_visual_context` agent tool and gives the
- * orchestrator an explicit "eye" on the canvas — it can reason about layout,
- * not just motion timing.
- */
+/** Visual Context Analyzer — interprets the canvas as a spatial layout. */
 
 import type { MotionComponent, MotionSpec } from "@openmotion/shared";
 

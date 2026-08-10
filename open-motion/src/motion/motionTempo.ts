@@ -1,12 +1,4 @@
-/**
- * Motion tempo utilities — quantize animation timing to a musical beat grid.
- *
- * A project can declare a tempo (beats-per-minute). Durations and staggers
- * can then be snapped to the nearest beat division (whole, half, quarter,
- * eighth, sixteenth) so every motion locks to the same rhythmic pulse.
- * This lets a designer keep UI motion in sync with a soundtrack without
- * hand-tuning each duration.
- */
+/** Motion tempo utilities — quantize animation timing to a musical beat grid. */
 
 /** Supported beat divisions — how many slices per whole note. */
 export const BEAT_DIVISIONS = [1, 2, 4, 8, 16] as const;

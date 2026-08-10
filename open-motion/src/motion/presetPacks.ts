@@ -1,12 +1,4 @@
-/**
- * Curated themed template packs — small bundles of existing template IDs
- * grouped by use case so users can quickly apply a coherent set of motions
- * (e.g., "UI Feedback", "Loaders") instead of picking templates one by one.
- *
- * Packs are pure metadata: they reference template IDs that already exist in
- * templates/index.ts. Adding a pack does not create new templates — it just
- * curates a named selection.
- */
+/** Curated themed template packs — bundles of existing template IDs grouped by use case. */
 
 import type { MotionComponent } from "@openmotion/shared";
 import { instantiateTemplate } from "./templates/index.js";

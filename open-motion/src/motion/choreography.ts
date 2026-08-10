@@ -1,12 +1,4 @@
-/**
- * Motion Choreography Patterns — pre-built multi-component orchestration
- * patterns that translate dance and music composition theory into motion. Each pattern
- * coordinates timing, delays, and motion properties across multiple components
- * to create cohesive group animations.
- *
- * Patterns: cascade, call-and-response, unison, counterpoint, wave,
- * canon, stagger-grid, ripple-out.
- */
+/** Motion Choreography Patterns — pre-built multi-component orchestration patterns that coordinate timing and motion across groups. */
 
 import type { MotionComponent } from "@openmotion/shared";
 

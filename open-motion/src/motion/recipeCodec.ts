@@ -1,29 +1,4 @@
-/**
- * Triple-Encoding Recipe Codec
- *
- * Each motion recipe lives in three encodings, all derived from a single
- * canonical form. The codec converts between them so the Agent can pick the
- * most efficient execution path for any given context.
- *
- *   Encoding 1 — Natural Language (description + skillMarkdown)
- *       Human-readable intent. Used when the LLM needs to reason about
- *       which recipe to apply.
- *
- *   Encoding 2 — Structured Spec (recipe field)
- *       JSON object with keyframes, easing, duration, loop. Used by the
- *       restraint engine and the analysis pipeline.
- *
- *   Encoding 3 — Tool Call Sequence (executable)
- *       Ordered list of {tool, args} pairs that, when executed in order,
- *       reproduces the recipe on a target component. This is the executable
- *       form — the Agent can invoke the recipe with one apply_recipe call
- *       and the runtime expands it into the underlying tool sequence.
- *
- * The triple encoding means a recipe is simultaneously:
- *   - searchable by description (encoding 1)
- *   - analyzable by structure (encoding 2)
- *   - directly executable without LLM round-trips (encoding 3)
- */
+/** Recipe codec — serializes motion recipes across three encodings from one canonical record. */
 
 import type { ToolName } from "@openmotion/shared";
 import type { MotionRecipe } from "./recipes.js";

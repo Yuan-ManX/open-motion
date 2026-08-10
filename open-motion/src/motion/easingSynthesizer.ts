@@ -1,15 +1,4 @@
-/**
- * Smart Easing Curve Synthesizer — maps semantic descriptions (natural language
- * adjectives for motion feel) to precise cubic-bezier control points or spring
- * physics parameters.
- *
- * The synthesizer understands a vocabulary of motion qualities:
- * weighty, featherlight, snappy, dramatic, playful, elegant, organic,
- * mechanical, bouncy, heavy, light, energetic, calm, aggressive, gentle.
- *
- * Each quality maps to specific bezier control points or spring constants
- * that produce the described feel when applied to an animation.
- */
+/** Smart Easing Curve Synthesizer — maps semantic motion-feel descriptions to cubic-bezier control points or spring parameters. */
 
 import type { Easing } from "@openmotion/shared";
 

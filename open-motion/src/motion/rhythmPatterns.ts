@@ -1,13 +1,4 @@
-/**
- * Rhythm Patterns — musical timing library.
- *
- * Applies musical concepts (syncopation, swing, rubato, polyrhythm)
- * to motion timing, creating organic, natural-feeling animation
- * rhythms that go beyond mechanical uniform delays.
- *
- * Original to OpenMotion — translates music theory into motion timing
- * for more expressive, lifelike animation sequences.
- */
+/** Rhythm Patterns — applies musical timing concepts (syncopation, swing, rubato, polyrhythm) to motion sequences. */
 
 // ---------------------------------------------------------------------------
 // Types

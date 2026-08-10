@@ -1,18 +1,4 @@
-/**
- * Cursor Choreography — presets for cursor-driven motion choreography.
- *
- * Each preset defines a cursor-driven pattern (reveal, trail, magnet,
- * spotlight, repel, tug) with the radius of influence, intensity, easing,
- * and timing. The agent applies these to a set of components to create
- * cursor-reactive scenes where elements respond to pointer position.
- *
- * Distinct from magneticPull.ts and magneticRipple.ts (single-component
- * templates): cursor choreography presets orchestrate cursor-driven behavior
- * across an entire scene with consistent spatial and temporal rules.
- *
- * Original to OpenMotion — encodes cursor-reactive scene choreography as
- * reusable, parameterized presets rather than per-component one-offs.
- */
+/** Cursor Choreography — presets for cursor-driven motion choreography (reveal, trail, magnet, spotlight, repel, tug). */
 
 import type { Easing } from "@openmotion/shared";
 import { easingPreset, easingSpring, easingBezier } from "@openmotion/shared";

@@ -1,14 +1,4 @@
-/**
- * Motion Theme System — coordinated motion identity.
- *
- * Defines a unified motion identity that coordinates easing families,
- * timing scales, choreography rules, and motion personality into a
- * single cohesive theme. A motion theme acts as a design system for
- * motion, ensuring consistency across an entire product or brand.
- *
- * Original to OpenMotion — applies design system principles to motion
- * identity, creating reusable, themable motion personalities.
- */
+/** Motion Theme System — coordinates easing families, timing scales, choreography rules, and motion personality into a unified theme. */
 
 import type { MotionSpec, MotionComponent, Easing, EasingPreset } from "@openmotion/shared";
 

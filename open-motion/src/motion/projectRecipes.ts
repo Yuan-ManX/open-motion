@@ -1,13 +1,4 @@
-/**
- * Project-level Motion Recipe system — save, load, and apply reusable motion
- * units stored as JSON in project tokens. Complements the curated recipe library
- * in recipes.ts by allowing users to capture and reuse their own motion patterns.
- *
- * A ProjectRecipe captures a complete motion configuration from an existing
- * component: easing, duration, delay, loop, direction, trigger, and keyframe
- * property hints. It also carries intent keywords and avoidance conditions for
- * context-aware matching by the Agent.
- */
+/** Project-level Motion Recipe system — save, load, and apply reusable motion units stored as JSON in project tokens. */
 
 import type { Easing, MotionComponent } from "@openmotion/shared";
 import { easingPreset } from "@openmotion/shared";

@@ -1,13 +1,4 @@
-/**
- * Motion Design Principles Engine — applies and analyzes the 12 fundamental
- * principles of animation against motion components. Each principle has a checker that
- * detects presence in existing keyframes and an applier that modifies
- * keyframes to embody the principle.
- *
- * The 12 principles: squash & stretch, anticipation, staging, slow in/slow out,
- * arcs, secondary action, timing, exaggeration, solid drawing, appeal,
- * follow through, overlapping action.
- */
+/** Motion Design Principles Engine — applies and analyzes the 12 principles of animation against motion components. */
 
 import type { Easing, Keyframe, MotionComponent } from "@openmotion/shared";
 import { easingPreset } from "../shared/motion/easing.js";

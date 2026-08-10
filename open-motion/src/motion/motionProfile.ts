@@ -1,14 +1,4 @@
-/**
- * Motion Profile system — per-component personality descriptors that guide
- * context-aware motion decisions. Each profile assigns a role (hero, supporting,
- * background, CTA, etc.), temperament (bold, subtle, urgent, calm), interaction
- * style, and visual weight to a component.
- *
- * When the Agent tunes a component, it can reference the profile to choose
- * appropriate easing, duration, and trigger — e.g., a "hero" component gets
- * generous timing and emphasis easing, while a "background" element stays
- * subtle and ambient.
- */
+/** Motion Profile — per-component personality descriptors that guide context-aware motion decisions. */
 
 import type { Easing, MotionComponent } from "@openmotion/shared";
 import { easingPreset, easingBezier, easingSpring } from "@openmotion/shared";

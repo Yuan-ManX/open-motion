@@ -1,12 +1,4 @@
-/**
- * Brand Pack system — cohesive motion identity presets stored as JSON in
- * project tokens. A Brand Pack defines the "motion personality" of a project:
- * standard durations, signature easings, trigger philosophy, stagger timing,
- * and personality traits (energy, formality, playfulness, precision).
- *
- * Applying a Brand Pack to a project rewrites all component timing parameters
- * to align with the brand's motion identity, creating instant consistency.
- */
+/** Brand Pack system — cohesive motion identity presets stored as JSON in project tokens. */
 
 import type { Easing, MotionComponent } from "@openmotion/shared";
 import { easingPreset, easingBezier, easingSpring } from "@openmotion/shared";

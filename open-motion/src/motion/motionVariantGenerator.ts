@@ -1,13 +1,4 @@
-/**
- * Motion Variant Generator — A/B variant generation.
- *
- * Generates multiple motion variants from a single spec, each exploring
- * a different design direction. Enables rapid A/B comparison and
- * creative exploration without manual rework.
- *
- * Original to OpenMotion — applies combinatorial exploration to motion
- * design, producing diverse variants from a single source.
- */
+/** Motion Variant Generator — generates multiple motion variants from a single spec for A/B comparison. */
 
 import type { MotionSpec, MotionComponent, Easing } from "@openmotion/shared";
 

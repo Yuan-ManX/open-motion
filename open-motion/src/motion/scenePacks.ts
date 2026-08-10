@@ -1,20 +1,4 @@
-/**
- * Scene Packs — vertically-tailored motion scene compositions.
- *
- * Each pack orchestrates a sequence of template-driven component slots into a
- * complete, drop-in scene for a specific product vertical (marketing hero,
- * data dashboard, e-commerce, onboarding, empty/error/success states). A pack
- * carries the slot roles, the template each slot instantiates, the timeline
- * offset for staggered entrance, the choreography pattern that governs
- * inter-slot timing, and the recommended style presets that pair well.
- *
- * Distinct from presetPacks (which only group template IDs by theme): scene
- * packs add vertical context, slot roles, timing offsets, choreography, and
- * narrative — turning isolated templates into a cohesive product scene.
- *
- * Original to OpenMotion — provides the vertical content library that turns
- * atomic motion templates into ready-to-ship product moments.
- */
+/** Scene Packs — vertically-tailored motion scene compositions that orchestrate template slots into drop-in product scenes. */
 
 import type { MotionComponent } from "@openmotion/shared";
 import { now } from "../utils/id.js";

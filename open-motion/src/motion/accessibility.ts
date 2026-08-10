@@ -1,19 +1,4 @@
-/**
- * Motion Accessibility & Safety Checker — analyzes motion specs for vestibular
- * safety, seizure risk, reduced-motion compliance, and cognitive load.
- *
- * Vestibular safety detects rapid movements, large displacements, parallax
- * layers, and excessive spinning that can trigger motion sickness.
- *
- * Seizure risk detects flashing/strobing patterns where opacity or color
- * changes rapidly at frequencies above 3Hz (the WCAG 2.3.1 threshold).
- *
- * Reduced-motion compliance checks whether infinite loops and essential
- * animations have accessible alternatives.
- *
- * Cognitive load counts simultaneous active animations and flags inconsistent
- * timing scales and conflicting easing families.
- */
+/** Motion Accessibility & Safety Checker — analyzes motion specs for vestibular safety, seizure risk, reduced-motion compliance, and cognitive load. */
 
 import type { Easing, MotionComponent } from "@openmotion/shared";
 

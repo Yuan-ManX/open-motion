@@ -1,10 +1,4 @@
-/**
- * Motion Documentation Generator — produces a comprehensive specification
- * document from a project's motion state. Unifies component inventory, Motion
- * DNA signatures, timing analysis, easing distribution, trigger philosophy,
- * accessibility and performance summaries, and storyboard beats into a single
- * shareable artifact.
- */
+/** Motion Documentation Generator — produces a comprehensive specification document from a project's motion state. */
 
 import type { MotionComponent, MotionSpec } from "@openmotion/shared";
 import { buildDna } from "./similarity.js";

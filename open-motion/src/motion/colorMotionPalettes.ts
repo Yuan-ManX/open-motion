@@ -1,19 +1,4 @@
-/**
- * Color Motion Palettes — curated, named color systems designed for motion.
- *
- * Each palette pairs a base + accent + ordered stops with a list of motion
- * pairs (from → to) that define how colors should transition when animated.
- * Motion pairs carry a mood label so the agent can choose transitions that
- * match the intended emotional register (e.g. "awaken" for sunrise, "cool"
- * for ambient drift).
- *
- * Distinct from colorHarmony.ts (which generates HSL-derived palettes from a
- * base color algorithmically): this file ships hand-curated, named palettes
- * with motion-specific transition semantics.
- *
- * Original to OpenMotion — bridges color theory with motion choreography by
- * encoding the emotional intent of each color transition.
- */
+/** Color Motion Palettes — curated, named color systems with motion transition pairs for animated color shifts. */
 
 /** A from/to color pair with an emotional mood label. */
 export interface ColorMotionPair {

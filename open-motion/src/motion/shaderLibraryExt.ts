@@ -1,19 +1,4 @@
-/**
- * Extended Shader Library — procedural GLSL effects for the MotionMount runtime.
- *
- * Each entry is a self-contained GLSL fragment shader paired with a CSS
- * fallback and tunable parameters. The shaders are designed for real-time
- * preview at 60fps on consumer hardware.
- *
- * Categories:
- *   - pattern:  procedural textures (voronoi, flow field, caustics)
- *   - light:    lighting effects (iridescent, holographic, aurora)
- *   - material: surface materials (liquid metal, crystal, glass)
- *   - noise:    noise-based effects (perlin, simplectic, fractal)
- *
- * The MotionMount runtime compiles these shaders to WebGL and exposes the
- * parameters as live-tunable controls in the Shader Studio panel.
- */
+/** Extended Shader Library — procedural GLSL effects for the MotionMount runtime with CSS fallbacks. */
 
 import { SHADER_EFFECTS, type ShaderEffect } from "./shaders.js";
 

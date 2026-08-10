@@ -1,25 +1,4 @@
-/**
- * Restraint Budget — per-project ceiling on cumulative motion "loudness".
- *
- * The restraint engine (restraint.ts) analyzes the current composition and
- * reports issues. The budget system goes one step further: it tracks a
- * running spend across all spec mutations and blocks new effects when the
- * project would exceed its allocated ceiling.
- *
- * Each motion recipe and effect carries a `restraintCost` (0-5). When the
- * Agent applies an effect, the cost is deducted from the project's budget.
- * When the budget is exhausted, new loud effects are blocked and the Agent
- * is told to either remove existing effects or switch to a higher tier.
- *
- * Tiers:
- *   minimalist  — 8 cost points  (1-2 hero animations, everything else subtle)
- *   balanced    — 20 cost points (default; mix of hero and supporting motion)
- *   expressive  — 40 cost points (rich motion design, marketing pages)
- *   maximalist  — 80 cost points (showcase / demo reels, no restraint)
- *
- * The budget is persisted in project tokens under `__restraintBudget` so it
- * survives across sessions.
- */
+/** Restraint Budget — per-project ceiling on cumulative motion "loudness", tracked across spec mutations. */
 
 import type { MotionSpec, MotionComponent } from "@openmotion/shared";
 

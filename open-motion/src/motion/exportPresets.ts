@@ -1,12 +1,4 @@
-/**
- * Smart Export Presets — platform-aware export profiles that bundle the right
- * format, dimensions, frame rate, and optimizations for each target platform.
- *
- * The recommendation engine analyzes the project's motion characteristics
- * (component count, total duration, loop behavior, shader usage, keyframe
- * density) and ranks presets by suitability, so the Agent can suggest the best
- * export format without the user needing to know the technical tradeoffs.
- */
+/** Smart Export Presets — platform-aware export profiles that bundle format, dimensions, frame rate, and optimizations. */
 
 import type { MotionComponent } from "@openmotion/shared";
 

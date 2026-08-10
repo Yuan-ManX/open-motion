@@ -1,23 +1,4 @@
-/**
- * Accessibility Motion Profiles — named, reusable constraint profiles that
- * define safe operating envelopes for motion in specific accessibility
- * contexts.
- *
- * Each profile encodes hard limits (max displacement, max rotation, max
- * opacity-change frequency, max simultaneous animations, loop policy) and a
- * list of discouraged motion categories. The accessibility checker
- * (accessibility.ts) analyzes a spec and reports violations; an accessibility
- * profile defines the threshold set the checker should validate against.
- *
- * Distinct from accessibility.ts (the analyzer) and adaptive.ts (the
- * context-aware degrader): this file ships named profiles that the agent can
- * select based on user intent ("make this vestibular-safe", "reduce motion
- * for low-motion users") and that other engines can consult as canonical
- * threshold sources.
- *
- * Original to OpenMotion — codifies accessibility motion guidance as
- * first-class, selectable design profiles rather than scattered thresholds.
- */
+/** Accessibility Motion Profiles — named, reusable constraint profiles that define safe motion envelopes for accessibility contexts. */
 
 /** When to apply this profile. */
 export type AccessibilityProfileContext =
