@@ -1,22 +1,4 @@
-/**
- * Motion Synesthesia Engine — cross-modal sensory mapping for motion design.
- *
- * This original AI-native module translates motion parameters into other
- * sensory modalities (color, sound, texture, taste) and vice versa. This
- * enables synesthetic design where motion can be "heard", "felt", or "seen"
- * through different sensory lenses.
- *
- * Core concepts:
- * - Cross-Modal Mapping: motion speed → pitch, intensity → brightness
- * - Synesthetic Palette: each motion has a sensory signature
- * - Harmonic Translation: motion rhythms translate to musical phrases
- * - Color Choreography: motion parameters map to color theory
- *
- * This module treats motion as a multi-sensory design medium, drawing on
- * original cross-modal perception principles unique to OpenMotion.
- *
- * Rule-based — no LLM round-trip required.
- */
+/** Motion Synesthesia Engine — cross-modal sensory mapping for motion design. */
 
 import type { MotionSpec, MotionComponent } from "@openmotion/shared";
 

@@ -1,25 +1,5 @@
 /**
  * Motion Symbiosis Engine — models cross-composition ecological relationships.
- *
- * This original AI-native module treats two motion compositions as organisms
- * sharing a design ecosystem. It extracts each composition's genomic
- * signature (a trait vector over motion design dimensions), measures niche
- * overlap and resource competition, classifies the ecological relationship
- * between the two, and breeds a hybrid offspring composition by crossing
- * over keyframe tracks and easing curves from both parents.
- *
- * Core concepts:
- * - Genome: a trait vector characterizing a composition's design phenotype
- * - Niche Overlap: how much the two compositions occupy the same design
- *   territory (high overlap = direct competitors for the same niche)
- * - Complementarity: how much each composition fills gaps the other leaves
- * - Relationship Type: mutualism, commensalism, parasitism, competition,
- *   neutralism — derived from overlap and complementarity
- * - Hybrid Offspring: a new component set bred by recombining parental
- *   keyframes, easings, and timings via crossover
- * - Symbiosis Fitness: how viable the offspring is in the shared niche
- *
- * Rule-based — no LLM round-trip required. Deterministic given the inputs.
  */
 
 import type { Easing, Keyframe, MotionComponent, MotionSpec } from "@openmotion/shared";

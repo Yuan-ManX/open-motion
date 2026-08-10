@@ -1,21 +1,5 @@
 /**
  * Motion Linguistics Engine — analyzes motion as a structured language.
- *
- * This original AI-native module treats a motion composition as a linguistic
- * utterance. Components are morphemes (meaning-bearing units); keyframes are
- * phonemes (atomic gestures); easings determine prosody (rhythm of speech);
- * delays are syntactic pauses; durations are syllable lengths.
- *
- * Core concepts:
- * - Phonology: atomic motion sounds (plosives, fricatives, vowels, diphthongs)
- * - Morphology: word formation from keyframe clusters
- * - Syntax: phrase structure and grammatical relations
- * - Semantics: meaning derived from motion lexicon
- * - Pragmatics: contextual intent (assertion, question, command, exclamation)
- * - Prosody: stress, intonation, rhythm, tempo
- * - Discourse: coherence between motion phrases
- *
- * Rule-based — no LLM round-trip required.
  */
 
 import type { MotionSpec, MotionComponent } from "@openmotion/shared";

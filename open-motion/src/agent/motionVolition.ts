@@ -1,27 +1,6 @@
 /**
  * Motion Volition Engine — decides whether the agent should act, ask, defer,
  * or refine before committing to a tool sequence.
- *
- * This original AI-native module sits between intent recognition and tool
- * execution. Rather than firing tools the instant an intent is detected, it
- * weighs the cost of acting against the cost of stalling. Acting on a vague
- * intent wastes tool calls and mutates the spec; stalling on a clear intent
- * frustrates the user. Volition is the judgement layer that picks the
- * lowest-regret next move.
- *
- * Core concepts:
- * - Volition Mode: ACT (proceed), ASK (one bounded clarifying question),
- *   DEFER (wait — the input is too thin to act or ask well), REFINE
- *   (re-express the messy intent in a cleaner form before acting)
- * - Action Readiness: 0..1 confidence that the intent is concrete enough
- *   to execute without regret
- * - Stall Risk: 0..1 cost of acting on the current intent as-is
- * - Ambiguity Signals: missing target, missing parameter, conflicting
- *   modifiers, destructive scope, repeated prior asks
- * - Regret Estimate: expected number of undo operations if the agent acts now
- *
- * Rule-based — no LLM round-trip required. Deterministic given inputs, so it
- * can gate the orchestrator's tool dispatch synchronously.
  */
 
 import type { MotionSpec } from "@openmotion/shared";

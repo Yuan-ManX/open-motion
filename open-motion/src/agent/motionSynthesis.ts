@@ -1,36 +1,4 @@
-/**
- * Motion Synthesis — DNA hybridization and genetic crossover for motion.
- *
- * Combines motion DNA from two or more source components to produce a new
- * hybrid motion. Four synthesis strategies are supported, each modeling a
- * different genetic combination pattern.
- *
- * Original systems:
- *
- * 1. DNA Blending
- *    Averages the traits (easing family, timing bucket, intensity, transform
- *    signature) across all sources. Produces a balanced hybrid that
- *    inherits equal influence from each parent.
- *
- * 2. Dominant-Recessive Inheritance
- *    One source is designated as dominant (contributes 70% of traits) and
- *    the other as recessive (contributes 30%). Models Mendelian inheritance
- *    where one parent's traits are expressed more strongly.
- *
- * 3. Genetic Crossover
- *    Each trait is randomly selected from one of the sources, simulating
- *    chromosomal crossover during meiosis. Produces high-variance offspring
- *    that may inherit unexpected trait combinations.
- *
- * 4. Mutation
- *    Applies a blend then introduces controlled random variations to one
- *    or more traits. Models natural mutation rates — most offspring are
- *    unchanged, but occasional mutations introduce novelty.
- *
- * The synthesis result includes a trait attribution map showing which
- * source contributed each trait, enabling full transparency of the
- * hybridization process.
- */
+/** Motion Synthesis — DNA hybridization and genetic crossover for motion. */
 
 import type { MotionComponent, Easing } from "@openmotion/shared";
 import { easingPreset } from "@openmotion/shared";

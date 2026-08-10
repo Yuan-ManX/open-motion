@@ -1,26 +1,4 @@
-/**
- * Motion Path Generator — generates motion keyframes along mathematical paths.
- *
- * This is an original AI-native module that creates motion by sampling
- * positions along parametric curves. Instead of linear point-to-point
- * animation, the generator traces complex paths (bezier curves, Lissajous
- * figures, spirals, figure-eights, heart curves, and custom SVG paths) and
- * converts the sampled positions into keyframes.
- *
- * Seven path types:
- * 1. Bezier curve — cubic bezier with 4 control points
- * 2. Lissajous figure — parametric curves with frequency ratios (x = A*sin(at+δ), y = B*sin(bt))
- * 3. Spiral — Archimedean or logarithmic spiral from center outward
- * 4. Figure-eight — lemniscate of Bernoulli
- * 5. Heart curve — parametric heart shape
- * 6. Circle/Ellipse — closed loop circular or elliptical path
- * 7. SVG path — sample positions along an SVG path data string
- *
- * Each path is sampled at a configurable resolution and converted into
- * translateX/translateY keyframes that trace the path over time.
- *
- * Rule-based — no LLM round-trip required.
- */
+/** Motion Path Generator — generates motion keyframes along mathematical paths. */
 
 import { easingPreset } from "@openmotion/shared";
 import type { Keyframe } from "@openmotion/shared";

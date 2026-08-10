@@ -1,25 +1,5 @@
 /**
  * Motion Musicology Engine — analyzes motion as musical composition.
- *
- * This original AI-native module treats a motion composition as a piece of
- * music. Each component is a note or chord; the timeline is the score;
- * easings are articulations; delays are rests; durations determine rhythm.
- * The module extracts melody (primary motion contour), harmony (concurrent
- * component relationships), rhythm (timing patterns), tempo (overall pace),
- * dynamics (intensity changes), and form (macro structure).
- *
- * Core concepts:
- * - Notes: individual motion events mapped to pitch (property type) and
- *   velocity (intensity)
- * - Melody: the primary contour of motion over time
- * - Harmony: concurrent components forming vertical sonorities
- * - Rhythm: pattern of durations and rests
- * - Tempo: overall pace in BPM
- * - Dynamics: intensity changes (pp, p, mp, mf, f, ff)
- * - Form: macro structure (AABA, sonata, rondo, through-composed)
- * - Key: tonal center inferred from dominant motion properties
- *
- * Rule-based — no LLM round-trip required.
  */
 
 import type { MotionSpec, MotionComponent } from "@openmotion/shared";

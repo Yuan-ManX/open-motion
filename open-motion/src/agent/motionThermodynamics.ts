@@ -2,23 +2,6 @@ import type { MotionSpec, MotionComponent, Easing } from "@openmotion/shared";
 
 /**
  * Motion Thermodynamics — a thermal model of motion energy.
- *
- * An original physics-flavored analysis: every animated component is treated
- * as a heat source. The heat a component emits is the product of its motion
- * intensity (transform magnitude), its duration (how long the source is on),
- * and a loop factor (infinite loops radiate indefinitely). Aggregating these
- * yields the project's total heat, average temperature, and a Shannon entropy
- * of how the heat is distributed across components.
- *
- * Crossing heat + entropy thresholds moves the project through four phases —
- * solid (cold and ordered), liquid (warm and ordered), gas (hot and
- * disordered), plasma (hot and uniform-bright) — giving the user a single,
- * physically grounded metaphor for the energy state of their composition.
- * Equilibrium distance and remaining heat capacity tell the user how far the
- * project is from a balanced state and how much energy can be added before
- * the phase shifts.
- *
- * Rule-based — no LLM round-trip required, so mock mode stays functional.
  */
 
 // ---------------------------------------------------------------------------

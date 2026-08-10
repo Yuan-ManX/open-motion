@@ -1,33 +1,6 @@
 import type { MotionSpec, MotionComponent, Keyframe } from "@openmotion/shared";
 
-/**
- * Trajectory-Compression Engine — minimal-keyframe representation of motion paths.
- *
- * A motion path is the spatial curve traced by a component's translateX /
- * translateY values across its keyframes. Most authoring tools produce
- * redundant keyframes — intermediate samples that lie (within perceptual
- * tolerance) on the straight line or smooth curve between their neighbors.
- * This engine runs an adapted Ramer-Douglas-Peucker simplification on each
- * component's trajectory and reports how many keyframes are perceptually
- * redundant, the compression ratio achievable, and the recommended minimal
- * keyframe set.
- *
- * Core concepts:
- * - Trajectory: the ordered (x, y) points derived from a component's
- *   keyframe sequence (offset 0..1, translateX/translateY values).
- * - Perceptual tolerance: the maximum deviation a viewer can detect. Scaled
- *   by the path's bounding-box diagonal so tolerance is relative to the
- *   motion's overall scale, not absolute pixels.
- * - Redundancy: a keyframe whose perpendicular distance to the line between
- *   its retained neighbors is below tolerance. Removing it does not
- *   perceptibly change the motion.
- * - Compression ratio: original keyframe count / retained count.
- * - Velocity preservation: the engine also checks temporal velocity —
- *   keyframes that define a deliberate speed change (easing inflection) are
- *   retained even if spatially redundant.
- *
- * Rule-based — no LLM round-trip required, so mock mode stays functional.
- */
+/** Trajectory-Compression Engine — minimal-keyframe representation of motion paths. */
 
 // ---------------------------------------------------------------------------
 // Types

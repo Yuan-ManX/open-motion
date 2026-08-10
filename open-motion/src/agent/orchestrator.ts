@@ -419,6 +419,9 @@ export interface OrchestrateOptions {
   onEvent: (event: ChatEvent) => void;
   /** Optional model ID for token-aware context windowing. */
   model?: string;
+  /** Optional abort signal. When aborted, the agent stops issuing further
+   *  tool calls and emits a graceful `done` so the SSE stream never hangs. */
+  signal?: AbortSignal;
 }
 
 /**
@@ -467,6 +470,42 @@ async function chatWithRetry(
     }
   }
   throw lastErr;
+}
+
+/**
+ * Bounded execution of a tool call. A hung executor (one that neither resolves
+ * nor rejects) is abandoned after the timeout and reported as a recoverable
+ * failure so the agent loop can continue with a graceful message.
+ */
+const TOOL_EXECUTION_TIMEOUT_MS = 120_000;
+
+async function withToolTimeout(
+  tool: string,
+  args: Record<string, unknown>,
+  ctx: ToolContext,
+): Promise<ToolResult> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      executeTool(tool as never, args, ctx),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`tool ${tool} timed out after ${TOOL_EXECUTION_TIMEOUT_MS}ms`)),
+          TOOL_EXECUTION_TIMEOUT_MS,
+        );
+      }),
+    ]);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    logger.warn("tool execution timeout", { tool, message });
+    return {
+      ok: false,
+      summary: `${tool} did not complete in time (${TOOL_EXECUTION_TIMEOUT_MS}ms) — it can be retried`,
+      specChanged: false,
+    };
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 /**
@@ -567,8 +606,10 @@ async function executeToolWithGuardrails(
     };
   }
 
-  // 3. Execute the tool with (possibly patched) args.
-  const result = await executeTool(tool as never, pre.args, ctx);
+  // 3. Execute the tool with (possibly patched) args, bounded by a timeout so
+  // a hung or never-resolving executor (e.g. a stalled export render) cannot
+  // block the agent loop indefinitely.
+  const result = await withToolTimeout(tool, pre.args, ctx);
 
   // 4. Post-hooks: side effects only.
   await runPostHooks(
@@ -3392,7 +3433,18 @@ async function executeMotionIntelligenceTool(
  * spec-mutating tool batch emits a spec_update so the live canvas refreshes.
  */
 export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
-  const { projectId, userMessage, provider, onEvent } = opts;
+  const { projectId, userMessage, provider, onEvent, signal } = opts;
+
+  // Cooperative cancellation: a helper that stops further work when the client
+  // aborts (e.g. the user clicks Stop). Emits a graceful done so the SSE
+  // stream always terminates cleanly instead of leaving the client hanging.
+  const cancelled = (): boolean => signal?.aborted === true;
+  const finishCancelled = (): void => {
+    const text = "Stopped — the run was cancelled before completion.";
+    addMemory(projectId, { role: "assistant", content: text });
+    addMessage(projectId, { role: "assistant", content: text });
+    onEvent({ type: "done", message: text, tokensIn: 0, tokensOut: 0, confidence: 0 });
+  };
 
   // Rehydrate conversation window from DB on the first turn of a fresh session
   // so the agent keeps context across server restarts.
@@ -3669,6 +3721,10 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
       const composedCalls = composedToToolCalls(composition.tools);
       let composedSpecChanged = false;
       for (let i = 0; i < composedCalls.length; i++) {
+        if (cancelled()) {
+          finishCancelled();
+          return;
+        }
         const call = composedCalls[i];
         const args = call.args as Record<string, unknown>;
         if (args && typeof args === "object") {
@@ -4016,6 +4072,10 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
     // mutation ordering and placeholder resolution stay deterministic.
     const batches = analyzeToolDependencies(toolCalls);
     for (const batch of batches) {
+      if (cancelled()) {
+        onEvent({ type: "done", message: "Stopped — the run was cancelled during execution.", tokensIn: 0, tokensOut: 0, confidence: 0 });
+        return;
+      }
       if (batch.parallel && batch.calls.length > 1) {
         onEvent({
           type: "parallel_tool_batch",

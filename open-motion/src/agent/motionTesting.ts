@@ -1,22 +1,5 @@
 /**
  * Motion Testing Framework — automated quality assurance for motion designs.
- *
- * Provides a structured testing system that validates motion specs across six
- * categories: accessibility, performance, visual correctness, design principles,
- * timing, and consistency. Each category contains multiple test suites that
- * produce weighted scores and actionable recommendations.
- *
- * The framework is rule-based — no LLM round-trip required. It inspects the
- * MotionSpec directly and produces a TestReport with per-suite results, an
- * overall score, and a prioritized list of top issues.
- *
- * Scoring: each check contributes a weight based on severity.
- *   - passed check           → weight 1.0
- *   - failed "error" check    → weight 0.0
- *   - failed "warning" check  → weight 0.5
- *   - failed "info" check     → weight 0.5
- * A suite's score is the average weight across all its checks, scaled to 0-100.
- * A suite passes if it has no failed "error" checks.
  */
 
 import type { Easing, MotionComponent, MotionSpec } from "@openmotion/shared";

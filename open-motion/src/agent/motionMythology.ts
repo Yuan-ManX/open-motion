@@ -1,20 +1,4 @@
-/**
- * Motion Mythology Engine — maps motion to archetypal mythological narratives.
- *
- * This original AI-native module interprets motion compositions through the
- * lens of comparative mythology. It identifies the hero's journey stages,
- * detects archetypal patterns (the shadow, the mentor, the threshold
- * guardian), and maps the composition to a mythological narrative structure.
- *
- * Core concepts:
- * - Hero's Journey: Campbell's monomyth (departure, initiation, return)
- * - Archetypes: universal character patterns (hero, shadow, mentor, trickster)
- * - Threshold Crossing: moments of transformation in the motion
- * - Boon: the gift or realization the motion delivers
- * - Mythic Resonance: how strongly the composition evokes mythic patterns
- *
- * Rule-based — no LLM round-trip required.
- */
+/** Motion Mythology Engine — maps motion to archetypal mythological narratives. */
 
 import type { MotionSpec, MotionComponent } from "@openmotion/shared";
 

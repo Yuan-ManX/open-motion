@@ -1,22 +1,4 @@
-/**
- * Motion Weather Engine — models motion compositions as weather systems.
- *
- * This original AI-native module treats a motion composition as a weather
- * system. It detects atmospheric pressure (intensity), fronts (transitions),
- * storms (peak activity), calm (stillness), and forecasts the emotional
- * climate of the composition.
- *
- * Core concepts:
- * - Atmospheric Pressure: the overall intensity of the composition
- * - Weather Fronts: transitions between different motion densities
- * - Storms: periods of peak activity (many simultaneous components)
- * - Calm: periods of stillness or minimal activity
- * - Wind: the velocity and direction of motion flow
- * - Climate: the long-term character of the composition
- * - Forecast: predicted emotional weather for the viewer
- *
- * Rule-based — no LLM round-trip required.
- */
+/** Motion Weather Engine — models motion compositions as weather systems. */
 
 import type { MotionSpec, MotionComponent } from "@openmotion/shared";
 

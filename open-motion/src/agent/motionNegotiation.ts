@@ -1,20 +1,4 @@
-/**
- * Motion Negotiation — when a user's intent conflicts with accessibility,
- * persona, or restraint constraints, this module finds a compromise that
- * preserves the user's creative direction while satisfying the constraints.
- *
- * This is the eleventh original AI-native module. Where Auto-Fix remediates
- * existing motion after the fact, Negotiation intervenes at intent time:
- * before the user's request becomes a spec, it negotiates a middle ground.
- *
- * Example: a user asks for "a really fast spin with bright rainbow flashing".
- * Auto-Fix would later cap the rotation and stretch the flashing. Negotiation
- * instead proposes upfront: "a swift spin (within vestibular limits) with a
- * smooth color cycle (within photosensitivity limits) — preserving the energy
- * you want while keeping it safe."
- *
- * The negotiation is rule-based and runs without an LLM round-trip.
- */
+/** Motion Negotiation — finds a compromise between user intent and accessibility, persona, or restraint constraints. */
 
 import type { MotionComponent, MotionSpec, Easing } from "@openmotion/shared";
 import { easingPreset } from "../shared/motion/easing.js";

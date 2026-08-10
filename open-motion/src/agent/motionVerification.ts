@@ -3,22 +3,9 @@ import type { MotionSpec, Easing, MotionComponent } from "@openmotion/shared";
 /**
  * Structured assertion-based verification engine.
  *
- * Whereas `reflectOnSuccess` produces a single heuristic text snippet, this
- * module compiles the user's request into a list of testable assertions and
- * evaluates each one against the resulting spec. Each assertion carries a
- * claim, a severity, a pass/fail/skip verdict, and an evidence string, so the
- * agent gets a verifiable self-correction signal instead of a vague hunch.
- *
- * The engine is rule-based (no LLM round-trip) so mock mode stays functional.
- * Assertions are derived from the user message vocabulary and the observable
- * spec state — every check references concrete fields so failures point at the
- * exact gap the agent must close.
- *
- * Used in two ways:
- *   1. Inline in the orchestrator success-reflection path to produce a richer
- *      `reflection` event with structured evidence.
- *   2. As the `verify_motion` tool the LLM can call explicitly when it wants
- *      to double-check its work before reporting completion.
+ * Compiles the user's request into testable assertions and evaluates each one
+ * against the resulting spec, giving the agent a verifiable self-correction
+ * signal with pass/fail verdicts and evidence.
  */
 
 export type AssertionSeverity = "required" | "recommended" | "advisory";

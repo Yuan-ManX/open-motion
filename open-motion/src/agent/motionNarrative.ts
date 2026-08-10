@@ -1,31 +1,7 @@
 import type { MotionSpec, MotionComponent } from "@openmotion/shared";
 
 /**
- * Narrative Engine — story-arc analysis of motion compositions.
- *
- * A motion composition tells a story: elements enter (setup), build
- * tension (rising action), peak (climax), and resolve (falling action).
- * This engine maps each component to a narrative beat based on its
- * timing (delay/duration) and magnitude (displacement/scale), then
- * detects missing beats — a composition that peaks but never resolves,
- * or that sets up but never climaxes, leaves the viewer unsatisfied
- * without any single element being obviously wrong.
- *
- * Core concepts:
- * - Beat: one of {setup, rising, climax, resolution}. Assigned by
- *   quartile of the composition's total timeline + magnitude profile.
- *   Early+low-magnitude = setup; mid+high-magnitude = climax; etc.
- * - MagnitudeProfile: the peak displacement a component produces,
- *   normalized 0..1 against the composition's max. Higher magnitude =
- *   more narrative weight.
- * - ArcCoverage: which beats are present. A complete arc has all four;
- *   missing beats are flagged with severity proportional to how
- *   structurally important the missing beat is (climax missing is
- *   severe; resolution missing is moderate).
- * - PacingBalance: the share of total duration devoted to each beat.
- *   A composition that spends 90% of its time in setup drags.
- *
- * Rule-based — no LLM round-trip required, so mock mode stays functional.
+ * Motion Narrative Engine — story-arc analysis of motion compositions.
  */
 
 // ---------------------------------------------------------------------------

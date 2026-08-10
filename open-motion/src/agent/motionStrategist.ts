@@ -1,27 +1,4 @@
-/**
- * Motion Strategist — project-level motion strategy recommendation.
- *
- * This is the sixteenth original AI-native module. Where the Coach teaches
- * individual principles and the Persona applies a design style, the Strategist
- * analyzes the entire project context and recommends a holistic motion
- * strategy — a unified philosophy that governs timing, easing, intensity,
- * rhythm, and accessibility stance across the whole project.
- *
- * Five core outputs:
- * 1. Project archetype detection — classifies the project into one of eight
- *    archetypes (landing-page, dashboard, storytelling, game, product-app,
- *    marketing, prototype, data-viz) based on component patterns and metadata.
- * 2. Timing philosophy — recommends a duration palette and stagger philosophy
- *    matched to the archetype and audience.
- * 3. Easing palette — recommends 3-5 easings that should form the project's
- *    vocabulary, with usage ratios.
- * 4. Rhythm pattern — recommends a rhythmic structure (steady, accelerating,
- *    decelerating, syncopated, free-form) for multi-component sequences.
- * 5. Accessibility stance — recommends a baseline accessibility posture
- *    (strict, balanced, permissive) with specific guardrails.
- *
- * Rule-based — no LLM round-trip required.
- */
+/** Motion Strategist — project-level motion strategy recommendation. */
 
 import type { MotionSpec } from "@openmotion/shared";
 

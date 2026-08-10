@@ -1,22 +1,6 @@
 /**
  * Motion Style Transfer Engine — extracts the "style DNA" of a source motion
- * and grafts it onto the structure of a target motion. Analogous to image
- * style transfer, but the medium is motion design: easing curves, tempo,
- * energy, axis preference, color palette, iteration behavior, and staging.
- *
- * This is an original AI-native module. The pipeline is fully rule-based —
- * no LLM round-trip is required. Style is treated as a separable layer from
- * structure: the target keeps its components, keyframe offsets, and identity,
- * while the surface expression (how it feels) is rewritten from the source.
- *
- * Core operations:
- * 1. extractStyleDNA — analyze a MotionSpec and produce a MotionStyleDNA fingerprint
- * 2. transferStyle — graft source style onto target structure
- * 3. blendStyles — interpolate two specs' DNA by a ratio
- * 4. describeStyle — human-readable style description
- * 5. compareStyles — per-dimension similarity between two DNAs
- * 6. listStyleArchetypes — curated style archetypes (Minimalist, Energetic, etc.)
- * 7. applyArchetype — apply a named archetype's DNA to a spec
+ * and grafts it onto the structure of a target motion.
  */
 
 import type { MotionComponent, MotionSpec, Easing } from "@openmotion/shared";

@@ -1,23 +1,4 @@
-/**
- * Motion Topology Engine — analyzes the topological structure of a motion
- * composition.
- *
- * This original AI-native module treats a motion composition as a
- * topological space where components are points and their temporal/spatial
- * relationships define the space's structure. It detects connected
- * components, temporal holes (gaps), boundary elements, and topological
- * invariants that reveal the deep shape of the composition.
- *
- * Core concepts:
- * - Topological Space: the composition as a space defined by temporal overlap
- * - Connected Components: clusters of overlapping motions
- * - Temporal Holes: gaps in the timeline that break continuity
- * - Boundary Elements: components at the start/end of the composition
- * - Euler Characteristic: V - E + F (vertices, edges, faces) — a topological invariant
- * - Genus: number of "handles" in the composition structure
- *
- * Rule-based — no LLM round-trip required.
- */
+/** Motion Topology Engine — analyzes the topological structure of a motion composition. */
 
 import type { MotionSpec, MotionComponent } from "@openmotion/shared";
 

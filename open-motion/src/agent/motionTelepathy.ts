@@ -1,23 +1,5 @@
 /**
  * Motion Telepathy Engine — predicts user intent from partial input.
- *
- * This original AI-native module anticipates what the user is about to ask
- * before they finish articulating it. It models intent as a probability
- * distribution over a vocabulary of motion design operations, updated
- * incrementally as each token of user input arrives. The result is a ranked
- * list of predicted intents with confidence scores, suggested completions,
- * and the tool calls that would satisfy each predicted intent.
- *
- * Core concepts:
- * - Intent Vector: a probability distribution over motion design operations
- * - Signal Extraction: keywords, modifiers, targets, and constraints
- * - Context Priors: project state biases the prediction toward relevant intents
- * - Confidence Decay: older signals decay as new tokens arrive
- * - Suggestion Path: the shortest tool sequence to satisfy a predicted intent
- *
- * Rule-based — no LLM round-trip required. The prediction is deterministic
- * given the same inputs, so it can be used to drive inline UI suggestions
- * without latency.
  */
 
 import type { MotionSpec, MotionComponent } from "@openmotion/shared";

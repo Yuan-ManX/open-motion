@@ -1,37 +1,4 @@
-/**
- * Motion Lineage — genealogy tracking for motion components.
- *
- * Records the derivation history of every component in a project, building a
- * directed acyclic graph (DAG) of parent-child relationships. Each record
- * captures the operation that produced the component (original creation,
- * variation, style transfer, story beat) along with the source component(s)
- * and operation parameters.
- *
- * Original systems:
- *
- * 1. Lineage Store
- *    In-memory DAG keyed by projectId. Each component has at most one
- *    lineage record pointing to its parent(s) and the operation that
- *    created it. The store is ephemeral (per-server-lifetime) and does
- *    not persist to the database — it captures the live evolution of a
- *    project during an editing session.
- *
- * 2. Lineage Queries
- *    - getLineage(componentId) — the direct record
- *    - getAncestors(componentId) — chain of all ancestors back to originals
- *    - getDescendants(componentId) — all components derived from this one
- *    - getLineageTree(projectId) — full tree for visualization
- *    - getOperationHistory(projectId) — chronological list of all operations
- *
- * 3. Generation Tracking
- *    Each component has a "generation" number: originals are generation 0,
- *    their direct children are generation 1, grandchildren are generation 2,
- *    etc. This enables depth-bounded queries and visualization.
- *
- * 4. Lineage Report
- *    A human-readable summary of a component's heritage, including the
- *    operation chain, generation depth, and sibling count.
- */
+/** Motion Lineage — genealogy tracking for motion components. */
 
 // ---------------------------------------------------------------------------
 // Types
