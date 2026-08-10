@@ -1,14 +1,4 @@
-/**
- * Shader effect registry — WebGL GLSL fragment shaders with CSS fallbacks.
- *
- * Each effect defines:
- * - GLSL fragment shader source (for WebGL canvas rendering)
- * - CSS fallback (applied to component style for the preview/editor)
- * - Default parameters
- *
- * The agent tool `set_shader_effect` applies the CSS fallback to a component
- * and stores the shader ID for WebGL rendering in the preview.
- */
+/** Shader effect registry — WebGL GLSL fragment shaders with CSS fallbacks and default parameters. */
 
 export interface ShaderEffect {
   id: string;

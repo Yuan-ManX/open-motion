@@ -1,10 +1,4 @@
-/**
- * Magnetic Field template — particles that follow curved magnetic field lines,
- * creating an organic, physics-driven motion pattern.
- *
- * Multiple particle streams trace invisible field paths, pulsing in intensity
- * and creating a sense of invisible forces at work.
- */
+/** Magnetic Field template — particles that follow curved magnetic field lines. */
 
 import { easingPreset } from "@openmotion/shared";
 import type { TemplateDef } from "./helper.js";

@@ -27,6 +27,12 @@ chatRouter.post(
     }
 
     const sse = initSse(res);
+    // Cooperative cancellation: when the client disconnects (Stop button or
+    // page close), abort the in-flight agent run so it stops issuing tool
+    // calls instead of continuing to execute in the background.
+    const controller = new AbortController();
+    const onClose = () => controller.abort();
+    res.on("close", onClose);
     try {
       await chatStream(
         projectId,
@@ -41,6 +47,7 @@ chatRouter.post(
           }
         },
         model,
+        controller.signal,
       );
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -48,6 +55,8 @@ chatRouter.post(
         sse.send({ type: "error", message: `internal error: ${msg}`, recoverable: true });
         sse.done();
       }
+    } finally {
+      res.off("close", onClose);
     }
   }),
 );

@@ -1,16 +1,4 @@
-/**
- * Crystalline Growth Template — branching crystal formation pattern.
- *
- * An original template that visualizes crystal growth through branching
- * geometry. Seed crystals expand outward in geometric patterns, split into
- * branches, and form a crystalline lattice that shimmers with refracted
- * light. The motion explores the mathematics of crystal formation as
- * choreographed animation.
- *
- * The template treats crystal growth as a temporal composition: each facet
- * emerges in sequence, refracts light, and contributes to the overall
- * lattice structure — a frozen moment of geological time.
- */
+/** Crystalline Growth Template — branching crystal formation pattern. */
 
 import { easingPreset } from "@openmotion/shared";
 import { draft, kf, type TemplateDef } from "./helper.js";

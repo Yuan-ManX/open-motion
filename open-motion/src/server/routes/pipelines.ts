@@ -7,8 +7,11 @@ import {
   createPipeline,
   updatePipeline,
   deletePipeline,
+  incrementUsage,
   type PipelineStep,
 } from "../../db/repositories/pipelines.js";
+import { executeTool, type ToolResult } from "../../agent/tools/registry.js";
+import type { ToolName } from "@openmotion/shared";
 
 export const pipelinesRouter = Router();
 
@@ -96,5 +99,81 @@ pipelinesRouter.delete(
       return;
     }
     res.status(204).end();
+  }),
+);
+
+export interface PipelineExecutionStepResult {
+  tool: string;
+  ok: boolean;
+  summary: string;
+  specChanged?: boolean;
+}
+
+export interface PipelineExecutionResponse {
+  pipelineId: string;
+  pipelineName: string;
+  stepCount: number;
+  succeeded: number;
+  failed: number;
+  failedSteps: string[];
+  anySpecChanged: boolean;
+  results: PipelineExecutionStepResult[];
+  summary: string;
+}
+
+pipelinesRouter.post(
+  "/projects/:id/pipelines/:pipelineId/run",
+  runAsync(async (req, res) => {
+    const projectId = req.params.id;
+    const pipelineId = req.params.pipelineId;
+    const pipe = getPipeline(pipelineId);
+    if (!pipe) {
+      res.status(404).json({ error: "pipeline not found" });
+      return;
+    }
+    let anySpecChanged = false;
+    const failedSteps: string[] = [];
+    const results: PipelineExecutionStepResult[] = [];
+    const ctx = { projectId };
+    for (const step of pipe.steps) {
+      let result: ToolResult;
+      try {
+        result = await executeTool(step.tool as ToolName, step.args, ctx);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        result = { ok: false, summary: `${step.tool} threw: ${message}`, specChanged: false };
+      }
+      results.push({
+        tool: step.tool,
+        ok: result.ok,
+        summary: result.summary,
+        specChanged: result.specChanged,
+      });
+      if (result.specChanged) anySpecChanged = true;
+      if (!result.ok) failedSteps.push(step.tool);
+    }
+    incrementUsage(pipelineId);
+    const okCount = results.filter((r) => r.ok).length;
+    const failCount = results.length - okCount;
+    const summary =
+      failCount > 0
+        ? `pipeline "${pipe.name}" ran ${okCount}/${results.length} steps; failed: ${failedSteps.join(", ")}`
+        : `pipeline "${pipe.name}" completed (${okCount}/${results.length} steps)`;
+    const response: PipelineExecutionResponse = {
+      pipelineId,
+      pipelineName: pipe.name,
+      stepCount: results.length,
+      succeeded: okCount,
+      failed: failCount,
+      failedSteps,
+      anySpecChanged,
+      results,
+      summary,
+    };
+    if (failCount > 0) {
+      res.status(200).json({ ...response, ok: false });
+    } else {
+      res.status(200).json({ ...response, ok: true });
+    }
   }),
 );

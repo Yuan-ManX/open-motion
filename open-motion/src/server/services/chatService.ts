@@ -47,6 +47,7 @@ export async function chat(
   message: string,
   onEvent?: (event: ChatEvent) => void,
   model?: string,
+  signal?: AbortSignal,
 ): Promise<ChatResult> {
   ensureProjectExists(projectId);
   const provider = await resolveProvider(model);
@@ -68,6 +69,7 @@ export async function chat(
     userMessage: message,
     provider,
     model,
+    signal,
     onEvent: (event) => {
       if (onEvent) onEvent(event);
       switch (event.type) {
@@ -117,11 +119,12 @@ export async function chatStream(
   onMeta: (providerName: string) => void,
   onEvent: (event: ChatEvent) => void,
   model?: string,
+  signal?: AbortSignal,
 ): Promise<void> {
   ensureProjectExists(projectId);
   const provider = await resolveProvider(model);
   onMeta(provider.name);
-  await orchestrate({ projectId, userMessage: message, provider, model, onEvent });
+  await orchestrate({ projectId, userMessage: message, provider, model, signal, onEvent });
 }
 
 export function listProjectMessages(projectId: string) {

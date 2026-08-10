@@ -1,21 +1,9 @@
 /**
  * Dynamic tool surface selection.
  *
- * The full tool registry contains hundreds of tool schemas. Sending every
- * schema to the model on every turn bloats the prompt and dilutes the model's
- * attention across tools that are irrelevant to the current request.
- *
- * This module classifies the user message into one or more intents and
- * projects the full tool surface down to a focused subset:
- *   - A small CORE set always present (state introspection, plan control,
- *     common edits). The agent never has to ask twice for these.
- *   - The union of intent-specific tools. Each intent maps to a curated list
- *     of tool name prefixes or exact names.
- *
- * When the classifier returns "unknown" (no intent matched), the selector
- * returns null so the caller can fall back to the full tool list. This keeps
- * the behavior conservative: pruning only happens when we have a confident
- * intent signal.
+ * Classifies the user message into intents and projects the full tool surface
+ * down to a focused subset (a small always-available CORE set plus the union
+ * of intent-specific tools), falling back to the full list on no match.
  */
 
 import type { ToolName } from "@openmotion/shared";

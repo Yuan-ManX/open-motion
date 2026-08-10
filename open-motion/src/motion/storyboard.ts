@@ -1,11 +1,4 @@
-/**
- * Motion Storyboard — a narrative timeline system that sequences motions into
- * a story. Each beat represents a moment in the animation sequence with a
- * title, description, duration, scene reference, and component references.
- *
- * Storyboards help designers plan motion sequences before implementation,
- * ensuring the narrative flow is coherent before tuning individual components.
- */
+/** Motion Storyboard — a narrative timeline system that sequences motions into a story of beats. */
 
 import { createId } from "../utils/id.js";
 

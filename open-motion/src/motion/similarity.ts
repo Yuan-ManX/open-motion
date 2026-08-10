@@ -1,10 +1,4 @@
-/**
- * Motion DNA Similarity Search — finds motions with similar DNA signatures
- * across all projects and the template library. The DNA signature encodes five
- * facets of a motion (easing family, duration class, loop behavior, animated
- * properties, direction); similarity is scored as a weighted segment comparison
- * with Jaccard overlap on the property set.
- */
+/** Motion DNA Similarity Search — finds motions with similar DNA signatures across projects and the template library. */
 
 import type { Easing, MotionComponent } from "@openmotion/shared";
 import { listProjects, getProjectSpec } from "../db/repositories/projects.js";

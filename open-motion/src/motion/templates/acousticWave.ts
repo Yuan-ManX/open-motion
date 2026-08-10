@@ -1,15 +1,4 @@
-/**
- * Acoustic Wave Template — sound wave visualization with frequency-based motion.
- *
- * An original template that visualizes acoustic wave propagation through a
- * series of vertical bars oscillating at different phases. The bars form a
- * frequency spectrum that breathes, pulses, and ripples — creating a
- * living sound visualization without actual audio input.
- *
- * The template explores the visual language of sound: amplitude becomes
- * height, frequency becomes spacing, and rhythm becomes the wave pattern
- * that travels across the spectrum.
- */
+/** Acoustic Wave Template — sound wave visualization with frequency-based motion. */
 
 import { easingPreset } from "@openmotion/shared";
 import { draft, kf, type TemplateDef } from "./helper.js";

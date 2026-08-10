@@ -1,15 +1,4 @@
-/**
- * Full-text search service backed by SQLite FTS5 virtual tables.
- *
- * The schema (see db/schema.ts) defines one FTS5 table per searchable entity
- * (projects, components, messages, agent_memory, skills, generated_skills,
- * motion_recipes). Each table is kept in sync with its parent via INSERT /
- * UPDATE / DELETE triggers, so queries always reflect the current state.
- *
- * This service exposes a single `unifiedSearch` function that fans a query
- * out across every FTS5 table, ranks results by FTS5's bm25() relevance
- * score, and returns a merged, scope-tagged result list.
- */
+/** Full-text search service backed by SQLite FTS5 virtual tables. */
 
 import { getDb } from "../../db/index.js";
 

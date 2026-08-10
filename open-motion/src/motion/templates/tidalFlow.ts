@@ -1,10 +1,4 @@
-/**
- * Tidal Flow template — a realistic tidal wave that ebbs and flows with
- * layered fluid dynamics, creating a calming, organic motion pattern.
- *
- * Multiple wave layers at different frequencies create interference patterns
- * that mimic real fluid behavior, while a subtle reflection adds depth.
- */
+/** Tidal Flow template — a realistic tidal wave that ebbs and flows with layered fluid dynamics. */
 
 import type { TemplateDef } from "./helper.js";
 import { easingPreset } from "@openmotion/shared";

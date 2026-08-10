@@ -1,14 +1,4 @@
-/**
- * Quantum Entanglement Template — twin particles with phase-shifted correlation.
- *
- * An original template that visualizes quantum entanglement through motion:
- * two particles that mirror each other's state with a phase delay, creating
- * an uncanny correlation that suggests non-local connection. The particles
- * pulse, orbit, and exchange energy across an invisible bond.
- *
- * The template explores the paradox of quantum correlation — where two
- * entities appear to communicate instantaneously across distance.
- */
+/** Quantum Entanglement Template — twin particles with phase-shifted correlation. */
 
 import type { EasingPreset } from "@openmotion/shared";
 import { easingPreset } from "@openmotion/shared";
