@@ -1,18 +1,5 @@
 /**
  * State Transitions — animated interpolation between two state snapshots.
- *
- * When the user (or the Agent) triggers a state change, the StateMachinePanel
- * needs to move every affected component's style values from their current
- * values to the target state's values over the transition's duration. This
- * module owns that interpolation logic.
- *
- * The animation is driven by MotionValue tween/spring animators, so it
- * integrates with the global rAF loop and respects easing curves. Non-
- * numeric values (e.g. display, flex-direction) snap instantly.
- *
- * The module is framework-agnostic — it accepts a getter/setter pair per
- * component so it can be driven from React state, the canvas renderer, or
- * any other surface.
  */
 
 import { MotionValue, easePreset, cubicBezier, startTicking, stopTicking, type EasingFn } from "./motionValues.js";

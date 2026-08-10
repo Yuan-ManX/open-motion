@@ -1,18 +1,5 @@
 /**
- * Layout animations — smooth transitions when DOM elements change position
- * or size due to data changes (reorder, insert, remove, resize).
- *
- * Implements the FLIP technique:
- *   First  — record the element's bounding rect before the change
- *   Last   — let the browser paint the new layout
- *   Invert — apply a transform that visually restores the old position
- *   Play   — animate the transform back to identity
- *
- * The OpenMotion canvas re-renders components whenever the project spec
- * changes (tool calls, drag operations, layer reorder). Without layout
- * animations these jumps are visible as abrupt repositioning. The
- * `useLayoutFlip` hook records positions across renders and animates
- * the transition for any element whose rect changed.
+ * Layout animations — smooth transitions when DOM elements change position or size.
  */
 
 export interface Rect {

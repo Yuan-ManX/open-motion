@@ -1,14 +1,5 @@
 /**
  * React hooks for the Motion Values + Layout Animation runtime.
- *
- * - useMotionValue: bind a MotionValue to React state, triggering a
- *   re-render whenever the value changes. Returns the value plus the
- *   MotionValue handle so the caller can drive it (tween, spring, etc.).
- * - useLayoutFlip: snapshot+play the canvas FlipRegistry around a
- *   render. The hook reads a "trigger" value (typically the component
- *   list) and animates any position/size change between renders.
- * - useFlipRegistration: register a DOM element under a stable key so
- *   the FlipRegistry can animate it.
  */
 
 import { useEffect, useRef, useState, useLayoutEffect, useCallback } from "react";

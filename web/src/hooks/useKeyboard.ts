@@ -5,30 +5,8 @@ import { useClipboardStore } from "../store/clipboardStore.js";
 import * as api from "../api/endpoints.js";
 
 /**
- * Global keyboard shortcuts for the editor surface:
- * - Cmd/Ctrl+K: open the command palette
- * - Cmd/Ctrl+Z: undo last agent/local change
- * - Cmd/Ctrl+Shift+Z or Cmd/Ctrl+Y: redo
- * - Shift+R: replay the current animation
- * - Cmd/Ctrl+E: open the export dialog
- * - Cmd/Ctrl+S: save the current project (reload to confirm persistence)
- * - Cmd/Ctrl+B: toggle the left sidebar
- * - Cmd/Ctrl+D: duplicate the selected component
- * - Cmd/Ctrl+C/V/X: copy/paste/cut component
- * - Cmd/Ctrl+A: select all components
- * - Cmd/Ctrl+/: toggle the keyboard shortcuts help
- * - Arrow keys: nudge selected component by 1px (10px with Shift)
- * - Alt+ArrowUp/Down: navigate between timeline components
- * - Escape: clear component selection
- * - Delete/Backspace: remove the selected component (skipped while typing)
- * - Shift+Delete: ripple delete the selected component (shifts subsequent layers left)
- * - S: split the selected component at the playhead position
- * - F: fit timeline to view (reset zoom)
- * - P: toggle play/pause
- * - M: add marker at playhead
- * - , / .: step backward / forward one frame
- * - Home / End: jump to start / end of timeline
- * - Space (hold): canvas pan mode
+ * Global keyboard shortcuts for the editor surface. The full key map is also
+ * shown in the in-app Keyboard shortcuts help panel.
  */
 export function useKeyboard() {
   const triggerReplay = useUiStore((s) => s.triggerReplay);

@@ -1,16 +1,5 @@
 /**
  * Motion Values — reactive numeric/string values that drive animations.
- *
- * A MotionValue is the runtime primitive for declarative animation on the
- * OpenMotion canvas. Each value:
- *   - Holds a current value (number, string, or array of numbers)
- *   - Notifies subscribers on every change
- *   - Can be driven by a tween or spring animator
- *   - Can be composed with other values via derived functions
- *
- * The system is intentionally framework-agnostic: it has no React
- * dependency and can be used from any renderer (canvas/DOM/WebGL). React
- * hooks in `useMotionValue` connect a MotionValue to component state.
  */
 
 export type MotionValueListener<T> = (value: T) => void;
