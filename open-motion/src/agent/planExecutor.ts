@@ -1,36 +1,9 @@
 /**
  * Plan-then-Execute Mode — structured decomposition with reviewable steps.
  *
- * Distinct from the existing ReAct loop (which interleaves planning and
- * execution), Plan-then-Execute produces a complete typed plan UP FRONT,
- * surfaces it for user review, and then executes the steps sequentially
- * with live progress and cancel support.
- *
- * The mode is opt-in: simple requests (single tool calls, composed
- * patterns) skip this path and go directly through the existing loop.
- * Complex multi-step requests — identified by intent classification —
- * route through here for a reviewable, cancellable experience.
- *
- * Action vocabulary (aligned with professional editing workflows):
- *   - create_layer      Add a new layer (text, shape, image, video, audio)
- *   - apply_template    Apply a named template
- *   - apply_preset      Apply a stackable preset (entrance/emphasis/exit)
- *   - set_easing        Change the easing curve
- *   - set_timing        Adjust duration / delay / loop
- *   - set_transform     Position / rotation / scale / anchor
- *   - set_color         Fill / stroke / background color
- *   - set_style         Style preset (playful, dramatic, etc.)
- *   - choreograph       Multi-component choreography pattern
- *   - apply_effect      Filter / shader / 3D / lighting effect
- *   - apply_recipe      Reusable motion recipe
- *   - capture_state     Snapshot current state for state machine
- *   - add_transition    Wire a transition between states
- *   - export            Export to HTML / CSS / React / Lottie / video
- *   - analyze           Run an analysis tool (mood, principles, etc.)
- *   - synthesize        Generate code / easing / motion from description
- *
- * Each action maps to one or more concrete tool calls. The plan is a tree
- * (actions can have sub-actions) so the UI can show phase hierarchy.
+ * Produces a complete typed plan up front, surfaces it for user review, and
+ * executes the steps sequentially with live progress and cancel support.
+ * Opt-in: simple requests skip this path and go through the existing loop.
  */
 
 import type { MotionSpec, ToolName } from "@openmotion/shared";
