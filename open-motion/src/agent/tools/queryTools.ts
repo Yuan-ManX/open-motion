@@ -33,6 +33,7 @@ type Executor = (args: Record<string, unknown>, ctx: ToolContext) => ToolResult 
 
 /** Score relevance of a catalog entry against a query. */
 function scoreCatalogMatch(query: string, fields: string[]): number {
+  const queryTokens = query.split(/\s+/).filter((t) => t.length >= 2);
   let maxScore = 0;
   for (const field of fields) {
     if (!field) continue;
@@ -45,16 +46,24 @@ function scoreCatalogMatch(query: string, fields: string[]): number {
       maxScore = Math.max(maxScore, 60);
     } else {
       const words = lower.split(/\s+/);
+      // Whole single-token query matched against a field word.
+      let best = 0;
       for (const word of words) {
-        if (word.startsWith(query)) {
-          maxScore = Math.max(maxScore, 40);
-          break;
-        }
-        if (word.includes(query) && query.length >= 3) {
-          maxScore = Math.max(maxScore, 20);
-          break;
-        }
+        if (word.startsWith(query)) best = Math.max(best, 40);
+        else if (word.includes(query) && query.length >= 3) best = Math.max(best, 20);
       }
+      // Multi-word query: score by the fraction of query tokens appearing in
+      // this field's words, so "gentle float" still surfaces "ambient float"
+      // and "gentle entrance" resources rather than returning nothing.
+      if (queryTokens.length > 1) {
+        let hits = 0;
+        for (const qt of queryTokens) {
+          if (words.some((w) => w === qt || w.startsWith(qt) || w.includes(qt))) hits++;
+        }
+        const frac = hits / queryTokens.length;
+        if (frac >= 0.5) best = Math.max(best, Math.round(30 * frac));
+      }
+      maxScore = Math.max(maxScore, best);
     }
   }
   return maxScore;
