@@ -1527,9 +1527,10 @@ export const SetLoopExpressionInput = z.object({
 });
 export const SequenceLayersInput = z.object({
   projectId: zIdField,
+  componentIds: z.array(zIdField).min(1).optional().describe("Layers to sequence in order (default: all layers)"),
   staggerMs: z.number().int().min(0).default(200).describe("Time offset between each layer"),
   overlap: z.number().min(0).max(1).default(0).describe("0 = sequential, 1 = full overlap"),
-  order: z.enum(["top-to-bottom", "bottom-to-top", "selection-order"]).default("top-to-bottom"),
+  order: z.enum(["top-to-bottom", "bottom-to-top", "selection-order", "forward", "reverse"]).default("top-to-bottom"),
   ease: z.boolean().default(true).describe("Ease each layer's entry"),
 });
 export const ExponentialScaleInput = z.object({
@@ -2125,7 +2126,6 @@ export const CcJawsWipeInput = z.object({
 /* --------------------------- Simulation & generators --------------------------- */
 export const CcBallActionInput = z.object({
   projectId: zIdField,
-  componentId: zIdField,
   ballSize: z.number().min(1).max(50).default(10),
   spacing: z.number().min(1).max(50).default(15),
   rotationX: z.number().min(0).max(360).default(0),
@@ -2137,7 +2137,6 @@ export const CcBallActionInput = z.object({
 
 export const CcBubblesInput = z.object({
   projectId: zIdField,
-  componentId: zIdField,
   bubbleCount: z.number().int().min(1).max(500).default(50),
   minSize: z.number().min(1).max(100).default(10),
   maxSize: z.number().min(1).max(100).default(30),
@@ -2149,7 +2148,6 @@ export const CcBubblesInput = z.object({
 
 export const CcRainfallInput = z.object({
   projectId: zIdField,
-  componentId: zIdField,
   dropCount: z.number().int().min(1).max(2000).default(300),
   dropSize: z.number().min(1).max(20).default(3),
   speed: z.number().min(0).max(50).default(10),
@@ -2162,7 +2160,6 @@ export const CcRainfallInput = z.object({
 
 export const CcSnowfallInput = z.object({
   projectId: zIdField,
-  componentId: zIdField,
   flakeCount: z.number().int().min(1).max(2000).default(200),
   minSize: z.number().min(1).max(30).default(3),
   maxSize: z.number().min(1).max(30).default(10),
@@ -2175,7 +2172,6 @@ export const CcSnowfallInput = z.object({
 
 export const CcStarBurstInput = z.object({
   projectId: zIdField,
-  componentId: zIdField,
   starCount: z.number().int().min(1).max(1000).default(100),
   speed: z.number().min(0).max(20).default(2),
   scatter: z.number().min(0).max(1).default(0.5),
@@ -2187,7 +2183,6 @@ export const CcStarBurstInput = z.object({
 
 export const CellPatternInput = z.object({
   projectId: zIdField,
-  componentId: zIdField,
   patternType: z.enum(["bubbles", "crystals", "static-plates", "tubular", "spotted", "cracked", "steel", "organic", "stone-rock", "dried-up", "shatter", "scales", "turbulent", "load-bubbles"]).default("bubbles"),
   contrast: z.number().min(0).max(100).default(50),
   dispersal: z.number().min(0).max(1).default(0.5),
@@ -2200,7 +2195,6 @@ export const CellPatternInput = z.object({
 
 export const AudioSpectrumInput = z.object({
   projectId: zIdField,
-  componentId: zIdField,
   audioLayerId: zIdField.optional().describe("Audio source layer (default: project audio track)"),
   startPath: z.tuple([z.number(), z.number()]).default([0.5, 0.5]),
   endPath: z.tuple([z.number(), z.number()]).default([0.9, 0.5]),
@@ -2216,7 +2210,6 @@ export const AudioSpectrumInput = z.object({
 
 export const RadioWavesInput = z.object({
   projectId: zIdField,
-  componentId: zIdField,
   producerPoint: z.tuple([z.number(), z.number()]).default([0.5, 0.5]),
   wavesPerSecond: z.number().min(0).max(20).default(1),
   waveSpeed: z.number().min(0).max(100).default(5),
@@ -2244,7 +2237,6 @@ export const CartoonEffectInput = z.object({
 
 export const BrushStrokesInput = z.object({
   projectId: zIdField,
-  componentId: zIdField,
   brushSize: z.number().min(1).max(50).default(8),
   strokeAngle: z.number().min(0).max(360).default(45),
   strokeLength: z.number().min(1).max(50).default(15),
