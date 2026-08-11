@@ -1489,6 +1489,10 @@ const PATTERNS: CompositionPattern[] = [
     name: "motion-export-optimizer",
     match: (msg, ctx) => {
       if (!ctx.hasComponents) return null;
+      // A concrete media-format export request (video, gif, webm, html,
+      // lottie, or a specific code format) is handled by the dedicated export
+      // intents/tools, so do not hijack it into the optimiser here.
+      if (has(msg, "video", "mp4", "gif", "webm", "lottie", "after effects", "html", "css code", "json code", "react code", "tsx", "download")) return null;
       const target = has(msg, "lottie") ? "lottie"
         : has(msg, "react spring", "react-spring") ? "react-spring"
         : has(msg, "gsap", "greensock") ? "gsap"
