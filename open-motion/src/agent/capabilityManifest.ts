@@ -57,7 +57,7 @@ export interface CapabilityManifest {
 /**
  * Build a single aggregated view of everything the agent can do: tools,
  * skills, engines, intents, and providers. Used by the
- * GET /api/agent/capabilities route so the frontend can render a unified
+ * GET /api/capabilities route so the frontend can render a unified
  * capabilities overview without calling a dozen separate endpoints.
  */
 export function buildCapabilityManifest(): CapabilityManifest {
