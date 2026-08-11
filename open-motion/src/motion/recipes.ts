@@ -958,12 +958,34 @@ export function getRecipe(id: string): MotionRecipe | null {
 
 export function searchRecipes(query: string, limit = 10): MotionRecipe[] {
   const db = getDb();
-  const pattern = `%${query.toLowerCase()}%`;
+  const q = query.toLowerCase();
+  const pattern = `%${q}%`;
   const rows = db.prepare(
     `SELECT * FROM motion_recipes
      WHERE LOWER(name) LIKE ? OR LOWER(description) LIKE ? OR tags_json LIKE ?
      ORDER BY restraint_cost ASC LIMIT ?`,
   ).all(pattern, pattern, pattern, limit) as unknown as RecipeRow[];
+
+  // Multi-word queries often come back empty from a whole-phrase LIKE. Fall
+  // back to token-based matching so "gentle float" surfaces recipes that
+  // share any of its terms (e.g. "ambient float", "gentle entrance").
+  if (rows.length === 0) {
+    const tokens = q.split(/\s+/).filter((t) => t.length >= 2);
+    if (tokens.length > 1) {
+      const all = db.prepare(`SELECT * FROM motion_recipes`).all() as unknown as RecipeRow[];
+      const scored = all
+        .map((r) => {
+          const haystack = `${r.name} ${r.description ?? ""} ${r.tags_json ?? ""}`.toLowerCase();
+          const hits = tokens.filter((t) => haystack.includes(t)).length;
+          return { r, frac: hits / tokens.length };
+        })
+        .filter((x) => x.frac >= 0.5)
+        .sort((a, b) => b.frac - a.frac)
+        .slice(0, limit);
+      if (scored.length > 0) return scored.map((x) => rowToRecipe(x.r));
+    }
+  }
+
   return rows.map(rowToRecipe);
 }
 
