@@ -9,6 +9,7 @@ import { pipelineExecutors } from "./pipelineTools.js";
 import { agentExecutors } from "./agentTools.js";
 import { editorExecutors } from "./editorTools.js";
 import { filterExecutors } from "./filterTools.js";
+import { compositeEffectExecutors } from "./compositeEffectsTools.js";
 
 export interface ToolContext {
   projectId: string;
@@ -38,6 +39,7 @@ const EXECUTORS: Partial<Record<ToolName, ToolExecutor>> = {
   ...agentExecutors,
   ...editorExecutors,
   ...filterExecutors,
+  ...compositeEffectExecutors,
 };
 
 /**

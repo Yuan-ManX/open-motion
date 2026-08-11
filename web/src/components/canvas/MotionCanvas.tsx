@@ -688,7 +688,7 @@ export function MotionCanvas() {
                 return (
                   <Tag
                     key={node.componentId}
-                    ref={((el: HTMLElement | null) => canvasFlipRegistry.register(node.componentId, el)) as never}
+                    ref={(el: HTMLElement | null) => { canvasFlipRegistry.register(node.componentId, el); }}
                     className={`${node.className} ${isLocked ? "cursor-not-allowed" : "cursor-pointer"} ${outlineClass}`}
                     data-om-name={node.name}
                     data-om-component-id={node.componentId}
@@ -701,7 +701,7 @@ export function MotionCanvas() {
               return (
                 <Tag
                   key={node.componentId}
-                  ref={((el: HTMLElement | null) => canvasFlipRegistry.register(node.componentId, el)) as never}
+                  ref={(el: HTMLElement | null) => { canvasFlipRegistry.register(node.componentId, el); }}
                   className={`${node.className} ${isLocked ? "cursor-not-allowed" : "cursor-pointer"} ${outlineClass}`}
                   data-om-name={node.name}
                   data-om-component-id={node.componentId}
