@@ -10,6 +10,7 @@ import { agentExecutors } from "./agentTools.js";
 import { editorExecutors } from "./editorTools.js";
 import { filterExecutors } from "./filterTools.js";
 import { compositeEffectExecutors } from "./compositeEffectsTools.js";
+import { domainAnalysisExecutors } from "./domainAnalysisTools.js";
 
 export interface ToolContext {
   projectId: string;
@@ -40,6 +41,7 @@ const EXECUTORS: Partial<Record<ToolName, ToolExecutor>> = {
   ...editorExecutors,
   ...filterExecutors,
   ...compositeEffectExecutors,
+  ...domainAnalysisExecutors,
 };
 
 /**
