@@ -149,6 +149,7 @@ export function ChatPanel() {
   const reasoningText = useChatStore((s) => s.reasoningText);
   const thinking = useChatStore((s) => s.thinking);
   const reflection = useChatStore((s) => s.reflection);
+  const hookWarnings = useChatStore((s) => s.hookWarnings);
   const goal = useChatStore((s) => s.goal);
   const proactiveSuggestions = useChatStore((s) => s.proactiveSuggestions);
   const sessionSummary = useChatStore((s) => s.sessionSummary);
@@ -541,6 +542,23 @@ export function ChatPanel() {
             {reflection.suggestion && (
               <p className="text-gray-500 mt-1 text-[10px]">→ {reflection.suggestion}</p>
             )}
+          </div>
+        )}
+
+        {/* Guardrail warnings surfaced by the agent's hooks */}
+        {hookWarnings.length > 0 && isStreaming && (
+          <div className="text-xs bg-panel2 border border-amber-700/40 rounded-lg px-3 py-2 max-w-[90%]">
+            <div className="flex items-center gap-1.5 text-amber-400/90 mb-1">
+              <span className="text-[10px] uppercase tracking-wide">Guardrail</span>
+            </div>
+            {hookWarnings.map((w, i) => (
+              <div key={i} className="mb-1 last:mb-0">
+                <span className="text-gray-500 font-mono text-[9px]">{w.tool}</span>
+                {w.warnings.map((msg, j) => (
+                  <p key={j} className="text-gray-400">{msg}</p>
+                ))}
+              </div>
+            ))}
           </div>
         )}
 
