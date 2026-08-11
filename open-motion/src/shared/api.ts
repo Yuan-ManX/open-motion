@@ -67,6 +67,10 @@ export const ChatEventSchema = z.discriminatedUnion("type", [
     tool: z.string(),
     result: z.unknown(),
     summary: z.string(),
+    // Whether the tool succeeded. Defaults to true for backward compat with
+    // emitters that have not been updated; the orchestrator sets this
+    // explicitly so the chat UI can flag failed tools visually.
+    ok: z.boolean().default(true),
   }),
   z.object({
     type: z.literal("spec_update"),
