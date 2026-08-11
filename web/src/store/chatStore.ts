@@ -15,6 +15,10 @@ export interface ToolActivity {
   result?: unknown;
   summary?: string;
   done: boolean;
+  /** Whether the tool execution succeeded. False when the orchestrator
+      reports a failed tool; true otherwise (defaults to true for
+      backward-compat with emitters that omit the field). */
+  ok: boolean;
 }
 
 export interface PlanStep {
@@ -79,6 +83,10 @@ interface ChatState {
   reasoningText: string;
   thinking: ThinkingTrace | null;
   reflection: { text: string; failedTools: string[]; suggestion?: string } | null;
+  // Guardrail warnings surfaced by the orchestrator's pre/post hooks. Each
+  // entry ties the warnings to the tool call that triggered them so the UI
+  // can show why a request was adjusted or blocked.
+  hookWarnings: { tool: string; warnings: string[] }[];
   goal: GoalNode | null;
   proactiveSuggestions: ProactiveSuggestion[];
   sessionSummary: SessionSummary | null;
@@ -89,6 +97,38 @@ interface ChatState {
   // records the batch size and the tools that ran concurrently, so the UI
   // can surface parallelism. Cleared on the next `send`.
   parallelBatches: { count: number; tools: string[] }[];
+  // Token usage for the most recent turn — emitted by the `done` event.
+  // Zero for composed-tool paths that bypass the LLM.
+  tokensIn: number;
+  tokensOut: number;
+  // Last checkpoint captured by the orchestrator before a spec-mutating
+  // tool. Surfaced so the user knows a rollback target exists.
+  lastCheckpoint: {
+    checkpointId: string;
+    triggerTool: string;
+    componentCount: number;
+    label: string;
+  } | null;
+  // Subagent delegations emitted during the current turn. Each entry
+  // tracks the sub-goal, status, and outcome so the UI can show the
+  // agent's parallel decomposition work.
+  subagentActivity: {
+    goal: string;
+    toolCount: number;
+    status: "running" | "done";
+    allSucceeded?: boolean;
+    durationMs?: number;
+    iterationsUsed?: number;
+    summary?: string;
+  }[];
+  // Iteration budget for the current turn — emitted periodically by the
+  // orchestrator so the user can see how much agency budget remains.
+  budgetRemaining: {
+    label: string;
+    consumed: number;
+    initial: number;
+    remaining: number;
+  } | null;
   error: string | null;
   abortController: AbortController | null;
   // Active provider for the current stream (e.g. "mock", "openai", "router").
@@ -112,11 +152,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
   reasoningText: "",
   thinking: null,
   reflection: null,
+  hookWarnings: [],
   goal: null,
   proactiveSuggestions: [],
   sessionSummary: null,
   confidence: null,
   parallelBatches: [],
+  tokensIn: 0,
+  tokensOut: 0,
+  lastCheckpoint: null,
+  subagentActivity: [],
+  budgetRemaining: null,
   error: null,
   abortController: null,
   provider: null,
@@ -154,11 +200,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
       activeStepIndex: -1,
       reasoningText: "",
       thinking: null,
+      reflection: null,
+      hookWarnings: [],
       goal: null,
       proactiveSuggestions: [],
       sessionSummary: null,
       confidence: null,
       parallelBatches: [],
+      tokensIn: 0,
+      tokensOut: 0,
+      lastCheckpoint: null,
+      subagentActivity: [],
+      budgetRemaining: null,
       error: null,
     });
     useGenerationStore.getState().startGeneration(text);
@@ -198,6 +251,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
               },
             });
             break;
+          case "hook_warning":
+            set({
+              hookWarnings: [
+                ...get().hookWarnings,
+                { tool: event.tool, warnings: event.warnings },
+              ],
+            });
+            break;
           case "goal":
             set({ goal: event.root as GoalNode });
             break;
@@ -214,7 +275,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             set({
               toolActivity: [
                 ...state.toolActivity,
-                { callId: event.callId, tool: event.tool, args: event.args, done: false },
+                { callId: event.callId, tool: event.tool, args: event.args, done: false, ok: true },
               ],
               activeStepIndex: activeStep,
             });
@@ -233,7 +294,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           case "tool_result": {
             const activity = get().toolActivity.map((a) =>
               a.callId === event.callId
-                ? { ...a, result: event.result, summary: event.summary, done: true }
+                ? { ...a, result: event.result, summary: event.summary, done: true, ok: event.ok }
                 : a,
             );
             const state = get();
@@ -392,10 +453,65 @@ export const useChatStore = create<ChatState>((set, get) => ({
               goal: null,
               proactiveSuggestions: [],
               confidence: event.confidence ?? null,
+              tokensIn: event.tokensIn ?? 0,
+              tokensOut: event.tokensOut ?? 0,
               abortController: null,
             });
             break;
           }
+          case "checkpoint":
+            set({
+              lastCheckpoint: {
+                checkpointId: event.checkpointId,
+                triggerTool: event.triggerTool,
+                componentCount: event.componentCount,
+                label: event.label,
+              },
+            });
+            break;
+          case "subagent_started":
+            set({
+              subagentActivity: [
+                ...get().subagentActivity,
+                {
+                  goal: event.goal,
+                  toolCount: event.toolCount,
+                  status: "running" as const,
+                },
+              ],
+            });
+            break;
+          case "subagent_completed": {
+            // Mark the most recent running subagent with the same goal as
+            // completed. Matching by goal keeps the wiring resilient to
+            // callId propagation gaps between subagent and orchestrator.
+            const updated = get().subagentActivity;
+            for (let i = updated.length - 1; i >= 0; i--) {
+              if (updated[i].goal === event.goal && updated[i].status === "running") {
+                updated[i] = {
+                  ...updated[i],
+                  status: "done",
+                  allSucceeded: event.allSucceeded,
+                  durationMs: event.durationMs,
+                  iterationsUsed: event.iterationsUsed,
+                  summary: event.summary,
+                };
+                break;
+              }
+            }
+            set({ subagentActivity: [...updated] });
+            break;
+          }
+          case "budget":
+            set({
+              budgetRemaining: {
+                label: event.label,
+                consumed: event.consumed,
+                initial: event.initial,
+                remaining: event.remaining,
+              },
+            });
+            break;
           case "error":
             set({ isStreaming: false, streamingTokens: "", plan: null, completedStepIndices: [], activeStepIndex: -1, reasoningText: "", thinking: null, reflection: null, goal: null, proactiveSuggestions: [], error: event.message, abortController: null });
             break;
@@ -627,6 +743,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
       goal: null,
       sessionSummary: null,
       parallelBatches: [],
+      tokensIn: 0,
+      tokensOut: 0,
+      lastCheckpoint: null,
+      subagentActivity: [],
+      budgetRemaining: null,
       error: null,
       abortController: null,
       isStreaming: false,
