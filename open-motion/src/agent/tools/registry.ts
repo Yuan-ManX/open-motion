@@ -11,6 +11,13 @@ import { editorExecutors } from "./editorTools.js";
 import { filterExecutors } from "./filterTools.js";
 import { compositeEffectExecutors } from "./compositeEffectsTools.js";
 import { domainAnalysisExecutors } from "./domainAnalysisTools.js";
+import { intelligenceExecutors } from "./intelligenceTools.js";
+import { advancedExecutors } from "./advancedTools.js";
+import { lightingCameraExecutors } from "./lightingCameraTools.js";
+import { pathDataTextExecutors } from "./pathDataTextTools.js";
+import { timelineExecutors } from "./timelineTools.js";
+import { paintKeyingTransitionExecutors } from "./paintKeyingTransitionTools.js";
+import { generatorExecutors } from "./generatorTools.js";
 
 export interface ToolContext {
   projectId: string;
@@ -42,6 +49,13 @@ const EXECUTORS: Partial<Record<ToolName, ToolExecutor>> = {
   ...filterExecutors,
   ...compositeEffectExecutors,
   ...domainAnalysisExecutors,
+  ...intelligenceExecutors,
+  ...advancedExecutors,
+  ...lightingCameraExecutors,
+  ...pathDataTextExecutors,
+  ...timelineExecutors,
+  ...paintKeyingTransitionExecutors,
+  ...generatorExecutors,
 };
 
 /**
@@ -97,4 +111,9 @@ export async function executeTool(
     logger.error(`tool ${tool} threw`, { message });
     return { ok: false, summary: `${tool} failed: ${message}`, specChanged: false };
   }
+}
+
+/** List tool names that have a concrete executor wired in. (TEMP diagnostic) */
+export function listRegisteredToolNames(): ToolName[] {
+  return Object.keys(EXECUTORS) as ToolName[];
 }
