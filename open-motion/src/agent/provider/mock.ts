@@ -635,11 +635,21 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
   }
 
   // --- Search catalog (find presets, recipes, shaders, patterns) ---
-  const catalogMatch = userText.match(/\b(?:search|find|show|browse|list)\s+(?:for\s+)?(.+?)(?:\s+(?:preset|recipe|shader|pattern|effect|style|choreography))?\s*(?:in|from|within)?\s*(?:the\s+)?(?:catalog|library)?\b/i);
-  if (catalogMatch && /\b(search|find|show|browse|list)\b/i.test(userText) && /\b(preset|recipe|shader|pattern|effect|style|choreography|catalog|library)\b/i.test(userText)) {
-    const searchQuery = catalogMatch[1]?.trim() || "fade";
+  const catalogIntent =
+    /\b(?:search|find|look\s+for|browse|show)\b/i.test(userText) &&
+    /\b(?:preset|recipe|shader|pattern|effect|style|choreography|catalog|library)\b/i.test(userText);
+  if (catalogIntent) {
+    // Extract the descriptive query: capture everything following the search
+    // verb up to a resource keyword, a connector ("and"/"then"/"apply"), or
+    // the end of the sentence, then strip leading articles and trailing noise.
+    // Handles phrasings like "search the motion library for a gentle float".
+    const queryMatch = userText.match(
+      /\b(?:search|find|look\s+for|browse|show)\s+(?:the\s+)?(?:resource\s+)?(?:motion\s+)?(?:library|catalog)?\s*(?:for\s+)?(.+?)(?=\s+(?:a\s+|an\s+)?(?:preset|recipe|shader|pattern|effect|style|choreography)\b|\s+(?:find|then|and|apply)\b|$)/i,
+    );
+    const rawQuery = (queryMatch ? queryMatch[1] : userText).trim();
+    const searchQuery = rawQuery.replace(/^(?:a|an|the)\s+/i, "").replace(/\s+/g, " ").trim() || "motion";
     push("search_catalog", { query: searchQuery, limit: 10 },
-      `Found 8 catalog matches for "${searchQuery}" — 3 recipes, 2 style presets, 2 shaders, 1 choreography pattern. Top match: ${searchQuery} recipe (score: 80).`);
+      `Searching the motion library for "${searchQuery}" — recipes, styles, shaders, and patterns ranked by relevance.`);
   }
 
   // --- Run motion pipeline (automated motion generation) ---
