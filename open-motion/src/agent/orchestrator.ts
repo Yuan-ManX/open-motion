@@ -2519,10 +2519,35 @@ async function executeMotionIntelligenceTool(
     if (!result) {
       return { ok: false, summary: `emotion '${emotionId}' not found`, specChanged: false };
     }
+    // Persist the synthesized emotion motion as a project component.
+    const ts = now();
+    const componentId = createId("c_");
+    createComponent({
+      id: componentId,
+      projectId,
+      sceneId: null,
+      name: `Emotion: ${result.emotion.name}`,
+      selector: null,
+      templateId: null,
+      durationMs: result.durationMs,
+      delayMs: 0,
+      iterationCount: 1,
+      direction: "normal",
+      fillMode: "forwards",
+      playState: "running",
+      trigger: "onLoad",
+      easing: result.easing,
+      keyframes: result.keyframes,
+      style: {},
+      orderIndex: 0,
+      parentId: null,
+      createdAt: ts,
+      updatedAt: ts,
+    });
     return {
       ok: true,
       summary: result.summary,
-      specChanged: false,
+      specChanged: true,
       data: {
         kind: "emotion_synthesis",
         emotion: { id: result.emotion.id, name: result.emotion.name },
@@ -2533,7 +2558,12 @@ async function executeMotionIntelligenceTool(
         keyframes: result.keyframes,
         palette: result.palette,
         report: formatEmotionReport(result),
+        componentId,
       },
+      editorCommands: [
+        { command: "select_component", args: { componentId } },
+        { command: "refresh_canvas", args: {} },
+      ],
     };
   }
 
@@ -2573,10 +2603,35 @@ async function executeMotionIntelligenceTool(
     if (!result) {
       return { ok: false, summary: "failed to blend emotions — check emotion ids", specChanged: false };
     }
+    // Persist the blended emotion motion as a project component.
+    const ts = now();
+    const componentId = createId("c_");
+    createComponent({
+      id: componentId,
+      projectId,
+      sceneId: null,
+      name: "Blended Emotion",
+      selector: null,
+      templateId: null,
+      durationMs: 800,
+      delayMs: 0,
+      iterationCount: 1,
+      direction: "normal",
+      fillMode: "forwards",
+      playState: "running",
+      trigger: "onLoad",
+      easing: { type: "preset", name: "ease-in-out" },
+      keyframes: result.keyframes,
+      style: {},
+      orderIndex: 0,
+      parentId: null,
+      createdAt: ts,
+      updatedAt: ts,
+    });
     return {
       ok: true,
       summary: result.summary,
-      specChanged: false,
+      specChanged: true,
       data: {
         kind: "emotion_blend",
         vad: result.vad,
@@ -2584,7 +2639,12 @@ async function executeMotionIntelligenceTool(
         components: result.components,
         keyframes: result.keyframes,
         report: formatBlendReport(result),
+        componentId,
       },
+      editorCommands: [
+        { command: "select_component", args: { componentId } },
+        { command: "refresh_canvas", args: {} },
+      ],
     };
   }
 
