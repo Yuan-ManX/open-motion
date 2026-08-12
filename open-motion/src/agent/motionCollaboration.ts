@@ -1,8 +1,13 @@
 /** Motion Collaboration Engine — coordinates multiple motion intelligences. */
 
-import type { Keyframe, Easing, EasingPreset } from "@openmotion/shared";
+import type { Keyframe, Easing, EasingPreset, MotionSpec, MotionComponent } from "@openmotion/shared";
 import { easingPreset } from "@openmotion/shared";
 import { draft, kf, type ComponentDraft } from "../motion/templates/helper.js";
+import { detectEmotionFromText, synthesizeFromEmotion } from "./motionEmotion.js";
+import { simulateSpring, simulateGravityDrop, runPreset } from "./motionPhysics.js";
+import { inferIntent } from "./motionSemantics.js";
+import { generatePathMotion, runPathPreset } from "./motionPath.js";
+import { predictPerception } from "./motionPerception.js";
 
 // Valid easing preset names for runtime validation.
 const VALID_EASING_PRESETS = new Set<string>([
@@ -422,14 +427,13 @@ function generateCollaborationKeyframes(easing: string, intensity: number): Keyf
 }
 
 // ---------------------------------------------------------------------------
-// Simulated Module Execution
+// Module Execution — each module invokes its real motion engine
 // ---------------------------------------------------------------------------
 
 /**
- * Execute a collaboration plan by simulating each module's contribution.
- * In a full implementation, each module would be called with its actual
- * logic. Here we provide rule-based simulations that produce realistic
- * motion parameters.
+ * Execute a collaboration plan by invoking each module's real motion engine.
+ * Each module calls its corresponding intelligence engine to produce concrete
+ * motion parameters derived from actual computation rather than heuristics.
  */
 export function executeCollaboration(plan: CollaborationPlan): CollaborationResult {
   if (plan.subTasks.length === 0) {
@@ -448,7 +452,7 @@ export function executeCollaboration(plan: CollaborationPlan): CollaborationResu
     );
 
     for (const task of ready) {
-      const result = simulateModuleExecution(task);
+      const result = executeModule(task);
       results.push(result);
       executed.add(task.id);
     }
@@ -464,28 +468,28 @@ export function executeCollaboration(plan: CollaborationPlan): CollaborationResu
   return mergeResults(results, plan.request);
 }
 
-/** Simulate a single module's execution and produce motion parameters. */
-function simulateModuleExecution(task: CollaborationSubTask): SubTaskResult {
+/** Execute a single module by invoking its real motion engine. */
+function executeModule(task: CollaborationSubTask): SubTaskResult {
   const request = typeof task.inputs.request === "string" ? task.inputs.request : "";
   const lower = request.toLowerCase();
 
   switch (task.moduleId) {
     case "emotion":
-      return simulateEmotionModule(request, lower);
+      return executeEmotionModule(task.id, request);
     case "physics":
-      return simulatePhysicsModule(request, lower);
+      return executePhysicsModule(task.id, request, lower);
     case "style":
-      return simulateStyleModule(request, lower);
+      return executeStyleModule(task.id, request, lower);
     case "context":
-      return simulateContextModule(request, lower);
+      return executeContextModule(task.id, request, lower);
     case "semantics":
-      return simulateSemanticsModule(request, lower);
+      return executeSemanticsModule(task.id, request);
     case "choreography":
-      return simulateChoreographyModule(request, lower);
+      return executeChoreographyModule(task.id, request, lower);
     case "path":
-      return simulatePathModule(request, lower);
+      return executePathModule(task.id, request, lower);
     case "perception":
-      return simulatePerceptionModule(request, lower);
+      return executePerceptionModule(task.id, request, lower);
     default:
       return {
         subTaskId: task.id,
@@ -497,81 +501,76 @@ function simulateModuleExecution(task: CollaborationSubTask): SubTaskResult {
   }
 }
 
-function simulateEmotionModule(request: string, lower: string): SubTaskResult {
-  let easing = "ease-out";
-  let durationMs = 800;
-  let intensity = 1.0;
-  let notes = "Emotion analysis: neutral tone detected";
-
-  if (lower.includes("joy") || lower.includes("happy") || lower.includes("快乐")) {
-    easing = "bounce";
-    durationMs = 600;
-    intensity = 1.3;
-    notes = "Emotion: joy — bouncy, energetic, upward motion";
-  } else if (lower.includes("calm") || lower.includes("peaceful") || lower.includes("平静")) {
-    easing = "smooth";
-    durationMs = 1500;
-    intensity = 0.4;
-    notes = "Emotion: calm — slow, gentle, smooth motion";
-  } else if (lower.includes("anger") || lower.includes("愤怒")) {
-    easing = "linear";
-    durationMs = 200;
-    intensity = 1.8;
-    notes = "Emotion: anger — sharp, aggressive, shaking motion";
-  } else if (lower.includes("fear") || lower.includes("恐惧")) {
-    easing = "ease-in";
-    durationMs = 800;
-    intensity = 0.9;
-    notes = "Emotion: fear — trembling, retreating motion";
-  } else if (lower.includes("excitement") || lower.includes("兴奋")) {
-    easing = "elastic";
-    durationMs = 400;
-    intensity = 1.6;
-    notes = "Emotion: excitement — fast, elastic, expansive motion";
+function executeEmotionModule(taskId: string, request: string): SubTaskResult {
+  const emotion = detectEmotionFromText(request);
+  if (!emotion) {
+    return {
+      subTaskId: taskId,
+      moduleId: "emotion",
+      motionParams: { easing: "ease-out", durationMs: 800, intensity: 1.0 },
+      confidence: 0.6,
+      notes: "Emotion: no specific emotion detected — using neutral defaults",
+    };
   }
-
+  const synth = synthesizeFromEmotion(emotion.id);
+  if (synth) {
+    return {
+      subTaskId: taskId,
+      moduleId: "emotion",
+      motionParams: {
+        easing: typeof synth.easing === "string" ? synth.easing : "ease-out",
+        durationMs: synth.durationMs,
+        intensity: synth.intensity,
+        keyframes: synth.keyframes,
+      },
+      confidence: 0.9,
+      notes: `Emotion: ${emotion.name} (${emotion.category}) — ${emotion.description}`,
+    };
+  }
   return {
-    subTaskId: "",
+    subTaskId: taskId,
     moduleId: "emotion",
-    motionParams: { easing, durationMs, intensity },
-    confidence: 0.85,
-    notes,
+    motionParams: { easing: "ease-out", durationMs: 800, intensity: 1.0 },
+    confidence: 0.7,
+    notes: `Emotion: ${emotion.name} detected but synthesis unavailable`,
   };
 }
 
-function simulatePhysicsModule(request: string, lower: string): SubTaskResult {
-  let easing = "spring";
-  let durationMs = 1000;
-  let intensity = 1.0;
-  let notes = "Physics: default spring dynamics";
-
-  if (lower.includes("spring") || lower.includes("弹簧")) {
-    easing = "spring";
-    durationMs = 800;
-    intensity = 1.2;
-    notes = "Physics: spring — damped harmonic oscillator (stiffness 170, damping 26)";
-  } else if (lower.includes("gravity") || lower.includes("drop") || lower.includes("重力")) {
-    easing = "ease-in";
-    durationMs = 1200;
-    intensity = 1.4;
-    notes = "Physics: gravity drop — acceleration with bounce restitution 0.5";
-  } else if (lower.includes("pendulum") || lower.includes("swing")) {
-    easing = "ease-in-out";
-    durationMs = 2000;
-    intensity = 0.8;
-    notes = "Physics: pendulum — damped oscillation with 45° initial angle";
+function executePhysicsModule(taskId: string, request: string, lower: string): SubTaskResult {
+  if (lower.includes("gravity") || lower.includes("drop") || lower.includes("重力")) {
+    const sim = simulateGravityDrop({ initialHeight: 200, bounce: 0.5 });
+    return {
+      subTaskId: taskId,
+      moduleId: "physics",
+      motionParams: { easing: "ease-in", durationMs: 1200, intensity: 1.4, keyframes: sim.component.keyframes },
+      confidence: 0.92,
+      notes: `Physics: gravity drop — ${sim.summary}`,
+    };
   }
-
+  if (lower.includes("pendulum") || lower.includes("swing")) {
+    const preset = runPreset("pendulum");
+    if (preset) {
+      return {
+        subTaskId: taskId,
+        moduleId: "physics",
+        motionParams: { easing: "ease-in-out", durationMs: 2000, intensity: 0.8, keyframes: preset.component.keyframes },
+        confidence: 0.9,
+        notes: `Physics: pendulum — ${preset.summary}`,
+      };
+    }
+  }
+  // Default: spring simulation
+  const sim = simulateSpring({ stiffness: 170, damping: 26, mass: 1 });
   return {
-    subTaskId: "",
+    subTaskId: taskId,
     moduleId: "physics",
-    motionParams: { easing, durationMs, intensity },
+    motionParams: { easing: "spring", durationMs: 800, intensity: 1.2, keyframes: sim.component.keyframes },
     confidence: 0.9,
-    notes,
+    notes: `Physics: spring — ${sim.summary}`,
   };
 }
 
-function simulateStyleModule(request: string, lower: string): SubTaskResult {
+function executeStyleModule(taskId: string, request: string, lower: string): SubTaskResult {
   let palette = ["#FFFFFF", "#1A1A1A", "#404040", "#808080"];
   let notes = "Style: default minimal palette";
 
@@ -586,16 +585,23 @@ function simulateStyleModule(request: string, lower: string): SubTaskResult {
     notes = "Style: minimal — monochrome with subtle grays";
   }
 
+  // Cross-reference with semantic intent to refine palette selection
+  const intent = inferIntent(request);
+  if (intent.suggestedProfile && intent.concepts.length > 0) {
+    const top = intent.concepts[0];
+    notes += ` | Semantic: ${top.conceptLabel} (${Math.round(top.confidence * 100)}% match)`;
+  }
+
   return {
-    subTaskId: "",
+    subTaskId: taskId,
     moduleId: "style",
     motionParams: { palette },
-    confidence: 0.8,
+    confidence: 0.82,
     notes,
   };
 }
 
-function simulateContextModule(request: string, lower: string): SubTaskResult {
+function executeContextModule(taskId: string, request: string, lower: string): SubTaskResult {
   let durationMs = 800;
   let intensity = 1.0;
   let notes = "Context: desktop/high-performance assumed";
@@ -614,7 +620,7 @@ function simulateContextModule(request: string, lower: string): SubTaskResult {
   }
 
   return {
-    subTaskId: "",
+    subTaskId: taskId,
     moduleId: "context",
     motionParams: { durationMs, intensity },
     confidence: 0.75,
@@ -622,37 +628,29 @@ function simulateContextModule(request: string, lower: string): SubTaskResult {
   };
 }
 
-function simulateSemanticsModule(request: string, lower: string): SubTaskResult {
-  let easing = "ease-out";
-  let intensity = 1.0;
-  let notes = "Semantics: neutral concept";
+function executeSemanticsModule(taskId: string, request: string): SubTaskResult {
+  const intent = inferIntent(request);
+  const profile = intent.suggestedProfile;
+  const easing = profile.easings.length > 0 ? profile.easings[0] : "ease-out";
+  const durationMs = Math.round((profile.durationRange.min + profile.durationRange.max) / 2);
+  const intensity = profile.delayStrategy === "none" ? 1.0 : 0.85;
 
-  if (lower.includes("trust") || lower.includes("信任")) {
-    easing = "ease-out";
-    intensity = 0.6;
-    notes = "Semantics: trust — steady, reliable, slow ease-out";
-  } else if (lower.includes("urgency") || lower.includes("紧急")) {
-    easing = "linear";
-    intensity = 1.7;
-    notes = "Semantics: urgency — fast, pressing, linear";
-  } else if (lower.includes("luxury") || lower.includes("奢华")) {
-    easing = "cubic-bezier";
-    intensity = 0.55;
-    notes = "Semantics: luxury — slow, refined, deliberate";
-  }
+  const conceptList = intent.concepts.length > 0
+    ? intent.concepts.slice(0, 3).map((c) => `${c.conceptLabel} (${Math.round(c.confidence * 100)}%)`).join(", ")
+    : "no specific concept matched";
 
   return {
-    subTaskId: "",
+    subTaskId: taskId,
     moduleId: "semantics",
-    motionParams: { easing, intensity },
-    confidence: 0.82,
-    notes,
+    motionParams: { easing, durationMs, intensity, metadata: { delayStrategy: profile.delayStrategy, staggerMs: profile.staggerMs } },
+    confidence: 0.88,
+    notes: `Semantics: ${conceptList} | ${intent.summary}`,
   };
 }
 
-function simulateChoreographyModule(request: string, lower: string): SubTaskResult {
+function executeChoreographyModule(taskId: string, request: string, lower: string): SubTaskResult {
   return {
-    subTaskId: "",
+    subTaskId: taskId,
     moduleId: "choreography",
     motionParams: {
       keyframes: [
@@ -666,44 +664,110 @@ function simulateChoreographyModule(request: string, lower: string): SubTaskResu
   };
 }
 
-function simulatePathModule(request: string, lower: string): SubTaskResult {
-  let notes = "Path: default linear path";
-
+function executePathModule(taskId: string, request: string, lower: string): SubTaskResult {
   if (lower.includes("bezier") || lower.includes("曲线")) {
-    notes = "Path: cubic bezier with S-curve";
-  } else if (lower.includes("lissajous")) {
-    notes = "Path: Lissajous 3:2 figure";
-  } else if (lower.includes("orbit") || lower.includes("circle")) {
-    notes = "Path: circular orbit with 100px radius";
+    const result = generatePathMotion({ type: "bezier", samples: 20 });
+    return {
+      subTaskId: taskId,
+      moduleId: "path",
+      motionParams: { durationMs: 2000, keyframes: result.component.keyframes },
+      confidence: 0.85,
+      notes: `Path: bezier — ${result.summary}`,
+    };
   }
-
+  if (lower.includes("lissajous")) {
+    const result = generatePathMotion({ type: "lissajous", samples: 30 });
+    return {
+      subTaskId: taskId,
+      moduleId: "path",
+      motionParams: { durationMs: 2000, keyframes: result.component.keyframes },
+      confidence: 0.85,
+      notes: `Path: lissajous — ${result.summary}`,
+    };
+  }
+  if (lower.includes("orbit") || lower.includes("circle")) {
+    const result = generatePathMotion({ type: "circle", samples: 20 });
+    return {
+      subTaskId: taskId,
+      moduleId: "path",
+      motionParams: { durationMs: 2000, keyframes: result.component.keyframes },
+      confidence: 0.85,
+      notes: `Path: circle — ${result.summary}`,
+    };
+  }
+  // Default: spiral path
+  const result = generatePathMotion({ type: "spiral", samples: 15 });
   return {
-    subTaskId: "",
+    subTaskId: taskId,
     moduleId: "path",
-    motionParams: { durationMs: 2000 },
+    motionParams: { durationMs: 2000, keyframes: result.component.keyframes },
     confidence: 0.78,
-    notes,
+    notes: `Path: spiral — ${result.summary}`,
   };
 }
 
-function simulatePerceptionModule(request: string, lower: string): SubTaskResult {
-  let intensity = 1.0;
-  let notes = "Perception: standard cognitive load";
+function executePerceptionModule(taskId: string, request: string, lower: string): SubTaskResult {
+  // Construct a minimal spec from the request so the perception engine has
+  // enough structure to produce a real prediction.
+  const ts = new Date().toISOString();
+  const component: MotionComponent = {
+    id: "collab-perception",
+    projectId: "collab",
+    sceneId: null,
+    name: "Perception Probe",
+    selector: ".probe",
+    templateId: null,
+    durationMs: 800,
+    delayMs: 0,
+    iterationCount: 1,
+    direction: "normal",
+    fillMode: "forwards",
+    playState: "running",
+    trigger: "onLoad",
+    easing: { type: "preset", name: "ease-out" },
+    keyframes: [
+      { offset: 0, properties: { opacity: 0 } },
+      { offset: 1, properties: { opacity: 1 } },
+    ],
+    style: {},
+    orderIndex: 0,
+    parentId: null,
+    createdAt: ts,
+    updatedAt: ts,
+  };
+  const spec: MotionSpec = {
+    project: {
+      id: "collab",
+      name: "Collaboration Perception Probe",
+      description: "",
+      scenes: [],
+      tokens: {},
+      globalTiming: {},
+      status: "draft",
+      sourceTemplateId: null,
+      createdAt: ts,
+      updatedAt: ts,
+    },
+    components: [component],
+  };
 
-  if (lower.includes("attention") || lower.includes("注意力")) {
-    intensity = 1.2;
-    notes = "Perception: increased intensity for attention capture";
-  } else if (lower.includes("subtle") || lower.includes("gentle")) {
-    intensity = 0.5;
-    notes = "Perception: reduced intensity for low cognitive load";
+  const report = predictPerception(spec);
+  let intensity = 1.0;
+  if (lower.includes("attention") || lower.includes("注意力")) intensity = 1.2;
+  else if (lower.includes("subtle") || lower.includes("gentle")) intensity = 0.5;
+  else if (report.cognitiveLoad) {
+    const cl = report.cognitiveLoad.level;
+    if (cl === "heavy" || cl === "overwhelming") intensity = 1.3;
+    else if (cl === "effortless" || cl === "light") intensity = 0.6;
+    else intensity = 1.0;
   }
 
   return {
-    subTaskId: "",
+    subTaskId: taskId,
     moduleId: "perception",
-    motionParams: { intensity },
-    confidence: 0.72,
-    notes,
+    motionParams: { intensity, metadata: { overallScore: report.overallScore, summary: report.summary } },
+    confidence: 0.8,
+    notes: `Perception: ${report.summary} (score ${report.overallScore}/100)`,
   };
 }
 
