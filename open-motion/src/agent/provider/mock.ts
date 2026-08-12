@@ -3732,6 +3732,75 @@ function matchIntents(state: ParsedState, userText: string): { calls: LlmToolCal
       "Redid the last undone editor action.");
   }
 
+  // --- Operational: rollback + checkpoints ---
+  if (/\b(?:rollback|revert)\s+(?:the\s+)?(?:last\s+)?(?:action|step|change)s?\b/i.test(userText)) {
+    push("rollback_last_action", {},
+      "Reverted the most recent spec-mutating action to its prior state.");
+  }
+  if (/\b(?:list|show|view)\s+(?:the\s+)?checkpoints?\b/i.test(userText)) {
+    push("list_checkpoints", {},
+      "Listed the available project checkpoints for time-travel.");
+  }
+  if (/\b(?:rollback|restore|revert|go)\s+(?:to|back\s+to)\s+(?:a\s+)?checkpoint\b|\bcheckpoint\s+(\S+)\b/i.test(userText)) {
+    const cpM = userText.match(/checkpoint\s+(\S+)/i);
+    push("rollback_to_checkpoint", { checkpointId: cpM ? cpM[1] : undefined },
+      cpM ? `Restored the project to checkpoint ${cpM[1]}.` : "Restored the project to the selected checkpoint.");
+  }
+
+  // --- Operational: plan control ---
+  if (/\b(?:cancel|abort|stop)\s+(?:the\s+)?(?:current\s+)?plan\b/i.test(userText)) {
+    push("cancel_plan", {},
+      "Cancelled the running plan.");
+  }
+  if (/\b(?:get|show|display)\s+(?:the\s+)?(?:plan\s+)?state\b|\bplan\s+progress\b/i.test(userText)) {
+    push("get_plan_state", {},
+      "Retrieved the current plan state and progress.");
+  }
+
+  // --- Operational: editor selection tooling ---
+  if (/\b(?:select|highlight|choose)\s+(?:the\s+)?(?:last|first|selected|active)\s+component\b|\bselect\s+(?:this|that)\s+component\b|\bselect\s+(?:the\s+)?component\b/i.test(userText)) {
+    push("editor_select_component", { componentId: state.firstComponentId },
+      `Selected the active component in the editor.`);
+  }
+  if (/\b(?:select|highlight)\s+(?:the\s+)?(?:component|layer)s?\b|\bselect\s+all\b/i.test(userText)) {
+    push("editor_select_components", { componentIds: state.componentIds },
+      `Selected ${state.componentIds.length} component(s) in the editor.`);
+  }
+  if (/\b(?:toggle|hide)\s+(?:the\s+)?(?:visibility|visibility)\s+of\b|\b(hide|show)\s+(?:the\s+)?(?:selected\s+)?layer\b/i.test(userText)) {
+    push("editor_toggle_visibility", { componentId: state.firstComponentId },
+      "Toggled visibility of the active layer.");
+  }
+  if (/\b(?:toggle\s+lock|lock|unlock)\s+(?:the\s+)?(?:selected\s+)?layer\b/i.test(userText)) {
+    push("editor_toggle_lock", { componentId: state.firstComponentId },
+      "Toggled lock state of the active layer.");
+  }
+
+  // --- Advanced intelligence: intent prediction, genesis, symbiosis ---
+  if (/\b(?:predict|infer|guess)\s+(?:the\s+)?(?:next\s+)?(?:intent|action|move)\b/i.test(userText)) {
+    push("predict_intent", { partial: userText },
+      "Predicted the most likely next intent from the current context.");
+  }
+  if (/\b(?:create|generate|synthesize)\s+(?:a\s+)?(?:genesis|procedural|generative)\s+motion\b|\bgenesis\s+(?:motion|animation)\b/i.test(userText)) {
+    push("genesis_motion", { kind: "lissajous", durationMs: 800 },
+      "Generated a procedural genesis motion from a mathematical seed.");
+  }
+  if (/\b(?:analyze|examine|detect)\s+(?:the\s+)?(?:symbiosis|symbiotic)\s+(?:relationship|connection)s?\b/i.test(userText)) {
+    push("analyze_symbiosis", {},
+      "Analyzed the emergent symbiotic relationships between components.");
+  }
+  if (/\b(?:reflect|introspect|self[-\s]?aware)\s+\b|\bconsciousness\s+(?:analysis|reflection)\b/i.test(userText)) {
+    push("reflect_consciousness", {},
+      "Produced a reflective introspection of the agent's current working state.");
+  }
+  if (/\b(?:decide|choose|determine)\s+(?:autonomously|volition|independently)\b|\bvolition\b/i.test(userText)) {
+    push("decide_volition", {},
+      "Exercised an autonomous volition decision based on current goals.");
+  }
+  if (/\b(?:translate|parse|interpret)\s+(?:the\s+)?(?:motion\s+)?(?:lexicon|vocabulary|language)\b/i.test(userText)) {
+    push("translate_lexicon", { input: userText },
+      "Translated the motion lexicon terms into concrete spec parameters.");
+  }
+
   // --- Editor control: artboard ---
   if (/\b(?:set\s+)?(?:canvas|artboard)\s+(?:to\s+)?(\d+)\s*[x×]\s*(\d+)\b/i.test(userText)) {
     const sizeM = userText.match(/(?:canvas|artboard)\s+(?:to\s+)?(\d+)\s*[x×]\s*(\d+)/i);
