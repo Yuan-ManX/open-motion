@@ -456,34 +456,54 @@ catalogRouter.get("/catalog/summary", (_req, res) => {
   });
 });
 
-/** Simple relevance scoring: exact match > starts-with > includes > tag match. */
+/** Relevance scoring that handles multi-word queries by tokenizing the query
+ * into individual terms and matching each term independently across fields. A
+ * query like "gentle float" therefore surfaces any resource whose name or
+ * description contains "gentle" OR "float", ranked by how many distinct terms
+ * landed. Scoring tiers: exact field match > starts-with > includes > word match. */
 function scoreMatch(query: string, fields: string[]): number {
-  let maxScore = 0;
+  const terms = query
+    .split(/\s+/)
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0);
+  if (terms.length === 0) return 0;
+
+  let bestCoverage = 0;
   for (const field of fields) {
     if (!field) continue;
     const lower = field.toLowerCase();
-    if (lower === query) {
-      maxScore = Math.max(maxScore, 100);
-    } else if (lower.startsWith(query)) {
-      maxScore = Math.max(maxScore, 80);
-    } else if (lower.includes(query)) {
-      maxScore = Math.max(maxScore, 60);
-    } else {
-      // Word-level match
-      const words = lower.split(/\s+/);
-      for (const word of words) {
-        if (word.startsWith(query)) {
-          maxScore = Math.max(maxScore, 40);
-          break;
-        }
-        if (word.includes(query) && query.length >= 3) {
-          maxScore = Math.max(maxScore, 20);
-          break;
+    let covered = 0;
+    let maxTier = 0;
+    for (const term of terms) {
+      let tier = 0;
+      if (lower === term) tier = 100;
+      else if (lower.startsWith(term)) tier = 80;
+      else if (lower.includes(term)) tier = 60;
+      else {
+        const words = lower.split(/\s+/);
+        for (const word of words) {
+          if (word.startsWith(term)) {
+            tier = Math.max(tier, 40);
+            break;
+          }
+          if (word.includes(term) && term.length >= 3) {
+            tier = Math.max(tier, 20);
+            break;
+          }
         }
       }
+      if (tier > 0) {
+        covered++;
+        maxTier = Math.max(maxTier, tier);
+      }
     }
+    if (covered === 0) continue;
+    // Reward coverage of more query terms; preference for exact phrase over
+    // scattered single-term hits.
+    const exactPhrase = lower.includes(query) ? 25 : 0;
+    bestCoverage = Math.max(bestCoverage, covered * 40 + maxTier + exactPhrase);
   }
-  return maxScore;
+  return bestCoverage;
 }
 
 /**
