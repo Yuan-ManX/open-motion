@@ -11,6 +11,7 @@ import type { ToolName } from "@openmotion/shared";
 import { getProjectSpec } from "../../db/repositories/projects.js";
 import { getComponent } from "../../db/repositories/components.js";
 import type { ToolContext, ToolResult } from "./registry.js";
+import { addLayer } from "./specUtils.js";
 import * as styleTransfer from "../motionStyleTransfer.js";
 import * as knowledgeGraph from "../motionKnowledgeGraph.js";
 import * as codec from "../motionCodec.js";
@@ -31,7 +32,7 @@ import {
 type Executor = (args: Record<string, unknown>, ctx: ToolContext) => ToolResult | Promise<ToolResult>;
 
 /** Discriminate a physics simulation by its type and run the matching engine. */
-function runPhysicsSimulation(type: string, config: Record<string, unknown>): { summary: string; sampleCount: number; componentName: string } | null {
+function runPhysicsSimulation(type: string, config: Record<string, unknown>) {
   const sim =
     type === "spring"
       ? physics.simulateSpring(config as never)
@@ -44,8 +45,7 @@ function runPhysicsSimulation(type: string, config: Record<string, unknown>): { 
             : type === "pendulum"
               ? physics.simulatePendulum(config as never)
               : null;
-  if (!sim) return null;
-  return { summary: sim.summary, sampleCount: sim.samples.length, componentName: sim.component.name };
+  return sim ?? null;
 }
 
 export const intelligenceExecutors: Partial<Record<ToolName, Executor>> = {
@@ -62,10 +62,21 @@ export const intelligenceExecutors: Partial<Record<ToolName, Executor>> = {
     };
   },
 
-  synthesize_from_emotion: (args) => {
+  synthesize_from_emotion: (args, ctx) => {
     const result = synthesizeFromEmotion(String(args.emotionId));
     if (!result) return { ok: false, summary: `unknown emotion: ${args.emotionId}`, specChanged: false };
-    return { ok: true, summary: formatEmotionReport(result), specChanged: false, data: result };
+    // Persist the synthesized emotion motion as a project component.
+    let componentId: string | null = null;
+    try {
+      componentId = addLayer(ctx.projectId, `Emotion: ${result.emotion.name}`, {
+        keyframes: result.keyframes,
+        durationMs: result.durationMs,
+        easing: result.easing,
+      });
+    } catch {
+      // Persistence failure is non-fatal; the synthesis report still stands.
+    }
+    return { ok: true, summary: formatEmotionReport(result), specChanged: componentId !== null, data: { ...result, componentId } };
   },
 
   detect_emotion: (args, ctx) => {
@@ -75,14 +86,23 @@ export const intelligenceExecutors: Partial<Record<ToolName, Executor>> = {
     return { ok: true, summary: formatDetectionReport(result), specChanged: false, data: result };
   },
 
-  blend_emotions: (args) => {
+  blend_emotions: (args, ctx) => {
     const emotions = Array.isArray(args.emotions)
       ? (args.emotions as Array<{ emotionId: string; weight: number }>)
       : [];
     if (emotions.length < 2) return { ok: false, summary: "blend_emotions requires at least two emotions", specChanged: false };
     const result = blendEmotions(emotions);
     if (!result) return { ok: false, summary: "could not blend the given emotions", specChanged: false };
-    return { ok: true, summary: formatBlendReport(result), specChanged: false, data: result };
+    // Persist the blended motion keyframes as a project component.
+    let componentId: string | null = null;
+    try {
+      componentId = addLayer(ctx.projectId, "Blended Emotion", {
+        keyframes: result.keyframes,
+      });
+    } catch {
+      // Persistence failure is non-fatal; the blend report still stands.
+    }
+    return { ok: true, summary: formatBlendReport(result), specChanged: componentId !== null, data: { ...result, componentId } };
   },
 
   plan_emotion_journey: (args) => {
@@ -269,17 +289,50 @@ export const intelligenceExecutors: Partial<Record<ToolName, Executor>> = {
     return { ok: true, summary: `${presets.length} physics preset(s) available`, specChanged: false, data: presets };
   },
 
-  simulate_physics: (args) => {
+  simulate_physics: (args, ctx) => {
     const config = args && typeof args.config === "object" ? (args.config as Record<string, unknown>) : {};
     const result = runPhysicsSimulation(String(args.type), config);
     if (!result) return { ok: false, summary: `unsupported physics type: ${args.type}`, specChanged: false };
-    return { ok: true, summary: result.summary, specChanged: false, data: result };
+    // Persist the generated motion component so the simulation result becomes
+    // part of the project, not just a reported observation.
+    const produced = result.component;
+    let componentId: string | null = null;
+    try {
+      componentId = addLayer(ctx.projectId, produced.name, {
+        style: produced.style,
+        keyframes: produced.keyframes,
+        durationMs: produced.durationMs,
+        easing: produced.easing,
+        iterationCount: produced.iterationCount,
+      });
+    } catch {
+      // Persistence failure is non-fatal; the simulation report still stands.
+    }
+    return {
+      ok: true,
+      summary: result.summary,
+      specChanged: componentId !== null,
+      data: { sampleCount: result.samples.length, componentName: produced.name, componentId },
+    };
   },
 
-  run_physics_preset: (args) => {
+  run_physics_preset: (args, ctx) => {
     const result = physics.runPreset(String(args.presetId));
     if (!result) return { ok: false, summary: `unknown physics preset: ${args.presetId}`, specChanged: false };
-    return { ok: true, summary: result.summary, specChanged: false, data: { sampleCount: result.samples.length, componentName: result.component.name } };
+    const produced = result.component;
+    let componentId: string | null = null;
+    try {
+      componentId = addLayer(ctx.projectId, produced.name, {
+        style: produced.style,
+        keyframes: produced.keyframes,
+        durationMs: produced.durationMs,
+        easing: produced.easing,
+        iterationCount: produced.iterationCount,
+      });
+    } catch {
+      // Persistence failure is non-fatal; the preset report still stands.
+    }
+    return { ok: true, summary: result.summary, specChanged: componentId !== null, data: { sampleCount: result.samples.length, componentName: produced.name, componentId } };
   },
 
   // --- Path -----------------------------------------------------------------
@@ -289,7 +342,7 @@ export const intelligenceExecutors: Partial<Record<ToolName, Executor>> = {
     return { ok: true, summary: `${presets.length} path preset(s) available`, specChanged: false, data: presets };
   },
 
-  generate_path_motion: (args) => {
+  generate_path_motion: (args, ctx) => {
     const config = {
       type: String(args.type ?? "lissajous"),
       durationMs: Number(args.durationMs ?? 2000),
@@ -298,17 +351,43 @@ export const intelligenceExecutors: Partial<Record<ToolName, Executor>> = {
       loop: args.loop !== undefined ? Boolean(args.loop) : true,
     };
     const result = pathEngine.generatePathMotion(config as never);
+    const produced = result.component;
+    let componentId: string | null = null;
+    try {
+      componentId = addLayer(ctx.projectId, produced.name, {
+        style: produced.style,
+        keyframes: produced.keyframes,
+        durationMs: produced.durationMs,
+        easing: produced.easing,
+        iterationCount: produced.iterationCount,
+      });
+    } catch {
+      // Persistence failure is non-fatal; the path report still stands.
+    }
     return {
       ok: true,
       summary: `Generated ${result.points.length} sample point(s) along a ${config.type} path`,
-      specChanged: false,
-      data: { type: config.type, points: result.points, component: result.component },
+      specChanged: componentId !== null,
+      data: { type: config.type, points: result.points, componentId },
     };
   },
 
-  run_path_preset: (args) => {
+  run_path_preset: (args, ctx) => {
     const result = pathEngine.runPathPreset(String(args.presetId));
     if (!result) return { ok: false, summary: `unknown path preset: ${args.presetId}`, specChanged: false };
-    return { ok: true, summary: result.summary, specChanged: false, data: { points: result.points, component: result.component } };
+    const produced = result.component;
+    let componentId: string | null = null;
+    try {
+      componentId = addLayer(ctx.projectId, produced.name, {
+        style: produced.style,
+        keyframes: produced.keyframes,
+        durationMs: produced.durationMs,
+        easing: produced.easing,
+        iterationCount: produced.iterationCount,
+      });
+    } catch {
+      // Persistence failure is non-fatal; the path report still stands.
+    }
+    return { ok: true, summary: result.summary, specChanged: componentId !== null, data: { points: result.points, componentId } };
   },
 };
