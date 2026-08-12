@@ -69,7 +69,7 @@ import { capture, listCheckpoints, isSpecMutating, rollback, rollbackTo, clearCh
 import { runPreHooks, runPostHooks } from "../../agent/pluginHooks.js";
 import { buildCapabilityManifest } from "../../agent/capabilityManifest.js";
 import { logger } from "../../utils/logger.js";
-import { TOOL_NAMES, TOOL_DESCRIPTIONS } from "@openmotion/shared";
+import { TOOL_NAMES } from "@openmotion/shared";
 import { composeStructuredPlan, shouldUsePlanMode } from "../../agent/planExecutor.js";
 import { setPlan, getPlan, cancelPlan, clearPlan, summarizePlan, getPlanProgress, isPlanDone } from "../../agent/planStore.js";
 import { getProjectSpec } from "../../db/repositories/projects.js";
@@ -853,17 +853,16 @@ agentRouter.delete(
 );
 
 // --- Agent capabilities endpoint ---
-
+// Delegates to the single aggregated capability manifest so every consumer
+// sees the same surface area (tools, skills, engines, intent patterns,
+// providers). Kept as a top-level alias for backward compatibility.
 agentRouter.get(
   "/capabilities",
   runAsync(async (_req: Request, res: Response) => {
-    const tools = TOOL_NAMES.map((name) => ({
-      name,
-      description: TOOL_DESCRIPTIONS[name],
-    }));
+    const manifest = buildCapabilityManifest();
     res.json({
-      toolCount: tools.length,
-      tools,
+      toolCount: manifest.tools.length,
+      tools: manifest.tools,
     });
   }),
 );
