@@ -12,6 +12,7 @@ import type { ToolName, MotionSpec } from "@openmotion/shared";
 import { getProjectSpec } from "../../db/repositories/projects.js";
 import { getComponent } from "../../db/repositories/components.js";
 import type { ToolContext, ToolResult } from "./registry.js";
+import { addLayer } from "./specUtils.js";
 
 import {
   runAllTests,
@@ -240,7 +241,7 @@ export const advancedExecutors: Partial<Record<ToolName, Executor>> = {
     return { ok: true, summary: formatCollaborationPlan(plan), specChanged: false, data: plan };
   },
 
-  execute_collaboration: (args, _ctx) => {
+  execute_collaboration: (args, ctx) => {
     const request = args.request as string;
     const plan = planCollaboration(request);
     if (plan.subTasks.length === 0) {
@@ -252,7 +253,27 @@ export const advancedExecutors: Partial<Record<ToolName, Executor>> = {
       };
     }
     const result = executeCollaboration(plan);
-    return { ok: true, summary: formatCollaborationResult(result), specChanged: false, data: result };
+    // Persist the unified component the collaboration produced so the motion
+    // becomes part of the project spec, not just a reported plan.
+    const produced = result.component;
+    let componentId: string | null = null;
+    try {
+      componentId = addLayer(ctx.projectId, "Collaboration Result", {
+        style: produced.style,
+        keyframes: produced.keyframes,
+        durationMs: produced.durationMs,
+        easing: produced.easing,
+        iterationCount: produced.iterationCount,
+      });
+    } catch {
+      // Persistence failure is non-fatal; the collaboration report still stands.
+    }
+    return {
+      ok: true,
+      summary: formatCollaborationResult(result),
+      specChanged: componentId !== null,
+      data: { ...result, componentId },
+    };
   },
 
   list_collaboration_modules: () => {
