@@ -91,6 +91,7 @@ import {
 } from "./motionLineage.js";
 import {
   synthesizeMotion,
+  applySynthesizedDNA,
   formatSynthesisReport,
   type SynthesisStrategy,
 } from "./motionSynthesis.js";
@@ -720,6 +721,7 @@ async function executeStructuredPlan(
         result: result.data ?? null,
         summary: result.summary,
         ok: result.ok,
+        specChanged: result.specChanged ?? false,
       });
       // Forward editor commands to the frontend so the Agent can drive the UI.
       if (result.editorCommands) {
@@ -1477,11 +1479,27 @@ async function executeMotionIntelligenceTool(
     }
     const strategy = typeof args.strategy === "string" ? (args.strategy as SynthesisStrategy) : "blend";
     const result = synthesizeMotion(sources, { strategy });
+    // Persist the synthesized component so the DNA-level result becomes a
+    // concrete motion layer in the project.
+    const synthesized = applySynthesizedDNA(sources[0]!, result);
+    const ts = now();
+    const componentId = createId("c_");
+    createComponent({
+      ...synthesized,
+      id: componentId,
+      projectId,
+      createdAt: ts,
+      updatedAt: ts,
+    });
     return {
       ok: true,
       summary: formatSynthesisReport(result),
-      specChanged: false,
-      data: { kind: "synthesis", result },
+      specChanged: true,
+      data: { kind: "synthesis", result, componentId },
+      editorCommands: [
+        { command: "select_component", args: { componentId } },
+        { command: "refresh_canvas", args: {} },
+      ],
     };
   }
 
@@ -2200,10 +2218,17 @@ async function executeMotionIntelligenceTool(
       };
     }
     const result = transferStyle(source, target);
+    // Persist the style-transferred component by patching the target.
+    patchComponent(projectId, target.id, {
+      easing: result.component.easing,
+      durationMs: result.component.durationMs,
+      keyframes: result.component.keyframes,
+      style: result.component.style,
+    });
     return {
       ok: true,
       summary: formatStyleTransferReport(result, source.name, target.name),
-      specChanged: false,
+      specChanged: true,
       data: {
         kind: "style_transfer",
         sourceComponentId: source.id,
@@ -2212,6 +2237,10 @@ async function executeMotionIntelligenceTool(
         preserved: result.preserved,
         component: result.component,
       },
+      editorCommands: [
+        { command: "select_component", args: { componentId: target.id } },
+        { command: "refresh_canvas", args: {} },
+      ],
     };
   }
 
@@ -3858,6 +3887,7 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
             result: result.data ?? null,
             summary: result.summary,
             ok: result.ok,
+            specChanged: result.specChanged ?? false,
           });
           if (result.editorCommands) {
             for (const cmd of result.editorCommands) {
@@ -3876,6 +3906,7 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
             result: result.data ?? null,
             summary: result.summary,
             ok: result.ok,
+            specChanged: result.specChanged ?? false,
           });
           if (result.editorCommands) {
             for (const cmd of result.editorCommands) {
@@ -4091,6 +4122,7 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
         result: result.data ?? null,
         summary: result.summary,
         ok: result.ok,
+        specChanged: result.specChanged ?? false,
       });
       if (result.editorCommands) {
         for (const cmd of result.editorCommands) {
