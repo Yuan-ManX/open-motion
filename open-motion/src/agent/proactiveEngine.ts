@@ -11,7 +11,98 @@ export type SuggestionKind =
   | "diversify"
   | "interact"
   | "sequence"
-  | "polish";
+  | "polish"
+  | "collaborate"
+  | "export"
+  | "inspect";
+
+/** All valid suggestion kinds in declaration order. Useful for UI legend rendering and capability manifests. */
+export const SUGGESTION_KINDS: SuggestionKind[] = [
+  "refine",
+  "extend",
+  "diversify",
+  "interact",
+  "sequence",
+  "polish",
+  "collaborate",
+  "export",
+  "inspect",
+];
+
+export interface SuggestionKindMeta {
+  kind: SuggestionKind;
+  label: string;
+  description: string;
+  colorTint: string;
+  prefix: string;
+}
+
+/** Human-readable metadata for each suggestion kind — drives UI legends and capability manifests. */
+export const SUGGESTION_KIND_META: SuggestionKindMeta[] = [
+  {
+    kind: "refine",
+    label: "Refine",
+    description: "Tweak parameters of the most recent change without introducing new content.",
+    colorTint: "gray",
+    prefix: "·",
+  },
+  {
+    kind: "extend",
+    label: "Extend",
+    description: "Add new content that builds on the current scene direction.",
+    colorTint: "light",
+    prefix: "+",
+  },
+  {
+    kind: "diversify",
+    label: "Diversify",
+    description: "Explore stylistic alternatives or variants for the current components.",
+    colorTint: "slate",
+    prefix: "✦",
+  },
+  {
+    kind: "interact",
+    label: "Interact",
+    description: "Wire up interactive behavior, hover states, or gesture triggers.",
+    colorTint: "white",
+    prefix: "↻",
+  },
+  {
+    kind: "sequence",
+    label: "Sequence",
+    description: "Stagger, orchestrate, or connect components into a timeline order.",
+    colorTint: "muted",
+    prefix: "↠",
+  },
+  {
+    kind: "polish",
+    label: "Polish",
+    description: "Run critique/accessibility passes and tighten timing or easing.",
+    colorTint: "dim",
+    prefix: "✧",
+  },
+  {
+    kind: "collaborate",
+    label: "Collaborate",
+    description: "Invoke a multi-engine collaboration across several discipline modules.",
+    colorTint: "purple",
+    prefix: "◇",
+  },
+  {
+    kind: "export",
+    label: "Export",
+    description: "Materialize the current scene into shareable code, HTML, Lottie, or video.",
+    colorTint: "emerald",
+    prefix: "↗",
+  },
+  {
+    kind: "inspect",
+    label: "Inspect",
+    description: "Run diagnostic, profiler, or DNA analysis to understand the current motion.",
+    colorTint: "sky",
+    prefix: "◎",
+  },
+];
 
 export interface ProactiveSuggestion {
   /** Short headline shown in the UI chip. */
@@ -52,7 +143,8 @@ export function suggestProactive(ctx: ProactiveContext): ProactiveSuggestion[] {
   // State-based nudges ----------------------------------------------------
   pushStateBased(out, spec);
 
-  // De-duplicate by tool + title and cap at 3.
+  // De-duplicate by tool + title and cap at 5 so cross-discipline
+  // collaboration and export suggestions are not starved by tool-specific nudges.
   const seen = new Set<string>();
   const unique: ProactiveSuggestion[] = [];
   for (const s of out) {
@@ -60,7 +152,7 @@ export function suggestProactive(ctx: ProactiveContext): ProactiveSuggestion[] {
     if (seen.has(key)) continue;
     seen.add(key);
     unique.push(s);
-    if (unique.length >= 3) break;
+    if (unique.length >= 5) break;
   }
   return unique;
 }
@@ -931,6 +1023,39 @@ function pushStateBased(out: ProactiveSuggestion[], spec: MotionSpec): void {
       tool: "apply_preset",
       prompt: `Apply a preset to ${staticComp.name}`,
       kind: "extend",
+    });
+  }
+
+  // Multi-component scene → suggest cross-discipline collaboration.
+  if (compCount >= 3) {
+    out.push({
+      title: "Run multi-engine collaboration",
+      reason: "Rich scenes benefit from several intelligence modules working together.",
+      tool: "run_collaboration",
+      prompt: "Run a motion collaboration on the current scene",
+      kind: "collaborate",
+    });
+  }
+
+  // Project has real content → suggest a spec audit or export checkpoint.
+  if (compCount >= 2) {
+    out.push({
+      title: "Audit the spec",
+      reason: "Inspect motion principles, restraint, and accessibility posture before handoff.",
+      tool: "analyze_principles",
+      prompt: "Analyze principles of the current composition",
+      kind: "inspect",
+    });
+  }
+
+  // Polished multi-component project → suggest export routes.
+  if (compCount >= 4 && comps.every((c) => c.keyframes.length >= 2)) {
+    out.push({
+      title: "Export for delivery",
+      reason: "The composition feels ready — package it as HTML, CSS, or Lottie for handoff.",
+      tool: "export_html",
+      prompt: "Export the project as a standalone HTML file",
+      kind: "export",
     });
   }
 }
