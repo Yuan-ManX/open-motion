@@ -822,7 +822,20 @@ export function ChatPanel() {
                 : s.kind === "sequence" ? "border-gray-500 text-gray-300"
                 : s.kind === "polish" ? "border-gray-600 text-gray-400"
                 : s.kind === "extend" ? "border-gray-300 text-gray-200"
+                : s.kind === "collaborate" ? "border-purple-400/60 text-purple-200"
+                : s.kind === "export" ? "border-emerald-400/60 text-emerald-200"
+                : s.kind === "inspect" ? "border-sky-400/60 text-sky-200"
                 : "border-edge text-gray-400";
+              const kindPrefix =
+                s.kind === "collaborate" ? "◇ "
+                : s.kind === "export" ? "↗ "
+                : s.kind === "inspect" ? "◎ "
+                : s.kind === "interact" ? "↻ "
+                : s.kind === "diversify" ? "✦ "
+                : s.kind === "sequence" ? "↠ "
+                : s.kind === "polish" ? "✧ "
+                : s.kind === "extend" ? "+ "
+                : "";
               return (
                 <button
                   key={`${s.tool}-${i}`}
@@ -831,7 +844,7 @@ export function ChatPanel() {
                   title={s.reason}
                   className={`text-[11px] px-2.5 py-1 rounded-full bg-panel2 border ${kindClass} hover:bg-panel1 hover:scale-[1.03] active:scale-[0.97] transition-all`}
                 >
-                  {s.title}
+                  {kindPrefix}{s.title}
                 </button>
               );
             })}
