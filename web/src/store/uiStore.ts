@@ -52,6 +52,7 @@ interface UiState {
   showPerformanceMonitor: boolean;
   timelineCommand: { action: string; nonce: number } | null;
   soloedId: string | null;
+  collapsedGroups: Set<string>;
   sidebarCollapsed: boolean;
   sidebarWidth: number;
   rightPanelCollapsed: boolean;
@@ -106,6 +107,7 @@ interface UiState {
   setShowPerformanceMonitor: (show: boolean) => void;
   setTimelineCommand: (action: string) => void;
   setSoloedId: (id: string | null) => void;
+  toggleGroupCollapsed: (groupId: string) => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   setSidebarWidth: (w: number) => void;
   setRightPanelCollapsed: (collapsed: boolean) => void;
@@ -155,6 +157,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   showPerformanceMonitor: false,
   timelineCommand: null,
   soloedId: null,
+  collapsedGroups: new Set<string>(),
   sidebarCollapsed: true,
   sidebarWidth: 260,
   rightPanelCollapsed: false,
@@ -230,6 +233,12 @@ export const useUiStore = create<UiState>((set, get) => ({
   setShowPerformanceMonitor: (show) => set({ showPerformanceMonitor: show }),
   setTimelineCommand: (action) => set((s) => ({ timelineCommand: { action, nonce: (s.timelineCommand?.nonce ?? 0) + 1 } })),
   setSoloedId: (id) => set({ soloedId: id }),
+  toggleGroupCollapsed: (groupId: string) => {
+    const next = new Set(get().collapsedGroups);
+    if (next.has(groupId)) next.delete(groupId);
+    else next.add(groupId);
+    set({ collapsedGroups: next });
+  },
   setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
   setSidebarWidth: (w) => set({ sidebarWidth: Math.max(200, Math.min(400, w)) }),
   setRightPanelCollapsed: (collapsed) => set({ rightPanelCollapsed: collapsed }),
