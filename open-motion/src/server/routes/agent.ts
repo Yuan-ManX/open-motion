@@ -48,7 +48,7 @@ import {
   isExternalServerConnected,
   type ExternalServerConfig,
 } from "../../agent/mcpClient.js";
-import { getSessionMetrics, listToolStats, resetAnalytics } from "../../agent/analytics.js";
+import { getSessionMetrics, listToolStats, resetAnalytics, aggregateAllAnalytics } from "../../agent/analytics.js";
 import { composeTools } from "../../agent/toolComposer.js";
 import { listMemory as listConversationMemory } from "../../agent/memory/store.js";
 import { semanticSearch } from "../../agent/memory/semanticSearch.js";
@@ -68,6 +68,7 @@ import { executeTool } from "../../agent/tools/registry.js";
 import { capture, listCheckpoints, isSpecMutating, rollback, rollbackTo, clearCheckpoints } from "../../agent/checkpointManager.js";
 import { runPreHooks, runPostHooks } from "../../agent/pluginHooks.js";
 import { buildCapabilityManifest } from "../../agent/capabilityManifest.js";
+import { COLLABORATION_MODULES, planCollaboration, executeCollaboration, collaborate, detectModules, listCollaborationModules, formatCollaborationPlan, formatCollaborationResult } from "../../agent/motionCollaboration.js";
 import { logger } from "../../utils/logger.js";
 import { TOOL_NAMES } from "@openmotion/shared";
 import { composeStructuredPlan, shouldUsePlanMode } from "../../agent/planExecutor.js";
@@ -3009,3 +3010,83 @@ agentRouter.get(
 agentRouter.get("/agent/capabilities", (_req, res) => {
   res.json(buildCapabilityManifest());
 });
+
+// --- Collaboration endpoints ---
+// Expose the multi-engine collaboration subsystem so the frontend can
+// preview module picks, plan collabs, and run them outside the chat loop.
+
+agentRouter.get(
+  "/collaboration/modules",
+  runAsync(async (_req: Request, res: Response) => {
+    const modules = listCollaborationModules();
+    res.json({
+      count: modules.length,
+      modules,
+      categories: Array.from(new Set(modules.map((m) => m.id.split("_")[0]))),
+    });
+  }),
+);
+
+const CollaborationDetectSchema = z.object({
+  request: z.string().min(1),
+});
+
+agentRouter.post(
+  "/collaboration/detect",
+  validate(CollaborationDetectSchema),
+  runAsync(async (req: Request, res: Response) => {
+    const data = validated<{ request: string }>(req);
+    const matches = detectModules(data.request);
+    res.json({
+      request: data.request,
+      matchedCount: matches.length,
+      modules: matches,
+    });
+  }),
+);
+
+const CollaborationPlanSchema = z.object({
+  request: z.string().min(1),
+});
+
+agentRouter.post(
+  "/collaboration/plan",
+  validate(CollaborationPlanSchema),
+  runAsync(async (req: Request, res: Response) => {
+    const data = validated<{ request: string }>(req);
+    const plan = planCollaboration(data.request);
+    res.json({
+      plan,
+      readable: formatCollaborationPlan(plan),
+    });
+  }),
+);
+
+const CollaborationRunSchema = z.object({
+  request: z.string().min(1),
+  projectId: z.string().optional(),
+});
+
+agentRouter.post(
+  "/collaboration/run",
+  validate(CollaborationRunSchema),
+  runAsync(async (req: Request, res: Response) => {
+    const data = validated<{ request: string; projectId?: string }>(req);
+    const result = collaborate(data.request);
+    res.json({
+      result,
+      readable: formatCollaborationResult(result),
+      projectId: data.projectId ?? null,
+    });
+  }),
+);
+
+// --- Global analytics ---
+// Aggregated tool execution summary across every tracked project.
+
+agentRouter.get(
+  "/analytics/aggregate",
+  runAsync(async (_req: Request, res: Response) => {
+    res.json(aggregateAllAnalytics());
+  }),
+);
