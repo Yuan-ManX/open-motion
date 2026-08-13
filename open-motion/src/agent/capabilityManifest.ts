@@ -2,6 +2,9 @@ import { TOOL_NAMES, TOOL_DESCRIPTIONS } from "@openmotion/shared";
 import { listSkills, getSkillsSummary } from "./skillsRouter.js";
 import { MODEL_REGISTRY, getAllProviders } from "./provider/registry.js";
 import { INTENT_PATTERNS } from "./intents.js";
+import { COLLABORATION_MODULES, type CollaborationModule } from "./motionCollaboration.js";
+import { SUGGESTION_KINDS, SUGGESTION_KIND_META, type SuggestionKind, type SuggestionKindMeta } from "./proactiveEngine.js";
+import { TEMPLATES } from "../motion/templates/index.js";
 
 /**
  * The 15 cross-disciplinary analysis engines exposed via
@@ -50,6 +53,17 @@ export interface CapabilityManifest {
   providers: string[];
   /** Number of models in the registry. */
   modelCount: number;
+  /** Collaboration modules available in the multi-engine system. */
+  collaborationModules: CollaborationModule[];
+  /** All valid suggestion kinds with visual metadata. */
+  suggestionKinds: SuggestionKind[];
+  suggestionKindMeta: SuggestionKindMeta[];
+  /** High-level template catalog summary. */
+  templates: {
+    total: number;
+    categories: string[];
+    preview: Array<{ id: string; name: string; category: string; description: string }>;
+  };
   /** ISO timestamp the manifest was built. */
   generatedAt: string;
 }
@@ -61,6 +75,19 @@ export interface CapabilityManifest {
  * capabilities overview without calling a dozen separate endpoints.
  */
 export function buildCapabilityManifest(): CapabilityManifest {
+  const categories = Array.from(
+    TEMPLATES.reduce<Set<string>>((set, t) => {
+      if (t.category) set.add(t.category);
+      return set;
+    }, new Set()),
+  );
+  const preview = TEMPLATES.slice(0, 12).map((t) => ({
+    id: t.id,
+    name: t.name,
+    category: t.category ?? "uncategorized",
+    description: t.description,
+  }));
+
   return {
     tools: TOOL_NAMES.map((name) => ({
       name,
@@ -73,6 +100,14 @@ export function buildCapabilityManifest(): CapabilityManifest {
     intentPatternCount: INTENT_PATTERNS.length,
     providers: getAllProviders(),
     modelCount: MODEL_REGISTRY.length,
+    collaborationModules: COLLABORATION_MODULES,
+    suggestionKinds: SUGGESTION_KINDS,
+    suggestionKindMeta: SUGGESTION_KIND_META,
+    templates: {
+      total: TEMPLATES.length,
+      categories,
+      preview,
+    },
     generatedAt: new Date().toISOString(),
   };
 }
