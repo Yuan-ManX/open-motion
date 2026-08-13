@@ -86,6 +86,15 @@ export function MotionCanvas() {
   const setHoveredId = useUiStore((s) => s.setHoveredComponentId);
   const generationFlashTrigger = useUiStore((s) => s.generationFlashTrigger);
   const marqueeRef = useRef<{ startX: number; startY: number } | null>(null);
+  // Track in-progress component drag-to-move so we can update live and commit on release.
+  const componentDragRef = useRef<{
+    componentId: string;
+    startMouseX: number;
+    startMouseY: number;
+    startLeft: number;
+    startTop: number;
+    moved: boolean;
+  } | null>(null);
   const CANVAS_W = canvasSize.width;
   const CANVAS_H = canvasSize.height;
 
@@ -332,6 +341,60 @@ export function MotionCanvas() {
       window.removeEventListener("mouseup", onMouseUp);
     };
   }, [CANVAS_W, CANVAS_H, components, setMarqueeRect]);
+
+  // Component drag-to-move: when a component drag is in progress, update its
+  // position live via updateComponentLive (no history entries during drag),
+  // then commit the final position on mouseup via patchComponentLocal.
+  const GRID_STEP = 8;
+  useEffect(() => {
+    if (!componentDragRef.current) return;
+    const onMouseMove = (e: MouseEvent) => {
+      const drag = componentDragRef.current;
+      if (!drag) return;
+      const dx = (e.clientX - drag.startMouseX) / canvasZoom;
+      const dy = (e.clientY - drag.startMouseY) / canvasZoom;
+      if (Math.abs(dx) < 1 && Math.abs(dy) < 1 && !drag.moved) return;
+      drag.moved = true;
+      let newLeft = drag.startLeft + dx;
+      let newTop = drag.startTop + dy;
+      if (snapToGrid) {
+        newLeft = Math.round(newLeft / GRID_STEP) * GRID_STEP;
+        newTop = Math.round(newTop / GRID_STEP) * GRID_STEP;
+      }
+      document.body.style.cursor = "grabbing";
+      document.body.style.userSelect = "none";
+      useProjectStore.getState().updateComponentLive(drag.componentId, { left: newLeft, top: newTop });
+    };
+    const onMouseUp = () => {
+      const drag = componentDragRef.current;
+      componentDragRef.current = null;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      if (drag && drag.moved) {
+        const comp = useProjectStore.getState().components.find((c) => c.id === drag.componentId);
+        if (comp) {
+          const s = comp.style as Record<string, string | number>;
+          const finalLeft = typeof s.left === "number" ? s.left : parseFloat(String(s.left ?? "0")) || 0;
+          const finalTop = typeof s.top === "number" ? s.top : parseFloat(String(s.top ?? "0")) || 0;
+          useProjectStore.getState().patchComponentLocal(drag.componentId, {
+            style: { ...comp.style, left: finalLeft, top: finalTop },
+          });
+          // Sync to backend so the change persists
+          if (projectId) {
+            api.patchComponent(projectId, drag.componentId, {
+              style: { ...comp.style, left: finalLeft, top: finalTop },
+            }).catch(() => {});
+          }
+        }
+      }
+    };
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, [canvasZoom, snapToGrid, projectId]);
 
   const onContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -672,6 +735,26 @@ export function MotionCanvas() {
                 onMouseDown: (e: React.MouseEvent) => {
                   const cl = findListener("pointerDown");
                   if (cl && cl.action) executeListenerAction(cl.action as Record<string, unknown>);
+                  // Initiate drag-to-move when: left button, not space-panning,
+                  // not shift-multiselecting, and component is not locked.
+                  if (e.button === 0 && !spaceHeld && !e.shiftKey && !isLocked) {
+                    const comp = components.find((c) => c.id === node.componentId);
+                    if (comp) {
+                      const s = comp.style as Record<string, string | number>;
+                      const startLeft = typeof s?.left === "number" ? s.left : parseFloat(String(s?.left ?? "0")) || 0;
+                      const startTop = typeof s?.top === "number" ? s.top : parseFloat(String(s?.top ?? "0")) || 0;
+                      componentDragRef.current = {
+                        componentId: node.componentId,
+                        startMouseX: e.clientX,
+                        startMouseY: e.clientY,
+                        startLeft,
+                        startTop,
+                        moved: false,
+                      };
+                      // Select the component on drag start
+                      selectComponent(node.componentId);
+                    }
+                  }
                 },
                 onMouseUp: (e: React.MouseEvent) => {
                   const cl = findListener("pointerUp");
