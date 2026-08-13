@@ -107,6 +107,21 @@ export function useKeyboard() {
         }
         return;
       }
+      // Cmd/Ctrl+G: group selected components
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && (e.key === "g" || e.key === "G") && selectedIds.size >= 2) {
+        e.preventDefault();
+        const groupId = `grp-${Date.now()}`;
+        useProjectStore.getState().groupComponentsLocal([...selectedIds], groupId);
+        return;
+      }
+      // Cmd/Ctrl+Shift+G: ungroup — clear parentId on all selected components
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "g" || e.key === "G") && selectedIds.size > 0) {
+        e.preventDefault();
+        for (const id of selectedIds) {
+          useProjectStore.getState().ungroupComponentLocal(id);
+        }
+        return;
+      }
       // Cmd/Ctrl+B: toggle the left sidebar
       if ((e.metaKey || e.ctrlKey) && (e.key === "b" || e.key === "B")) {
         e.preventDefault();
