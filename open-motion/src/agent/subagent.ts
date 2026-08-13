@@ -164,6 +164,7 @@ export async function runSubagent(
         result: null,
         summary: vetoResult.summary,
         ok: false,
+        specChanged: false,
       });
       continue;
     }
@@ -191,6 +192,7 @@ export async function runSubagent(
       result: result.data ?? null,
       summary: result.summary,
       ok: result.ok,
+      specChanged: result.specChanged ?? false,
     });
     if (result.editorCommands) {
       for (const cmd of result.editorCommands) {
