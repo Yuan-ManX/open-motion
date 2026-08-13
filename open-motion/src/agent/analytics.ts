@@ -36,6 +36,27 @@ export interface SessionMetrics {
   throughputPerMin: number;
 }
 
+export interface AggregatedAnalytics {
+  totalProjects: number;
+  totalToolCalls: number;
+  totalSuccesses: number;
+  totalFailures: number;
+  overallSuccessRate: number;
+  globalUniqueTools: number;
+  /** Global tool invocation ranking. */
+  toolRanking: Array<{ tool: string; calls: number; successRate: number; avgMs: number }>;
+  /** Tool taxonomy — category counts. */
+  taxonomy: {
+    creation: number;
+    analysis: number;
+    editing: number;
+    export: number;
+    intelligence: number;
+    pipeline: number;
+  };
+  generatedAt: string;
+}
+
 const projectStats = new Map<string, Map<string, ToolStat>>();
 const sessionStart = new Map<string, string>();
 
@@ -152,6 +173,83 @@ export function getSessionMetrics(projectId: string): SessionMetrics {
 export function resetAnalytics(projectId: string): void {
   projectStats.delete(projectId);
   sessionStart.delete(projectId);
+}
+
+// ---------------------------------------------------------------------------
+// Global aggregation
+// ---------------------------------------------------------------------------
+
+/** Simple tool taxonomy — classifies a tool name into a rough category. */
+function classifyToolCategory(tool: string): "creation" | "analysis" | "editing" | "export" | "intelligence" | "pipeline" {
+  const t = tool.toLowerCase();
+  if (/(export|lottie|html|react|video|code|recorder|download)/.test(t)) return "export";
+  if (/(analyz|inspect|score|critique|audit|profil|verify|detect|genome|dna|compare|forecast|budget|calibr)/.test(t)) return "analysis";
+  if (/(generat|creat|synth|blend|spawn|morph|instantiate|apply_template|bake_component|render_scene)/.test(t)) return "creation";
+  if (/(collabor|evolve|persona|dream|knowledge|semantic|emotion|intent|narrative|myth|orchestr|coach|jury|negotiat|remix|dialect|curate|strateg|choreograph|synthesize|alchemy|architecture|botany|chemistry|astronomy|cinema|linguistics|physics|musicology|weather|geology|calligraphy|cartography|genealogy|ecology|thermodynamics|harmonics|resonance|synesthesia|topology|path|perception|cognition|cohesion|conflict|prophecy|consciousness|volition|telepathy|testing|styl|recipe)/.test(t)) return "intelligence";
+  if (/(pipe|workflow|schedule|batch|queue|run_pipeline|compose)/.test(t)) return "pipeline";
+  return "editing";
+}
+
+/**
+ * Aggregate analytics across all known projects into a single report.
+ * Useful for dashboards, capability manifests, and health checks.
+ */
+export function aggregateAllAnalytics(): AggregatedAnalytics {
+  const totals = new Map<string, { calls: number; ok: number; avgMs: number; count: number }>();
+  let totalCalls = 0;
+  let totalOk = 0;
+  let totalFail = 0;
+
+  for (const stats of projectStats.values()) {
+    for (const stat of stats.values()) {
+      const prior = totals.get(stat.tool) ?? { calls: 0, ok: 0, avgMs: 0, count: 0 };
+      prior.calls += stat.invocations;
+      prior.ok += stat.successes;
+      // Weighted average across projects
+      prior.avgMs =
+        (prior.avgMs * prior.count + stat.avgMs * stat.invocations) /
+        (prior.count + stat.invocations || 1);
+      prior.count += stat.invocations;
+      totals.set(stat.tool, prior);
+      totalCalls += stat.invocations;
+      totalOk += stat.successes;
+      totalFail += stat.failures;
+    }
+  }
+
+  const toolRanking = Array.from(totals.entries())
+    .map(([tool, s]) => ({
+      tool,
+      calls: s.calls,
+      successRate: s.calls > 0 ? Math.round((s.ok / s.calls) * 1000) / 10 : 0,
+      avgMs: Math.round(s.avgMs),
+    }))
+    .sort((a, b) => b.calls - a.calls);
+
+  const taxonomy: AggregatedAnalytics["taxonomy"] = {
+    creation: 0,
+    analysis: 0,
+    editing: 0,
+    export: 0,
+    intelligence: 0,
+    pipeline: 0,
+  };
+  for (const { tool, calls } of toolRanking) {
+    const cat = classifyToolCategory(tool);
+    taxonomy[cat] += calls;
+  }
+
+  return {
+    totalProjects: projectStats.size,
+    totalToolCalls: totalCalls,
+    totalSuccesses: totalOk,
+    totalFailures: totalFail,
+    overallSuccessRate: totalCalls > 0 ? Math.round((totalOk / totalCalls) * 1000) / 10 : 0,
+    globalUniqueTools: totals.size,
+    toolRanking: toolRanking.slice(0, 30),
+    taxonomy,
+    generatedAt: new Date().toISOString(),
+  };
 }
 
 /** Format analytics as a compact human-readable summary for the system prompt. */
