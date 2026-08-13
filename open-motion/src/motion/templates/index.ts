@@ -105,6 +105,11 @@ import { dashLoaderTemplate } from "./dashLoader.js";
 import { orbLoaderTemplate } from "./orbLoader.js";
 import { curtainRiseTemplate } from "./curtainRise.js";
 import { pageFoldTemplate } from "./pageFold.js";
+import { heartbeatTemplate } from "./heartbeat.js";
+import { liquidRainbowTemplate } from "./liquidRainbow.js";
+import { bookFlipTemplate } from "./bookFlip.js";
+import { beatSnapTemplate } from "./beatSnap.js";
+import { auroraStrollTemplate } from "./auroraStroll.js";
 import type { ComponentDraft, TemplateDef } from "./helper.js";
 
 export const TEMPLATES: TemplateDef[] = [
@@ -213,6 +218,11 @@ export const TEMPLATES: TemplateDef[] = [
   orbLoaderTemplate,
   curtainRiseTemplate,
   pageFoldTemplate,
+  heartbeatTemplate,
+  liquidRainbowTemplate,
+  bookFlipTemplate,
+  beatSnapTemplate,
+  auroraStrollTemplate,
 ];
 
 export function getTemplate(id: string): TemplateDef | undefined {
