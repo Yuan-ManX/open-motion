@@ -28,6 +28,9 @@ interface ProjectState {
   updateComponentLive: (componentId: string, stylePatch: Record<string, string | number>) => void;
   removeComponentLocal: (componentId: string) => void;
   reorderComponentsLocal: (orderedIds: string[]) => void;
+  groupComponentsLocal: (componentIds: string[], groupId: string) => void;
+  ungroupComponentsLocal: (groupId: string) => void;
+  ungroupComponentLocal: (componentId: string) => void;
   undo: () => void;
   redo: () => void;
   reset: () => void;
@@ -127,6 +130,34 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       .map((c) => ({ ...c, orderIndex: idToIndex.get(c.id) ?? c.orderIndex }))
       .sort((a, b) => a.orderIndex - b.orderIndex);
     set({ components: reordered, past, future: [] });
+  },
+
+  groupComponentsLocal: (componentIds, groupId) => {
+    const state = get();
+    const past = [...state.past, snapshot(state)].slice(-HISTORY_LIMIT);
+    const idSet = new Set(componentIds);
+    const components = state.components.map((c) =>
+      idSet.has(c.id) ? { ...c, parentId: groupId } : c,
+    );
+    set({ components, past, future: [] });
+  },
+
+  ungroupComponentsLocal: (groupId) => {
+    const state = get();
+    const past = [...state.past, snapshot(state)].slice(-HISTORY_LIMIT);
+    const components = state.components.map((c) =>
+      c.parentId === groupId ? { ...c, parentId: null } : c,
+    );
+    set({ components, past, future: [] });
+  },
+
+  ungroupComponentLocal: (componentId) => {
+    const state = get();
+    const past = [...state.past, snapshot(state)].slice(-HISTORY_LIMIT);
+    const components = state.components.map((c) =>
+      c.id === componentId ? { ...c, parentId: null } : c,
+    );
+    set({ components, past, future: [] });
   },
 
   undo: () => {
