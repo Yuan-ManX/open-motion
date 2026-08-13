@@ -52,7 +52,7 @@ export interface ProactiveSuggestion {
   reason: string;
   tool: string;
   prompt: string;
-  kind: "refine" | "extend" | "diversify" | "interact" | "sequence" | "polish";
+  kind: "refine" | "extend" | "diversify" | "interact" | "sequence" | "polish" | "collaborate" | "export" | "inspect";
 }
 
 export interface SessionSummary {
@@ -133,6 +133,10 @@ interface ChatState {
   abortController: AbortController | null;
   // Active provider for the current stream (e.g. "mock", "openai", "router").
   provider: string | null;
+  // Tracks whether any tool in the current stream modified the project spec.
+  // Used as a fallback to refresh the spec when editorCommands may not
+  // include refresh_canvas.
+  specChangedDuringStream: boolean;
 
   loadMessages: (projectId: string) => Promise<void>;
   send: (projectId: string, text: string) => void;
@@ -166,6 +170,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   error: null,
   abortController: null,
   provider: null,
+  specChangedDuringStream: false,
 
   loadMessages: async (projectId) => {
     if (get().isStreaming) return;
@@ -311,6 +316,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
             }
             set({ toolActivity: activity, completedStepIndices: completed, activeStepIndex: nextActive });
 
+            // Track spec changes for fallback refresh after stream ends.
+            if (event.specChanged) {
+              set({ specChangedDuringStream: true });
+            }
+
             // Handle UI-action tool results that don't change the spec but update editor state
             const toolActivityEntry = activity.find((a) => a.callId === event.callId);
             if (toolActivityEntry?.result && typeof toolActivityEntry.result === "object") {
@@ -440,6 +450,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
               toolName: null,
               createdAt: new Date().toISOString(),
             };
+            // Check before resetting — if any tool changed the spec during
+            // the stream, re-fetch the project as a fallback safety net.
+            const needSpecRefresh = get().specChangedDuringStream;
             set({
               messages: [...get().messages, assistantMsg],
               isStreaming: false,
@@ -456,7 +469,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
               tokensIn: event.tokensIn ?? 0,
               tokensOut: event.tokensOut ?? 0,
               abortController: null,
+              specChangedDuringStream: false,
             });
+            if (needSpecRefresh) {
+              const pid = useProjectStore.getState().projectId;
+              if (pid) void useProjectStore.getState().loadProject(pid);
+            }
             break;
           }
           case "checkpoint":
@@ -513,7 +531,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             });
             break;
           case "error":
-            set({ isStreaming: false, streamingTokens: "", plan: null, completedStepIndices: [], activeStepIndex: -1, reasoningText: "", thinking: null, reflection: null, goal: null, proactiveSuggestions: [], error: event.message, abortController: null });
+            set({ isStreaming: false, streamingTokens: "", plan: null, completedStepIndices: [], activeStepIndex: -1, reasoningText: "", thinking: null, reflection: null, goal: null, proactiveSuggestions: [], error: event.message, abortController: null, specChangedDuringStream: false });
             break;
           case "editor_command": {
             // Dispatch editor commands emitted by editor_* tools to the
@@ -576,6 +594,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 ui.setOnionSkin({ opacity: Number(a.opacity) });
                 break;
               case "selectComponent":
+              case "select_component":
                 ui.selectComponent(String(a.componentId));
                 break;
               case "addToSelection":
@@ -681,6 +700,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
               case "setPlaybackRange": {
                 const range = a.range as { startMs: number; endMs: number } | null;
                 ui.setPlaybackRange(range);
+                break;
+              }
+              case "refresh_canvas":
+              case "refreshCanvas": {
+                // Re-fetch the project spec so newly persisted components
+                // appear in the editor without a manual page reload.
+                const pid = project.projectId;
+                if (pid) void project.loadProject(pid);
                 break;
               }
             }
