@@ -51,26 +51,54 @@ export function LayersPanel() {
   }, {});
 
   // Flatten the parent/child tree into a render-ordered list with depth info
-  // so we can iterate once and still respect the tree indentation.
+  // so we can iterate once and still respect the tree indentation. Virtual
+  // group containers (parentId starting with "grp-") are rendered as
+  // collapsible group headers so grouped components stay visible.
+  const collapsedGroups = useUiStore((s) => s.collapsedGroups);
+  const toggleGroupCollapsed = useUiStore((s) => s.toggleGroupCollapsed);
+  const groupComponentsLocal = useProjectStore((s) => s.groupComponentsLocal);
+  const ungroupComponentsLocal = useProjectStore((s) => s.ungroupComponentsLocal);
+  const selectedIds = useUiStore((s) => s.selectedIds);
+
   const flatList = useMemo(() => {
-    const out: Array<{ component: typeof sorted[number]; depth: number }> = [];
+    type FlatItem =
+      | { type: "component"; component: typeof sorted[number]; depth: number }
+      | { type: "group"; groupId: string; depth: number; count: number };
+    const out: FlatItem[] = [];
     const childrenOf = (id: string | null) =>
       sorted.filter((c) => (id === null ? !c.parentId : c.parentId === id));
+    // Collect virtual group IDs (parentId starts with "grp-" but no matching component exists)
+    const groupIds = new Set<string>();
+    for (const c of sorted) {
+      if (c.parentId && c.parentId.startsWith("grp-")) groupIds.add(c.parentId);
+    }
     const visit = (parent: string | null, depth: number) => {
+      // Render virtual group headers before regular children
+      if (parent === null) {
+        for (const gid of groupIds) {
+          const groupChildren = sorted.filter((c) => c.parentId === gid);
+          out.push({ type: "group", groupId: gid, depth: 0, count: groupChildren.length });
+          if (!collapsedGroups.has(gid)) {
+            for (const c of groupChildren) {
+              out.push({ type: "component", component: c, depth: 1 });
+            }
+          }
+        }
+      }
       for (const c of childrenOf(parent)) {
-        out.push({ component: c, depth });
+        out.push({ type: "component", component: c, depth });
         visit(c.id, depth + 1);
       }
     };
     visit(null, 0);
     return out;
-  }, [sorted]);
+  }, [sorted, collapsedGroups]);
 
   // Per-instance FlipRegistry drives FLIP animations when reorder operations
   // change the layer order. We snapshot before React commits the new layout
   // and play the inverse transform after the browser paints.
   const flipRegistry = useFlipRegistry();
-  const flipTrigger = flatList.map((item) => item.component.id).join("|");
+  const flipTrigger = flatList.map((item) => item.type === "component" ? item.component.id : `grp-${item.groupId}`).join("|");
   const flipOptsRef = useRef({ duration: 220, easing: "cubic-bezier(0.22, 1, 0.36, 1)", enterNew: true });
   useLayoutEffect(() => {
     flipRegistry.snapshot();
@@ -261,7 +289,20 @@ export function LayersPanel() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="px-3 py-2 border-b border-edge flex items-center justify-end">
+      <div className="px-3 py-2 border-b border-edge flex items-center justify-end gap-1">
+        {projectId && selectedIds.size >= 2 && (
+          <button
+            onClick={() => {
+              const groupId = `grp-${Date.now()}`;
+              groupComponentsLocal([...selectedIds], groupId);
+            }}
+            className="text-[10px] text-gray-500 hover:text-accent px-1.5 h-5 flex items-center justify-center rounded hover:bg-panel2"
+            title="Group selected (Ctrl+G)"
+            aria-label="Group selected layers"
+          >
+            ▢
+          </button>
+        )}
         {projectId && (
           <button
             onClick={() => setAdding((v) => !v)}
@@ -323,7 +364,34 @@ export function LayersPanel() {
           )
         )}
         <AnimatePresence duration={200} enterFromScale={0.96} exitToScale={0.96}>
-          {flatList.map(({ component: c, depth }) => {
+          {flatList.map((item) => {
+            if (item.type === "group") {
+              const isCollapsed = collapsedGroups.has(item.groupId);
+              return (
+                <div
+                  key={`grp-${item.groupId}`}
+                  className="flex items-center gap-1.5 px-2 py-1.5 border-b border-edge/50 bg-panel2/50 cursor-pointer hover:bg-panel2 transition-colors"
+                  onClick={() => toggleGroupCollapsed(item.groupId)}
+                >
+                  <span className="text-[10px] text-gray-500 w-4 flex-shrink-0">{isCollapsed ? "▶" : "▼"}</span>
+                  <span className="text-[10px] text-gray-400 flex-shrink-0">▢</span>
+                  <span className="flex-1 text-xs text-gray-300 font-medium">Group ({item.count} layers)</span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      ungroupComponentsLocal(item.groupId);
+                    }}
+                    className="text-[10px] text-gray-600 hover:text-red-400 w-4 flex-shrink-0"
+                    title="Ungroup"
+                    aria-label="Ungroup layers"
+                  >
+                    ✕
+                  </button>
+                </div>
+              );
+            }
+            const c = item.component;
+            const depth = item.depth;
             const isSelected = c.id === selectedId;
             const isHidden = hiddenIds.has(c.id);
             const isLocked = lockedIds.has(c.id);
