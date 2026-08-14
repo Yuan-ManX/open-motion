@@ -219,6 +219,36 @@ export const COLLABORATION_MODULES: CollaborationModule[] = [
     specialty: "Micro-timing, easing modulation, snap-to-grid, humanize",
     triggerKeywords: ["tempo", "humanize", "snap", "micro", "latency", "节拍", "人性化", "对齐"],
   },
+  {
+    id: "alchemy",
+    name: "Motion Alchemy",
+    specialty: "Concept blending, motion transmutation, genre fusion, hybrid effects",
+    triggerKeywords: ["alchemy", "blend", "mix", "hybrid", "fusion", "remix", "炼金术", "混合", "融合"],
+  },
+  {
+    id: "cinema",
+    name: "Cinematography Engine",
+    specialty: "Camera framing, shot language, scene rhythm, cinematic transitions",
+    triggerKeywords: ["cinematic", "camera", "shot", "scene", "film", "movie", "电影", "镜头", "拍摄"],
+  },
+  {
+    id: "harmonics",
+    name: "Harmonic Resonance",
+    specialty: "Spectral easing curves, harmonic oscillation, consonant motion intervals",
+    triggerKeywords: ["harmonic", "spectral", "oscillation", "consonant", "resonance", "谐波", "共振", "频谱"],
+  },
+  {
+    id: "topology",
+    name: "Topology Weaver",
+    specialty: "Spatial deformations, surface warping, morphing, topology-preserving transforms",
+    triggerKeywords: ["topology", "morph", "warp", "deform", "reshape", "拓扑", "变形", "扭曲"],
+  },
+  {
+    id: "synesthesia",
+    name: "Synesthesia Engine",
+    specialty: "Cross-sensory motion: color-to-movement, sound-to-shape, texture-to-easing",
+    triggerKeywords: ["synesthesia", "cross-sensory", "color-move", "sound-motion", "texture", "联觉", "通感", "跨感官"],
+  },
 ];
 
 /** Find modules that should participate based on a request. */
@@ -517,7 +547,7 @@ export function executeCollaboration(plan: CollaborationPlan): CollaborationResu
 }
 
 /** Execute a single module by invoking its real motion engine. */
-function executeModule(task: CollaborationSubTask): SubTaskResult {
+export function executeModule(task: CollaborationSubTask): SubTaskResult {
   const request = typeof task.inputs.request === "string" ? task.inputs.request : "";
   const lower = request.toLowerCase();
 
@@ -554,6 +584,16 @@ function executeModule(task: CollaborationSubTask): SubTaskResult {
       return executeRestraintModule(task.id, request, lower);
     case "tempo":
       return executeTempoModule(task.id, request, lower);
+    case "alchemy":
+      return executeAlchemyModule(task.id, request, lower);
+    case "cinema":
+      return executeCinemaModule(task.id, request, lower);
+    case "harmonics":
+      return executeHarmonicsModule(task.id, request, lower);
+    case "topology":
+      return executeTopologyModule(task.id, request, lower);
+    case "synesthesia":
+      return executeSynesthesiaModule(task.id, request, lower);
     default:
       return {
         subTaskId: task.id,
@@ -653,7 +693,7 @@ function executeStyleModule(taskId: string, request: string, lower: string): Sub
   const intent = inferIntent(request);
   if (intent.suggestedProfile && intent.concepts.length > 0) {
     const top = intent.concepts[0];
-    notes += ` | Semantic: ${top.conceptLabel} (${Math.round(top.confidence * 100)}% match)`;
+    notes += ` | Semantic: ${top.conceptLabel ?? (top as { label?: string }).label} (${Math.round(top.confidence * 100)}% match)`;
   }
 
   return {
@@ -700,7 +740,7 @@ function executeSemanticsModule(taskId: string, request: string): SubTaskResult 
   const intensity = profile.delayStrategy === "none" ? 1.0 : 0.85;
 
   const conceptList = intent.concepts.length > 0
-    ? intent.concepts.slice(0, 3).map((c) => `${c.conceptLabel} (${Math.round(c.confidence * 100)}%)`).join(", ")
+    ? intent.concepts.slice(0, 3).map((c) => `${c.conceptLabel ?? (c as { label?: string }).label} (${Math.round(c.confidence * 100)}%)`).join(", ")
     : "no specific concept matched";
 
   return {
@@ -1152,6 +1192,390 @@ function executeTempoModule(taskId: string, request: string, lower: string): Sub
     confidence: 0.88,
     notes: `Tempo: snap-to="${snap}", humanize ±${humanizeMs}ms, latency offset ${microLatencyMs}ms, easing "${easingVariant}"`,
   };
+}
+
+// --- New module implementations: Alchemy, Cinema, Harmonics, Topology, Synesthesia ---
+
+function executeAlchemyModule(taskId: string, request: string, lower: string): SubTaskResult {
+  // Blend two archetypal motion styles based on user cue keywords.
+  let primary = "spring";
+  let secondary = "fade-slide";
+  let blendRatio = 0.5;
+
+  if (lower.includes("bounce") && lower.includes("glow")) {
+    primary = "bounce";
+    secondary = "glow";
+    blendRatio = 0.6;
+  } else if (lower.includes("float") && lower.includes("rotate") || lower.includes("spin")) {
+    primary = "float";
+    secondary = "rotate";
+    blendRatio = 0.55;
+  } else if (lower.includes("ripple") && lower.includes("type") || lower.includes("text")) {
+    primary = "ripple";
+    secondary = "typewriter";
+    blendRatio = 0.45;
+  } else if (lower.includes("flip") && lower.includes("glow")) {
+    primary = "flip-3d";
+    secondary = "glow-pulse";
+    blendRatio = 0.5;
+  } else if (lower.includes("organic") || lower.includes("bio") || lower.includes("生物")) {
+    primary = "breath";
+    secondary = "bio-luminescence";
+    blendRatio = 0.5;
+  } else if (lower.includes("sci-fi") || lower.includes("科技") || lower.includes("tech")) {
+    primary = "gravitational-lens";
+    secondary = "quantum-dissolve";
+    blendRatio = 0.55;
+  } else if (lower.includes("earth") || lower.includes("geology") || lower.includes("地质")) {
+    primary = "tectonic-shift";
+    secondary = "warp";
+    blendRatio = 0.5;
+  }
+
+  const durationMs = 1100;
+  // Produce blended keyframes: primary's entrance skeleton with secondary's accent inflections.
+  const keyframes: Keyframe[] = blendKeyframes(primary, secondary, blendRatio);
+
+  return {
+    subTaskId: taskId,
+    moduleId: "alchemy",
+    motionParams: {
+      easing: "ease-in-out-cubic",
+      durationMs,
+      intensity: 1.05,
+      keyframes,
+      metadata: { primary, secondary, blendRatio, fusionId: `${primary}+${secondary}@${(blendRatio * 100).toFixed(0)}` },
+    },
+    confidence: 0.86,
+    notes: `Alchemy: fused "${primary}" + "${secondary}" at ${(blendRatio * 100).toFixed(0)}% ratio → hybrid motion recipe.`,
+  };
+}
+
+function blendKeyframes(primary: string, secondary: string, ratio: number): Keyframe[] {
+  // Generate a canonical keyframe set that blends transform flavours.
+  const translate = (t: number) => Math.round((1 - ratio) * 20 * t + ratio * 60 * Math.sin(t * Math.PI));
+  const scale = (t: number) => {
+    const base = 1 + (1 - ratio) * 0.2 * Math.sin(t * Math.PI);
+    const accent = ratio * 0.35 * Math.pow(Math.sin(t * Math.PI * 2), 2);
+    return 1 + (base - 1) + accent;
+  };
+  const rotation = (t: number) => ratio * 12 * Math.sin(t * Math.PI * 2);
+
+  return [
+    { offset: 0, properties: { opacity: 0, translateY: 28 + translate(0), scale: 0.4 * scale(0), rotateZ: rotation(0) } },
+    { offset: 0.28, properties: { opacity: 0.75, translateY: 8 + translate(0.28), scale: scale(0.28), rotateZ: rotation(0.28) } },
+    { offset: 0.55, properties: { opacity: 1, translateY: -6 + translate(0.55), scale: scale(0.55), rotateZ: rotation(0.55) } },
+    { offset: 1, properties: { opacity: 1, translateY: 0, scale: 1, rotateZ: 0 } },
+  ];
+}
+
+function executeCinemaModule(taskId: string, request: string, lower: string): SubTaskResult {
+  // Shot-language detection → cinematic framing and transition pattern.
+  let shot = "medium-shot";
+  let transition = "dissolve";
+  let dollyMs = 0;
+  let zoom = 1;
+
+  if (lower.includes("close up") || lower.includes("特写")) {
+    shot = "close-up";
+    zoom = 1.25;
+    transition = "iris";
+    dollyMs = 220;
+  } else if (lower.includes("wide") || lower.includes("全景") || lower.includes("远景")) {
+    shot = "wide-shot";
+    zoom = 0.88;
+    transition = "pan";
+    dollyMs = 480;
+  } else if (lower.includes("tracking") || lower.includes("follow") || lower.includes("跟随")) {
+    shot = "tracking-shot";
+    transition = "wipe-horizontal";
+    dollyMs = 520;
+  } else if (lower.includes("over the shoulder") || lower.includes("dutch") || lower.includes("俯仰")) {
+    shot = "dutch-angle";
+    transition = "tilt-reveal";
+    dollyMs = 380;
+    zoom = 1.05;
+  } else if (lower.includes("establishing") || lower.includes("开场")) {
+    shot = "establishing";
+    transition = "fade-to-black";
+    dollyMs = 800;
+    zoom = 0.8;
+  } else if (lower.includes("punch in") || lower.includes("push") || lower.includes("推进")) {
+    shot = "punch-in";
+    transition = "dolly-in";
+    dollyMs = 360;
+    zoom = 1.4;
+  }
+
+  const durationMs = Math.max(700, 900 + dollyMs);
+  const keyframes: Keyframe[] = [
+    { offset: 0, properties: { opacity: 0, scale: zoom * 0.7 }, },
+    { offset: dollyMs / durationMs * 0.4, properties: { opacity: 0.85, scale: zoom * 0.95 } },
+    { offset: 0.75, properties: { opacity: 1, scale: zoom * 1.02 } },
+    { offset: 1, properties: { opacity: 1, scale: zoom } },
+  ];
+
+  return {
+    subTaskId: taskId,
+    moduleId: "cinema",
+    motionParams: {
+      easing: "ease-in-out",
+      durationMs,
+      intensity: 0.95,
+      keyframes,
+      metadata: { shot, transition, cameraMoveMs: dollyMs, framingZoom: zoom },
+    },
+    confidence: 0.9,
+    notes: `Cinematography: ${shot} with "${transition}" transition — camera move ${dollyMs}ms, framing zoom ${(zoom * 100).toFixed(0)}%.`,
+  };
+}
+
+function executeHarmonicsModule(taskId: string, request: string, lower: string): SubTaskResult {
+  // Spectral motion: harmonic overtones (1f, 2f, 3f) combined into one easing curve.
+  let fundamentalHz = 1.2;
+  let overtones = 2;
+  let decay = 0.82;
+  let consonance = "just";
+
+  if (lower.includes("chord") || lower.includes("和弦")) {
+    overtones = 3;
+    consonance = "triadic";
+  } else if (lower.includes("drone") || lower.includes("嗡鸣")) {
+    fundamentalHz = 0.5;
+    overtones = 1;
+    consonance = "drone";
+  } else if (lower.includes("bell") || lower.includes("铃")) {
+    fundamentalHz = 2.4;
+    overtones = 4;
+    decay = 0.55;
+    consonance = "inharmonic-bell";
+  } else if (lower.includes("glass") || lower.includes("水晶") || lower.includes("玻璃")) {
+    fundamentalHz = 3.6;
+    overtones = 3;
+    decay = 0.65;
+    consonance = "quartal";
+  } else if (lower.includes("pluck") || lower.includes("拨")) {
+    fundamentalHz = 2;
+    overtones = 2;
+    decay = 0.5;
+    consonance = "plucked";
+  }
+
+  // Build keyframes with damped oscillation at each harmonic.
+  const samples = 16;
+  const keyframes: Keyframe[] = [];
+  for (let i = 0; i <= samples; i += 1) {
+    const t = i / samples;
+    let oscillation = 0;
+    for (let h = 1; h <= overtones; h += 1) {
+      const amp = Math.pow(decay, h - 1) / h;
+      const phase = h * fundamentalHz * 2 * Math.PI * t;
+      oscillation += amp * Math.sin(phase);
+    }
+    const oscNorm = Math.max(-1, Math.min(1, oscillation));
+    keyframes.push({
+      offset: t,
+      properties: {
+        scale: 1 + oscNorm * 0.08,
+        opacity: 0.85 + Math.abs(oscNorm) * 0.15,
+        blur: t < 0.1 ? 4 * (1 - t * 10) : 0,
+      },
+    });
+  }
+
+  return {
+    subTaskId: taskId,
+    moduleId: "harmonics",
+    motionParams: {
+      easing: "smooth",
+      durationMs: 1600,
+      intensity: 0.95,
+      keyframes,
+      metadata: { fundamentalHz, overtones, decay, consonance, sampleCount: samples + 1 },
+    },
+    confidence: 0.87,
+    notes: `Harmonics: ${consonance} series — fundamental ${fundamentalHz}Hz, ${overtones} overtone${overtones === 1 ? "" : "s"}, decay coefficient ${decay}.`,
+  };
+}
+
+function executeTopologyModule(taskId: string, request: string, lower: string): SubTaskResult {
+  // Topology-preserving spatial warps: morph corners, skew, ripple, or fold.
+  let technique = "ripple-warp";
+  let amplitude = 1;
+  let foldBias = 0.5;
+
+  if (lower.includes("fold") || lower.includes("折纸") || lower.includes("折叠")) {
+    technique = "paper-fold";
+    foldBias = lower.includes("diagonal") ? 0.75 : 0.5;
+    amplitude = 1.2;
+  } else if (lower.includes("liquify") || lower.includes("熔化") || lower.includes("液化")) {
+    technique = "liquify";
+    amplitude = 1.5;
+  } else if (lower.includes("morph") || lower.includes("形变")) {
+    technique = "morph-between";
+    amplitude = 1.1;
+  } else if (lower.includes("peel") || lower.includes("剥离") || lower.includes("撕")) {
+    technique = "peel-back";
+    foldBias = 0.25;
+    amplitude = 1.4;
+  } else if (lower.includes("spiral") || lower.includes("螺旋")) {
+    technique = "spiral-warp";
+    amplitude = 1.3;
+  }
+
+  const durationMs = 1300;
+  const kfs: Keyframe[] = topologyKeyframes(technique, amplitude, foldBias);
+
+  return {
+    subTaskId: taskId,
+    moduleId: "topology",
+    motionParams: {
+      easing: "ease-in-out-cubic",
+      durationMs,
+      intensity: amplitude,
+      keyframes: kfs,
+      metadata: { technique, amplitude, foldBias },
+    },
+    confidence: 0.84,
+    notes: `Topology: "${technique}" warp — amplitude ${amplitude.toFixed(2)}, foldBias ${foldBias.toFixed(2)}.`,
+  };
+}
+
+function topologyKeyframes(technique: string, amplitude: number, foldBias: number): Keyframe[] {
+  switch (technique) {
+    case "paper-fold":
+      return [
+        { offset: 0, properties: { opacity: 0, skewX: -20 * amplitude, scale: 0.9, rotateZ: foldBias * -8 } },
+        { offset: 0.5, properties: { opacity: 0.7, skewX: -6 * amplitude, scale: 0.96, rotateZ: foldBias * -3 } },
+        { offset: 1, properties: { opacity: 1, skewX: 0, scale: 1, rotateZ: 0 } },
+      ];
+    case "liquify":
+      return [
+        { offset: 0, properties: { opacity: 0, borderRadius: "0%", skewX: 14 * amplitude, scale: 0.7 } },
+        { offset: 0.3, properties: { opacity: 0.6, borderRadius: "30%", skewX: -8 * amplitude, scale: 0.88 } },
+        { offset: 0.6, properties: { opacity: 0.9, borderRadius: "15%", skewX: 4 * amplitude, scale: 0.97 } },
+        { offset: 1, properties: { opacity: 1, borderRadius: "12px", skewX: 0, scale: 1 } },
+      ];
+    case "peel-back":
+      return [
+        { offset: 0, properties: { opacity: 0, rotateX: 85 * foldBias, scale: 0.5, translateY: 20 * amplitude } },
+        { offset: 0.45, properties: { opacity: 0.7, rotateX: 30 * foldBias, scale: 0.82, translateY: 6 * amplitude } },
+        { offset: 1, properties: { opacity: 1, rotateX: 0, scale: 1, translateY: 0 } },
+      ];
+    case "spiral-warp":
+      return [
+        { offset: 0, properties: { opacity: 0, rotateZ: -90 * amplitude, scale: 0.2, translateY: 40 } },
+        { offset: 0.35, properties: { opacity: 0.5, rotateZ: -30 * amplitude, scale: 0.65, translateY: 12 } },
+        { offset: 0.7, properties: { opacity: 0.9, rotateZ: 6 * amplitude, scale: 0.92, translateY: 2 } },
+        { offset: 1, properties: { opacity: 1, rotateZ: 0, scale: 1, translateY: 0 } },
+      ];
+    default: // ripple-warp
+      return [
+        { offset: 0, properties: { opacity: 0, scale: 0.7, borderRadius: "0%" } },
+        { offset: 0.25, properties: { opacity: 0.5, scale: 1.08 * amplitude, borderRadius: "10%" } },
+        { offset: 0.55, properties: { opacity: 0.9, scale: 0.97, borderRadius: "16%" } },
+        { offset: 1, properties: { opacity: 1, scale: 1, borderRadius: "12px" } },
+      ];
+  }
+}
+
+function executeSynesthesiaModule(taskId: string, request: string, lower: string): SubTaskResult {
+  // Cross-sensory mapping: tone → easing, texture → keyframe shape, color → distance.
+  let hue = 250;
+  let brightness = 0.55;
+  let tonalQuality = "neutral";
+  let textureGrain = 0;
+
+  if (lower.includes("warm") || lower.includes("暖色")) {
+    hue = 30;
+    brightness = 0.65;
+    tonalQuality = "warm";
+  } else if (lower.includes("cool") || lower.includes("冷色")) {
+    hue = 210;
+    brightness = 0.5;
+    tonalQuality = "cool";
+  } else if (lower.includes("red") || lower.includes("红")) { hue = 0; brightness = 0.55; tonalQuality = "alert"; }
+  else if (lower.includes("green") || lower.includes("绿")) { hue = 135; brightness = 0.5; tonalQuality = "calming"; }
+  else if (lower.includes("purple") || lower.includes("紫")) { hue = 280; brightness = 0.55; tonalQuality = "luxurious"; }
+  else if (lower.includes("blue") || lower.includes("蓝")) { hue = 215; brightness = 0.5; tonalQuality = "trust"; }
+
+  if (lower.includes("rough") || lower.includes("粗糙")) textureGrain = 0.6;
+  else if (lower.includes("smooth") || lower.includes("丝滑")) textureGrain = 0;
+  else if (lower.includes("glossy") || lower.includes("光泽")) textureGrain = 0.1;
+  else if (lower.includes("matte") || lower.includes("哑光")) textureGrain = 0.3;
+
+  // Hue → rotate degree, brightness → intensity mapping, grain → micro-jitter count.
+  const rotate = Math.round((hue / 360) * 24 - 12);
+  const intensity = 0.5 + brightness * 0.8;
+  const grainSteps = Math.round(textureGrain * 4);
+  const keyframes = synesthesiaKeyframes(rotate, intensity, grainSteps, tonalQuality);
+  const palette = synesthesiaPalette(hue, brightness, tonalQuality);
+
+  return {
+    subTaskId: taskId,
+    moduleId: "synesthesia",
+    motionParams: {
+      easing: tonalQuality === "alert" ? "snappy" : tonalQuality === "calming" ? "smooth" : "ease-out",
+      durationMs: 900 + grainSteps * 50,
+      intensity,
+      palette,
+      keyframes,
+      metadata: { hue, brightness, tonalQuality, textureGrain, rotate },
+    },
+    confidence: 0.83,
+    notes: `Synesthesia: hue ${hue}° → rotate ${rotate}°, brightness → intensity ${intensity.toFixed(2)}, grain ${textureGrain} → ${grainSteps} micro-jitter steps, tone "${tonalQuality}".`,
+  };
+}
+
+function synesthesiaKeyframes(rotate: number, intensity: number, grainSteps: number, tonal: string): Keyframe[] {
+  const base: Keyframe[] = [
+    { offset: 0, properties: { opacity: 0, translateY: 28 * intensity, scale: 0.6, rotateZ: rotate } },
+    { offset: 0.5, properties: { opacity: 0.8, translateY: 6 * intensity, scale: 0.96, rotateZ: rotate * 0.3 } },
+    { offset: 1, properties: { opacity: 1, translateY: 0, scale: 1, rotateZ: 0 } },
+  ];
+  if (tonal === "alert") {
+    base.splice(1, 0, { offset: 0.2, properties: { opacity: 0.5, translateY: 18 * intensity, scale: 0.82 } });
+  } else if (tonal === "luxurious") {
+    base.splice(1, 0, { offset: 0.3, properties: { opacity: 0.4, translateY: 12 * intensity, scale: 0.88, blur: 4 } });
+  }
+  // Grain: insert high-frequency small steps at mid-range offsets.
+  for (let i = 0; i < grainSteps; i += 1) {
+    const t = 0.35 + 0.3 * (i / Math.max(1, grainSteps));
+    base.push({
+      offset: t,
+      properties: { translateY: (Math.random() - 0.5) * 4 * intensity, scale: 1 + (Math.random() - 0.5) * 0.04 },
+    });
+  }
+  base.sort((a, b) => a.offset - b.offset);
+  return base;
+}
+
+function synesthesiaPalette(hue: number, brightness: number, tonal: string): string[] {
+  const h = ((hue % 360) + 360) % 360;
+  const b = Math.max(0.2, Math.min(0.9, brightness));
+  const base = hslHex(h, 0.6, b);
+  const accent = hslHex((h + 40) % 360, 0.55, Math.min(0.95, b + 0.15));
+  const deep = hslHex(h, 0.5, Math.max(0.15, b - 0.3));
+  if (tonal === "luxurious") return [deep, base, accent, "#FFFFFF"];
+  if (tonal === "alert") return [deep, base, hslHex(0, 0.7, 0.55), "#FFFFFF"];
+  if (tonal === "calming") return [deep, base, accent, hslHex(180, 0.5, 0.85)];
+  return ["#FFFFFF", deep, base, accent];
+}
+
+function hslHex(h: number, s: number, l: number): string {
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const hp = h / 60;
+  const x = c * (1 - Math.abs((hp % 2) - 1));
+  let [r, g, bl] = [0, 0, 0];
+  if (hp < 1) [r, g, bl] = [c, x, 0];
+  else if (hp < 2) [r, g, bl] = [x, c, 0];
+  else if (hp < 3) [r, g, bl] = [0, c, x];
+  else if (hp < 4) [r, g, bl] = [0, x, c];
+  else if (hp < 5) [r, g, bl] = [x, 0, c];
+  else [r, g, bl] = [c, 0, x];
+  const m = l - c / 2;
+  const toHex = (v: number) => Math.round((v + m) * 255).toString(16).padStart(2, "0");
+  return `#${toHex(r)}${toHex(g)}${toHex(bl)}`;
 }
 
 // ---------------------------------------------------------------------------
