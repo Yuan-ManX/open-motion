@@ -1031,7 +1031,7 @@ function pushStateBased(out: ProactiveSuggestion[], spec: MotionSpec): void {
     out.push({
       title: "Run multi-engine collaboration",
       reason: "Rich scenes benefit from several intelligence modules working together.",
-      tool: "run_collaboration",
+      tool: "execute_collaboration",
       prompt: "Run a motion collaboration on the current scene",
       kind: "collaborate",
     });
