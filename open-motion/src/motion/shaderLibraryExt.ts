@@ -911,6 +911,120 @@ void main() {
       intensity: { default: 1, min: 0.3, max: 2.5 },
     },
   },
+  {
+    id: "shader-plasma-field",
+    name: "Plasma Field",
+    category: "pattern",
+    description: "Flowing plasma field with electric arcs and energy discharge patterns.",
+    glslSource: `
+precision mediump float;
+uniform float u_time;
+uniform float u_intensity;
+uniform vec2 u_resolution;
+varying vec2 v_uv;
+void main() {
+  vec2 uv = v_uv * 2.0 - 1.0;
+  uv.x *= u_resolution.x / u_resolution.y;
+  float t = u_time * 0.5;
+  float v = sin(uv.x * 3.0 + t);
+  v += sin(uv.y * 4.0 + t * 1.3);
+  v += sin((uv.x + uv.y) * 2.5 + t * 0.7);
+  v += sin(length(uv) * 6.0 - t * 2.0);
+  v = v / 4.0;
+  vec3 col = vec3(
+    sin(v * 3.14 + t) * 0.5 + 0.5,
+    sin(v * 3.14 + t + 2.09) * 0.5 + 0.5,
+    sin(v * 3.14 + t + 4.18) * 0.5 + 0.5
+  ) * u_intensity;
+  gl_FragColor = vec4(col, 0.85);
+}`.trim(),
+    cssStyle: {
+      background: "radial-gradient(ellipse at 50% 50%, rgba(236,72,153,0.4), rgba(139,92,246,0.3) 40%, rgba(14,165,233,0.2) 70%, transparent)",
+      filter: "blur(2px) hue-rotate(45deg)",
+    },
+    parameters: {
+      intensity: { default: 1, min: 0.3, max: 3 },
+    },
+  },
+  {
+    id: "shader-liquid-ripple",
+    name: "Liquid Ripple",
+    category: "distortion",
+    description: "Concentric liquid ripples that distort the underlying layer with refraction.",
+    glslSource: `
+precision mediump float;
+uniform float u_time;
+uniform float u_intensity;
+uniform vec2 u_resolution;
+varying vec2 v_uv;
+void main() {
+  vec2 uv = v_uv;
+  vec2 center = vec2(0.5, 0.5);
+  float dist = distance(uv, center);
+  float ripple = sin(dist * 30.0 - u_time * 4.0) * 0.02 * u_intensity;
+  ripple /= max(dist, 0.05);
+  vec2 offset = normalize(uv - center) * ripple;
+  vec3 col = vec3(
+    0.3 + 0.3 * sin(u_time + uv.x * 10.0),
+    0.5 + 0.3 * sin(u_time + uv.y * 10.0 + 1.0),
+    0.8 + 0.2 * sin(u_time + dist * 15.0)
+  );
+  gl_FragColor = vec4(col, 0.6);
+}`.trim(),
+    cssStyle: {
+      background: "radial-gradient(circle at 50% 50%, rgba(56,189,248,0.3), rgba(34,211,238,0.15) 50%, transparent)",
+      backdropFilter: "blur(1px)",
+    },
+    parameters: {
+      intensity: { default: 1, min: 0.2, max: 4 },
+    },
+  },
+  {
+    id: "shader-aurora-curtain",
+    name: "Aurora Curtain",
+    category: "pattern",
+    description: "Flowing aurora borealis curtain with shifting color bands and vertical drift.",
+    glslSource: `
+precision mediump float;
+uniform float u_time;
+uniform float u_intensity;
+uniform vec2 u_resolution;
+varying vec2 v_uv;
+float noise(vec2 p) {
+  return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+}
+float smoothNoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  float a = noise(i);
+  float b = noise(i + vec2(1.0, 0.0));
+  float c = noise(i + vec2(0.0, 1.0));
+  float d = noise(i + vec2(1.0, 1.0));
+  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+void main() {
+  vec2 uv = v_uv;
+  float t = u_time * 0.3;
+  float n = smoothNoise(vec2(uv.x * 3.0 + t, uv.y * 8.0 - t * 0.5));
+  n += smoothNoise(vec2(uv.x * 6.0 - t * 0.7, uv.y * 4.0 + t)) * 0.5;
+  float band = smoothstep(0.3, 0.7, n) * smoothstep(1.0, 0.6, uv.y);
+  vec3 col = mix(
+    vec3(0.1, 0.8, 0.5),
+    vec3(0.3, 0.4, 1.0),
+    sin(uv.x * 3.14 + t) * 0.5 + 0.5
+  );
+  col = mix(col, vec3(0.6, 0.2, 0.9), smoothstep(0.5, 0.8, n));
+  gl_FragColor = vec4(col * band * u_intensity, band * 0.7);
+}`.trim(),
+    cssStyle: {
+      background: "linear-gradient(180deg, rgba(16,185,129,0.2) 0%, rgba(59,130,246,0.15) 40%, rgba(139,92,246,0.1) 70%, transparent)",
+      maskImage: "linear-gradient(180deg, black 0%, transparent 80%)",
+    },
+    parameters: {
+      intensity: { default: 1, min: 0.3, max: 2.5 },
+    },
+  },
 ];
 
 /** Combined list of base + extended shader effects. */
