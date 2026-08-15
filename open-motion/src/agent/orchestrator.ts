@@ -31,6 +31,7 @@ import { replanAfterFailure } from "./replanner.js";
 import { extractSkill } from "./memory/skillGenerator.js";
 import { suggestProactive } from "./proactiveEngine.js";
 import { recordToolExecution, isToolUnreliable } from "./analytics.js";
+import { recordDecision, inferCreativeIntent } from "./motionCreativeContext.js";
 import { generateSessionSummary } from "./sessionSummary.js";
 import { composeTools, composedToToolCalls } from "./toolComposer.js";
 import { capture, isSpecMutating } from "./checkpointManager.js";
@@ -705,6 +706,15 @@ async function executeStructuredPlan(
       );
       const toolDurationMs = Date.now() - toolStart;
       recordToolExecution(ctx.projectId, call.tool, result.ok, toolDurationMs);
+
+      // Record creative decision for session-aware intelligence
+      try {
+        const specForCtx = getProjectSpec(ctx.projectId);
+        if (specForCtx) {
+          const intent = inferCreativeIntent(call.tool, resolvedArgs as Record<string, unknown>, specForCtx);
+          recordDecision(ctx.projectId, call.tool, result.summary, intent, undefined, result.ok);
+        }
+      } catch { /* creative context is non-critical */ }
 
       allToolCalls.push({ tool: call.tool, args: resolvedArgs, callId });
       allToolResults.push(result);
