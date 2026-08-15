@@ -63,12 +63,19 @@ import {
   formatPerceptionReport,
 } from "../motionPerception.js";
 import {
+  predictChronopath,
+  formatChronopathReport,
+} from "../motionChronopath.js";
+import {
   listSemanticConcepts,
   inferIntent,
   blendConcepts,
   formatProfile,
 } from "../motionSemantics.js";
 import { findHarmonics } from "../motionHarmonics.js";
+import { analyzeCreativeContext } from "../motionCreativeContext.js";
+import { runDesignDebate, formatDebateReport } from "../motionDebate.js";
+import { runReflectionLoop, formatReflectionReport, type ReflectionPatch } from "../motionReflectionLoop.js";
 
 type Executor = (args: Record<string, unknown>, ctx: ToolContext) => ToolResult | Promise<ToolResult>;
 
@@ -412,6 +419,34 @@ export const advancedExecutors: Partial<Record<ToolName, Executor>> = {
     };
   },
 
+  // --- Motion chronopath — gaze trajectory prediction -----------------------
+
+  predict_chronopath: (_args, ctx) => {
+    const loaded = loadSpec(ctx);
+    if ("error" in loaded) return loaded.error;
+    const report = predictChronopath(loaded.spec);
+    return {
+      ok: true,
+      summary: formatChronopathReport(report),
+      specChanged: false,
+      data: report,
+    };
+  },
+
+  // --- Motion creative context — session-aware intelligence -----------------
+
+  analyze_creative_context: (_args, ctx) => {
+    const loaded = loadSpec(ctx);
+    if ("error" in loaded) return loaded.error;
+    const report = analyzeCreativeContext(ctx.projectId, loaded.spec);
+    return {
+      ok: true,
+      summary: report.summary,
+      specChanged: false,
+      data: report,
+    };
+  },
+
   // --- Motion semantics -----------------------------------------------------
 
   list_semantic_concepts: (args) => {
@@ -458,6 +493,58 @@ export const advancedExecutors: Partial<Record<ToolName, Executor>> = {
       ok: true,
       summary: `Found ${result.compatible.length} compatible and ${result.dissonant.length} dissonant partner(s) for ${args.componentId}`,
       specChanged: false,
+      data: result,
+    };
+  },
+
+  // --- Motion Debate — adversarial multi-judge design review ----------------
+
+  run_motion_debate: async (args, ctx) => {
+    const loaded = loadSpec(ctx);
+    if ("error" in loaded) return loaded.error;
+    const request = args.request as string;
+    const plan = planCollaboration(request);
+    if (plan.subTasks.length === 0) {
+      return {
+        ok: true,
+        summary: "Request is too general to build a collaboration plan for debate",
+        specChanged: false,
+        data: null,
+      };
+    }
+    const collaboration = await import("../motionCollaboration.js").then((m) => m.executeCollaboration(plan));
+    const weightsOverride: Partial<Record<"accessibility" | "brand" | "performance", number>> = {};
+    if (typeof args.accessibilityWeight === "number") weightsOverride.accessibility = args.accessibilityWeight;
+    if (typeof args.performanceWeight === "number") weightsOverride.performance = args.performanceWeight;
+    if (typeof args.brandWeight === "number") weightsOverride.brand = args.brandWeight;
+    const report = runDesignDebate(loaded.spec, collaboration, Object.keys(weightsOverride).length > 0 ? weightsOverride : undefined);
+    return {
+      ok: true,
+      summary: formatDebateReport(report),
+      specChanged: false,
+      data: report,
+    };
+  },
+
+  // --- Motion Reflection Loop — automatic post-turn polishing ---------------
+
+  run_reflection_loop: async (args, ctx) => {
+    const loaded = loadSpec(ctx);
+    if ("error" in loaded) return loaded.error;
+    const maxPasses = typeof args.maxPasses === "number" ? args.maxPasses : 2;
+    const autoApply = args.autoApply !== false;
+    const mutator = async (patch: ReflectionPatch): Promise<void> => {
+      if (!autoApply) return;
+      // Persist each patch via patchComponent mutation
+      await import("../../db/repositories/components.js").then((m) => {
+        m.patchComponent(ctx.projectId, patch.componentId, patch.patch as Record<string, unknown>);
+      }).catch(() => { /* non-fatal */ });
+    };
+    const result = await runReflectionLoop(loaded.spec, "reflection-loop", ctx.projectId, mutator);
+    return {
+      ok: true,
+      summary: formatReflectionReport(result),
+      specChanged: result.totalPatches > 0 && autoApply,
       data: result,
     };
   },
