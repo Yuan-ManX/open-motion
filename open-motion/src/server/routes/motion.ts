@@ -253,6 +253,11 @@ import {
   analyzeCinema,
   formatCinemaReport,
 } from "../../agent/motionCinema.js";
+import {
+  predictChronopath,
+  formatChronopathReport,
+} from "../../agent/motionChronopath.js";
+import { analyzeCreativeContext } from "../../agent/motionCreativeContext.js";
 import { patchComponent } from "../../db/repositories/components.js";
 
 export const motionRouter = Router();
@@ -916,6 +921,51 @@ motionRouter.get("/projects/:id/perception", (req, res) => {
     return;
   }
   const report = predictPerception(spec);
+  res.json(report);
+});
+
+// ---------------------------------------------------------------------------
+// Motion Chronopath — gaze trajectory prediction
+// ---------------------------------------------------------------------------
+
+/**
+ * GET /api/projects/:id/chronopath — predict the viewer's gaze trajectory
+ * through time. Returns gaze path, saccade segments, gaze collisions,
+ * dead zones, optimal reveal ordering, and gaze efficiency score.
+ */
+motionRouter.get("/projects/:id/chronopath", (req, res) => {
+  const spec = getProjectSpec(req.params.id);
+  if (!spec) {
+    res.status(404).json({ error: "project not found" });
+    return;
+  }
+  if (spec.components.length === 0) {
+    res.status(400).json({ error: "no components to analyze — add content first" });
+    return;
+  }
+  const report = predictChronopath(spec);
+  res.json({
+    ...report,
+    summary: formatChronopathReport(report),
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Motion Creative Context — session-aware intelligence
+// ---------------------------------------------------------------------------
+
+/**
+ * GET /api/projects/:id/creative-context — analyze the creative session
+ * context. Returns design decisions, creative direction, detected patterns,
+ * session statistics, and context-aware recommendations.
+ */
+motionRouter.get("/projects/:id/creative-context", (req, res) => {
+  const spec = getProjectSpec(req.params.id);
+  if (!spec) {
+    res.status(404).json({ error: "project not found" });
+    return;
+  }
+  const report = analyzeCreativeContext(req.params.id, spec);
   res.json(report);
 });
 
