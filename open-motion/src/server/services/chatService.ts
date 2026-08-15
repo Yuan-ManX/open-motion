@@ -6,6 +6,7 @@ import { listMessages, clearMessages } from "../../db/repositories/messages.js";
 import { clearMemory } from "../../agent/memory/store.js";
 import { orchestrate } from "../../agent/orchestrator.js";
 import { getProvider, getProviderForModel } from "../../agent/provider/index.js";
+import { runQualityPipeline } from "../../agent/qualityPipeline.js";
 
 interface CollectedSummary {
   headline: string;
@@ -101,6 +102,35 @@ export async function chat(
 
   if (errored) throw new HttpError(500, errored);
 
+  // Run the quality pipeline when the spec was mutated and emit a
+  // quality_report event so the frontend can surface the grade immediately.
+  const finalSpec = getProjectSpec(projectId);
+  const specChanged = collected.toolResults.some((r) =>
+    r.summary.includes("created") || r.summary.includes("applied") || r.summary.includes("set") || r.summary.includes("updated"),
+  );
+  if (finalSpec && finalSpec.components.length > 0 && specChanged) {
+    try {
+      const report = runQualityPipeline(finalSpec.components);
+      const qualityEvent: ChatEvent = {
+        type: "quality_report",
+        overall: report.overall,
+        grade: report.grade,
+        pass: report.pass,
+        autofixCount: report.autofixCount,
+        dimensions: report.dimensions.map((d) => ({
+          key: d.key,
+          score: d.score,
+          passed: d.passed,
+          findingCount: d.findings.length,
+        })),
+        suggestedNext: report.suggestedNext,
+      };
+      if (onEvent) onEvent(qualityEvent);
+    } catch {
+      // Quality pipeline failure should never break the chat flow.
+    }
+  }
+
   return {
     provider: collected.provider,
     message: finalMessage || collected.text,
@@ -108,7 +138,7 @@ export async function chat(
     toolResults: collected.toolResults,
     tokensIn: collected.tokensIn,
     tokensOut: collected.tokensOut,
-    spec: getProjectSpec(projectId),
+    spec: finalSpec,
     ...(sessionSummary ? { summary: sessionSummary } : {}),
   };
 }
@@ -124,7 +154,41 @@ export async function chatStream(
   ensureProjectExists(projectId);
   const provider = await resolveProvider(model);
   onMeta(provider.name);
-  await orchestrate({ projectId, userMessage: message, provider, model, signal, onEvent });
+
+  let hadSpecChange = false;
+  const wrappedEvent: (event: ChatEvent) => void = (event) => {
+    if (event.type === "tool_result" && event.specChanged) hadSpecChange = true;
+    onEvent(event);
+  };
+
+  await orchestrate({ projectId, userMessage: message, provider, model, signal, onEvent: wrappedEvent });
+
+  // After orchestration completes, if the spec was mutated, run the quality
+  // pipeline and emit a report so the frontend can render the grade.
+  if (hadSpecChange && !signal?.aborted) {
+    const spec = getProjectSpec(projectId);
+    if (spec && spec.components.length > 0) {
+      try {
+        const report = runQualityPipeline(spec.components);
+        onEvent({
+          type: "quality_report",
+          overall: report.overall,
+          grade: report.grade,
+          pass: report.pass,
+          autofixCount: report.autofixCount,
+          dimensions: report.dimensions.map((d) => ({
+            key: d.key,
+            score: d.score,
+            passed: d.passed,
+            findingCount: d.findings.length,
+          })),
+          suggestedNext: report.suggestedNext,
+        });
+      } catch {
+        // Quality pipeline failure should never break the chat stream.
+      }
+    }
+  }
 }
 
 export function listProjectMessages(projectId: string) {
