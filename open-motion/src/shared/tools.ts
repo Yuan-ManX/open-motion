@@ -3073,6 +3073,14 @@ export const PredictPerceptionInput = z.object({
   projectId: zIdField,
 });
 
+export const PredictChronopathInput = z.object({
+  projectId: zIdField,
+});
+
+export const AnalyzeCreativeContextInput = z.object({
+  projectId: zIdField,
+});
+
 export const ListSemanticConceptsInput = z.object({
   category: z.enum(["emotion", "brand", "energy", "aesthetic"]).optional().describe("Filter by category"),
 });
@@ -3527,6 +3535,22 @@ export const TranslateLexiconInput = z.object({
   projectId: zIdField.optional(),
 });
 
+// Motion Debate — adversarial multi-judge design review
+export const RunMotionDebateInput = z.object({
+  projectId: zIdField,
+  request: z.string().min(1).describe("Natural-language collaboration request to debate, e.g. 'debate the collaboration result for a hero entrance'"),
+  accessibilityWeight: z.number().min(0).max(1).optional().describe("Override the accessibility judge weight (default 0.4)"),
+  performanceWeight: z.number().min(0).max(1).optional().describe("Override the performance judge weight (default 0.35)"),
+  brandWeight: z.number().min(0).max(1).optional().describe("Override the brand judge weight (default 0.25)"),
+});
+
+// Motion Reflection Loop — automatic post-turn self-assessment and polishing
+export const RunReflectionLoopInput = z.object({
+  projectId: zIdField,
+  maxPasses: z.number().int().min(1).max(5).default(2).describe("Maximum number of reflection passes (default 2)"),
+  autoApply: z.boolean().default(true).describe("When true, automatically apply high-confidence remediation patches"),
+});
+
 /** Tool-name → input schema registry. The agent and MCP layer both consume this. */
 export const TOOL_INPUT_SCHEMAS = {
   get_motion_spec: GetMotionSpecInput,
@@ -3932,6 +3956,8 @@ export const TOOL_INPUT_SCHEMAS = {
   evolve_motion: EvolveMotionInput,
   list_evolution_strategies: ListEvolutionStrategiesInput,
   predict_perception: PredictPerceptionInput,
+  predict_chronopath: PredictChronopathInput,
+  analyze_creative_context: AnalyzeCreativeContextInput,
   list_semantic_concepts: ListSemanticConceptsInput,
   infer_intent: InferIntentInput,
   blend_concepts: BlendConceptsInput,
@@ -4057,6 +4083,10 @@ export const TOOL_INPUT_SCHEMAS = {
   decide_volition: DecideVolitionInput,
   // Motion Lexicon
   translate_lexicon: TranslateLexiconInput,
+  // Motion Debate
+  run_motion_debate: RunMotionDebateInput,
+  // Motion Reflection Loop
+  run_reflection_loop: RunReflectionLoopInput,
 } as const;
 
 export type ToolName = keyof typeof TOOL_INPUT_SCHEMAS;
@@ -4469,6 +4499,8 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   evolve_motion: "Evolve a motion spec across multiple generations using a genetic algorithm. Breeds progressively better animations via selection, crossover, and mutation. Strategies: balanced, playful, accessible, performant, harmonious. Use when the user says 'evolve', 'optimize', 'breed', or 'iteratively improve' the motion.",
   list_evolution_strategies: "List all available evolution strategies with their fitness weights and descriptions. Use when the user asks 'what evolution strategies are available' or 'list optimization strategies'.",
   predict_perception: "Predict how viewers will cognitively and emotionally respond to the motion. Returns emotional valence, arousal profile, cognitive load, attention retention, memorability, and brand perception. Use when the user asks 'how will this feel' or 'predict viewer response'.",
+  predict_chronopath: "Predict the viewer's gaze trajectory through time — where the eye looks at each moment during playback. Returns gaze path, saccade segments, gaze collisions, dead zones, optimal reveal ordering, and gaze efficiency score. Use when the user asks 'where will the eye go' or 'optimize gaze flow' or 'predict attention path'.",
+  analyze_creative_context: "Analyze the creative session context — tracks design decisions, detects creative direction, identifies design patterns, and recommends next actions. Returns session stats, detected style, design maturity, and context-aware recommendations. Use when the user asks 'what should I do next' or 'analyze my design session' or 'what's the creative direction'.",
   list_semantic_concepts: "List all semantic concepts (trust, urgency, luxury, playful, etc.) that can be mapped to motion parameters. Optionally filter by category. Use when the user asks 'what emotions can I express' or 'list motion concepts'.",
   infer_intent: "Infer semantic intent from a natural language description. Maps phrases like 'make it feel trustworthy' to concrete motion parameters (easing, duration, palette, energy). Use when the user describes a feeling rather than specific parameters.",
   blend_concepts: "Blend two semantic concepts into a hybrid motion profile (e.g. 'playful luxury' = bounce + smooth + gold). Returns the blended profile with easing, duration, palette, and energy. Use when the user wants to combine two moods or brand attributes.",
@@ -4585,4 +4617,6 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   reflect_consciousness: "Produce a meta-cognitive self-reflection of a motion composition. The composition observes its own design as a thinking entity: enumerates self-beliefs, generates counter-questions that challenge each belief, detects cognitive biases (anchoring, confirmation, sunk-cost, default, recency) embedded in the design choices, composes a first-person stream-of-consciousness monologue, and computes a metacognitive awareness score. Use when the user says 'what does this motion think of itself', 'is this design self-aware', 'biases in my motion', 'meta-cognitive', 'reflect on this design', or wants the composition to introspect.",
   decide_volition: "Decide whether the agent should act, ask one clarifying question, defer, or refine the intent before committing to a tool sequence. Returns a volition mode (ACT/ASK/DEFER/REFINE), action readiness, stall risk, regret estimate, detected ambiguity signals, a bounded clarifying question when ASK, a refined intent when REFINE, and suggested tools when ACT. Use proactively before dispatching tools on a vague intent, or when the user says 'should you act or ask', 'are you confident', 'clarify', or before any multi-step request that touches the spec.",
   translate_lexicon: "Translate a natural-language motion intent (English or Chinese) onto a formal token system: a duration token (instant/micro/standard/normal/extended/cinematic), an easing token (ease-out/ease-in-out/spring-soft/spring-snappy/linear), a reduced-motion fallback mode (scale-only/crossfade/none), and one of eleven motion categories (entrance, exit, scroll-reveal, hover-press, state-transition, feedback-delight, emphasis, loading, page-transition, text-kinetic, video-transition). Returns matched bilingual cues and suggested tools. Use when the user says '丝滑', '高级', '电影感', '弹性', '淡入', '滑动', '加载', '翻页', '打字', '闪烁', 'motion token', 'duration token', 'easing token', 'reduced-motion mode', or wants the intent translated into motion tokens.",
+  run_motion_debate: "Run an adversarial three-judge design debate over a motion collaboration result. The Accessibility Judge checks WCAG compliance (reduced-motion, flash risk, duration), the Performance Judge audits GPU compositing (transform+opacity only, keyframe count), and the Brand Consistency Judge ensures alignment with project style norms. Returns a debate verdict (approve/revise/reject), weighted score, per-judge opinions, and concrete revision tasks with suggested patches. Use when the user asks 'debate this', 'review the collaboration', 'get a second opinion', 'quality check', or wants adversarial evaluation before finalizing a design.",
+  run_reflection_loop: "Run an automatic post-turn reflection loop that critiques the current spec across accessibility, performance, aesthetic, and consistency dimensions, then applies high-confidence remediation patches (capped durations, finite iterations, smoother easings, normalized durations). Runs up to 2 passes with diminishing-returns termination. Returns per-pass scores, applied patches, final quality delta, and warnings. Use proactively after any multi-step tool sequence to auto-polish the output, or when the user says 'self-check', 'auto-polish', 'quality pass', 'reflect and fix'.",
 };
