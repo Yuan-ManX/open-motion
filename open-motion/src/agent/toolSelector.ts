@@ -104,7 +104,7 @@ const INTENT_TOOL_PREFIXES: Record<IntentType, readonly string[]> = {
   query: ["get_", "list_", "describe_", "suggest_", "recommend_"],
   describe: ["describe_motion", "find_similar_motion", "generate_motion_docs", "recognize_pattern"],
   scene: ["list_scenes", "remove_scene", "add_scene_transition", "add_camera_move", "create_precomp", "ungroup_precomp", "set_adjustment_layer"],
-  analysis: ["analyze_", "check_", "recognize_pattern", "profile_motion", "audit_motion", "curate_motion", "strategize_motion", "encode_motion", "verify_motion", "self_correct"],
+  analysis: ["analyze_", "check_", "recognize_pattern", "profile_motion", "audit_motion", "curate_motion", "strategize_motion", "encode_motion", "verify_motion", "self_correct", "predict_chronopath", "predict_perception"],
   path: ["set_motion_path", "list_path_presets", "list_path_types", "run_path_preset"],
   style: ["apply_style", "apply_brand_pack", "list_brand_packs", "seed_brand_packs", "delete_brand_pack", "set_motion_profile", "suggest_motion_profile", "list_motion_profiles", "apply_motion_profile"],
   pattern: ["recognize_pattern", "analyze_motion", "harmonize_colors", "analyze_restraint"],
