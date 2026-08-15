@@ -69,6 +69,7 @@ import { capture, listCheckpoints, isSpecMutating, rollback, rollbackTo, clearCh
 import { runPreHooks, runPostHooks } from "../../agent/pluginHooks.js";
 import { buildCapabilityManifest } from "../../agent/capabilityManifest.js";
 import { COLLABORATION_MODULES, planCollaboration, executeCollaboration, collaborate, detectModules, listCollaborationModules, formatCollaborationPlan, formatCollaborationResult } from "../../agent/motionCollaboration.js";
+import { collaborateStream, type CollaborationStreamEvent } from "../../agent/collaborationStream.js";
 import { logger } from "../../utils/logger.js";
 import { TOOL_NAMES } from "@openmotion/shared";
 import { composeStructuredPlan, shouldUsePlanMode } from "../../agent/planExecutor.js";
@@ -3078,6 +3079,43 @@ agentRouter.post(
       readable: formatCollaborationResult(result),
       projectId: data.projectId ?? null,
     });
+  }),
+);
+
+// Streaming collaboration — emits SSE events as each module completes
+agentRouter.post(
+  "/collaboration/stream",
+  validate(CollaborationRunSchema),
+  runAsync(async (req: Request, res: Response) => {
+    const data = validated<{ request: string; projectId?: string }>(req);
+
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    });
+    res.flushHeaders?.();
+
+    let isClosed = false;
+    res.on("close", () => { isClosed = true; });
+
+    const send = (event: CollaborationStreamEvent) => {
+      if (isClosed || res.writableEnded) return;
+      res.write(`event: ${event.type}\n`);
+      res.write(`data: ${JSON.stringify(event)}\n\n`);
+    };
+
+    try {
+      collaborateStream(data.request, send);
+      if (!isClosed && !res.writableEnded) res.end();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!isClosed && !res.writableEnded) {
+        send({ type: "error", message: msg });
+        res.end();
+      }
+    }
   }),
 );
 
