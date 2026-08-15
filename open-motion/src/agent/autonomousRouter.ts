@@ -88,7 +88,7 @@ const BUCKET_KEYWORDS: Record<IntentBucket, string[]> = {
   tune_easing: ["easing", "curve", "slow", "fast", "spring", "smooth", "缓动", "曲线", "动画曲线"],
   choreograph_timeline: ["timeline", "sequence", "order", "stagger", "delay", "时间轴", "序列", "顺序", "交错"],
   run_collaboration: ["collaborate", "multi-engine", "all modules", "comprehensive", "deep", "全面", "综合", "协作", "深度"],
-  analyze_project: ["analyze", "inspect", "check", "review", "audit", "health", "分析", "检查", "审查", "健康度"],
+  analyze_project: ["analyze", "inspect", "check", "review", "audit", "health", "gaze", "chronopath", "attention", "eye", "context", "session", "direction", "creative", "style", "pattern", "debate", "polish", "self-check", "reflect", "quality", "verdict", "judge", "critique", "目光", "分析", "检查", "审查", "健康度", "创意", "方向", "辩论", "打磨", "自检", "质量"],
   export_output: ["export", "render", "output", "download", "导出", "渲染", "输出", "下载"],
   manage_project: ["project", "rename", "delete", "save", "clone", "项目", "重命名", "删除", "保存"],
   query_catalog: ["search", "find", "list", "catalog", "browse", "搜索", "查找", "浏览", "目录"],
@@ -283,10 +283,38 @@ function expandIntentToSteps(bucket: IntentBucket, request: string): ToolStep[] 
     case "analyze_project":
       return [
         {
+          tool: "run_motion_debate",
+          forwardFields: ["request"],
+          rationale: "Adversarial three-judge design debate provides deep quality review with concrete revision tasks.",
+          confidence: 0.92,
+          maxRetries: 1,
+        },
+        {
+          tool: "run_reflection_loop",
+          forwardFields: ["request"],
+          rationale: "Automatic post-turn reflection loop critiques and polishes the spec across four quality dimensions.",
+          confidence: 0.9,
+          maxRetries: 1,
+        },
+        {
           tool: "describe_motion",
           forwardFields: ["request"],
           rationale: "Full project inspector surfaces components, timing and issue counts.",
           confidence: 0.9,
+          maxRetries: 1,
+        },
+        {
+          tool: "analyze_creative_context",
+          forwardFields: ["request"],
+          rationale: "Creative context analysis reveals design direction and session patterns.",
+          confidence: 0.88,
+          maxRetries: 1,
+        },
+        {
+          tool: "predict_chronopath",
+          forwardFields: ["request"],
+          rationale: "Gaze trajectory analysis predicts where the eye looks at each moment.",
+          confidence: 0.85,
           maxRetries: 1,
         },
         {
