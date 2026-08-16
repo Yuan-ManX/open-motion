@@ -32,6 +32,7 @@ import { extractSkill } from "./memory/skillGenerator.js";
 import { suggestProactive } from "./proactiveEngine.js";
 import { recordToolExecution, isToolUnreliable } from "./analytics.js";
 import { recordDecision, inferCreativeIntent } from "./motionCreativeContext.js";
+import { recordFlowEvent } from "./motionFlowState.js";
 import { generateSessionSummary } from "./sessionSummary.js";
 import { composeTools, composedToToolCalls } from "./toolComposer.js";
 import { capture, isSpecMutating } from "./checkpointManager.js";
@@ -715,6 +716,12 @@ async function executeStructuredPlan(
           recordDecision(ctx.projectId, call.tool, result.summary, intent, undefined, result.ok);
         }
       } catch { /* creative context is non-critical */ }
+
+      // Record flow state event for creative momentum tracking
+      try {
+        const flowCategory = inferFlowCategory(call.tool);
+        recordFlowEvent(ctx.projectId, call.tool, flowCategory);
+      } catch { /* flow state is non-critical */ }
 
       allToolCalls.push({ tool: call.tool, args: resolvedArgs, callId });
       allToolResults.push(result);
@@ -3524,6 +3531,23 @@ async function executeMotionIntelligenceTool(
   }
 
   return null;
+}
+
+/** Map a tool name to a flow event category for creative momentum tracking. */
+function inferFlowCategory(tool: string): "create" | "modify" | "delete" | "query" | "analyze" | "style" | "export" {
+  const createTools = ["add_layer", "add_scene", "set_template", "apply_template", "synthesize_motion", "generate_motion"];
+  const deleteTools = ["remove_component", "remove_scene"];
+  const styleTools = ["set_easing", "set_spring", "set_duration", "set_delay", "set_transform", "apply_style_preset", "apply_theme", "apply_archetype", "transfer_style"];
+  const exportTools = ["export_project_video", "export_component_code", "encode_project"];
+  const analyzeTools = ["run_all_tests", "run_heuristics", "get_flow_state", "run_motion_debate", "run_reflection_loop", "check_accessibility", "check_performance", "predict_chronopath", "analyze_creative_context", "predict_perception", "describe_motion"];
+
+  if (createTools.includes(tool)) return "create";
+  if (deleteTools.includes(tool)) return "delete";
+  if (styleTools.includes(tool)) return "style";
+  if (exportTools.includes(tool)) return "export";
+  if (analyzeTools.includes(tool)) return "analyze";
+  if (tool.startsWith("get_") || tool.startsWith("list_") || tool.startsWith("search_")) return "query";
+  return "modify";
 }
 
 /**
