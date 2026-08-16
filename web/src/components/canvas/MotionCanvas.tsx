@@ -16,6 +16,7 @@ import { MotionPathOverlay } from "./MotionPathOverlay.js";
 import { PerformanceMonitor } from "./PerformanceMonitor.js";
 import { CanvasEmptyState } from "./CanvasEmptyState.js";
 import { RuntimeLayer } from "./RuntimeLayer.js";
+import { computeGuides, parsePx } from "../../motion/smartGuides.js";
 
 const MIN_DIM = 64;
 const MAX_DIM = 4096;
@@ -345,6 +346,8 @@ export function MotionCanvas() {
   // Component drag-to-move: when a component drag is in progress, update its
   // position live via updateComponentLive (no history entries during drag),
   // then commit the final position on mouseup via patchComponentLocal.
+  // Smart alignment guides snap the dragged box to sibling edges/centers and
+  // artboard midlines for a Figma-like feel.
   const GRID_STEP = 8;
   useEffect(() => {
     if (!componentDragRef.current) return;
@@ -361,6 +364,23 @@ export function MotionCanvas() {
         newLeft = Math.round(newLeft / GRID_STEP) * GRID_STEP;
         newTop = Math.round(newTop / GRID_STEP) * GRID_STEP;
       }
+      // Smart guides: snap to sibling edges/centers and artboard midlines.
+      const comp = useProjectStore.getState().components.find((c) => c.id === drag.componentId);
+      if (comp) {
+        const s = comp.style as Record<string, string | number>;
+        const w = parsePx(s.width, 100);
+        const h = parsePx(s.height, 100);
+        const guideResult = computeGuides(
+          drag.componentId,
+          { left: newLeft, top: newTop, width: w, height: h },
+          useProjectStore.getState().components,
+          CANVAS_W,
+          CANVAS_H,
+        );
+        newLeft += guideResult.snapDx;
+        newTop += guideResult.snapDy;
+        useUiStore.getState().setSmartGuides(guideResult.guides);
+      }
       document.body.style.cursor = "grabbing";
       document.body.style.userSelect = "none";
       useProjectStore.getState().updateComponentLive(drag.componentId, { left: newLeft, top: newTop });
@@ -368,6 +388,7 @@ export function MotionCanvas() {
     const onMouseUp = () => {
       const drag = componentDragRef.current;
       componentDragRef.current = null;
+      useUiStore.getState().setSmartGuides([]);
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
       if (drag && drag.moved) {
@@ -394,7 +415,7 @@ export function MotionCanvas() {
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
     };
-  }, [canvasZoom, snapToGrid, projectId]);
+  }, [canvasZoom, snapToGrid, projectId, CANVAS_W, CANVAS_H]);
 
   const onContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
