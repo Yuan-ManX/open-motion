@@ -3,120 +3,15 @@ import { useProjectStore } from "../../store/projectStore.js";
 import { useUiStore } from "../../store/uiStore.js";
 import * as api from "../../api/endpoints.js";
 import type { MotionComponent } from "@openmotion/shared";
-import type { SmartGuide } from "../../store/uiStore.js";
+import { computeGuides, parsePx } from "../../motion/smartGuides.js";
 
 type HandleId = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w" | "rotate" | "body";
 
 const MIN_SIZE = 20;
-const SNAP_THRESHOLD = 5;
 const ROTATE_HANDLE_OFFSET = 24;
-
-function parsePx(v: unknown, fallback = 0): number {
-  if (typeof v === "number") return v;
-  if (typeof v === "string") {
-    const n = parseFloat(v);
-    return isNaN(n) ? fallback : n;
-  }
-  return fallback;
-}
 
 function snapVal(v: number, snapSize: number, enabled: boolean): number {
   return enabled ? Math.round(v / snapSize) * snapSize : v;
-}
-
-/** Compute smart alignment guides for the dragged component against siblings and artboard. */
-function computeGuides(
-  draggedId: string,
-  box: { left: number; top: number; width: number; height: number },
-  components: MotionComponent[],
-  canvasW: number,
-  canvasH: number,
-): { snapDx: number; snapDy: number; guides: SmartGuide[] } {
-  const guides: SmartGuide[] = [];
-  let snapDx = 0;
-  let snapDy = 0;
-
-  const draggedEdges = {
-    left: box.left,
-    centerX: box.left + box.width / 2,
-    right: box.left + box.width,
-    top: box.top,
-    centerY: box.top + box.height / 2,
-    bottom: box.top + box.height,
-  };
-
-  const targets: { left: number; centerX: number; right: number; top: number; centerY: number; bottom: number }[] = [];
-  for (const c of components) {
-    if (c.id === draggedId) continue;
-    const s = c.style as Record<string, string | number> | undefined;
-    const cl = parsePx(s?.left);
-    const ct = parsePx(s?.top);
-    const cw = parsePx(s?.width, 100);
-    const ch = parsePx(s?.height, 100);
-    targets.push({
-      left: cl,
-      centerX: cl + cw / 2,
-      right: cl + cw,
-      top: ct,
-      centerY: ct + ch / 2,
-      bottom: ct + ch,
-    });
-  }
-  // Artboard edges
-  targets.push({ left: 0, centerX: canvasW / 2, right: canvasW, top: 0, centerY: canvasH / 2, bottom: canvasH });
-
-  // X-axis snapping
-  let bestXDist = SNAP_THRESHOLD + 1;
-  let bestXGuide: SmartGuide | null = null;
-  let bestXTarget = 0;
-  for (const dEdge of [draggedEdges.left, draggedEdges.centerX, draggedEdges.right]) {
-    for (const t of targets) {
-      for (const tEdge of [t.left, t.centerX, t.right]) {
-        const dist = Math.abs(dEdge - tEdge);
-        if (dist < bestXDist) {
-          bestXDist = dist;
-          bestXTarget = tEdge;
-          snapDx = tEdge - dEdge;
-        }
-      }
-    }
-  }
-  if (bestXDist <= SNAP_THRESHOLD) {
-    // Find the vertical extent of the guide
-    let minTop = Math.min(box.top, ...targets.map((t) => t.top));
-    let maxBottom = Math.max(box.top + box.height, ...targets.map((t) => t.bottom));
-    bestXGuide = { axis: "x", position: bestXTarget, start: minTop - 10, length: maxBottom - minTop + 20 };
-    guides.push(bestXGuide);
-  } else {
-    snapDx = 0;
-  }
-
-  // Y-axis snapping
-  let bestYDist = SNAP_THRESHOLD + 1;
-  let bestYGuide: SmartGuide | null = null;
-  let bestYTarget = 0;
-  for (const dEdge of [draggedEdges.top, draggedEdges.centerY, draggedEdges.bottom]) {
-    for (const t of targets) {
-      for (const tEdge of [t.top, t.centerY, t.bottom]) {
-        const dist = Math.abs(dEdge - tEdge);
-        if (dist < bestYDist) {
-          bestYDist = dist;
-          bestYTarget = tEdge;
-          snapDy = tEdge - dEdge;
-        }
-      }
-    }
-  }
-  if (bestYDist <= SNAP_THRESHOLD) {
-    let minLeft = Math.min(box.left, ...targets.map((t) => t.left));
-    let maxRight = Math.max(box.left + box.width, ...targets.map((t) => t.right));
-    bestYGuide = { axis: "y", position: bestYTarget, start: minLeft - 10, length: maxRight - minLeft + 20 };
-    guides.push(bestYGuide);
-  } else {
-    snapDy = 0;
-  }
-
-  return { snapDx, snapDy, guides };
 }
 
 const HANDLE_CURSORS: Record<HandleId, string> = {
