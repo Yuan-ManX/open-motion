@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { useProjectStore } from "../../store/projectStore.js";
 import { useChatStore } from "../../store/chatStore.js";
+import { getIntelligenceSummary, predictChronopath, analyzeCreativeContext, getFlowState, runHeuristics, getAtelierReport, generateManifesto, type IntelligenceSummary, type ChronopathReport, type CreativeContextReport, type FlowStateSnapshot, type HeuristicsReport, type AtelierReport, type AtelierManifesto } from "../../api/endpoints.js";
 import type { MotionComponent } from "@openmotion/shared";
 
 interface IntelligenceReport {
@@ -731,9 +732,10 @@ interface ComparisonData {
   summary: string;
 }
 
-type Section = "critique" | "dna" | "variations" | "style" | "story" | "lineage" | "synthesis" | "auto-fix" | "persona" | "coach" | "genome" | "forecast" | "negotiate" | "remix" | "dialect" | "profiler" | "curator" | "strategist" | "auditor" | "choreographer" | "export" | "cohesion" | "conflicts" | "compare" | "emotion" | "rhythm" | "narrative";
+type Section = "dashboard" | "critique" | "dna" | "variations" | "style" | "story" | "lineage" | "synthesis" | "auto-fix" | "persona" | "coach" | "genome" | "forecast" | "negotiate" | "remix" | "dialect" | "profiler" | "curator" | "strategist" | "auditor" | "choreographer" | "export" | "cohesion" | "conflicts" | "compare" | "emotion" | "rhythm" | "narrative" | "chronopath" | "creative-context" | "flow-state" | "heuristics" | "atelier";
 
 const SECTIONS: { id: Section; label: string }[] = [
+  { id: "dashboard", label: "Dashboard" },
   { id: "critique", label: "Critique" },
   { id: "dna", label: "DNA" },
   { id: "variations", label: "Variations" },
@@ -761,6 +763,11 @@ const SECTIONS: { id: Section; label: string }[] = [
   { id: "emotion", label: "Emotion" },
   { id: "rhythm", label: "Rhythm" },
   { id: "narrative", label: "Narrative" },
+  { id: "chronopath", label: "Chronopath" },
+  { id: "creative-context", label: "Context" },
+  { id: "flow-state", label: "Flow" },
+  { id: "heuristics", label: "Heuristics" },
+  { id: "atelier", label: "Atelier" },
 ];
 
 /**
@@ -774,9 +781,10 @@ export function MotionIntelligencePanel() {
   const components = useProjectStore((s) => s.components);
   const loadProject = useProjectStore((s) => s.loadProject);
   const send = useChatStore((s) => s.send);
-  const [section, setSection] = useState<Section>("critique");
+  const [section, setSection] = useState<Section>("dashboard");
   const [report, setReport] = useState<IntelligenceReport | null>(null);
   const [loading, setLoading] = useState<string | null>(null);
+  const [dashboard, setDashboard] = useState<IntelligenceSummary | null>(null);
 
   const [critique, setCritique] = useState<CritiqueData | null>(null);
   const [dna, setDna] = useState<DnaData | null>(null);
@@ -821,6 +829,12 @@ export function MotionIntelligencePanel() {
   const [selectedComponentId, setSelectedComponentId] = useState<string>("");
   const [sourceComponentId, setSourceComponentId] = useState<string>("");
   const [targetComponentId, setTargetComponentId] = useState<string>("");
+  const [chronopath, setChronopath] = useState<ChronopathReport | null>(null);
+  const [creativeCtx, setCreativeCtx] = useState<CreativeContextReport | null>(null);
+  const [flowState, setFlowState] = useState<FlowStateSnapshot | null>(null);
+  const [heuristics, setHeuristics] = useState<HeuristicsReport | null>(null);
+  const [atelier, setAtelier] = useState<AtelierReport | null>(null);
+  const [manifesto, setManifesto] = useState<AtelierManifesto | null>(null);
 
   const firstComponent = components[0];
   const lastComponent = components[components.length - 1];
@@ -831,6 +845,19 @@ export function MotionIntelligencePanel() {
     if (!sourceComponentId && firstComponent) setSourceComponentId(firstComponent.id);
     if (!targetComponentId && lastComponent) setTargetComponentId(lastComponent.id);
   }, [firstComponent, lastComponent, selectedComponentId, sourceComponentId, targetComponentId]);
+
+  const runDashboard = useCallback(async () => {
+    if (!projectId) return;
+    setLoading("dashboard");
+    try {
+      const data = await getIntelligenceSummary(projectId);
+      setDashboard(data);
+    } catch {
+      // offline fallback
+    } finally {
+      setLoading(null);
+    }
+  }, [projectId]);
 
   const runCritique = useCallback(async () => {
     if (!projectId) return;
@@ -1518,6 +1545,169 @@ export function MotionIntelligencePanel() {
       </div>
 
       <div className="flex-1 overflow-y-auto">
+        {/* --- Dashboard --- */}
+        {section === "dashboard" && (
+          <div className="px-3 py-2 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Intelligence Dashboard</span>
+              <button
+                onClick={runDashboard}
+                disabled={loading === "dashboard"}
+                className="px-1.5 py-0.5 text-[9px] bg-panel2 hover:bg-panel3 rounded text-gray-300 disabled:opacity-40"
+              >
+                {loading === "dashboard" ? "..." : "Analyze"}
+              </button>
+            </div>
+
+            {dashboard ? (
+              <>
+                {/* Overall score + grade */}
+                <div className="flex items-center gap-3 p-2 bg-panel2 rounded-lg">
+                  <div className="flex flex-col items-center">
+                    <span className="text-3xl font-bold text-white">{dashboard.overallScore}</span>
+                    <span className="text-[9px] text-gray-500">/100</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-lg font-bold text-accent">Grade {dashboard.grade}</span>
+                    <span className="text-[9px] text-gray-500">
+                      {dashboard.stats.componentCount} components · {dashboard.stats.easingVariety} easings · {dashboard.stats.propertyCount} props
+                    </span>
+                  </div>
+                </div>
+
+                {/* Scorecards */}
+                <div className="space-y-1">
+                  {dashboard.scorecards.map((sc) => {
+                    const colors: Record<string, string> = {
+                      excellent: "bg-white",
+                      good: "bg-gray-300",
+                      fair: "bg-gray-500",
+                      poor: "bg-gray-600",
+                    };
+                    return (
+                      <div key={sc.label} className="flex items-center gap-2">
+                        <span className="w-24 text-[10px] text-gray-500 flex-shrink-0">{sc.label}</span>
+                        <div className="flex-1 h-1.5 bg-panel2 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full ${colors[sc.status] ?? "bg-gray-400"}`}
+                            style={{ width: `${(sc.score / sc.max) * 100}%` }}
+                          />
+                        </div>
+                        <span className="text-[9px] text-gray-400 w-8 text-right flex-shrink-0">{sc.score}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Duration + DNA distribution */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="p-2 bg-panel2 rounded-lg">
+                    <span className="text-[9px] text-gray-500 uppercase tracking-wider">Duration</span>
+                    <div className="mt-1 space-y-0.5">
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-gray-400">Fast</span>
+                        <span className="text-gray-300">{dashboard.durationBuckets.fast}</span>
+                      </div>
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-gray-400">Normal</span>
+                        <span className="text-gray-300">{dashboard.durationBuckets.normal}</span>
+                      </div>
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-gray-400">Slow</span>
+                        <span className="text-gray-300">{dashboard.durationBuckets.slow}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-2 bg-panel2 rounded-lg">
+                    <span className="text-[9px] text-gray-500 uppercase tracking-wider">Easing Mix</span>
+                    <div className="mt-1 space-y-0.5 max-h-16 overflow-y-auto">
+                      {Object.entries(dashboard.easingDistribution).map(([easing, count]) => (
+                        <div key={easing} className="flex justify-between text-[10px]">
+                          <span className="text-gray-400 truncate">{easing}</span>
+                          <span className="text-gray-300 ml-1">{count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Collaboration readiness */}
+                <div className="p-2 bg-panel2 rounded-lg">
+                  <span className="text-[9px] text-gray-500 uppercase tracking-wider">Collaboration Readiness</span>
+                  <div className="mt-1 flex items-center gap-2">
+                    <span className="text-sm font-bold text-white">
+                      {dashboard.collaborationReadiness.activatedModules.length}
+                    </span>
+                    <span className="text-[9px] text-gray-500">
+                      / {dashboard.collaborationReadiness.totalModules} modules active
+                    </span>
+                  </div>
+                  {dashboard.collaborationReadiness.moduleNames.length > 0 && (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {dashboard.collaborationReadiness.moduleNames.map((name) => (
+                        <span key={name} className="text-[9px] px-1.5 py-0.5 bg-panel3 rounded text-gray-400">
+                          {name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Warnings */}
+                {dashboard.warnings.length > 0 && (
+                  <div className="p-2 bg-panel2 rounded-lg border-l-2 border-gray-600">
+                    <span className="text-[9px] text-gray-500 uppercase tracking-wider">Warnings</span>
+                    <ul className="mt-1 space-y-0.5">
+                      {dashboard.warnings.slice(0, 5).map((w, i) => (
+                        <li key={i} className="text-[10px] text-gray-400 leading-relaxed">· {w}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Recommendations */}
+                {dashboard.recommendations.length > 0 && (
+                  <div className="p-2 bg-panel2 rounded-lg">
+                    <span className="text-[9px] text-gray-500 uppercase tracking-wider">Recommendations</span>
+                    <ul className="mt-1 space-y-0.5">
+                      {dashboard.recommendations.slice(0, 5).map((r, i) => (
+                        <li key={i} className="text-[10px] text-gray-400 leading-relaxed">→ {r}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Proactive suggestions */}
+                {dashboard.proactiveSuggestions.length > 0 && (
+                  <div className="p-2 bg-panel2 rounded-lg">
+                    <span className="text-[9px] text-gray-500 uppercase tracking-wider">Suggestions</span>
+                    <div className="mt-1 space-y-1">
+                      {dashboard.proactiveSuggestions.slice(0, 3).map((s, i) => (
+                        <button
+                          key={i}
+                          onClick={() => projectId && send(projectId, s.prompt)}
+                          className="block w-full text-left text-[10px] text-gray-400 hover:text-accent p-1 rounded hover:bg-panel3 transition-colors"
+                        >
+                          <span className="font-medium">{s.title}</span>
+                          <span className="text-gray-600 ml-1">— {s.reason}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="text-[9px] text-gray-700 text-center">
+                  Generated: {new Date(dashboard.generatedAt).toLocaleTimeString()}
+                </div>
+              </>
+            ) : (
+              <div className="text-center text-[10px] text-gray-600 py-4">
+                Click "Analyze" to generate a comprehensive intelligence report aggregating all analysis engines.
+              </div>
+            )}
+          </div>
+        )}
+
         {/* --- Critique --- */}
         {section === "critique" && (
           <div className="px-3 py-2 space-y-2">
@@ -3721,6 +3911,518 @@ export function MotionIntelligencePanel() {
               </div>
             ) : (
               <p className="text-[10px] text-gray-600">Click Analyze to evaluate the story arc.</p>
+            )}
+          </div>
+        )}
+
+        {section === "chronopath" && (
+          <div className="flex flex-col gap-2 p-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium text-gray-200">Chronopath — Gaze Trajectory</h3>
+              <button
+                onClick={async () => {
+                  setLoading("chronopath");
+                  try {
+                    const data = await predictChronopath(projectId);
+                    setChronopath(data);
+                  } catch { /* ignore */ }
+                  finally { setLoading(null); }
+                }}
+                disabled={loading === "chronopath"}
+                className="px-2 py-0.5 text-[10px] border border-edge rounded hover:bg-panel2 disabled:opacity-50"
+              >
+                {loading === "chronopath" ? "..." : "Predict"}
+              </button>
+            </div>
+            {chronopath ? (
+              <div className="flex flex-col gap-1.5 text-[11px]">
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500">Efficiency</span>
+                  <span className={`font-mono ${chronopath.efficiencyScore >= 80 ? "text-green-400" : chronopath.efficiencyScore >= 60 ? "text-yellow-400" : "text-red-400"}`}>
+                    {chronopath.efficiencyScore}/100
+                  </span>
+                </div>
+                <DnaRow label="Fixations" value={String(chronopath.fixationCount)} />
+                <DnaRow label="Avg fixation" value={`${chronopath.avgFixationMs.toFixed(0)}ms`} />
+                <DnaRow label="Gaze distance" value={`${chronopath.totalGazeDistance.toFixed(0)}px`} />
+                <DnaRow label="Reveal pattern" value={chronopath.revealOrdering.pattern.replace("_", " ")} />
+                {chronopath.collisions.length > 0 && (
+                  <div className="mt-1 p-1.5 border border-red-900/40 bg-red-950/20 rounded">
+                    <p className="text-[10px] text-red-400 font-medium">Gaze collisions ({chronopath.collisions.length})</p>
+                    {chronopath.collisions.slice(0, 3).map((c, i) => (
+                      <p key={i} className="text-[10px] text-gray-400">{c.recommendation}</p>
+                    ))}
+                  </div>
+                )}
+                {chronopath.deadZones.filter((d) => d.hasContent).length > 0 && (
+                  <div className="p-1.5 border border-yellow-900/40 bg-yellow-950/20 rounded">
+                    <p className="text-[10px] text-yellow-400 font-medium">Content in dead zones</p>
+                  </div>
+                )}
+                <p className="text-[10px] text-gray-500 mt-1">{chronopath.summary}</p>
+                {chronopath.gazePath.length > 0 && (
+                  <div className="mt-1">
+                    <p className="text-[10px] text-gray-500 mb-1">Gaze path</p>
+                    <div className="flex flex-wrap gap-1">
+                      {chronopath.gazePath.slice(0, 12).map((g, i) => (
+                        <span key={i} className="px-1.5 py-0.5 border border-edge rounded text-[9px] text-gray-400">
+                          {g.componentName}@{g.timeMs}ms
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-[10px] text-gray-600">Click Predict to trace the viewer's gaze trajectory.</p>
+            )}
+          </div>
+        )}
+
+        {/* Creative Context — session-aware intelligence */}
+        {section === "creative-context" && (
+          <div className="flex flex-col gap-2 p-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium text-gray-200">Creative Context</h3>
+              <button
+                onClick={async () => {
+                  setLoading("creative-context");
+                  try {
+                    const data = await analyzeCreativeContext(projectId);
+                    setCreativeCtx(data);
+                  } catch { /* ignore */ }
+                  finally { setLoading(null); }
+                }}
+                disabled={loading === "creative-context"}
+                className="px-2 py-0.5 text-[10px] border border-edge rounded hover:bg-panel2 disabled:opacity-50"
+              >
+                {loading === "creative-context" ? "..." : "Analyze"}
+              </button>
+            </div>
+            {creativeCtx ? (
+              <div className="flex flex-col gap-1.5 text-[11px]">
+                {/* Direction */}
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500">Style</span>
+                  <span className="font-mono text-purple-400">{creativeCtx.direction.style}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500">Maturity</span>
+                  <div className="flex-1 h-1.5 bg-panel rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-blue-500 to-green-500 rounded-full"
+                      style={{ width: `${creativeCtx.direction.maturity * 100}%` }}
+                    />
+                  </div>
+                  <span className="font-mono text-gray-300">{(creativeCtx.direction.maturity * 100).toFixed(0)}%</span>
+                </div>
+                <DnaRow label="Intent" value={creativeCtx.direction.primaryIntent.replace(/_/g, " ")} />
+                <DnaRow label="Confidence" value={`${(creativeCtx.direction.confidence * 100).toFixed(0)}%`} />
+                <DnaRow label="Velocity" value={`${creativeCtx.direction.velocity.toFixed(1)} act/min`} />
+
+                {/* Detected patterns */}
+                {creativeCtx.patterns.length > 0 && (
+                  <div className="mt-1">
+                    <p className="text-[10px] text-gray-500 mb-1">Detected patterns</p>
+                    {creativeCtx.patterns.map((p, i) => (
+                      <div key={i} className="p-1.5 border border-edge rounded mb-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-gray-300 font-medium">{p.name}</span>
+                          <span className="text-[9px] text-gray-500">{(p.confidence * 100).toFixed(0)}%</span>
+                        </div>
+                        <p className="text-[9px] text-gray-500 leading-snug mt-0.5">{p.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Recommendations */}
+                {creativeCtx.direction.recommendations.length > 0 && (
+                  <div className="mt-1">
+                    <p className="text-[10px] text-gray-500 mb-1">Recommendations</p>
+                    {creativeCtx.direction.recommendations.slice(0, 4).map((r, i) => (
+                      <div key={i} className="p-1.5 border border-edge rounded mb-1 cursor-pointer hover:bg-panel2"
+                        onClick={() => send(projectId, r.prompt)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-blue-400 font-medium">{r.action}</span>
+                          <span className="text-[9px] text-gray-600">{(r.priority * 100).toFixed(0)}%</span>
+                        </div>
+                        <p className="text-[9px] text-gray-500 leading-snug mt-0.5">{r.reason}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Session stats */}
+                <div className="mt-1 p-1.5 border border-edge rounded">
+                  <p className="text-[10px] text-gray-500 mb-1">Session stats</p>
+                  <DnaRow label="Total actions" value={String(creativeCtx.stats.totalActions)} />
+                  <DnaRow label="Components touched" value={String(creativeCtx.stats.uniqueComponentsTouched)} />
+                  <DnaRow label="Experimentation" value={`${(creativeCtx.stats.experimentationRate * 100).toFixed(0)}%`} />
+                </div>
+
+                <p className="text-[10px] text-gray-500 mt-1">{creativeCtx.summary}</p>
+              </div>
+            ) : (
+              <p className="text-[10px] text-gray-600">Click Analyze to understand the creative session context.</p>
+            )}
+          </div>
+        )}
+
+        {section === "flow-state" && (
+          <div className="flex flex-col gap-2 p-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium text-gray-200">Creative Flow</h3>
+              <button
+                onClick={async () => {
+                  setLoading("flow-state");
+                  try {
+                    const data = await getFlowState(projectId);
+                    setFlowState(data);
+                  } catch { /* ignore */ }
+                  finally { setLoading(null); }
+                }}
+                disabled={loading === "flow-state"}
+                className="px-2 py-0.5 text-[10px] border border-edge rounded hover:bg-panel2 disabled:opacity-50"
+              >
+                {loading === "flow-state" ? "..." : "Check"}
+              </button>
+            </div>
+            {flowState ? (
+              <div className="flex flex-col gap-1.5 text-[11px]">
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500">Phase</span>
+                  <span className={`font-mono px-1.5 py-0.5 rounded text-[10px] ${
+                    flowState.phase === "flow" ? "text-green-400 bg-green-500/10" :
+                    flowState.phase === "exploration" ? "text-blue-400 bg-blue-500/10" :
+                    flowState.phase === "stagnation" ? "text-red-400 bg-red-500/10" :
+                    flowState.phase === "warming_up" ? "text-yellow-400 bg-yellow-500/10" :
+                    "text-gray-400 bg-gray-500/10"
+                  }`}>
+                    {flowState.phase.replace("_", " ")}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500">Momentum</span>
+                  <div className="flex-1 h-1.5 bg-panel rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-yellow-500 to-green-500 rounded-full transition-all"
+                      style={{ width: `${flowState.momentum * 100}%` }}
+                    />
+                  </div>
+                  <span className="font-mono text-gray-300">{(flowState.momentum * 100).toFixed(0)}%</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500">Focus</span>
+                  <div className="flex-1 h-1.5 bg-panel rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-blue-500 rounded-full"
+                      style={{ width: `${flowState.focusScore * 100}%` }}
+                    />
+                  </div>
+                  <span className="font-mono text-gray-300">{(flowState.focusScore * 100).toFixed(0)}%</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500">Experiment</span>
+                  <div className="flex-1 h-1.5 bg-panel rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-purple-500 rounded-full"
+                      style={{ width: `${flowState.experimentationScore * 100}%` }}
+                    />
+                  </div>
+                  <span className="font-mono text-gray-300">{(flowState.experimentationScore * 100).toFixed(0)}%</span>
+                </div>
+                <DnaRow label="Velocity" value={`${flowState.velocityActionsPerMin.toFixed(1)} act/min`} />
+                <DnaRow label="Phase time" value={`${Math.round(flowState.phaseDurationMs / 1000)}s`} />
+
+                {flowState.recommendations.length > 0 && (
+                  <div className="mt-1">
+                    <p className="text-[10px] text-gray-500 mb-1">Recommendations</p>
+                    {flowState.recommendations.map((r, i) => (
+                      <div key={i} className="text-[10px] text-gray-400 leading-snug mb-0.5 flex gap-1">
+                        <span className="text-blue-500">→</span>
+                        <span>{r}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-[10px] text-gray-600">Click Check to see your creative flow state.</p>
+            )}
+          </div>
+        )}
+
+        {section === "heuristics" && (
+          <div className="flex flex-col gap-2 p-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium text-gray-200">Design Heuristics</h3>
+              <button
+                onClick={async () => {
+                  setLoading("heuristics");
+                  try {
+                    const data = await runHeuristics(projectId);
+                    setHeuristics(data);
+                  } catch { /* ignore */ }
+                  finally { setLoading(null); }
+                }}
+                disabled={loading === "heuristics"}
+                className="px-2 py-0.5 text-[10px] border border-edge rounded hover:bg-panel2 disabled:opacity-50"
+              >
+                {loading === "heuristics" ? "..." : "Evaluate"}
+              </button>
+            </div>
+            {heuristics ? (
+              <div className="flex flex-col gap-1.5 text-[11px]">
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500">Score</span>
+                  <span className={`font-mono text-lg font-bold ${
+                    heuristics.compositeScore >= 0.8 ? "text-green-400" :
+                    heuristics.compositeScore >= 0.6 ? "text-yellow-400" :
+                    "text-red-400"
+                  }`}>
+                    {(heuristics.compositeScore * 100).toFixed(0)}
+                  </span>
+                  <span className="text-gray-600 text-[10px]">/100</span>
+                </div>
+
+                {heuristics.topIssue && (
+                  <div className="p-1.5 border border-yellow-500/30 bg-yellow-500/5 rounded">
+                    <p className="text-[10px] text-yellow-400 font-medium">Top Issue</p>
+                    <p className="text-[10px] text-gray-400 leading-snug mt-0.5">{heuristics.topIssue}</p>
+                  </div>
+                )}
+
+                {heuristics.quickWins.length > 0 && (
+                  <div className="mt-1">
+                    <p className="text-[10px] text-green-400 font-medium mb-1">Quick Wins</p>
+                    {heuristics.quickWins.map((w, i) => (
+                      <div key={i} className="text-[10px] text-gray-400 leading-snug mb-0.5 flex gap-1">
+                        <span className="text-green-500">✓</span>
+                        <span>{w}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="mt-1">
+                  <p className="text-[10px] text-gray-500 mb-1">Principle Scores</p>
+                  {heuristics.results.map((r) => (
+                    <div key={r.id} className="mb-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-gray-300">{r.name}</span>
+                        <span className={`text-[10px] font-mono ${
+                          r.score >= 0.8 ? "text-green-400" : r.score >= 0.6 ? "text-yellow-400" : "text-red-400"
+                        }`}>
+                          {(r.score * 100).toFixed(0)}%
+                        </span>
+                      </div>
+                      <div className="h-1 bg-panel rounded-full overflow-hidden mt-0.5">
+                        <div
+                          className={`h-full rounded-full ${
+                            r.score >= 0.8 ? "bg-green-500" : r.score >= 0.6 ? "bg-yellow-500" : "bg-red-500"
+                          }`}
+                          style={{ width: `${r.score * 100}%` }}
+                        />
+                      </div>
+                      {r.suggestion && (
+                        <p className="text-[9px] text-gray-500 leading-snug mt-0.5">{r.suggestion}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="text-[10px] text-gray-600">Click Evaluate to check design principles.</p>
+            )}
+          </div>
+        )}
+
+        {section === "atelier" && (
+          <div className="flex flex-col gap-2 p-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium text-gray-200">Motion Atelier</h3>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={async () => {
+                    setLoading("atelier");
+                    try {
+                      const data = await getAtelierReport(projectId);
+                      setAtelier(data);
+                    } catch { /* ignore */ }
+                    finally { setLoading(null); }
+                  }}
+                  disabled={loading === "atelier"}
+                  className="px-2 py-0.5 text-[10px] border border-edge rounded hover:bg-panel2 disabled:opacity-50"
+                >
+                  {loading === "atelier" ? "..." : "Refresh"}
+                </button>
+                <button
+                  onClick={async () => {
+                    setLoading("manifesto");
+                    try {
+                      const data = await generateManifesto(projectId);
+                      setManifesto(data);
+                    } catch { /* ignore */ }
+                    finally { setLoading(null); }
+                  }}
+                  disabled={loading === "manifesto"}
+                  className="px-2 py-0.5 text-[10px] border border-edge rounded hover:bg-panel2 disabled:opacity-50"
+                >
+                  {loading === "manifesto" ? "..." : "Generate Manifesto"}
+                </button>
+              </div>
+            </div>
+
+            {atelier ? (
+              <div className="flex flex-col gap-1.5 text-[11px]">
+                {/* Current stage with colored badge */}
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500">Stage</span>
+                  <span className={`font-mono px-1.5 py-0.5 rounded text-[10px] ${
+                    atelier.stage === "intake" ? "text-yellow-400 bg-yellow-500/10" :
+                    atelier.stage === "exploration" ? "text-blue-400 bg-blue-500/10" :
+                    atelier.stage === "refinement" ? "text-purple-400 bg-purple-500/10" :
+                    atelier.stage === "validation" ? "text-green-400 bg-green-500/10" :
+                    atelier.stage === "delivery" ? "text-gray-400 bg-gray-500/10" :
+                    "text-gray-400 bg-gray-500/10"
+                  }`}>
+                    {atelier.stage}
+                  </span>
+                </div>
+
+                {/* Overall progress bar */}
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500">Overall</span>
+                  <div className="flex-1 h-1.5 bg-panel rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-blue-500 to-green-500 rounded-full"
+                      style={{ width: `${Math.min(100, Math.max(0, atelier.overallProgress * 100))}%` }}
+                    />
+                  </div>
+                  <span className="font-mono text-gray-300">{(atelier.overallProgress * 100).toFixed(0)}%</span>
+                </div>
+
+                {/* Stage progress bar */}
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500">Stage</span>
+                  <div className="flex-1 h-1.5 bg-panel rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-purple-500 rounded-full"
+                      style={{ width: `${Math.min(100, Math.max(0, atelier.stageProgress * 100))}%` }}
+                    />
+                  </div>
+                  <span className="font-mono text-gray-300">{(atelier.stageProgress * 100).toFixed(0)}%</span>
+                </div>
+
+                {/* Flow phase indicator */}
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500">Flow</span>
+                  <span className={`font-mono px-1.5 py-0.5 rounded text-[10px] ${
+                    atelier.flowSnapshot.phase === "flow" ? "text-green-400 bg-green-500/10" :
+                    atelier.flowSnapshot.phase === "exploration" ? "text-blue-400 bg-blue-500/10" :
+                    atelier.flowSnapshot.phase === "stagnation" ? "text-red-400 bg-red-500/10" :
+                    atelier.flowSnapshot.phase === "warming_up" ? "text-yellow-400 bg-yellow-500/10" :
+                    "text-gray-400 bg-gray-500/10"
+                  }`}>
+                    {atelier.flowSnapshot.phase.replace("_", " ")}
+                  </span>
+                </div>
+
+                {/* Heuristic score (if available) */}
+                {atelier.heuristics && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-500">Heuristics</span>
+                    <span className={`font-mono text-[10px] ${
+                      atelier.heuristics.compositeScore >= 0.8 ? "text-green-400" :
+                      atelier.heuristics.compositeScore >= 0.6 ? "text-yellow-400" :
+                      "text-red-400"
+                    }`}>
+                      {(atelier.heuristics.compositeScore * 100).toFixed(0)}/100
+                    </span>
+                  </div>
+                )}
+
+                {/* Current recommendation text */}
+                {atelier.checkpoint && atelier.checkpoint.recommendation && (
+                  <div className="p-1.5 border border-blue-500/30 bg-blue-500/5 rounded">
+                    <p className="text-[10px] text-blue-400 font-medium">Recommendation</p>
+                    <p className="text-[10px] text-gray-400 leading-snug mt-0.5">{atelier.checkpoint.recommendation}</p>
+                  </div>
+                )}
+
+                {/* Next actions list with arrow icons */}
+                {atelier.nextActions.length > 0 && (
+                  <div className="mt-1">
+                    <p className="text-[10px] text-gray-500 mb-1">Next Actions</p>
+                    {atelier.nextActions.map((a, i) => (
+                      <div key={i} className="text-[10px] text-gray-400 leading-snug mb-0.5 flex gap-1">
+                        <span className="text-blue-500">→</span>
+                        <span>{a}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {atelier.summary && (
+                  <p className="text-[10px] text-gray-500 leading-snug mt-1">{atelier.summary}</p>
+                )}
+              </div>
+            ) : (
+              <p className="text-[10px] text-gray-600">Click Refresh to load the Atelier report.</p>
+            )}
+
+            {/* Manifesto output */}
+            {manifesto && (
+              <div className="mt-2 p-2 border border-edge rounded bg-panel2/50 flex flex-col gap-1.5">
+                <p className="text-[10px] text-purple-400 font-medium">Manifesto</p>
+
+                <DnaRow label="Direction" value={manifesto.creativeDirection} />
+                <DnaRow label="Archetype" value={manifesto.styleArchetype} />
+
+                {manifesto.keyDecisions.length > 0 && (
+                  <div>
+                    <p className="text-[10px] text-gray-500 mb-1">Key Decisions</p>
+                    {manifesto.keyDecisions.map((d, i) => (
+                      <div key={i} className="text-[10px] text-gray-400 leading-snug mb-0.5 flex gap-1">
+                        <span className="text-purple-500">•</span>
+                        <span>{d}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {manifesto.breakthroughs.length > 0 && (
+                  <div>
+                    <p className="text-[10px] text-green-400 font-medium mb-1">Breakthroughs</p>
+                    {manifesto.breakthroughs.map((b, i) => (
+                      <div key={i} className="text-[10px] text-gray-400 leading-snug mb-0.5 flex gap-1">
+                        <span className="text-green-500">✓</span>
+                        <span>{b}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500">Final Score</span>
+                  <span className={`font-mono text-[10px] ${
+                    manifesto.finalScore >= 0.8 ? "text-green-400" :
+                    manifesto.finalScore >= 0.6 ? "text-yellow-400" :
+                    "text-red-400"
+                  }`}>
+                    {(manifesto.finalScore * 100).toFixed(0)}/100
+                  </span>
+                </div>
+
+                {manifesto.narrative && (
+                  <div className="mt-1">
+                    <p className="text-[10px] text-gray-500 mb-1">Narrative</p>
+                    <p className="text-[10px] text-gray-400 leading-snug">{manifesto.narrative}</p>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         )}
