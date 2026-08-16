@@ -5,6 +5,61 @@ import type { MotionComponent } from "@openmotion/shared";
 import { buildMotionDna, diffDna } from "../../motion/dna.js";
 import * as api from "../../api/endpoints.js";
 import { ModelSelector } from "./ModelSelector.js";
+import { PromptLibrary } from "./PromptLibrary.js";
+import { MotionPreview, type MotionPreviewData } from "../motion/MotionPreview.js";
+
+/** Extract motion preview data from a tool result if it contains component data. */
+function extractPreviewData(tool: string, result: unknown): MotionPreviewData | null {
+  if (!result || typeof result !== "object") return null;
+  const r = result as Record<string, unknown>;
+
+  // Direct component field
+  const comp = r.component as Record<string, unknown> | undefined;
+  if (comp && (comp.keyframes || comp.durationMs || comp.easing)) {
+    return {
+      name: (comp.name as string) ?? tool,
+      templateId: (comp.templateId as string) ?? undefined,
+      durationMs: comp.durationMs as number | undefined,
+      delayMs: comp.delayMs as number | undefined,
+      easing: comp.easing as MotionPreviewData["easing"],
+      keyframes: comp.keyframes as MotionPreviewData["keyframes"],
+      iterationCount: comp.iterationCount as number | "infinite" | undefined,
+      style: comp.style as Record<string, string | number> | undefined,
+    };
+  }
+
+  // Components array (e.g., from apply_template)
+  const components = r.components as Array<Record<string, unknown>> | undefined;
+  if (components && components.length > 0) {
+    const c = components[0];
+    return {
+      name: (c.name as string) ?? tool,
+      templateId: (c.templateId as string) ?? undefined,
+      durationMs: c.durationMs as number | undefined,
+      delayMs: c.delayMs as number | undefined,
+      easing: c.easing as MotionPreviewData["easing"],
+      keyframes: c.keyframes as MotionPreviewData["keyframes"],
+      iterationCount: c.iterationCount as number | "infinite" | undefined,
+      style: c.style as Record<string, string | number> | undefined,
+    };
+  }
+
+  // Contribution from collaboration (has componentDraft)
+  const contributions = r.contributions as Array<Record<string, unknown>> | undefined;
+  if (contributions && contributions.length > 0) {
+    const draft = contributions[0].componentDraft as Record<string, unknown> | undefined;
+    if (draft && (draft.keyframes || draft.durationMs)) {
+      return {
+        name: (draft.name as string) ?? "collaboration",
+        durationMs: draft.durationMs as number | undefined,
+        easing: draft.easing as MotionPreviewData["easing"],
+        keyframes: draft.keyframes as MotionPreviewData["keyframes"],
+      };
+    }
+  }
+
+  return null;
+}
 
 /** Recursively count leaf goals by status for the progress badge. */
 function countGoals(root: GoalNode): { total: number; done: number; active: number } {
@@ -154,6 +209,7 @@ export function ChatPanel() {
   const proactiveSuggestions = useChatStore((s) => s.proactiveSuggestions);
   const sessionSummary = useChatStore((s) => s.sessionSummary);
   const confidence = useChatStore((s) => s.confidence);
+  const qualityReport = useChatStore((s) => s.qualityReport);
   const parallelBatches = useChatStore((s) => s.parallelBatches);
   const tokensIn = useChatStore((s) => s.tokensIn);
   const tokensOut = useChatStore((s) => s.tokensOut);
@@ -172,6 +228,7 @@ export function ChatPanel() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [dnaDiff, setDnaDiff] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [showPromptLibrary, setShowPromptLibrary] = useState(false);
   const dnaBeforeRef = useRef<string | null>(null);
   const wasStreamingRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -248,7 +305,7 @@ export function ChatPanel() {
     if (isNearBottomRef.current) {
       scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
     }
-  }, [messages, streamingTokens, toolActivity, plan, goal, sessionSummary]);
+  }, [messages, streamingTokens, toolActivity, plan, goal, sessionSummary, qualityReport]);
 
   /**
    * Send a message to the agent. If no project is loaded, auto-create one
@@ -568,6 +625,7 @@ export function ChatPanel() {
           const isAnalysis = a.tool === "analyze_motion" && a.done && a.ok && a.result;
           const analysisData = isAnalysis ? (a.result as { insights?: Array<{ severity: string; category: string; message: string }>; score?: number }) : null;
           const failed = a.done && !a.ok;
+          const previewData = a.done && a.ok ? extractPreviewData(a.tool, a.result) : null;
           return (
             <div
               key={a.callId}
@@ -622,6 +680,19 @@ export function ChatPanel() {
                       <span className="text-gray-500 flex-1">{ins.message}</span>
                     </div>
                   ))}
+                </div>
+              )}
+              {previewData && (
+                <div className="mt-2 flex items-center gap-3 p-2 bg-black/20 rounded-lg">
+                  <MotionPreview data={previewData} size={72} showLabel={true} />
+                  <div className="flex-1 text-[10px] text-gray-500">
+                    <div className="text-gray-400 font-medium">Live Preview</div>
+                    <div className="mt-0.5">
+                      {previewData.durationMs ?? 800}ms
+                      {previewData.easing?.name ? ` · ${previewData.easing.name}` : ""}
+                      {previewData.keyframes ? ` · ${previewData.keyframes.length} keyframes` : ""}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -756,6 +827,18 @@ export function ChatPanel() {
                 {Math.round(confidence * 100)}% conf
               </span>
             )}
+            {qualityReport && (
+              <span
+                className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${
+                  qualityReport.pass
+                    ? "border-emerald-500/50 text-emerald-300"
+                    : "border-amber-500/50 text-amber-300"
+                }`}
+                title={`Quality: ${qualityReport.overall}/100 (${qualityReport.grade}) · ${qualityReport.autofixCount} findings · ${qualityReport.dimensions.map((d) => `${d.key}:${d.score}`).join(" ")}`}
+              >
+                {qualityReport.grade} {qualityReport.overall}
+              </span>
+            )}
             {(tokensIn > 0 || tokensOut > 0) && (
               <span
                 className="text-[9px] font-mono px-1.5 py-0.5 rounded border border-gray-600 text-gray-300"
@@ -853,7 +936,17 @@ export function ChatPanel() {
       )}
 
       {/* Input form — ChatGPT-style unified input container */}
-      <form onSubmit={handleSubmit} className="p-3 border-t border-edge">
+      <form onSubmit={handleSubmit} className="p-3 border-t border-edge relative">
+        {/* Prompt Library overlay */}
+        {showPromptLibrary && (
+          <PromptLibrary
+            onPick={(p) => {
+              setInput(p);
+              textareaRef.current?.focus();
+            }}
+            onClose={() => setShowPromptLibrary(false)}
+          />
+        )}
         {/* Suggestion chips above the input */}
         <div className="flex gap-1 mb-2 flex-wrap">
           {suggestions.map((s) => (
@@ -881,9 +974,28 @@ export function ChatPanel() {
             className="w-full bg-transparent px-3 pt-2.5 pb-1 text-sm text-gray-100 placeholder-gray-600 focus:outline-none disabled:opacity-50 resize-none overflow-hidden"
             style={{ maxHeight: "140px" }}
           />
-          {/* Bottom bar: model selector (left) + send button (right) */}
+          {/* Bottom bar: prompt library toggle + model selector (left) + send button (right) */}
           <div className="flex items-center justify-between px-2 pb-2 gap-2">
-            <ModelSelector />
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setShowPromptLibrary(!showPromptLibrary)}
+                className={`w-7 h-7 flex items-center justify-center rounded-lg border transition-all ${
+                  showPromptLibrary
+                    ? "border-accent bg-accent/10 text-accent"
+                    : "border-edge text-gray-500 hover:text-gray-300 hover:bg-panel1"
+                }`}
+                title="Prompt library"
+                aria-label="Toggle prompt library"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 18h6" />
+                  <path d="M10 22h4" />
+                  <path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14" />
+                </svg>
+              </button>
+              <ModelSelector />
+            </div>
             {isStreaming ? (
               <button
                 type="button"
