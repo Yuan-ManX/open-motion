@@ -110,6 +110,37 @@ import { liquidRainbowTemplate } from "./liquidRainbow.js";
 import { bookFlipTemplate } from "./bookFlip.js";
 import { beatSnapTemplate } from "./beatSnap.js";
 import { auroraStrollTemplate } from "./auroraStroll.js";
+import { gravitationalLensTemplate } from "./gravitationalLens.js";
+import { quantumDissolveTemplate } from "./quantumDissolve.js";
+import { synthesisWaveTemplate } from "./synthesisWave.js";
+import { tectonicShiftTemplate } from "./tectonicShift.js";
+import { bioLuminescenceTemplate } from "./bioLuminescence.js";
+import { ferrofluidRevealTemplate } from "./ferrofluidReveal.js";
+import { bentoGridRevealTemplate } from "./bentoGridReveal.js";
+import { chromaticOrbitExitTemplate } from "./chromaticOrbitExit.js";
+import { tesseraTransitionTemplate } from "./tesseraTransition.js";
+import { phoneticEmphasisTemplate } from "./phoneticEmphasis.js";
+import { apertureLoaderTemplate } from "./apertureLoader.js";
+import { neuralSparkTemplate } from "./neuralSpark.js";
+import { inkDiffuseTemplate } from "./inkDiffuse.js";
+import { plasmaStormTemplate } from "./plasmaStorm.js";
+import { holographicPrismTemplate } from "./holographicPrism.js";
+import { sonicBoomTemplate } from "./sonicBoom.js";
+import { quantumFluxTemplate } from "./quantumFlux.js";
+import { crystalCascadeTemplate } from "./crystalCascade.js";
+import { eclipseRevealTemplate } from "./eclipseReveal.js";
+import { auroraDriftTemplate } from "./auroraDrift.js";
+import { morphingBlobTemplate } from "./morphingBlob.js";
+import { neuralBloomTemplate } from "./neuralBloom.js";
+import { liquidChromeTemplate } from "./liquidChrome.js";
+import { quantumWaveTemplate } from "./quantumWave.js";
+import { organicPulseTemplate } from "./organicPulse.js";
+import { silkWeaveTemplate } from "./silkWeave.js";
+import { crystallineShatterTemplate } from "./crystallineShatter.js";
+import { gravitationalPullTemplate } from "./gravitationalPull.js";
+import { echoRippleTemplate } from "./echoRipple.js";
+import { prismRefractTemplate } from "./prismRefract.js";
+import { fractureBloomTemplate } from "./fractureBloom.js";
 import type { ComponentDraft, TemplateDef } from "./helper.js";
 
 export const TEMPLATES: TemplateDef[] = [
@@ -223,6 +254,37 @@ export const TEMPLATES: TemplateDef[] = [
   bookFlipTemplate,
   beatSnapTemplate,
   auroraStrollTemplate,
+  gravitationalLensTemplate,
+  quantumDissolveTemplate,
+  synthesisWaveTemplate,
+  tectonicShiftTemplate,
+  bioLuminescenceTemplate,
+  ferrofluidRevealTemplate,
+  bentoGridRevealTemplate,
+  chromaticOrbitExitTemplate,
+  tesseraTransitionTemplate,
+  phoneticEmphasisTemplate,
+  apertureLoaderTemplate,
+  neuralSparkTemplate,
+  inkDiffuseTemplate,
+  plasmaStormTemplate,
+  holographicPrismTemplate,
+  sonicBoomTemplate,
+  quantumFluxTemplate,
+  crystalCascadeTemplate,
+  eclipseRevealTemplate,
+  auroraDriftTemplate,
+  morphingBlobTemplate,
+  neuralBloomTemplate,
+  liquidChromeTemplate,
+  quantumWaveTemplate,
+  organicPulseTemplate,
+  silkWeaveTemplate,
+  crystallineShatterTemplate,
+  gravitationalPullTemplate,
+  echoRippleTemplate,
+  prismRefractTemplate,
+  fractureBloomTemplate,
 ];
 
 export function getTemplate(id: string): TemplateDef | undefined {
