@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from "react";
 import { useUiStore } from "../../store/uiStore.js";
 import { useProjectStore } from "../../store/projectStore.js";
 import { useClipboardStore } from "../../store/clipboardStore.js";
+import { useChatStore } from "../../store/chatStore.js";
 import * as api from "../../api/endpoints.js";
 import type { MotionComponent } from "@openmotion/shared";
 
@@ -28,6 +29,7 @@ export function ContextMenu() {
   const removeComponentLocal = useProjectStore((s) => s.removeComponentLocal);
   const copyToClipboard = useClipboardStore((s) => s.copy);
   const clipboardEntries = useClipboardStore((s) => s.entries);
+  const send = useChatStore((s) => s.send);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   const close = useCallback(() => setMenu(null), [setMenu]);
@@ -138,6 +140,15 @@ export function ContextMenu() {
     close();
   };
 
+  // Ask Agent — sends a context-aware prompt about the right-clicked
+  // component so the user can iterate on it through chat without typing.
+  const handleAskAgent = () => {
+    if (!comp || !projectId) { close(); return; }
+    const name = comp.name ?? comp.id;
+    send(projectId, `Analyze the "${name}" component and suggest motion improvements. Consider easing, timing, and visual polish.`);
+    close();
+  };
+
   const items: MenuItem[] = comp
     ? [
         { label: "Copy", icon: "⎘", shortcut: "⌘C", action: handleCopy },
@@ -148,6 +159,7 @@ export function ContextMenu() {
         { label: "Send to Back", icon: "⤓", action: handleSendToBack },
         { label: isLocked ? "Unlock" : "Lock", icon: isLocked ? "🔒" : "🔓", action: handleLock },
         { label: "—", icon: "", action: () => {} },
+        { label: "Ask Agent", icon: "✦", action: handleAskAgent },
         { label: "Properties", icon: "◐", action: handleProperties },
       ]
     : [
