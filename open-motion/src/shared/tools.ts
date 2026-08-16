@@ -3551,6 +3551,25 @@ export const RunReflectionLoopInput = z.object({
   autoApply: z.boolean().default(true).describe("When true, automatically apply high-confidence remediation patches"),
 });
 
+// Motion Flow State — track creative momentum and flow phase
+export const GetFlowStateInput = z.object({
+  projectId: zIdField,
+});
+
+// Motion Heuristics — design principle evaluation
+export const RunHeuristicsInput = z.object({
+  projectId: zIdField,
+});
+
+// Motion Atelier — creative session orchestrator
+export const GetAtelierReportInput = z.object({
+  projectId: zIdField,
+});
+
+export const GenerateManifestoInput = z.object({
+  projectId: zIdField,
+});
+
 /** Tool-name → input schema registry. The agent and MCP layer both consume this. */
 export const TOOL_INPUT_SCHEMAS = {
   get_motion_spec: GetMotionSpecInput,
@@ -4087,6 +4106,13 @@ export const TOOL_INPUT_SCHEMAS = {
   run_motion_debate: RunMotionDebateInput,
   // Motion Reflection Loop
   run_reflection_loop: RunReflectionLoopInput,
+  // Motion Flow State
+  get_flow_state: GetFlowStateInput,
+  // Motion Heuristics
+  run_heuristics: RunHeuristicsInput,
+  // Motion Atelier
+  get_atelier_report: GetAtelierReportInput,
+  generate_manifesto: GenerateManifestoInput,
 } as const;
 
 export type ToolName = keyof typeof TOOL_INPUT_SCHEMAS;
@@ -4619,4 +4645,8 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   translate_lexicon: "Translate a natural-language motion intent (English or Chinese) onto a formal token system: a duration token (instant/micro/standard/normal/extended/cinematic), an easing token (ease-out/ease-in-out/spring-soft/spring-snappy/linear), a reduced-motion fallback mode (scale-only/crossfade/none), and one of eleven motion categories (entrance, exit, scroll-reveal, hover-press, state-transition, feedback-delight, emphasis, loading, page-transition, text-kinetic, video-transition). Returns matched bilingual cues and suggested tools. Use when the user says '丝滑', '高级', '电影感', '弹性', '淡入', '滑动', '加载', '翻页', '打字', '闪烁', 'motion token', 'duration token', 'easing token', 'reduced-motion mode', or wants the intent translated into motion tokens.",
   run_motion_debate: "Run an adversarial three-judge design debate over a motion collaboration result. The Accessibility Judge checks WCAG compliance (reduced-motion, flash risk, duration), the Performance Judge audits GPU compositing (transform+opacity only, keyframe count), and the Brand Consistency Judge ensures alignment with project style norms. Returns a debate verdict (approve/revise/reject), weighted score, per-judge opinions, and concrete revision tasks with suggested patches. Use when the user asks 'debate this', 'review the collaboration', 'get a second opinion', 'quality check', or wants adversarial evaluation before finalizing a design.",
   run_reflection_loop: "Run an automatic post-turn reflection loop that critiques the current spec across accessibility, performance, aesthetic, and consistency dimensions, then applies high-confidence remediation patches (capped durations, finite iterations, smoother easings, normalized durations). Runs up to 2 passes with diminishing-returns termination. Returns per-pass scores, applied patches, final quality delta, and warnings. Use proactively after any multi-step tool sequence to auto-polish the output, or when the user says 'self-check', 'auto-polish', 'quality pass', 'reflect and fix'.",
+  get_flow_state: "Get the current creative flow state for the project session. Tracks momentum, focus score, experimentation diversity, and phase (warming up, flow, exploration, stagnation, cooling down). Returns actionable recommendations tailored to the current creative phase. Use when the user asks 'how am I doing', 'what should I do next', 'am I in flow', or wants session-aware guidance.",
+  run_heuristics: "Run design heuristics evaluation on the current motion spec. Checks 7 principles: duration range, stagger pattern, scale hierarchy, easing consistency, motion contrast, loop safety, and GPU compositing. Returns per-heuristic scores, composite quality, top issue, and quick wins. Use when the user asks 'evaluate the design', 'check principles', 'design quality', 'heuristic check', or wants principle-based quality assessment.",
+  get_atelier_report: "Get a comprehensive creative session report from the Motion Atelier. Unifies flow state, heuristics, and creative context into a single stage-based workflow (intake, exploration, refinement, validation, delivery). Returns current stage, progress, checkpoint, and next actions. Use when the user asks 'session report', 'where am I in the process', 'creative workflow', 'atelier', 'session status', or wants a holistic view of the creative journey.",
+  generate_manifesto: "Generate a final session manifesto that captures the creative journey. Includes creative direction, style archetype, key decisions, quality journey timeline, breakthrough moments, final score, and a narrative summary. Use when the user says 'summarize the session', 'create a manifesto', 'session summary', 'wrap up', or wants a retrospective of the creative work.",
 };
