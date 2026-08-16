@@ -11,6 +11,8 @@ import { analyzeSymbiosis, formatSymbiosisReport } from "../../agent/motionSymbi
 import { reflect, formatConsciousnessReport } from "../../agent/motionConsciousness.js";
 import { decide, formatVolitionReport, listVolitionModes } from "../../agent/motionVolition.js";
 import { translateLexicon, formatLexiconReport, listMotionTokens, listMotionCategories } from "../../agent/motionLexicon.js";
+import { generateIntelligenceSummary } from "../../agent/intelligenceSummary.js";
+import { findSimilarMotions, summarizeSimilarity } from "../../motion/similarity.js";
 import { createComponent } from "../../db/repositories/components.js";
 import { createId, now } from "../../utils/id.js";
 
@@ -347,5 +349,89 @@ insightsRouter.post("/lexicon/translate", (req, res) => {
   res.json({
     ...report,
     formatted: formatLexiconReport(report),
+  });
+});
+
+/**
+ * GET /api/projects/:id/intelligence — comprehensive intelligence summary.
+ * Aggregates quality, restraint, mood, cohesion, budget, genome, narrative,
+ * topology, entropy, and physics analyses into one dashboard report.
+ */
+insightsRouter.get("/projects/:id/intelligence", (req, res) => {
+  const spec = getProjectSpec(req.params.id);
+  if (!spec) {
+    res.status(404).json({ error: "project not found" });
+    return;
+  }
+  const summary = generateIntelligenceSummary(spec);
+  res.json(summary);
+});
+
+/**
+ * GET /api/projects/:id/similar — cross-project motion similarity search.
+ * Searches all other projects and templates for motions with similar DNA
+ * to the components in this project. Optional query params:
+ *   - componentId: limit search to a single component (default: all components)
+ *   - limit: max results (default 10)
+ *   - threshold: minimum similarity score 0-100 (default 40)
+ */
+insightsRouter.get("/projects/:id/similar", (req, res) => {
+  const spec = getProjectSpec(req.params.id);
+  if (!spec) {
+    res.status(404).json({ error: "project not found" });
+    return;
+  }
+  const componentId = typeof req.query.componentId === "string" ? req.query.componentId : undefined;
+  const limit = Number(req.query.limit ?? 10);
+  const threshold = Number(req.query.threshold ?? 40);
+
+  const targets = componentId
+    ? spec.components.filter((c) => c.id === componentId)
+    : spec.components;
+
+  if (targets.length === 0) {
+    res.json({ matches: [], summary: "no components to search" });
+    return;
+  }
+
+  const allMatches: Array<{
+    componentName: string;
+    projectId: string;
+    projectName: string;
+    dna: string;
+    score: number;
+    matchedSegments: string[];
+    source: "project" | "template";
+    queryComponent: string;
+  }> = [];
+
+  for (const comp of targets) {
+    const result = findSimilarMotions(comp, {
+      excludeProjectId: req.params.id,
+      limit,
+      threshold,
+    });
+    for (const m of result.matches) {
+      allMatches.push({ ...m, queryComponent: comp.name ?? comp.id });
+    }
+  }
+
+  // Sort by score descending and deduplicate by (projectName + componentName)
+  const seen = new Set<string>();
+  const deduped = allMatches
+    .sort((a, b) => b.score - a.score)
+    .filter((m) => {
+      const key = `${m.projectName}|${m.componentName}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, limit);
+
+  res.json({
+    queryProjectId: req.params.id,
+    queryComponentCount: targets.length,
+    matches: deduped,
+    summary: summarizeSimilarity(deduped),
   });
 });
