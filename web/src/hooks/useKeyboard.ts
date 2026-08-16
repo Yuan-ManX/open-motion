@@ -3,6 +3,7 @@ import { useUiStore } from "../store/uiStore.js";
 import { useProjectStore } from "../store/projectStore.js";
 import { useClipboardStore } from "../store/clipboardStore.js";
 import * as api from "../api/endpoints.js";
+import { splitComponentAtTime, rectOf, distributeEvenly } from "../motion/timelineSplit.js";
 
 /**
  * Global keyboard shortcuts for the editor surface. The full key map is also
@@ -84,6 +85,39 @@ export function useKeyboard() {
         }
         return;
       }
+      // Cmd/Ctrl+Shift+D: split selected component at the playhead
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "d" || e.key === "D") && selectedId && projectId) {
+        e.preventDefault();
+        const comp = components.find((c) => c.id === selectedId);
+        if (comp) {
+          const playheadMs = useUiStore.getState().playheadMs;
+          const { before, after } = splitComponentAtTime(comp, playheadMs);
+          // Remove the original, insert the two siblings
+          void (async () => {
+            try {
+              await api.removeComponent(projectId, comp.id);
+              useProjectStore.getState().removeComponentLocal(comp.id);
+              const b = await api.createComponent(projectId, { name: before.name });
+              await api.patchComponent(projectId, b.id, {
+                easing: before.easing, durationMs: before.durationMs, delayMs: before.delayMs,
+                iterationCount: before.iterationCount, direction: before.direction,
+                keyframes: before.keyframes, style: before.style,
+              } as Partial<import("@openmotion/shared").MotionComponent>);
+              useProjectStore.getState().addComponentLocal({ ...b, ...{ easing: before.easing, durationMs: before.durationMs, delayMs: before.delayMs, iterationCount: before.iterationCount, direction: before.direction, keyframes: before.keyframes, style: before.style } } as never);
+              const a = await api.createComponent(projectId, { name: after.name });
+              await api.patchComponent(projectId, a.id, {
+                easing: after.easing, durationMs: after.durationMs, delayMs: after.delayMs,
+                iterationCount: after.iterationCount, direction: after.direction,
+                keyframes: after.keyframes, style: after.style,
+              } as Partial<import("@openmotion/shared").MotionComponent>);
+              useProjectStore.getState().addComponentLocal({ ...a, ...{ easing: after.easing, durationMs: after.durationMs, delayMs: after.delayMs, iterationCount: after.iterationCount, direction: after.direction, keyframes: after.keyframes, style: after.style } } as never);
+              await useProjectStore.getState().loadProject(projectId);
+              useUiStore.getState().selectComponent(a.id);
+            } catch { /* split failed — leave untouched */ }
+          })();
+        }
+        return;
+      }
       if ((e.metaKey || e.ctrlKey) && (e.key === "a" || e.key === "A") && projectId) {
         e.preventDefault();
         setSelectedIds(components.map((c) => c.id));
@@ -119,6 +153,40 @@ export function useKeyboard() {
         e.preventDefault();
         for (const id of selectedIds) {
           useProjectStore.getState().ungroupComponentLocal(id);
+        }
+        return;
+      }
+      // Cmd/Ctrl+Shift+H: distribute selected components horizontally
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "h" || e.key === "H") && selectedIds.size >= 3 && projectId) {
+        e.preventDefault();
+        const rects = Array.from(selectedIds).map((id) => {
+          const c = components.find((x) => x.id === id)!;
+          return rectOf(c, 0, 0);
+        });
+        const patches = distributeEvenly(rects, "x");
+        for (const p of patches) {
+          const comp = components.find((c) => c.id === p.id);
+          if (!comp) continue;
+          const newStyle = { ...(comp.style as Record<string, unknown>), ...p.stylePatch } as Record<string, string | number>;
+          useProjectStore.getState().updateComponentLive(p.id, newStyle);
+          void api.patchComponent(projectId, p.id, { style: newStyle }).catch(() => {});
+        }
+        return;
+      }
+      // Cmd/Ctrl+Shift+V: distribute selected components vertically
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "v" || e.key === "V") && selectedIds.size >= 3 && projectId) {
+        e.preventDefault();
+        const rects = Array.from(selectedIds).map((id) => {
+          const c = components.find((x) => x.id === id)!;
+          return rectOf(c, 0, 0);
+        });
+        const patches = distributeEvenly(rects, "y");
+        for (const p of patches) {
+          const comp = components.find((c) => c.id === p.id);
+          if (!comp) continue;
+          const newStyle = { ...(comp.style as Record<string, unknown>), ...p.stylePatch } as Record<string, string | number>;
+          useProjectStore.getState().updateComponentLive(p.id, newStyle);
+          void api.patchComponent(projectId, p.id, { style: newStyle }).catch(() => {});
         }
         return;
       }
