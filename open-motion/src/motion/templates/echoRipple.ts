@@ -1,0 +1,102 @@
+import { easingPreset } from "@openmotion/shared";
+import { draft, kf, type TemplateDef } from "./helper.js";
+
+// Echo ripple: concentric waves ripple outward in a repeating echo pattern
+export const echoRippleTemplate: TemplateDef = {
+  id: "tpl-echo-ripple",
+  name: "Echo Ripple",
+  category: "emphasis",
+  description: "Concentric waves ripple outward in a repeating echo pattern — a resonant, spatial emphasis that conveys impact and reverberation.",
+  tags: ["emphasis", "echo", "ripple", "wave", "concentric", "resonance", "impact", "reverberation"],
+  build: () => [
+    draft("Ripple Core", {
+      durationMs: 600,
+      delayMs: 0,
+      easing: easingPreset("ease-out"),
+      iterationCount: 1,
+      keyframes: [
+        kf(0, { scale: 0.5, opacity: 1 }),
+        kf(1, { scale: 1, opacity: 0.8 }),
+      ],
+      style: {
+        _content: "",
+        _tag: "div",
+        width: "80px",
+        height: "80px",
+        background: "radial-gradient(circle, #818cf8 0%, #6366f1 50%, transparent 80%)",
+        borderRadius: "50%",
+        boxShadow: "0 0 30px rgba(99,102,241,0.6)",
+        position: "absolute",
+        left: "50%",
+        top: "50%",
+        transform: "translate(-50%, -50%)",
+      },
+    }),
+    draft("Ripple Wave 1", {
+      durationMs: 1200,
+      delayMs: 0,
+      easing: easingPreset("ease-out"),
+      iterationCount: 1,
+      keyframes: [
+        kf(0, { scale: 0.5, opacity: 0.8 }),
+        kf(1, { scale: 3, opacity: 0 }),
+      ],
+      style: {
+        _content: "",
+        _tag: "div",
+        width: "80px",
+        height: "80px",
+        border: "2px solid rgba(99,102,241,0.6)",
+        borderRadius: "50%",
+        position: "absolute",
+        left: "50%",
+        top: "50%",
+        transform: "translate(-50%, -50%)",
+      },
+    }),
+    draft("Ripple Wave 2", {
+      durationMs: 1200,
+      delayMs: 300,
+      easing: easingPreset("ease-out"),
+      iterationCount: 1,
+      keyframes: [
+        kf(0, { scale: 0.5, opacity: 0.6 }),
+        kf(1, { scale: 3, opacity: 0 }),
+      ],
+      style: {
+        _content: "",
+        _tag: "div",
+        width: "80px",
+        height: "80px",
+        border: "2px solid rgba(129,140,248,0.5)",
+        borderRadius: "50%",
+        position: "absolute",
+        left: "50%",
+        top: "50%",
+        transform: "translate(-50%, -50%)",
+      },
+    }),
+    draft("Ripple Wave 3", {
+      durationMs: 1200,
+      delayMs: 600,
+      easing: easingPreset("ease-out"),
+      iterationCount: 1,
+      keyframes: [
+        kf(0, { scale: 0.5, opacity: 0.4 }),
+        kf(1, { scale: 3, opacity: 0 }),
+      ],
+      style: {
+        _content: "",
+        _tag: "div",
+        width: "80px",
+        height: "80px",
+        border: "2px solid rgba(165,180,252,0.4)",
+        borderRadius: "50%",
+        position: "absolute",
+        left: "50%",
+        top: "50%",
+        transform: "translate(-50%, -50%)",
+      },
+    }),
+  ],
+};
