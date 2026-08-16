@@ -4,6 +4,7 @@ import * as api from "../../api/endpoints.js";
 import type { PresetPack, CatalogSearchResult, CatalogSummary } from "../../api/endpoints.js";
 import { useProjectStore } from "../../store/projectStore.js";
 import { useUiStore } from "../../store/uiStore.js";
+import { TemplateGallery } from "../motion/TemplateGallery.js";
 
 type CodeFormat = "react" | "framer" | "html" | "css";
 
@@ -91,6 +92,7 @@ export function TemplatesPanel() {
   const projectId = useProjectStore((s) => s.projectId);
   const components = useProjectStore((s) => s.components);
   const selectedComponentId = useUiStore((s) => s.selectedComponentId);
+  const [galleryView, setGalleryView] = useState(false);
 
   useEffect(() => {
     api.listTemplates().then((t) => {
@@ -343,6 +345,20 @@ export function TemplatesPanel() {
             {m === "templates" ? "Templates" : "Catalog"}
           </button>
         ))}
+        {browseMode === "templates" && (
+          <button
+            onClick={() => setGalleryView(!galleryView)}
+            className={`ml-auto text-[10px] px-1.5 py-1 rounded transition-colors ${
+              galleryView
+                ? "bg-panel3 text-accent"
+                : "text-gray-500 hover:text-gray-300"
+            }`}
+            title={galleryView ? "Switch to list view" : "Switch to gallery view with live previews"}
+            aria-pressed={galleryView}
+          >
+            {galleryView ? "▦" : "☰"}
+          </button>
+        )}
         {browseMode === "catalog" && catalogSummary && (
           <span className="ml-auto text-[9px] text-gray-600 font-mono">{catalogSummary.total} resources</span>
         )}
@@ -586,7 +602,23 @@ export function TemplatesPanel() {
         </div>
       )}
 
-      {/* Template list */}
+      {/* Gallery view — live animated previews powered by MotionPreview.
+          The gallery component manages its own search and category filter,
+          so we only render it (and skip the search/category section above)
+          when galleryView is active. Clicking a template routes through
+          the same handlePick path as the list view so it lands on the
+          timeline identically. */}
+      {galleryView ? (
+        <div className="flex-1 overflow-hidden">
+          <TemplateGallery
+            onApply={(id) => {
+              const tpl = templates.find((t) => t.id === id);
+              if (tpl) void handlePick(tpl);
+            }}
+            className="h-full"
+          />
+        </div>
+      ) : (
       <div className="flex-1 overflow-y-auto px-2 pb-2 space-y-2">
         {filtered.map((tpl) => {
           const matchedFields = "matchedFields" in tpl ? (tpl as SearchResultItem).matchedFields : [];
@@ -659,6 +691,7 @@ export function TemplatesPanel() {
           </div>
         )}
       </div>
+      )}
         </>
       )}
 
