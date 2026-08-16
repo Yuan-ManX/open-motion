@@ -24,6 +24,10 @@ import { insightsRouter } from "./routes/insights.js";
 import { catalogRouter } from "./routes/catalog.js";
 import { motionRouter } from "./routes/motion.js";
 import { providersRouter } from "./routes/providers.js";
+import batchRouter from "./routes/batch.js";
+import { plannerRouter } from "./routes/planner.js";
+import { qualityRouter } from "./routes/quality.js";
+import { analyticsRouter } from "./routes/analytics.js";
 import { mountMcpHttp } from "../mcp/transport-http.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -63,6 +67,10 @@ export function createApp(): Express {
   app.use("/api", catalogRouter);
   app.use("/api", motionRouter);
   app.use("/api", providersRouter);
+  app.use("/api/projects/:id/batch", batchRouter);
+  app.use("/api", plannerRouter);
+  app.use("/api", qualityRouter);
+  app.use("/api", analyticsRouter);
 
   mountMcpHttp(app);
 
