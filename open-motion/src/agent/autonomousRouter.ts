@@ -88,7 +88,7 @@ const BUCKET_KEYWORDS: Record<IntentBucket, string[]> = {
   tune_easing: ["easing", "curve", "slow", "fast", "spring", "smooth", "缓动", "曲线", "动画曲线"],
   choreograph_timeline: ["timeline", "sequence", "order", "stagger", "delay", "时间轴", "序列", "顺序", "交错"],
   run_collaboration: ["collaborate", "multi-engine", "all modules", "comprehensive", "deep", "全面", "综合", "协作", "深度"],
-  analyze_project: ["analyze", "inspect", "check", "review", "audit", "health", "gaze", "chronopath", "attention", "eye", "context", "session", "direction", "creative", "style", "pattern", "debate", "polish", "self-check", "reflect", "quality", "verdict", "judge", "critique", "目光", "分析", "检查", "审查", "健康度", "创意", "方向", "辩论", "打磨", "自检", "质量"],
+  analyze_project: ["analyze", "inspect", "check", "review", "audit", "health", "gaze", "chronopath", "attention", "eye", "context", "session", "direction", "creative", "style", "pattern", "debate", "polish", "self-check", "reflect", "quality", "verdict", "judge", "critique", "heuristic", "principle", "flow", "momentum", "how am i doing", "what next", "stuck", "atelier", "manifesto", "workflow", "stage", "progress", "wrap up", "summarize", "retrospective", "目光", "分析", "检查", "审查", "健康度", "创意", "方向", "辩论", "打磨", "自检", "质量", "启发式", "原则", "心流", "动量", "卡住", "工作室", "宣言", "工作流", "阶段", "总结"],
   export_output: ["export", "render", "output", "download", "导出", "渲染", "输出", "下载"],
   manage_project: ["project", "rename", "delete", "save", "clone", "项目", "重命名", "删除", "保存"],
   query_catalog: ["search", "find", "list", "catalog", "browse", "搜索", "查找", "浏览", "目录"],
@@ -282,6 +282,27 @@ function expandIntentToSteps(bucket: IntentBucket, request: string): ToolStep[] 
 
     case "analyze_project":
       return [
+        {
+          tool: "get_atelier_report",
+          forwardFields: ["request"],
+          rationale: "Atelier report provides holistic session view across all quality and flow dimensions.",
+          confidence: 0.96,
+          maxRetries: 1,
+        },
+        {
+          tool: "run_heuristics",
+          forwardFields: ["request"],
+          rationale: "Design heuristics evaluation checks 7 quality principles with actionable suggestions.",
+          confidence: 0.94,
+          maxRetries: 1,
+        },
+        {
+          tool: "get_flow_state",
+          forwardFields: ["request"],
+          rationale: "Creative flow state reveals momentum, focus, and phase-based guidance.",
+          confidence: 0.88,
+          maxRetries: 1,
+        },
         {
           tool: "run_motion_debate",
           forwardFields: ["request"],
