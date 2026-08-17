@@ -257,6 +257,44 @@ export const BRAND_PACK_PRESETS: Array<Omit<BrandPack, "id" | "createdAt">> = [
       { name: "Data Update", description: "Quick value transition", easing: easingPreset("ease"), durationMs: 200 },
     ],
   },
+  {
+    name: "Neon Pulse",
+    description: "Cyberpunk energy — glowing entrances, electric pulses, chromatic accents. For gaming, crypto, and futurist brands.",
+    durationScale: { fast: 180, normal: 350, slow: 600, cinematic: 900 },
+    easings: {
+      primary: easingBezier([0.22, 1.2], [0.36, 1]),
+      secondary: easingPreset("ease-out"),
+      emphasis: easingPreset("elastic"),
+      exit: easingPreset("ease-in"),
+    },
+    defaultTrigger: "onLoad",
+    loopPhilosophy: "subtle-ambient",
+    staggerStepMs: 60,
+    personality: { energy: 10, formality: 3, playfulness: 7, precision: 5 },
+    signaturePatterns: [
+      { name: "Glitch Reveal", description: "Chromatic split with scan-line sweep", easing: easingBezier([0.22, 1.2], [0.36, 1]), durationMs: 350 },
+      { name: "Neon Flicker", description: "Rapid on-off-on pulse like a faulty tube light", easing: easingPreset("snappy"), durationMs: 180 },
+    ],
+  },
+  {
+    name: "Organic Flow",
+    description: "Nature-inspired motion — gentle curves, breathing rhythms, botanical ease. For wellness, eco, and lifestyle brands.",
+    durationScale: { fast: 300, normal: 550, slow: 900, cinematic: 1400 },
+    easings: {
+      primary: easingBezier([0.25, 0.1], [0.25, 1]),
+      secondary: easingSpring(120, 14, 1),
+      emphasis: easingBezier([0.34, 1.3], [0.64, 1]),
+      exit: easingBezier([0.4, 0], [0.6, 0.5]),
+    },
+    defaultTrigger: "onScroll",
+    loopPhilosophy: "subtle-ambient",
+    staggerStepMs: 90,
+    personality: { energy: 4, formality: 4, playfulness: 6, precision: 4 },
+    signaturePatterns: [
+      { name: "Petal Unfold", description: "Elements unfold like a flower opening", easing: easingBezier([0.34, 1.3], [0.64, 1]), durationMs: 900 },
+      { name: "Breathing Scale", description: "Infinite gentle scale pulse like breathing", easing: easingSpring(120, 14, 1), durationMs: 2800 },
+    ],
+  },
 ];
 
 /** Seed a project with brand pack presets. */
