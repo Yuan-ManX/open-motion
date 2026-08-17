@@ -90,6 +90,16 @@ interface ChatState {
   goal: GoalNode | null;
   proactiveSuggestions: ProactiveSuggestion[];
   sessionSummary: SessionSummary | null;
+  // Quality pipeline report emitted after spec-mutating turns. Null when
+  // no quality check has run yet or the spec was not changed.
+  qualityReport: {
+    overall: number;
+    grade: string;
+    pass: boolean;
+    autofixCount: number;
+    dimensions: Array<{ key: string; score: number; passed: boolean; findingCount: number }>;
+    suggestedNext: string[];
+  } | null;
   // Agent self-assessed confidence (0..1) for the most recent `done` event.
   // Null before the first turn completes or when the agent omits the field.
   confidence: number | null;
@@ -160,6 +170,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   goal: null,
   proactiveSuggestions: [],
   sessionSummary: null,
+  qualityReport: null,
   confidence: null,
   parallelBatches: [],
   tokensIn: 0,
@@ -210,6 +221,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       goal: null,
       proactiveSuggestions: [],
       sessionSummary: null,
+  qualityReport: null,
       confidence: null,
       parallelBatches: [],
       tokensIn: 0,
@@ -436,6 +448,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
           case "proactive_suggestion":
             set({ proactiveSuggestions: event.suggestions });
             break;
+          case "quality_report":
+            set({ qualityReport: event });
+            break;
           case "session_summary":
             set({ sessionSummary: event.summary });
             // Attach the session summary to the most recent generation.
@@ -531,7 +546,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             });
             break;
           case "error":
-            set({ isStreaming: false, streamingTokens: "", plan: null, completedStepIndices: [], activeStepIndex: -1, reasoningText: "", thinking: null, reflection: null, goal: null, proactiveSuggestions: [], error: event.message, abortController: null, specChangedDuringStream: false });
+            set({ isStreaming: false, streamingTokens: "", plan: null, completedStepIndices: [], activeStepIndex: -1, reasoningText: "", thinking: null, reflection: null, goal: null, proactiveSuggestions: [], qualityReport: null, error: event.message, abortController: null, specChangedDuringStream: false });
             break;
           case "editor_command": {
             // Dispatch editor commands emitted by editor_* tools to the
@@ -749,7 +764,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     activeStreamId++;
     const { abortController } = get();
     if (abortController) abortController.abort();
-    set({ isStreaming: false, streamingTokens: "", plan: null, completedStepIndices: [], activeStepIndex: -1, reasoningText: "", thinking: null, reflection: null, goal: null, sessionSummary: null, parallelBatches: [], abortController: null });
+    set({ isStreaming: false, streamingTokens: "", plan: null, completedStepIndices: [], activeStepIndex: -1, reasoningText: "", thinking: null, reflection: null, goal: null, sessionSummary: null, qualityReport: null, parallelBatches: [], abortController: null });
   },
 
   clear: async (projectId) => {
@@ -769,6 +784,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       reflection: null,
       goal: null,
       sessionSummary: null,
+  qualityReport: null,
       parallelBatches: [],
       tokensIn: 0,
       tokensOut: 0,
