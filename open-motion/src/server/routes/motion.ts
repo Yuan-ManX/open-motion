@@ -258,6 +258,9 @@ import {
   formatChronopathReport,
 } from "../../agent/motionChronopath.js";
 import { analyzeCreativeContext } from "../../agent/motionCreativeContext.js";
+import { getFlowState, formatFlowStateReport } from "../../agent/motionFlowState.js";
+import { runHeuristics, formatHeuristicsReport } from "../../agent/motionHeuristics.js";
+import { generateAtelierReport, formatAtelierReport, generateManifesto } from "../../agent/motionAtelier.js";
 import { patchComponent } from "../../db/repositories/components.js";
 
 export const motionRouter = Router();
@@ -967,6 +970,78 @@ motionRouter.get("/projects/:id/creative-context", (req, res) => {
   }
   const report = analyzeCreativeContext(req.params.id, spec);
   res.json(report);
+});
+
+// ---------------------------------------------------------------------------
+// Motion Flow State — creative momentum tracking
+// ---------------------------------------------------------------------------
+
+/**
+ * GET /api/projects/:id/flow-state — get the current creative flow state.
+ * Returns phase, momentum, focus, experimentation scores, and recommendations.
+ */
+motionRouter.get("/projects/:id/flow-state", (req, res) => {
+  const spec = getProjectSpec(req.params.id);
+  if (!spec) {
+    res.status(404).json({ error: "project not found" });
+    return;
+  }
+  const snap = getFlowState(req.params.id, spec);
+  res.json({ ...snap, summary: formatFlowStateReport(snap) });
+});
+
+// ---------------------------------------------------------------------------
+// Motion Heuristics — design principle evaluation
+// ---------------------------------------------------------------------------
+
+/**
+ * GET /api/projects/:id/heuristics — run design heuristics on the project.
+ * Returns per-heuristic scores, composite quality, top issue, and quick wins.
+ */
+motionRouter.get("/projects/:id/heuristics", (req, res) => {
+  const spec = getProjectSpec(req.params.id);
+  if (!spec) {
+    res.status(404).json({ error: "project not found" });
+    return;
+  }
+  if (spec.components.length === 0) {
+    res.status(400).json({ error: "no components to evaluate — add content first" });
+    return;
+  }
+  const report = runHeuristics(spec);
+  res.json({ ...report, summary: formatHeuristicsReport(report) });
+});
+
+// ---------------------------------------------------------------------------
+// Motion Atelier — creative session orchestrator
+// ---------------------------------------------------------------------------
+
+/**
+ * GET /api/projects/:id/atelier — get a comprehensive creative session report.
+ * Unifies flow state, heuristics, and creative context into stage-based workflow.
+ */
+motionRouter.get("/projects/:id/atelier", (req, res) => {
+  const spec = getProjectSpec(req.params.id);
+  if (!spec) {
+    res.status(404).json({ error: "project not found" });
+    return;
+  }
+  const report = generateAtelierReport(req.params.id, spec);
+  res.json({ ...report, summary: formatAtelierReport(report) });
+});
+
+/**
+ * GET /api/projects/:id/manifesto — generate a final session manifesto.
+ * Captures the creative journey with narrative, breakthroughs, and quality timeline.
+ */
+motionRouter.get("/projects/:id/manifesto", (req, res) => {
+  const spec = getProjectSpec(req.params.id);
+  if (!spec) {
+    res.status(404).json({ error: "project not found" });
+    return;
+  }
+  const manifesto = generateManifesto(req.params.id, spec);
+  res.json(manifesto);
 });
 
 // ---------------------------------------------------------------------------
