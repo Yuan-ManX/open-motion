@@ -72,10 +72,16 @@ import {
   blendConcepts,
   formatProfile,
 } from "../motionSemantics.js";
-import { findHarmonics } from "../motionHarmonics.js";
+import { analyzeHarmonics, findHarmonics, formatHarmonicsReport } from "../motionHarmonics.js";
+import { analyzeTopology, formatTopologyReport } from "../motionTopology.js";
+import { analyzeAlchemy, formatAlchemyReport } from "../motionAlchemy.js";
+import { analyzeCinema, formatCinemaReport } from "../motionCinema.js";
 import { analyzeCreativeContext } from "../motionCreativeContext.js";
 import { runDesignDebate, formatDebateReport } from "../motionDebate.js";
 import { runReflectionLoop, formatReflectionReport, type ReflectionPatch } from "../motionReflectionLoop.js";
+import { getFlowState, formatFlowStateReport } from "../motionFlowState.js";
+import { runHeuristics, formatHeuristicsReport } from "../motionHeuristics.js";
+import { generateAtelierReport, formatAtelierReport, generateManifesto } from "../motionAtelier.js";
 
 type Executor = (args: Record<string, unknown>, ctx: ToolContext) => ToolResult | Promise<ToolResult>;
 
@@ -497,6 +503,60 @@ export const advancedExecutors: Partial<Record<ToolName, Executor>> = {
     };
   },
 
+  analyze_harmonics: (_args, ctx) => {
+    const loaded = loadSpec(ctx);
+    if ("error" in loaded) return loaded.error;
+    const report = analyzeHarmonics(loaded.spec);
+    return {
+      ok: true,
+      summary: formatHarmonicsReport(report),
+      specChanged: false,
+      data: report,
+    };
+  },
+
+  // --- Motion topology ------------------------------------------------------
+
+  analyze_topology: (_args, ctx) => {
+    const loaded = loadSpec(ctx);
+    if ("error" in loaded) return loaded.error;
+    const report = analyzeTopology(loaded.spec);
+    return {
+      ok: true,
+      summary: formatTopologyReport(report),
+      specChanged: false,
+      data: report,
+    };
+  },
+
+  // --- Motion alchemy -------------------------------------------------------
+
+  analyze_alchemy: (_args, ctx) => {
+    const loaded = loadSpec(ctx);
+    if ("error" in loaded) return loaded.error;
+    const report = analyzeAlchemy(loaded.spec);
+    return {
+      ok: true,
+      summary: formatAlchemyReport(report),
+      specChanged: false,
+      data: report,
+    };
+  },
+
+  // --- Motion cinema --------------------------------------------------------
+
+  analyze_cinema: (_args, ctx) => {
+    const loaded = loadSpec(ctx);
+    if ("error" in loaded) return loaded.error;
+    const report = analyzeCinema(loaded.spec);
+    return {
+      ok: true,
+      summary: formatCinemaReport(report),
+      specChanged: false,
+      data: report,
+    };
+  },
+
   // --- Motion Debate — adversarial multi-judge design review ----------------
 
   run_motion_debate: async (args, ctx) => {
@@ -546,6 +606,60 @@ export const advancedExecutors: Partial<Record<ToolName, Executor>> = {
       summary: formatReflectionReport(result),
       specChanged: result.totalPatches > 0 && autoApply,
       data: result,
+    };
+  },
+
+  // --- Motion Flow State — creative momentum tracking ---------------------
+
+  get_flow_state: (_args, ctx) => {
+    const loaded = loadSpec(ctx);
+    if ("error" in loaded) return loaded.error;
+    const snap = getFlowState(ctx.projectId, loaded.spec);
+    return {
+      ok: true,
+      summary: formatFlowStateReport(snap),
+      specChanged: false,
+      data: snap,
+    };
+  },
+
+  // --- Motion Heuristics — design principle evaluation ---------------------
+
+  run_heuristics: (_args, ctx) => {
+    const loaded = loadSpec(ctx);
+    if ("error" in loaded) return loaded.error;
+    const report = runHeuristics(loaded.spec);
+    return {
+      ok: true,
+      summary: formatHeuristicsReport(report),
+      specChanged: false,
+      data: report,
+    };
+  },
+
+  // --- Motion Atelier — creative session orchestrator ----------------------
+
+  get_atelier_report: (_args, ctx) => {
+    const loaded = loadSpec(ctx);
+    if ("error" in loaded) return loaded.error;
+    const report = generateAtelierReport(ctx.projectId, loaded.spec);
+    return {
+      ok: true,
+      summary: formatAtelierReport(report),
+      specChanged: false,
+      data: report,
+    };
+  },
+
+  generate_manifesto: (_args, ctx) => {
+    const loaded = loadSpec(ctx);
+    if ("error" in loaded) return loaded.error;
+    const manifesto = generateManifesto(ctx.projectId, loaded.spec);
+    return {
+      ok: true,
+      summary: manifesto.narrative,
+      specChanged: false,
+      data: manifesto,
     };
   },
 };
